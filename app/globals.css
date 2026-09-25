@@ -1,0 +1,357 @@
+@import "tailwindcss";
+
+/*
+ * Castle design tokens, from Design/Castle_Hub.html.
+ * Use these via Tailwind utilities: bg-panel, border-line, text-muted, text-up...
+ */
+@theme {
+  --color-bg: #0b0c10;
+  --color-sidebar: #0e0f13;
+  --color-topbar: #0d0e12;
+  --color-panel: #111318;
+  --color-panel-2: #15171d;
+  --color-hover: #191b23;
+  --color-line: #24262e;
+  --color-soft: #1d2027;
+  --color-fg: #e9eaf0;
+  --color-muted: #9599a8;
+  --color-dim: #747989;
+  --color-accent: #aaa3ef;
+  --color-accent-bg: #222034;
+  --color-up: #6dc7a1;
+  --color-down: #e39199;
+
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Design breakpoints. Use max-* variants (max-phone:, max-tablet:, max-laptop:) to mirror the design's max-width queries. */
+  --breakpoint-phone: 761px;
+  --breakpoint-tablet: 1001px;
+  --breakpoint-laptop: 1251px;
+  --breakpoint-wide: 1650px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 90px;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  a,
+  input,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  :where(button, a, input, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+  }
+  h1,
+  h2 {
+    margin: 0;
+  }
+}
+
+@layer components {
+  .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: middle;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.65px;
+    text-transform: uppercase;
+    color: var(--color-dim);
+  }
+  .tiny-tag {
+    font-size: 8px;
+    color: #9397a9;
+    border: 1px solid #30323c;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-weight: 400;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+  }
+  .sector-dot {
+    display: inline-block;
+    height: 5px;
+    width: 5px;
+    border-radius: 50%;
+    background: var(--sector-color);
+    flex-shrink: 0;
+  }
+
+  /* Panels */
+  .panel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-line);
+    border-radius: 7px;
+    overflow: hidden;
+    scroll-margin-top: 87px;
+  }
+  .panel-foot {
+    border-top: 1px solid var(--color-line);
+    padding: 9px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--color-dim);
+    font-size: 8px;
+  }
+
+  /* Buttons & controls */
+  .btn {
+    border: 1px solid #3c394e;
+    border-radius: 5px;
+    background: #252233;
+    color: #d7d0f5;
+    padding: 7px 11px;
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn:hover {
+    background: #342f47;
+  }
+  .btn .icon {
+    width: 13px;
+    height: 13px;
+  }
+  .segment {
+    display: flex;
+    align-items: center;
+    background: #0d0f13;
+    border: 1px solid #292b35;
+    border-radius: 5px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .segment button {
+    font-size: 9px;
+    color: #9195a4;
+    padding: 4px 9px;
+    line-height: 1.4;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .segment button:hover {
+    color: #e4e5ec;
+  }
+  .segment button[aria-pressed="true"] {
+    background: #30303d;
+    color: #ece9ff;
+  }
+  .segment.segment-accent button[aria-pressed="true"] {
+    background: var(--color-accent-bg);
+    color: #c8c0f8;
+  }
+  .select {
+    appearance: none;
+    background: #15171e;
+    border: 1px solid #30323c;
+    border-radius: 4px;
+    color: #abaebe;
+    padding: 5px 26px 5px 9px;
+    font-size: 9px;
+    cursor: pointer;
+    line-height: 1.5;
+  }
+  .select:hover {
+    border-color: #535068;
+  }
+  .select option {
+    background: #171920;
+    color: #eee;
+  }
+
+  /* Status tags */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 8px;
+    line-height: 1.2;
+    border: 1px solid;
+  }
+  .status::before {
+    content: "";
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .status-announced,
+  .status-filed {
+    color: #b0a8e4;
+    background: #242135;
+    border-color: #342e4b;
+  }
+  .status-pending,
+  .status-priced {
+    color: #c1b18b;
+    background: #272419;
+    border-color: #3a3425;
+  }
+  .status-closed,
+  .status-trading {
+    color: #80b89e;
+    background: #1c2923;
+    border-color: #2b3c32;
+  }
+
+  /* Data tables */
+  .data-table {
+    border-collapse: collapse;
+    width: 100%;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 10px;
+  }
+  .data-table th {
+    padding: 9px 17px;
+    background: #14161c;
+    color: #777e91;
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.35px;
+  }
+  .data-table td {
+    height: 43px;
+    padding: 9px 17px;
+    border-bottom: 1px solid var(--color-soft);
+    color: #a9adbb;
+    font-size: 10px;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .data-table tr.row-link {
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .data-table tr.row-link:hover,
+  .data-table tr.row-link:focus-visible {
+    background: #1a1c24;
+    outline-offset: -2px;
+  }
+  .data-table.compact th,
+  .data-table.compact td {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  @media (max-width: 1250px) {
+    .data-table th,
+    .data-table td {
+      padding-left: 13px;
+      padding-right: 13px;
+    }
+  }
+  @media (max-width: 760px) {
+    .data-table.compact th,
+    .data-table.compact td {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
+  .value-cell {
+    color: #e0e1e8;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+  }
+  .company-cell {
+    color: #d7d9e2;
+    font-weight: 500;
+  }
+
+  /* Modal */
+  .modal {
+    background: #12141b;
+    border: 1px solid #393545;
+    border-radius: 10px;
+    color: var(--color-fg);
+    width: 580px;
+    max-width: calc(100vw - 30px);
+    max-height: 85vh;
+    padding: 0;
+    margin: auto;
+    box-shadow: 0 30px 100px #0009;
+  }
+  .modal::backdrop {
+    background: #04050bcc;
+    backdrop-filter: blur(4px);
+  }
+  .modal p {
+    font-size: 12px;
+    line-height: 1.8;
+    color: #a7abbb;
+    margin: 0 0 15px;
+  }
+  .modal .data-table {
+    margin-bottom: 17px;
+  }
+  .modal .data-table th,
+  .modal .data-table td {
+    padding: 10px;
+    font-size: 10px;
+    white-space: normal;
+    height: auto;
+  }
+  .modal .data-table th {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
