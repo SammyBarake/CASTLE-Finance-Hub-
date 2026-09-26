@@ -9,7 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Deal, Ipo } from "../lib/types";
+import type { Deal, Ipo, Macro } from "../lib/types";
 
 export interface StoredDeal extends Deal {
   valueKind: "enterprise" | "equity" | "transaction" | null;
@@ -35,6 +35,8 @@ export interface State {
   /** EDGAR documents already processed. */
   seen: Set<string>;
   asOf: string | null;
+  /** World Economies (IMF + BIS); kept from the last successful fetch. */
+  macro: Macro | null;
 }
 
 export interface Store {
@@ -50,14 +52,14 @@ export class JsonStore implements Store {
   constructor(private path = LOCAL_DATA_PATH) {}
 
   async load(): Promise<State> {
-    if (!existsSync(this.path)) return { deals: [], ipos: [], seen: new Set(), asOf: null };
+    if (!existsSync(this.path)) return { deals: [], ipos: [], seen: new Set(), asOf: null, macro: null };
     const raw = JSON.parse(readFileSync(this.path, "utf8"));
-    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null };
+    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null, macro: raw.macro ?? null };
   }
 
   async save(state: State) {
     mkdirSync(dirname(this.path), { recursive: true });
-    const out = { asOf: state.asOf, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
+    const out = { asOf: state.asOf, macro: state.macro, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
     writeFileSync(this.path, JSON.stringify(out, null, 1));
   }
 }
@@ -95,14 +97,16 @@ export class SupabaseStore implements Store {
       selectAll<{ data: StoredDeal }>(this.db, "deals", "data"),
       selectAll<{ data: StoredIpo }>(this.db, "ipos", "data"),
       selectAll<{ id: string }>(this.db, "seen_docs", "id"),
-      this.db.from("meta").select("value").eq("key", "asOf").maybeSingle(),
+      this.db.from("meta").select("key, value").in("key", ["asOf", "macro"]),
     ]);
     this.loadedSeen = new Set(seen.map((s) => s.id));
+    const metaValue = (key: string) => meta.data?.find((m) => m.key === key)?.value;
     return {
       deals: deals.map((d) => d.data),
       ipos: ipos.map((i) => i.data),
       seen: new Set(this.loadedSeen),
-      asOf: (meta.data?.value as string | undefined) ?? null,
+      asOf: (metaValue("asOf") as string | undefined) ?? null,
+      macro: (metaValue("macro") as Macro | undefined) ?? null,
     };
   }
 
@@ -127,7 +131,8 @@ export class SupabaseStore implements Store {
     }
     const newSeen = [...state.seen].filter((id) => !this.loadedSeen.has(id)).map((id) => ({ id }));
     await upsertChunks(this.db, "seen_docs", newSeen);
-    const { error } = await this.db.from("meta").upsert({ key: "asOf", value: state.asOf });
+    const metaRows = [{ key: "asOf", value: state.asOf }, ...(state.macro ? [{ key: "macro", value: state.macro }] : [])];
+    const { error } = await this.db.from("meta").upsert(metaRows);
     if (error) throw new Error(`Supabase upsert meta: ${error.message}`);
   }
 }

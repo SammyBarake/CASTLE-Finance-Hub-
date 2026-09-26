@@ -4,11 +4,12 @@
  *   npm run ingest                         daily update (last 5 days), writes to Supabase if configured
  *   npm run ingest -- --from 2024-09-01    backfill from a date
  *   npm run ingest -- --local              force the local JSON store (.data/castle.json)
- *   npm run ingest -- --only deals|ipos    run one pipeline
+ *   npm run ingest -- --only deals|ipos|macro    run one pipeline
  */
 import { buildDirectory, ingestDeals } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { ingestIpos } from "./ipos";
+import { fetchMacro } from "./macro";
 import { storeFromEnv } from "./store";
 
 function arg(name: string): string | undefined {
@@ -43,8 +44,9 @@ async function main() {
     log(`re-enriching all ${state.deals.length} deals`);
   }
 
-  const directory = buildDirectory(await getListedCompanies());
-  log(`company directory: ${directory.byTicker.size} listed tickers`);
+  // The SEC company directory is only needed for deals and IPOs.
+  const directory = only === "macro" ? buildDirectory([]) : buildDirectory(await getListedCompanies());
+  if (only !== "macro") log(`company directory: ${directory.byTicker.size} listed tickers`);
 
   // Save progress periodically and at the end (even on failure), so long backfills can resume.
   const checkpoint = async () => {
@@ -62,6 +64,15 @@ async function main() {
       log("ipos: discovering registrations");
       const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
       log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
+    }
+    if (!only || only === "macro") {
+      // Non-critical: on failure keep the last good snapshot and carry on.
+      try {
+        state.macro = await fetchMacro();
+        log(`macro: ${state.macro.economies.length} economies (IMF WEO ${state.macro.forecastYear} + BIS policy rates)`);
+      } catch (err) {
+        log(`macro: skipped, keeping previous data (${(err as Error).message})`);
+      }
     }
   } finally {
     state.asOf = new Date().toISOString();

@@ -65,8 +65,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         e.preventDefault();
         shortcutsRef.current();
       }
-      // Alt+1…6 jumps between sections.
-      if (e.altKey && /^[1-6]$/.test(e.key)) {
+      // Alt+1…7 jumps between sections.
+      if (e.altKey && /^[1-7]$/.test(e.key)) {
         e.preventDefault();
         document.querySelector<HTMLDialogElement>("dialog[open]")?.close();
         router.push(ROUTES[Number(e.key) - 1].href);

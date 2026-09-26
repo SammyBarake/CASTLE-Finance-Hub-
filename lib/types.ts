@@ -136,6 +136,34 @@ export interface SectorValuation {
   dealCount: number;
 }
 
+export type Region = "Americas" | "Europe" | "Asia-Pacific";
+
+/** World Economies: one row per economy. Growth and inflation are annual %, from the IMF World Economic Outlook. */
+export interface Economy {
+  /** ISO-style code shown in the UI, e.g. "US", "EA". */
+  code: string;
+  name: string;
+  region: Region;
+  /** Real GDP growth for `forecastYear` (IMF estimate / projection). */
+  gdpGrowth: number | null;
+  /** Real GDP growth for the prior year. */
+  gdpGrowthPrior: number | null;
+  /** Average consumer-price inflation for `forecastYear`. */
+  inflation: number | null;
+  inflationPrior: number | null;
+  /** Central-bank policy rate, % (BIS). */
+  policyRate: number | null;
+  policyRateDate: string | null;
+}
+
+export interface Macro {
+  /** When the macro data was fetched. */
+  asOf: string;
+  /** Calendar year of the growth / inflation estimates. */
+  forecastYear: number;
+  economies: Economy[];
+}
+
 /** Everything the hub page needs, fetched in one call. */
 export interface HubData {
   /** When the underlying data was last refreshed (ISO timestamp). */
@@ -149,4 +177,6 @@ export interface HubData {
   ipos: Ipo[];
   leagueTable: LeagueTable;
   valuations: SectorValuation[];
+  /** World Economies; null until the macro job has run. */
+  macro: Macro | null;
 }

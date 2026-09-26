@@ -13,7 +13,7 @@ The founder is a finance student building toward IB/PE. Design is set; the job i
 4. **Who's advising**: league tables of banks by deals advised and value.
 5. **Valuation moves**: median EV/EBITDA, EV/Revenue, and premiums paid by sector over time.
 
-"World Economies" is planned: a page with GDP growth, inflation and policy rates from free public APIs (World Bank / IMF / central banks), added to the ingest job. Until it's built it shows as **Soon** in the sidebar.
+**World Economies** (a sixth page, not one of the core five) shows GDP growth and inflation from the IMF World Economic Outlook (DataMapper API; the current year is an IMF estimate) and central-bank policy rates from the BIS, for 11 major economies. Both sources are free and need no key. The data is fetched by the same ingest job (`ingest/macro.ts`) and stored in Supabase `meta` under key `macro`, so no schema change was needed.
 
 ## Hard constraints
 
@@ -51,7 +51,10 @@ npm test                               # vitest: parsers, financials, aggregatio
 npm run ingest -- --local              # pull the last 5 days of EDGAR into .data/castle.json
 npm run ingest:backfill -- --local     # 24-month backfill (resumable; set EDGAR_CACHE_DIR=.data/cache)
 npm run ingest                         # same, but writes to Supabase when its env vars are set
+npm run ingest -- --only macro         # just World Economies (IMF + BIS), ~1 second
 ```
+
+With Supabase keys in `.env.local`, the local site reads the live database. Set `CASTLE_DATA_SOURCE=local` (in the shell or `.env.local`) to make it read `.data/castle.json` instead, e.g. to try ingest changes without touching production.
 
 Going live (Supabase, GitHub secrets, Vercel) is documented step by step in [SETUP.md](SETUP.md).
 
@@ -95,6 +98,7 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   edgar.ts            EDGAR client: User-Agent, ~8 req/s throttle, retries, optional disk cache
   deals.ts            Full-text search → parse → resolve CIKs → merge → status/sector/multiples
   ipos.ts             S-1/F-1 registrants → filters → Filed / Priced (424B4) / Trading
+  macro.ts            World Economies: IMF WEO (growth, inflation) + BIS policy rates; failure keeps last snapshot
   financials.ts       XBRL company facts → LTM revenue/EBITDA, debt, cash → EV multiples
   sectors.ts          SIC code → 5 display sectors
   store.ts            JsonStore (.data/castle.json) and SupabaseStore

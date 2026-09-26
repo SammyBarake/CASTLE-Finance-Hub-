@@ -3,7 +3,7 @@
  * from raw deals. Pure and deterministic, so it works on sample or real data.
  */
 import { median } from "./metrics";
-import { SECTORS, type Deal, type HubData, type Ipo, type LeagueTableEntry, type MonthlySectorVolume, type SectorValuation } from "./types";
+import { SECTORS, type Deal, type HubData, type Ipo, type LeagueTableEntry, type Macro, type MonthlySectorVolume, type SectorValuation } from "./types";
 
 const MONTHS = 24;
 const QUARTERS = 8;
@@ -133,7 +133,7 @@ export function toPublicIpo(i: Ipo): Ipo {
   };
 }
 
-export function buildHubData(input: { deals: Deal[]; ipos: (Ipo & { lastActivity?: string })[]; asOf: string; shortName: (name: string) => string }): HubData {
+export function buildHubData(input: { deals: Deal[]; ipos: (Ipo & { lastActivity?: string })[]; asOf: string; shortName: (name: string) => string; macro?: Macro | null }): HubData {
   const deals = [...input.deals].sort((a, b) => b.announcedDate.localeCompare(a.announcedDate) || a.id.localeCompare(b.id));
   const ipos = [...input.ipos].sort((a, b) => (b.lastActivity ?? b.pricedDate ?? b.filedDate).localeCompare(a.lastActivity ?? a.pricedDate ?? a.filedDate));
   return {
@@ -145,5 +145,6 @@ export function buildHubData(input: { deals: Deal[]; ipos: (Ipo & { lastActivity
     ipos: ipos.slice(0, IPO_FEED_SIZE).map(toPublicIpo),
     leagueTable: leagueTable(deals, input.asOf, input.shortName),
     valuations: sectorValuations(deals, input.asOf),
+    macro: input.macro ?? null,
   };
 }

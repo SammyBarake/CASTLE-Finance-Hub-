@@ -281,6 +281,10 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
     ["Sectors", "Mapped from SEC industry (SIC) codes into five groups. Consumer companies fall under Industrials, real estate under Financials, and utilities and mining under Energy."],
+    [
+      "World economies",
+      "GDP growth (real, annual %) and inflation (average consumer prices, annual %) come from the IMF World Economic Outlook; the current year is an IMF estimate. Policy rates are the latest central-bank rates published by the BIS (the U.S. figure is the midpoint of the Fed's target range).",
+    ],
   ];
   return (
     <>

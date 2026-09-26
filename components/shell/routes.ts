@@ -18,7 +18,7 @@ export const ROUTES: RouteDef[] = [
   { id: "ipo-pipeline", href: "/ipo-pipeline", title: "IPO Pipeline", icon: "ipo" },
   { id: "advisors", href: "/advisors", title: "Advisors", icon: "bank" },
   { id: "valuations", href: "/valuations", title: "Valuations", icon: "values" },
-  { id: "world-economies", href: "/world-economies", title: "World Economies", icon: "globe", soon: true },
+  { id: "world-economies", href: "/world-economies", title: "World Economies", icon: "globe" },
 ];
 
 export const routeForPath = (path: string) => ROUTES.find((r) => (r.href === "/" ? path === "/" : path.startsWith(r.href))) ?? ROUTES[0];

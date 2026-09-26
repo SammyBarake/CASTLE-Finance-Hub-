@@ -12,6 +12,7 @@ import type {
   HubData,
   Ipo,
   LeagueTable,
+  Macro,
   MonthlySectorVolume,
   Sector,
   SectorValuation,
@@ -376,6 +377,23 @@ const valuations: SectorValuation[] = Object.entries(valuationSeries).flatMap(([
 );
 
 // ---------------------------------------------------------------------------
+// World Economies (illustrative)
+// ---------------------------------------------------------------------------
+
+const macro: Macro = {
+  asOf: "2026-09-24T22:00:00Z",
+  forecastYear: 2026,
+  economies: [
+    { code: "US", name: "United States", region: "Americas", gdpGrowth: 2.1, gdpGrowthPrior: 2.4, inflation: 2.6, inflationPrior: 2.9, policyRate: 4.0, policyRateDate: "2026-09-24" },
+    { code: "CA", name: "Canada", region: "Americas", gdpGrowth: 1.7, gdpGrowthPrior: 1.4, inflation: 2.2, inflationPrior: 2.4, policyRate: 2.75, policyRateDate: "2026-09-24" },
+    { code: "EA", name: "Euro area", region: "Europe", gdpGrowth: 1.3, gdpGrowthPrior: 0.9, inflation: 2.1, inflationPrior: 2.4, policyRate: 2.25, policyRateDate: "2026-09-24" },
+    { code: "UK", name: "United Kingdom", region: "Europe", gdpGrowth: 1.5, gdpGrowthPrior: 1.1, inflation: 2.8, inflationPrior: 3.3, policyRate: 3.75, policyRateDate: "2026-09-24" },
+    { code: "JP", name: "Japan", region: "Asia-Pacific", gdpGrowth: 0.9, gdpGrowthPrior: 1.0, inflation: 2.3, inflationPrior: 2.7, policyRate: 0.75, policyRateDate: "2026-09-24" },
+    { code: "CN", name: "China", region: "Asia-Pacific", gdpGrowth: 4.4, gdpGrowthPrior: 4.8, inflation: 1.1, inflationPrior: 0.4, policyRate: 3.0, policyRateDate: "2026-09-24" },
+  ],
+};
+
+// ---------------------------------------------------------------------------
 
 export const sampleHubData: HubData = {
   asOf: "2026-09-24T22:00:00Z",
@@ -386,4 +404,5 @@ export const sampleHubData: HubData = {
   ipos,
   leagueTable,
   valuations,
+  macro,
 };
