@@ -18,12 +18,9 @@ export function RowLink({ label, onOpen, children }: { label: string; onOpen: ()
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="!h-[110px] text-center whitespace-normal !text-muted">
+      <td colSpan={colSpan} className="table-empty">
         {children}
       </td>
     </tr>
   );
 }
-
-/** Header row used by the two side-by-side panels at the bottom of the hub. */
-export const compactPanelHead = "flex items-center justify-between gap-4 px-[18px] pt-[18px] pb-[15px] max-phone:p-4";

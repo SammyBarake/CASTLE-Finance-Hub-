@@ -7,10 +7,10 @@ import { SECTORS, type Deal, type HubData, type Ipo, type LeagueTableEntry, type
 
 const MONTHS = 24;
 const QUARTERS = 8;
-const LEAGUE_SIZE = 10;
-/** How many of the latest deals / IPOs ship to the browser. Aggregates use everything. */
-export const DEAL_FEED_SIZE = 100;
-export const IPO_FEED_SIZE = 40;
+const LEAGUE_SIZE = 30;
+/** Caps on what ships to the browser (the screener filters client-side). Aggregates use everything. */
+export const DEAL_FEED_SIZE = 600;
+export const IPO_FEED_SIZE = 150;
 
 const monthKey = (y: number, m0: number) => {
   const d = new Date(Date.UTC(y, m0, 1));

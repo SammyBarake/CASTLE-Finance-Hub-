@@ -1,127 +1,103 @@
+import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { sectorColor } from "@/lib/sectors";
 import type { DealStatus, IpoStage, Sector } from "@/lib/types";
 import { Icon } from "./Icon";
 
-type SectorStyle = CSSProperties & Record<`--${string}`, string>;
+type CssVars = CSSProperties & Record<`--${string}`, string>;
 
 export function StatusTag({ status }: { status: DealStatus | IpoStage }) {
   return <span className={`status status-${status.toLowerCase()}`}>{status}</span>;
 }
 
 export function SectorDot({ sector }: { sector: Sector }) {
-  return <span className="sector-dot" style={{ "--sector-color": sectorColor(sector) } as SectorStyle} />;
+  return <span className="dot" style={{ "--color": sectorColor(sector) } as CssVars} />;
 }
 
 export function SectorLabel({ sector }: { sector: Sector }) {
   return (
-    <span className="flex items-center gap-1.5 text-[9px]">
+    <span className="sector">
       <SectorDot sector={sector} />
       {sector}
     </span>
   );
 }
 
-/** Two-letter monogram tinted with the sector colour. */
-export function CompanyIcon({ name, sector }: { name: string; sector: Sector }) {
-  const color = sectorColor(sector);
-  const initials = name.replace(/[^A-Z]/g, "").slice(0, 2) || name.slice(0, 2).toUpperCase();
+export const initials = (name: string) => name.replace(/[^A-Z]/g, "").slice(0, 2) || name.slice(0, 2).toUpperCase();
+
+/** Square monogram for a company or bank. */
+export function CompanyMark({ name, letters }: { name: string; letters?: string }) {
   return (
-    <span
-      className="inline-grid size-[23px] shrink-0 place-items-center rounded-[5px] border border-white/[0.04] text-[8px] font-[650]"
-      style={{ background: `${color}12`, color }}
-      aria-hidden="true"
-    >
-      {initials}
+    <span className="company-mark" aria-hidden="true">
+      {letters ?? initials(name)}
     </span>
   );
 }
 
-/** Up/down change with a trend arrow, coloured green/red. */
-export function Delta({ value, children, className = "" }: { value: number; children: ReactNode; className?: string }) {
+/** "+26.7%" with a trend arrow, green/red. */
+export function Change({ value, suffix = "%" }: { value: number; suffix?: string }) {
   const up = value >= 0;
   return (
-    <span className={`inline-flex items-center gap-[3px] ${up ? "text-up" : "text-down"} ${className}`}>
-      <Icon name={up ? "trend-up" : "trend-down"} className="!size-[11px]" />
-      {children}
+    <span className={`kpi-change ${up ? "up" : "down"}`}>
+      <Icon name={up ? "up-right" : "trend-down"} />
+      {up ? "+" : ""}
+      {value.toFixed(1)}
+      {suffix}
     </span>
   );
 }
 
-export function Sparkline({
-  values,
-  width,
-  height,
-  stroke,
-  strokeWidth = 1.6,
-  className,
-  label,
-}: {
-  values: number[];
-  width: number;
-  height: number;
-  stroke: string;
-  strokeWidth?: number;
-  className?: string;
-  label?: string;
-}) {
+export function Kpi({ label, value, note, change, text, title }: { label: string; value: ReactNode; note: ReactNode; change?: ReactNode; text?: boolean; title?: string }) {
+  return (
+    <div className="kpi" title={title}>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-line">
+        <span className={`kpi-value num ${text ? "text" : ""}`}>{value}</span>
+        {change}
+      </div>
+      <div className="kpi-note">{note}</div>
+    </div>
+  );
+}
+
+export function Kpis({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="kpis" aria-label={label}>
+      {children}
+    </section>
+  );
+}
+
+export function Sparkline({ values, stroke, className = "spark", label, width = 120, height = 30 }: { values: number[]; stroke: string; className?: string; label?: string; width?: number; height?: number }) {
   if (values.length < 2) return null;
-  const pad = 2;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const d = values
-    .map((v, i) => {
-      const x = pad + (i * (width - 2 * pad)) / (values.length - 1);
-      const y = height - pad - ((v - min) / (max - min || 1)) * (height - pad * 2);
-      return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+    .map((v, i) => `${i ? "L" : "M"}${(2 + (i * (width - 4)) / (values.length - 1)).toFixed(1)},${(height - 2 - ((v - min) / (max - min || 1)) * (height - 4)).toFixed(1)}`)
     .join(" ");
   return (
-    <svg
-      className={className}
-      viewBox={`0 0 ${width} ${height}`}
-      role={label ? "img" : undefined}
-      aria-label={label}
-      aria-hidden={label ? undefined : true}
-    >
-      <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <svg className={className} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <path d={d} stroke={stroke} />
     </svg>
   );
 }
 
-export const UP_COLOR = "#6dc7a1";
-export const DOWN_COLOR = "#e39199";
-
-/** Panel title block: heading, tag, subtitle. */
-export function PanelTitle({ id, title, tag, subtitle }: { id: string; title: string; tag?: ReactNode; subtitle: string }) {
-  return (
-    <div>
-      <div className="flex items-center gap-[9px]">
-        <h2 id={id} className="text-[13px] font-[550] tracking-[-0.1px] max-phone:text-[12px]">
-          {title}
-        </h2>
-        {tag != null && <span className="tiny-tag">{tag}</span>}
-      </div>
-      <div className="mt-1 text-[10px] text-dim max-phone:text-[9px]">{subtitle}</div>
-    </div>
-  );
-}
+export const UP = "#6fba98";
+export const DOWN = "#d68187";
 
 export function Segment<T extends string | number>({
   label,
   options,
   value,
   onChange,
-  accent,
 }: {
   label: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
-  accent?: boolean;
 }) {
   return (
-    <div className={`segment ${accent ? "segment-accent" : ""}`} role="group" aria-label={label}>
+    <div className="segmented" role="group" aria-label={label}>
       {options.map((o) => (
         <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
           {o.label}
@@ -145,17 +121,73 @@ export function Select<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <div className="relative after:pointer-events-none after:absolute after:right-2.5 after:top-[11px] after:size-1 after:rotate-45 after:border-r after:border-b after:border-[#979aac]">
+    <div className="select-wrap">
       <label className="sr-only" htmlFor={id}>
         {label}
       </label>
-      <select id={id} className="select max-phone:pl-[7px] max-phone:pr-[22px] max-phone:text-[8px]" value={value} onChange={(e) => onChange(e.target.value as T)}>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+export function FilterSearch({ id, label, placeholder, value, onChange }: { id: string; label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="filter-search">
+      <Icon name="search" />
+      <label className="sr-only" htmlFor={id}>
+        {label}
+      </label>
+      <input id={id} placeholder={placeholder} value={value} autoComplete="off" onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+export function PageLink({ href, children = "View all" }: { href: string; children?: ReactNode }) {
+  return (
+    <Link className="small-link" href={href}>
+      {children}
+      <Icon name="right" />
+    </Link>
+  );
+}
+
+/** Page title block with date and export button. */
+export function PageHeading({ title, subtitle, date, onExport, exportLabel }: { title: string; subtitle: string; date: string; onExport?: () => void; exportLabel?: string }) {
+  return (
+    <div className="page-heading">
+      <div>
+        <h1 id="page-title" tabIndex={-1}>
+          {title}
+        </h1>
+        <p>{subtitle}</p>
+      </div>
+      <div className="head-tools">
+        <span className="head-date">{date}</span>
+        {onExport && (
+          <button type="button" className="button" onClick={onExport} aria-label={exportLabel ?? `Export ${title} data as CSV`}>
+            <Icon name="download" />
+            Export
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PanelHead({ title, subtitle, children }: { title: ReactNode; subtitle?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="panel-head">
+      <div className="panel-heading">
+        <h2>{title}</h2>
+        {subtitle && <small>{subtitle}</small>}
+      </div>
+      {children}
     </div>
   );
 }

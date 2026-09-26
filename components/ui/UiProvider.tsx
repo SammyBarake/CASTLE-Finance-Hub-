@@ -7,6 +7,8 @@ export interface DialogContent {
   eyebrow: string;
   title: string;
   body: ReactNode;
+  /** "drawer" slides in from the right (record details); "modal" is centred (reference, forms). */
+  variant?: "modal" | "drawer";
 }
 
 interface UiContextValue {
@@ -23,30 +25,34 @@ export function useUi() {
   return ctx;
 }
 
-/** App-wide modal dialog and toast. */
+/** App-wide dialog / side drawer and toast. */
 export function UiProvider({ children }: { children: ReactNode }) {
   const [dialog, setDialog] = useState<DialogContent | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const originRef = useRef<HTMLElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const openDialog = useCallback((content: DialogContent) => setDialog(content), []);
+  const openDialog = useCallback((content: DialogContent) => {
+    if (!dialogRef.current?.open) originRef.current = document.activeElement as HTMLElement | null;
+    setDialog(content);
+  }, []);
   const closeDialog = useCallback(() => dialogRef.current?.close(), []);
   const toast = useCallback((message: string) => {
     setToastMessage(message);
     setToastVisible(true);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3500);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
   }, []);
 
   useEffect(() => {
     const el = dialogRef.current;
-    if (!el) return;
-    if (dialog && !el.open) {
+    if (el && dialog && !el.open) {
       el.showModal();
       document.body.style.overflow = "hidden";
     }
+    if (el && dialog) el.scrollTop = 0;
   }, [dialog]);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
@@ -55,26 +61,21 @@ export function UiProvider({ children }: { children: ReactNode }) {
     <UiContext.Provider value={{ openDialog, closeDialog, toast }}>
       {children}
 
-      <div
-        role="status"
-        aria-live="polite"
-        className={`pointer-events-none fixed bottom-[25px] left-[calc(50%+104px)] z-[110] max-w-[calc(100%-35px)] -translate-x-1/2 rounded-md border border-[#4d455f] bg-[#22232e] px-[17px] py-[11px] text-[11px] text-[#d4cde3] shadow-[0_12px_35px_#0005] transition-[opacity,transform] duration-200 max-laptop:left-[calc(50%+91px)] max-tablet:left-[calc(50%+85px)] max-phone:bottom-[18px] max-phone:left-1/2 max-phone:text-[10px] ${
-          toastVisible ? "translate-y-0 opacity-100" : "translate-y-[15px] opacity-0"
-        }`}
-      >
+      <div className={`toast ${toastVisible ? "show" : ""}`} role="status" aria-live="polite">
         {toastMessage}
       </div>
 
       <dialog
         ref={dialogRef}
-        className="modal"
+        className={`modal ${dialog?.variant === "drawer" ? "detail-drawer" : ""}`}
         aria-labelledby="modal-title"
         onClose={() => {
           document.body.style.overflow = "";
           setDialog(null);
+          if (originRef.current?.isConnected) originRef.current.focus({ preventScroll: true });
         }}
         onClick={(e) => {
-          // Click on the backdrop (outside the dialog box) closes it.
+          // Clicking the backdrop (outside the box) closes it.
           if (e.target !== e.currentTarget) return;
           const r = e.currentTarget.getBoundingClientRect();
           if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) closeDialog();
@@ -82,21 +83,14 @@ export function UiProvider({ children }: { children: ReactNode }) {
       >
         {dialog && (
           <>
-            <div className="relative border-b border-line px-[25px] pt-6 pb-5">
-              <div className="eyebrow">{dialog.eyebrow}</div>
-              <h2 id="modal-title" className="mt-2 pr-[25px] text-[21px] leading-[1.4] font-[550] tracking-[-0.5px]">
-                {dialog.title}
-              </h2>
-              <button
-                type="button"
-                aria-label="Close details"
-                onClick={closeDialog}
-                className="absolute top-5 right-[19px] flex rounded border border-line p-1 text-[#9997aa] hover:bg-[#252332]"
-              >
-                <Icon name="close" className="!size-[15px]" />
+            <div className="modal-header">
+              <div className="modal-eyebrow">{dialog.eyebrow}</div>
+              <h2 id="modal-title">{dialog.title}</h2>
+              <button type="button" className="modal-close" aria-label="Close details" onClick={closeDialog}>
+                <Icon name="close" />
               </button>
             </div>
-            <div className="px-[25px] pt-[21px] pb-6">{dialog.body}</div>
+            <div className="modal-body">{dialog.body}</div>
           </>
         )}
       </dialog>
@@ -107,26 +101,18 @@ export function UiProvider({ children }: { children: ReactNode }) {
 /* Building blocks for dialog bodies */
 
 export function DetailGrid({ children }: { children: ReactNode }) {
-  return <div className="mb-5 grid grid-cols-2 gap-x-[25px]">{children}</div>;
+  return <div className="modal-grid">{children}</div>;
 }
 
 export function DetailItem({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="border-b border-line py-[13px]">
-      <div className="mb-1 text-[9px] text-dim">{label}</div>
-      <div className="text-[14px] font-medium text-[#dddfe9]">{children}</div>
+    <div className="detail">
+      <div className="detail-label">{label}</div>
+      <div className="detail-value">{children}</div>
     </div>
   );
-}
-
-export function DetailHeading({ children }: { children: ReactNode }) {
-  return <div className="mb-2 text-[10px] font-medium text-[#bdb6ce]">{children}</div>;
 }
 
 export function Note({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-[5px] border border-[#342e42] bg-[#1c1926] p-3 text-[10px] leading-[1.7] text-[#aaa0c3]">
-      {children}
-    </div>
-  );
+  return <div className="modal-note">{children}</div>;
 }

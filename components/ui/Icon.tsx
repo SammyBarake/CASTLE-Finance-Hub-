@@ -36,6 +36,8 @@ const PATHS = {
     </>
   ),
   right: <path d="M5 12h14m-5-5 5 5-5 5" />,
+  "up-right": <path d="M6 18 18 6M7 6h11v11" />,
+  external: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
   chevron: <path d="m9 6 6 6-6 6" />,
   "trend-up": <path d="m3 17 7-7 4 4 7-9m-7 0h7v7" />,
   "trend-down": <path d="m3 7 7 7 4-4 7 9m-7 0h7v-7" />,

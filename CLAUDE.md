@@ -13,19 +13,24 @@ The founder is a finance student building toward IB/PE. Design is set; the job i
 4. **Who's advising**: league tables of banks by deals advised and value.
 5. **Valuation moves**: median EV/EBITDA, EV/Revenue, and premiums paid by sector over time.
 
-"World Economies" appears in the sidebar as **Soon** only. It is not a core feature; don't build it unless asked.
+"World Economies" is planned: a page with GDP growth, inflation and policy rates from free public APIs (World Bank / IMF / central banks), added to the ingest job. Until it's built it shows as **Soon** in the sidebar.
 
 ## Hard constraints
 
 - **$0 to run.** Free tiers only: Next.js on Vercel, Supabase free Postgres, GitHub Actions, free SEC EDGAR data. No paid APIs or data vendors.
-- **Serious, modern finance aesthetic.** Dark, dense, calm. The castle appears **only** as the logo (`Logo` in `components/layout/Sidebar.tsx`).
+- **Serious, modern finance aesthetic.** Monochrome, dense, calm. The castle appears **only** as the logo (`public/castle-logo.webp`, shown in `components/shell/AppShell.tsx`).
 - **Never commit secrets.** Real values go in `.env.local` (git-ignored). Document every variable in `.env.example` with no values. Supabase service-role keys stay server-side / in GitHub Actions secrets, never `NEXT_PUBLIC_`.
 - SEC EDGAR requires a descriptive `User-Agent` with contact info and has a rate limit of 10 requests/second.
 
 ## Design reference
 
-`Design/Castle_Hub.html` is the approved design (standalone HTML with sample data). Match its look, layout, and interactions closely.
-Colours, type sizes and breakpoints were ported from it. Check it before changing any visual.
+`Design/Castle_Hub.html` is the approved design (v2, a multi-page terminal made in ChatGPT, standalone HTML with sample data). Match its look, layout, and interactions closely.
+`globals.css` keeps the design file's class names (`.panel`, `.kpis`, `.preview-row`, `.detail-drawer`...) so the two are easy to compare. Check the design before changing any visual.
+`Design/Castle_Hub_v1.html` is the previous design, kept for reference only.
+
+Design v2 is being built in two phases on the `design-v2` branch:
+- **Phase 1 (done):** look, logo, 7-page routing, detail drawer, search dropdown, per-page export, definitions.
+- **Phase 2 (next):** deal screener (advanced filters, saved views, columns, bulk select, compare), watchlist and notes (browser localStorage), right-click row menus, density setting, chart type/granularity options, IPO and advisor extra filters.
 
 ## Stack
 
@@ -52,16 +57,21 @@ Going live (Supabase, GitHub secrets, Vercel) is documented step by step in [SET
 
 ```
 app/
-  layout.tsx          Root layout, Inter font, metadata
-  page.tsx            Server component: getHubData() → <Hub data />
-  globals.css         Design tokens (@theme) + a few shared component classes
+  layout.tsx          Root layout (html/body, Inter font, metadata)
+  (terminal)/layout.tsx  Loads getHubData() once → HubDataProvider → UiProvider → AppShell
+  (terminal)/page.tsx + deal-flow/, deal-volume/, ipo-pipeline/, advisors/, valuations/
+                      Thin route files: metadata + render one view
+  globals.css         Design tokens (@theme) + the design file's component classes + responsive rules
 components/
-  hub/                One component per hub section (KpiStrip, DealVolumePanel, VolumeChart,
-                      ValuationMoves, DealFlowTable, IpoPipelineTable, AdvisorsTable),
-                      details.tsx (dialog bodies), Hub.tsx (owns search/filter/nav state)
-  layout/             Sidebar (+ Logo), Topbar, PageHeader, Footer
-  ui/                 Icon, primitives (StatusTag, SectorDot, CompanyIcon, Sparkline, Segment,
-                      Select, PanelTitle, Delta), table helpers, UiProvider (dialog + toast)
+  shell/              AppShell (sidebar, top bar, footer, Alt+1–6), GlobalSearch (dropdown), routes.ts
+  data/               HubDataProvider: page data + common derived figures via useHubData()
+  views/              One view per page (HubView, DealFlowView, ...) + sections.tsx (VolumePanel,
+                      ValuationCards, Legend, shared chart state)
+  details/            useDetails(): deal / IPO / advisor drawers, data definitions dialog
+  charts/             LineChart (Chart.js, design tooltip + crosshair)
+  ui/                 Icon, primitives (Kpi, StatusTag, SectorLabel, CompanyMark, Sparkline, Segment,
+                      Select, FilterSearch, PageHeading, PanelHead, PageLink), table helpers,
+                      UiProvider (modal / side drawer + toast)
 lib/
   types.ts            THE DATA CONTRACT: every shape the UI renders
   sampleData.ts       The ONLY file with sample numbers (fictional)
@@ -89,8 +99,8 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 
 ### Data rules (important)
 
-- Components **never** import `lib/sampleData.ts` or `ingest/`. They get `HubData` from `getHubData()` via props.
-- Stored records are the `Deal` / `Ipo` shapes plus ingest-only fields (`StoredDeal`/`StoredIpo` in `ingest/store.ts`); `lib/aggregate.ts` strips those before data reaches the browser. The browser gets the latest 100 deals and 40 IPOs; aggregates use everything.
+- Components **never** import `lib/sampleData.ts` or `ingest/`. They read `HubData` through `useHubData()`, which the terminal layout fills from `getHubData()`.
+- Stored records are the `Deal` / `Ipo` shapes plus ingest-only fields (`StoredDeal`/`StoredIpo` in `ingest/store.ts`); `lib/aggregate.ts` strips those before data reaches the browser. The browser gets up to 600 deals and 150 IPOs (the full two-year set today), so screeners filter client-side.
 - UI copy (badges, notes, footer, methodology) switches on `HubData.isSample`.
 - Conventions in `lib/types.ts`: money is plain USD, dates are ISO strings, percentages are whole numbers (34.2 = 34.2%), `null` means undisclosed.
 - KPIs, momentum and medians are computed in `lib/metrics.ts` from raw rows. Never hardcode derived numbers in the UI.
@@ -98,9 +108,9 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 
 ### Styling rules
 
-- Use the Tailwind tokens (`bg-panel`, `border-line`, `text-muted`, `text-dim`, `text-accent`, `text-up`, `text-down`...).
-- Breakpoints mirror the design's max-width queries. Use `max-laptop:` (≤1250px), `max-tablet:` (≤1000px), `max-phone:` (≤760px), and `wide:` (≥1650px).
-- Repeated primitives (`.panel`, `.data-table`, `.segment`, `.status-*`, `.btn`, `.modal`) live in `globals.css` `@layer components`.
+- Prefer the design's component classes in `globals.css` (`.panel`, `.kpis`, `.table-scroll`, `.segmented`, `.status-*`, `.button`, `.modal`, `.detail-drawer`...). Add new classes there, named like the design file's.
+- Tailwind utilities and tokens (`bg-panel`, `border-line`, `text-muted`, `text-dim`, `text-up`, `text-down`) are fine for one-off layout tweaks.
+- Breakpoints mirror the design: ≤1280px, ≤1020px, ≤760px (phone), ≥1650px (wide). Responsive rules live at the bottom of `globals.css`.
 
 ### SEC data engine rules
 

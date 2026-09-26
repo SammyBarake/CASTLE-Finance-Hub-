@@ -1,41 +1,55 @@
 import type { Deal } from "./types";
 
-const cell = (v: string | number | null) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+type Cell = string | number | null | undefined;
+
+const cell = (v: Cell) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+/** CSV text with a leading "Data type" column so sample exports are never mistaken for real data. */
+export function toCsv(headers: string[], rows: Cell[][], isSample: boolean): string {
+  const source = isSample ? "SAMPLE (FICTIONAL)" : "SEC EDGAR";
+  return [["Data type", ...headers], ...rows.map((r) => [source, ...r])].map((r) => r.map(cell).join(",")).join("\r\n");
+}
 
 export function dealsToCsv(deals: Deal[], isSample: boolean): string {
-  const headers = [
-    "Data type",
-    "Announced date",
-    "Acquirer",
-    "Acquirer ticker",
-    "Target",
-    "Target ticker",
-    "Deal value (USD)",
-    "Price per share (USD)",
-    "Premium (%)",
-    "Consideration",
-    "Sector",
-    "Status",
-    "Acquirer advisors",
-    "Target advisors",
-  ];
-  const rows = deals.map((d) => [
-    isSample ? "SAMPLE (FICTIONAL)" : "SEC EDGAR",
-    d.announcedDate,
-    d.acquirer.name,
-    d.acquirer.ticker,
-    d.target.name,
-    d.target.ticker,
-    d.valueUsd,
-    d.pricePerShare,
-    d.premiumPct,
-    d.consideration,
-    d.sector,
-    d.status,
-    d.acquirerAdvisors.join("; "),
-    d.targetAdvisors.join("; "),
-  ]);
-  return [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+  return toCsv(
+    [
+      "Announced date",
+      "Acquirer",
+      "Acquirer ticker",
+      "Target",
+      "Target ticker",
+      "Deal value (USD)",
+      "Price per share (USD)",
+      "Premium (%)",
+      "Consideration",
+      "Sector",
+      "Status",
+      "Enterprise value (USD)",
+      "EV/EBITDA",
+      "EV/Revenue",
+      "Acquirer advisors",
+      "Target advisors",
+    ],
+    deals.map((d) => [
+      d.announcedDate,
+      d.acquirer.name,
+      d.acquirer.ticker,
+      d.target.name,
+      d.target.ticker,
+      d.valueUsd,
+      d.pricePerShare,
+      d.premiumPct,
+      d.consideration,
+      d.sector,
+      d.status,
+      d.enterpriseValueUsd,
+      d.evEbitda,
+      d.evRevenue,
+      d.acquirerAdvisors.join("; "),
+      d.targetAdvisors.join("; "),
+    ]),
+    isSample,
+  );
 }
 
 export function downloadCsv(csv: string, filename: string) {

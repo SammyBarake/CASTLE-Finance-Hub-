@@ -91,6 +91,33 @@ export function sectorMomentum(matrix: VolumeMatrix, metric: VolumeMetric) {
   });
 }
 
+/** Totals across sectors for the last `range` months (deal volume page). */
+export function rangeSummary(matrix: VolumeMatrix, range: number) {
+  const n = matrix.months.length;
+  const idx = Array.from({ length: Math.min(range, n) }, (_, i) => n - Math.min(range, n) + i);
+  const monthTotal = (i: number, key: "value" | "count") => sum(SECTORS.map((s) => matrix.bySector[s][key][i]));
+  const value = sum(idx.map((i) => monthTotal(i, "value")));
+  const count = sum(idx.map((i) => monthTotal(i, "count")));
+  return {
+    firstMonth: matrix.months[idx[0]] ?? null,
+    lastMonth: matrix.months.at(-1) ?? null,
+    value,
+    count,
+    monthlyAverage: idx.length ? value / idx.length : 0,
+    latestMonthValue: n ? monthTotal(n - 1, "value") : 0,
+  };
+}
+
+/** Per-sector totals for the last `range` months. */
+export function sectorBreakdown(matrix: VolumeMatrix, range: number) {
+  const total = rangeSummary(matrix, range).value;
+  return SECTORS.map((sector) => {
+    const value = sum(matrix.bySector[sector].value.slice(-range));
+    const count = sum(matrix.bySector[sector].count.slice(-range));
+    return { sector, value, count, averageSize: count ? value / count : null, share: total ? (value / total) * 100 : 0 };
+  });
+}
+
 export const medianPremium = (deals: Deal[]) =>
   median(deals.map((d) => d.premiumPct).filter((p): p is number => p != null));
 
