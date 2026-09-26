@@ -36,10 +36,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [pendingView, setPendingView] = useState<number | null>(null);
 
-  // Display preferences act on the whole page.
+  // Display preferences act on the whole page (the root layout applies them before first paint too).
   useEffect(() => {
-    document.body.classList.toggle("density-compact", prefs.density === "compact");
-    document.body.classList.toggle("reduce-motion", !prefs.motion);
+    document.documentElement.classList.toggle("density-compact", prefs.density === "compact");
+    document.documentElement.classList.toggle("reduce-motion", !prefs.motion);
   }, [prefs.density, prefs.motion]);
 
   const toggleWatch = useCallback((kind: RecordKind, id: string) => {

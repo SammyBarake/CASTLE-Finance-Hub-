@@ -150,14 +150,11 @@ export function LineChart({
     if (!chart) return;
     chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 300 } : false;
     if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.display = grid;
-    chart.data.labels = labels;
-    chart.data.datasets = series.map((s) =>
+    const style = (s: ChartSeries) =>
       type === "bar"
-        ? { type: "bar" as const, label: s.label, data: s.data, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: 2, maxBarThickness: 14, hidden: s.hidden }
+        ? { type: "bar" as const, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: 2, maxBarThickness: 14 }
         : {
             type: "line" as const,
-            label: s.label,
-            data: s.data,
             borderColor: s.color,
             backgroundColor: s.color,
             borderWidth: 1.8,
@@ -165,12 +162,27 @@ export function LineChart({
             pointHoverRadius: 4,
             pointHoverBorderWidth: 2,
             pointHoverBorderColor: "#080808",
-            tension: 0.24,
+            // Monotone curves never overshoot, so lines don't dip below zero around big spikes.
+            cubicInterpolationMode: "monotone" as const,
             spanGaps: true,
-            hidden: s.hidden,
-          },
-    );
-    chart.update();
+          };
+
+    // Update datasets in place so Chart.js animates between values instead of redrawing every line from zero.
+    const sameShape = chart.data.datasets.length === series.length && series.every((s, i) => chart.data.datasets[i]?.label === s.label);
+    const labelsChanged = JSON.stringify(chart.data.labels) !== JSON.stringify(labels);
+    chart.data.labels = labels;
+    if (sameShape) {
+      series.forEach((s, i) => {
+        const ds = chart.data.datasets[i];
+        Object.assign(ds, style(s));
+        ds.data = s.data;
+        ds.hidden = s.hidden;
+      });
+    } else {
+      chart.data.datasets = series.map((s) => ({ label: s.label, data: s.data, hidden: s.hidden, ...style(s) }));
+    }
+    // A different time window is a different picture: switch without a sliding animation.
+    chart.update(labelsChanged && sameShape ? "none" : undefined);
     setTip((t) => ({ ...t, visible: false }));
   }, [labels, series, points, type, grid, prefs.motion]);
 

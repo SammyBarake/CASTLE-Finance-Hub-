@@ -44,12 +44,29 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const originRef = useRef<HTMLElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [menu, setMenu] = useState<{ items: MenuItem[]; at: MenuPosition } | null>(null);
+  const [menu, setMenu] = useState<{ items: MenuItem[]; at: MenuPosition; refresh?: boolean } | null>(null);
   const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const dialogStateRef = useRef<DialogContent | null>(null);
+  const menuStateRef = useRef<{ at: MenuPosition } | null>(null);
+
   const openDialog = useCallback((content: DialogContent) => {
-    if (!dialogRef.current?.open) originRef.current = document.activeElement as HTMLElement | null;
+    const el = dialogRef.current;
+    if (!el?.open) originRef.current = document.activeElement as HTMLElement | null;
+    const current = dialogStateRef.current;
+    // Switching between a centred modal and the side drawer: close, then reopen so it animates from the right place.
+    if (el?.open && current && (current.variant ?? "modal") !== (content.variant ?? "modal")) {
+      el.close();
+      requestAnimationFrame(() => {
+        if (!el.open) {
+          el.showModal();
+          document.body.style.overflow = "hidden";
+        }
+      });
+    }
+    dialogStateRef.current = content;
+    menuStateRef.current = null;
     setMenu(null);
     setDialog(content);
   }, []);
@@ -74,15 +91,23 @@ export function UiProvider({ children }: { children: ReactNode }) {
 
   // ---- context menu ----
   const openMenu = useCallback((items: MenuItem[], at: MenuPosition) => {
-    setMenuPos(null);
-    setMenu({ items, at });
+    // Re-opening from the same anchor (e.g. ticking a Columns checkbox) updates the items in place:
+    // no re-positioning, no replayed animation, focus stays where it is.
+    const current = menuStateRef.current;
+    const sameAnchor = !!current && "anchor" in current.at && "anchor" in at && current.at.anchor === at.anchor;
+    if (!sameAnchor) setMenuPos(null);
+    menuStateRef.current = { at };
+    setMenu({ items, at, refresh: sameAnchor });
   }, []);
-  const closeMenu = useCallback(() => setMenu(null), []);
+  const closeMenu = useCallback(() => {
+    menuStateRef.current = null;
+    setMenu(null);
+  }, []);
 
   // Place the menu once it has a size, keeping it inside the viewport.
   useLayoutEffect(() => {
     const el = menuRef.current;
-    if (!menu || !el) return;
+    if (!menu || !el || menu.refresh) return;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     let x: number, y: number;
@@ -103,10 +128,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
     const onPointer = (e: PointerEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
       if ("anchor" in menu.at && menu.at.anchor.contains(e.target as Node)) return;
-      setMenu(null);
+      closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenu(null);
+      if (e.key === "Escape") closeMenu();
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const items = [...(menuRef.current?.querySelectorAll<HTMLElement>("button, input") ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
@@ -114,7 +139,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
         e.preventDefault();
       }
     };
-    const close = () => setMenu(null);
+    const close = () => closeMenu();
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", close);
@@ -125,7 +150,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", close, true);
     };
-  }, [menu]);
+  }, [menu, closeMenu]);
 
   return (
     <UiContext.Provider value={{ openDialog, closeDialog, toast, openMenu, closeMenu }}>
@@ -154,7 +179,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  setMenu(null);
+                  closeMenu();
                   item.onSelect();
                 }}
               >
@@ -177,8 +202,9 @@ export function UiProvider({ children }: { children: ReactNode }) {
         aria-labelledby="modal-title"
         onClose={() => {
           document.body.style.overflow = "";
-          setDialog(null);
           if (originRef.current?.isConnected) originRef.current.focus({ preventScroll: true });
+          // Keep the content while the exit transition plays; drop it only if nothing reopened meanwhile.
+          setTimeout(() => setDialog((d) => (dialogRef.current?.open ? d : null)), 280);
         }}
         onClick={(e) => {
           // Clicking the backdrop (outside the box) closes it.

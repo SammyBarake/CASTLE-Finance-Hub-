@@ -10,12 +10,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0c10",
+  themeColor: "#000000",
 };
+
+// Apply saved display preferences before first paint so compact rows don't "snap" after loading.
+// Mirrors components/workspace/store.ts (key and fields).
+const prefsScript = `try{var p=JSON.parse(localStorage.getItem("castle-workspace-v1")||"{}");var c=document.documentElement.classList;if(p.density==="compact")c.add("density-compact");if(p.motion===false)c.add("reduce-motion")}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: prefsScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );
