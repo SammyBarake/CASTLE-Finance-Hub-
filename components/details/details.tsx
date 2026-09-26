@@ -7,6 +7,8 @@ import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
+import { useRecordActions } from "@/components/workspace/actions";
+import { useWorkspace, type RecordKind } from "@/components/workspace/WorkspaceProvider";
 
 const withTicker = (c: { name: string; ticker: string | null }) => (c.ticker ? `${c.name} (${c.ticker})` : c.name);
 
@@ -37,7 +39,47 @@ function Filings({ filings }: { filings: Filing[] }) {
   );
 }
 
-type Tab = "overview" | "advisors" | "filings";
+type Tab = "overview" | "advisors" | "filings" | "notes";
+
+/** Watch / copy / compare buttons at the top of a drawer. */
+function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo }) {
+  const { isWatched, selected } = useWorkspace();
+  const { toggleWatch, copySummary, toggleCompare } = useRecordActions();
+  const watched = isWatched(kind, record.id);
+  return (
+    <div className="drawer-actions">
+      <button type="button" className="button" aria-pressed={watched} onClick={() => toggleWatch(kind, record.id)}>
+        <Icon name="star" className={watched ? "star-fill" : ""} />
+        {watched ? "Watching" : "Watch"}
+      </button>
+      <button type="button" className="button" onClick={() => copySummary(kind, record)}>
+        <Icon name="copy" />
+        Copy summary
+      </button>
+      {kind === "deal" && (
+        <button type="button" className="button" aria-pressed={selected.has(record.id)} onClick={() => toggleCompare(record.id)}>
+          <Icon name="compare" />
+          {selected.has(record.id) ? "Selected" : "Select"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Private research notes, saved in this browser as you type. */
+function NotesTab({ kind, id }: { kind: RecordKind; id: string }) {
+  const { note, setNote, storageOk } = useWorkspace();
+  return (
+    <>
+      <div className="notes-label">
+        <label htmlFor="record-notes">Research notes</label>
+        <span>{storageOk ? "Saved in this browser" : "Session only"}</span>
+      </div>
+      <textarea id="record-notes" className="notes-area" placeholder="Add questions, assumptions, or follow-up items…" value={note(kind, id)} onChange={(e) => setNote(kind, id, e.target.value)} />
+      <p className="notes-help">Notes are private to this browser. They are not sent anywhere.</p>
+    </>
+  );
+}
 
 function Tabs({ tab, onChange, tabs }: { tab: Tab; onChange: (t: Tab) => void; tabs: Tab[] }) {
   return (
@@ -61,7 +103,8 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
 
   return (
     <>
-      <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings"]} />
+      <DrawerActions kind="deal" record={deal} />
+      <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
           <DetailGrid>
@@ -132,6 +175,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
         </div>
       )}
       {tab === "filings" && <Filings filings={deal.filings} />}
+      {tab === "notes" && <NotesTab kind="deal" id={deal.id} />}
       <SourceNote isSample={data.isSample} />
     </>
   );
@@ -142,7 +186,8 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
   const isRanked = (name: string) => data.leagueTable.entries.some((e) => e.advisor.name === name);
   return (
     <>
-      <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings"]} />
+      <DrawerActions kind="ipo" record={ipo} />
+      <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
           {ipo.description && <p>{ipo.description}</p>}
@@ -182,6 +227,7 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
         </div>
       )}
       {tab === "filings" && <Filings filings={ipo.filings} />}
+      {tab === "notes" && <NotesTab kind="ipo" id={ipo.id} />}
       <SourceNote isSample={data.isSample} />
     </>
   );

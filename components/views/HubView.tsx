@@ -5,6 +5,7 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Change, CompanyMark, Kpi, Kpis, PageHeading, PageLink } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
+import { useRecordActions } from "@/components/workspace/actions";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { formatDate, formatDateFull, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { ValuationMetric } from "@/lib/metrics";
@@ -16,6 +17,7 @@ export function HubView() {
   const { data, ytd, medianPremiumPct, ipoSummary } = useHubData();
   const { openDeal, openIpo, openAdvisor } = useDetails();
   const { toast } = useUi();
+  const { openRowMenu } = useRecordActions();
   const volume = useVolumeState();
   const [metric, setMetric] = useState<ValuationMetric>("evEbitda");
 
@@ -58,7 +60,17 @@ export function HubView() {
             <PageLink href="/deal-flow" />
           </div>
           {data.deals.slice(0, 4).map((d) => (
-            <button key={d.id} type="button" className="preview-row" onClick={() => openDeal(d)} title="Open details">
+            <button
+              key={d.id}
+              type="button"
+              className="preview-row"
+              onClick={() => openDeal(d)}
+              title="Open details"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openRowMenu("deal", d, { x: e.clientX, y: e.clientY });
+              }}
+            >
               <span className="preview-company">
                 <CompanyMark name={d.target.name} />
                 <span>
@@ -83,7 +95,17 @@ export function HubView() {
             <PageLink href="/ipo-pipeline" />
           </div>
           {data.ipos.slice(0, 4).map((i) => (
-            <button key={i.id} type="button" className="preview-row" onClick={() => openIpo(i)} title="Open details">
+            <button
+              key={i.id}
+              type="button"
+              className="preview-row"
+              onClick={() => openIpo(i)}
+              title="Open details"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openRowMenu("ipo", i, { x: e.clientX, y: e.clientY });
+              }}
+            >
               <span className="preview-company">
                 <span>
                   <strong>{i.company.name}</strong>

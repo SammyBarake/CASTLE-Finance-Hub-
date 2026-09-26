@@ -38,6 +38,43 @@ const PATHS = {
   right: <path d="M5 12h14m-5-5 5 5-5 5" />,
   "up-right": <path d="M6 18 18 6M7 6h11v11" />,
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
+  star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />,
+  dots: (
+    <>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </>
+  ),
+  filter: (
+    <>
+      <path d="M3 5h18M6 12h12M9 19h6" />
+      <circle cx="8" cy="5" r="2" fill="currentColor" />
+      <circle cx="15" cy="12" r="2" fill="currentColor" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M10 4v16m7-16v16" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="13" rx="2" />
+      <path d="M15 8V3H3v12h5" />
+    </>
+  ),
+  compare: <path d="M3 4h7v16H3zM14 4h7v16h-7z" />,
+  settings: (
+    <>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="8" cy="6" r="2" fill="currentColor" />
+      <circle cx="16" cy="12" r="2" fill="currentColor" />
+      <circle cx="10" cy="18" r="2" fill="currentColor" />
+    </>
+  ),
+  trash: <path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />,
   chevron: <path d="m9 6 6 6-6 6" />,
   "trend-up": <path d="m3 17 7-7 4 4 7-9m-7 0h7v7" />,
   "trend-down": <path d="m3 7 7 7 4-4 7 9m-7 0h7v-7" />,

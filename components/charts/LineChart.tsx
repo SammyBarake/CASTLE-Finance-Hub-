@@ -1,9 +1,10 @@
 "use client";
 
-import { CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip, type Plugin, type TooltipModel } from "chart.js";
+import { BarController, BarElement, CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip, type Plugin, type TooltipModel } from "chart.js";
 import { useEffect, useRef, useState } from "react";
+import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip);
+Chart.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, CategoryScale, Tooltip);
 
 export interface ChartSeries {
   label: string;
@@ -20,7 +21,7 @@ interface TooltipState {
   rows: { label: string; color: string; value: number | null }[];
 }
 
-const crosshair: Plugin<"line"> = {
+const crosshair: Plugin<"line" | "bar"> = {
   id: "castleCrosshair",
   afterDatasetsDraw(chart) {
     const active = chart.tooltip?.getActiveElements();
@@ -52,6 +53,8 @@ export function LineChart({
   ariaLabel,
   className = "chart-wrap",
   points = false,
+  type = "line",
+  grid = true,
 }: {
   labels: string[];
   series: ChartSeries[];
@@ -60,26 +63,31 @@ export function LineChart({
   ariaLabel: string;
   className?: string;
   points?: boolean;
+  type?: "line" | "bar";
+  grid?: boolean;
 }) {
+  const { prefs } = useWorkspace();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<Chart<"line"> | null>(null);
+  const chartRef = useRef<Chart<"line" | "bar"> | null>(null);
+  const motionRef = useRef(prefs.motion);
   const fmt = useRef({ format, formatTick });
   const [tip, setTip] = useState<TooltipState>({ visible: false, left: 0, top: 0, title: "", rows: [] });
 
   useEffect(() => {
     fmt.current = { format, formatTick };
+    motionRef.current = prefs.motion;
   });
 
-  // Create once.
+  // Create (again only when switching between line and bar).
   useEffect(() => {
     if (!canvasRef.current) return;
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     Chart.defaults.font.size = 10;
     Chart.defaults.color = "#858585";
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !motionRef.current;
 
-    const external = ({ chart, tooltip }: { chart: Chart; tooltip: TooltipModel<"line"> }) => {
+    const external = ({ chart, tooltip }: { chart: Chart; tooltip: TooltipModel<"line" | "bar"> }) => {
       if (!tooltip.opacity) {
         setTip((t) => (t.visible ? { ...t, visible: false } : t));
         return;
@@ -95,8 +103,8 @@ export function LineChart({
       });
     };
 
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "line",
+    chartRef.current = new Chart<"line" | "bar">(canvasRef.current, {
+      type,
       data: { labels: [], datasets: [] },
       plugins: [crosshair],
       options: {
@@ -135,29 +143,36 @@ export function LineChart({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, []);
+  }, [type]);
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 300 } : false;
+    if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.display = grid;
     chart.data.labels = labels;
-    chart.data.datasets = series.map((s) => ({
-      label: s.label,
-      data: s.data,
-      borderColor: s.color,
-      backgroundColor: s.color,
-      borderWidth: 1.8,
-      pointRadius: points ? 2 : 0,
-      pointHoverRadius: 4,
-      pointHoverBorderWidth: 2,
-      pointHoverBorderColor: "#080808",
-      tension: 0.24,
-      spanGaps: true,
-      hidden: s.hidden,
-    }));
+    chart.data.datasets = series.map((s) =>
+      type === "bar"
+        ? { type: "bar" as const, label: s.label, data: s.data, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: 2, maxBarThickness: 14, hidden: s.hidden }
+        : {
+            type: "line" as const,
+            label: s.label,
+            data: s.data,
+            borderColor: s.color,
+            backgroundColor: s.color,
+            borderWidth: 1.8,
+            pointRadius: points ? 2 : 0,
+            pointHoverRadius: 4,
+            pointHoverBorderWidth: 2,
+            pointHoverBorderColor: "#080808",
+            tension: 0.24,
+            spanGaps: true,
+            hidden: s.hidden,
+          },
+    );
     chart.update();
     setTip((t) => ({ ...t, visible: false }));
-  }, [labels, series, points]);
+  }, [labels, series, points, type, grid, prefs.motion]);
 
   return (
     <div className={className}>

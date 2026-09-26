@@ -5,7 +5,9 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyMark, Kpi, Kpis, PageHeading, SectorLabel, Select, StatusTag } from "@/components/ui/primitives";
 import { EmptyRow, RowLink } from "@/components/ui/table";
+import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
+import { useRecordActions, WatchButton } from "@/components/workspace/actions";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { formatDate, formatDateFull, formatRaise } from "@/lib/format";
 import { sum } from "@/lib/metrics";
@@ -17,10 +19,26 @@ export function IpoView() {
   const { data } = useHubData();
   const { openIpo } = useDetails();
   const { toast } = useUi();
+  const { openRowMenu } = useRecordActions();
   const [stage, setStage] = useState<IpoStage | "all">("all");
   const [sector, setSector] = useState<Sector | "all">("all");
+  const [bank, setBank] = useState("all");
+  const [minRaise, setMinRaise] = useState("");
+  const [sort, setSort] = useState<"date" | "raise">("date");
 
-  const rows = useMemo(() => data.ipos.filter((i) => (stage === "all" || i.stage === stage) && (sector === "all" || i.sector === sector)), [data.ipos, stage, sector]);
+  const banks = useMemo(() => [...new Set(data.ipos.flatMap((i) => i.underwriters))].sort(), [data.ipos]);
+  const rows = useMemo(() => {
+    const min = minRaise ? Number(minRaise) * 1e6 : null;
+    return data.ipos
+      .filter(
+        (i) =>
+          (stage === "all" || i.stage === stage) &&
+          (sector === "all" || i.sector === sector) &&
+          (bank === "all" || i.underwriters.includes(bank)) &&
+          (min == null || (i.expectedRaiseUsd ?? 0) >= min),
+      )
+      .sort((a, b) => (sort === "raise" ? (b.expectedRaiseUsd ?? -1) - (a.expectedRaiseUsd ?? -1) : b.filedDate.localeCompare(a.filedDate)));
+  }, [data.ipos, stage, sector, bank, minRaise, sort]);
   const filed = data.ipos.filter((i) => i.stage === "Filed");
   const count = (s: IpoStage) => data.ipos.filter((i) => i.stage === s).length;
 
@@ -60,7 +78,31 @@ export function IpoView() {
             {rows.length} companies
           </span>
           <div className="table-filters">
+            <Select id="ipo-bank" label="Underwriter" value={bank} onChange={setBank} options={[{ value: "all", label: "All underwriters" }, ...banks.map((b) => ({ value: b, label: b }))]} />
+            <Select
+              id="ipo-min"
+              label="Minimum expected raise"
+              value={minRaise}
+              onChange={setMinRaise}
+              options={[
+                { value: "", label: "Any raise" },
+                { value: "100", label: "$100M+" },
+                { value: "250", label: "$250M+" },
+                { value: "500", label: "$500M+" },
+                { value: "1000", label: "$1B+" },
+              ]}
+            />
             <Select id="ipo-sector" label="IPO sector" value={sector} onChange={setSector} options={[{ value: "all" as const, label: "All sectors" }, ...SECTORS.map((s) => ({ value: s, label: s }))]} />
+            <Select
+              id="ipo-sort"
+              label="Sort IPOs"
+              value={sort}
+              onChange={setSort}
+              options={[
+                { value: "date", label: "Newest first" },
+                { value: "raise", label: "Largest raise" },
+              ]}
+            />
           </div>
         </div>
         <div className="table-scroll">
@@ -68,17 +110,26 @@ export function IpoView() {
             <caption className="sr-only">IPO pipeline</caption>
             <thead>
               <tr>
+                <th className="cell-end">
+                  <span className="sr-only">Watch</span>
+                </th>
                 <th scope="col">COMPANY</th>
                 <th scope="col">SECTOR</th>
                 <th scope="col">FILING DATE</th>
                 <th scope="col" className="right">EXPECTED RAISE</th>
                 <th scope="col">LEAD UNDERWRITERS</th>
                 <th scope="col">STAGE</th>
+                <th className="cell-end">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((i) => (
-                <RowLink key={i.id} label={`${i.company.name} IPO`} onOpen={() => openIpo(i)}>
+                <RowLink key={i.id} label={`${i.company.name} IPO`} onOpen={() => openIpo(i)} onMenu={(at) => openRowMenu("ipo", i, at)}>
+                  <td className="cell-end" onClick={(e) => e.stopPropagation()}>
+                    <WatchButton kind="ipo" id={i.id} label={i.company.name} />
+                  </td>
                   <td className="company">
                     <span className="company-line">
                       <CompanyMark name={i.company.name} />
@@ -99,9 +150,23 @@ export function IpoView() {
                   <td>
                     <StatusTag status={i.stage} />
                   </td>
+                  <td className="cell-end">
+                    <button
+                      type="button"
+                      className="row-icon"
+                      aria-label={`Actions for ${i.company.name}`}
+                      aria-haspopup="menu"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRowMenu("ipo", i, { anchor: e.currentTarget });
+                      }}
+                    >
+                      <Icon name="dots" />
+                    </button>
+                  </td>
                 </RowLink>
               ))}
-              {!rows.length && <EmptyRow colSpan={6}>No companies in this selection.</EmptyRow>}
+              {!rows.length && <EmptyRow colSpan={8}>No companies in this selection.</EmptyRow>}
             </tbody>
           </table>
         </div>

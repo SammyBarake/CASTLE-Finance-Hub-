@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { HubDataProvider } from "@/components/data/HubDataProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { UiProvider } from "@/components/ui/UiProvider";
+import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
 import { getHubData } from "@/lib/data";
 
 // Rebuild pages at most once an hour; the ingest job refreshes the data twice a day.
@@ -12,9 +13,11 @@ export default async function TerminalLayout({ children }: { children: ReactNode
   const data = await getHubData();
   return (
     <HubDataProvider data={data}>
-      <UiProvider>
-        <AppShell>{children}</AppShell>
-      </UiProvider>
+      <WorkspaceProvider>
+        <UiProvider>
+          <AppShell>{children}</AppShell>
+        </UiProvider>
+      </WorkspaceProvider>
     </HubDataProvider>
   );
 }

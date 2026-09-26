@@ -28,9 +28,11 @@ The founder is a finance student building toward IB/PE. Design is set; the job i
 `globals.css` keeps the design file's class names (`.panel`, `.kpis`, `.preview-row`, `.detail-drawer`...) so the two are easy to compare. Check the design before changing any visual.
 `Design/Castle_Hub_v1.html` is the previous design, kept for reference only.
 
-Design v2 is being built in two phases on the `design-v2` branch:
-- **Phase 1 (done):** look, logo, 7-page routing, detail drawer, search dropdown, per-page export, definitions.
-- **Phase 2 (next):** deal screener (advanced filters, saved views, columns, bulk select, compare), watchlist and notes (browser localStorage), right-click row menus, density setting, chart type/granularity options, IPO and advisor extra filters.
+Design v2 was built in two phases on the `design-v2` branch, both done:
+- **Phase 1:** look, logo, 7-page routing, detail drawer, search dropdown, per-page export, definitions.
+- **Phase 2:** deal screener (advanced filters, chips, saved views, columns, bulk select, compare), watchlist and notes, right-click and "…" row menus, density and animation settings, "?" shortcuts, chart type and granularity options, IPO and advisor extra filters.
+
+**Workspace data (watchlist, notes, saved views, columns, density) lives only in the browser's localStorage** (`components/workspace/store.ts`, key `castle-workspace-v1`). Nothing is sent to a server. Syncing across devices would need user accounts, which aren't built.
 
 ## Stack
 
@@ -67,7 +69,11 @@ components/
   data/               HubDataProvider: page data + common derived figures via useHubData()
   views/              One view per page (HubView, DealFlowView, ...) + sections.tsx (VolumePanel,
                       ValuationCards, Legend, shared chart state)
-  details/            useDetails(): deal / IPO / advisor drawers, data definitions dialog
+  details/            useDetails(): deal / IPO / advisor drawers (overview, advisors, filings, notes),
+                      data definitions dialog
+  workspace/          store.ts (localStorage prefs via useSyncExternalStore), WorkspaceProvider
+                      (watchlist, notes, saved views, columns, density, compare selection),
+                      actions.tsx (row menus, copy summary, WatchButton, compare/watchlist/views dialogs)
   charts/             LineChart (Chart.js, design tooltip + crosshair)
   ui/                 Icon, primitives (Kpi, StatusTag, SectorLabel, CompanyMark, Sparkline, Segment,
                       Select, FilterSearch, PageHeading, PanelHead, PageLink), table helpers,
@@ -80,6 +86,7 @@ lib/
   metrics.ts          Pure derived figures: YTD, momentum, medians, valuation cards
   banks.ts            Known banks, name variants, monograms (shared by ingest + UI)
   search.ts           Search / filter predicates
+  screen.ts           Deal screener model (filters, date windows, sort, chips, columns) + tests
   format.ts           Money, %, multiples, dates
   sectors.ts          Sector colours (UI config)
   csv.ts              Deal export

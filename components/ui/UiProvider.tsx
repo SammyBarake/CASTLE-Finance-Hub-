@@ -1,20 +1,31 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon } from "./Icon";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Icon, type IconName } from "./Icon";
 
 export interface DialogContent {
   eyebrow: string;
   title: string;
   body: ReactNode;
-  /** "drawer" slides in from the right (record details); "modal" is centred (reference, forms). */
-  variant?: "modal" | "drawer";
+  /** "drawer" slides in from the right (record details); "modal" is centred; "wide" is a large centred modal. */
+  variant?: "modal" | "drawer" | "wide";
 }
+
+export type MenuItem =
+  | { kind: "title"; label: string }
+  | { kind: "rule" }
+  | { kind: "action"; label: string; icon?: IconName; shortcut?: string; onSelect: () => void }
+  | { kind: "check"; label: string; checked: boolean; disabled?: boolean; onToggle: (checked: boolean) => void };
+
+/** Where to open a menu: at the pointer (right-click) or under an anchor element (button). */
+export type MenuPosition = { x: number; y: number } | { anchor: HTMLElement };
 
 interface UiContextValue {
   openDialog: (content: DialogContent) => void;
   closeDialog: () => void;
   toast: (message: string) => void;
+  openMenu: (items: MenuItem[], at: MenuPosition) => void;
+  closeMenu: () => void;
 }
 
 const UiContext = createContext<UiContextValue | null>(null);
@@ -33,9 +44,13 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const originRef = useRef<HTMLElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [menu, setMenu] = useState<{ items: MenuItem[]; at: MenuPosition } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const openDialog = useCallback((content: DialogContent) => {
     if (!dialogRef.current?.open) originRef.current = document.activeElement as HTMLElement | null;
+    setMenu(null);
     setDialog(content);
   }, []);
   const closeDialog = useCallback(() => dialogRef.current?.close(), []);
@@ -57,9 +72,100 @@ export function UiProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
+  // ---- context menu ----
+  const openMenu = useCallback((items: MenuItem[], at: MenuPosition) => {
+    setMenuPos(null);
+    setMenu({ items, at });
+  }, []);
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  // Place the menu once it has a size, keeping it inside the viewport.
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!menu || !el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    let x: number, y: number;
+    if ("anchor" in menu.at) {
+      const r = menu.at.anchor.getBoundingClientRect();
+      x = r.right - w;
+      y = r.bottom + 7;
+    } else {
+      x = menu.at.x;
+      y = menu.at.y;
+    }
+    setMenuPos({ left: Math.max(12, Math.min(x, innerWidth - w - 12)), top: Math.max(12, Math.min(y, innerHeight - h - 12)) });
+    el.querySelector<HTMLElement>("button, input")?.focus({ preventScroll: true });
+  }, [menu]);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onPointer = (e: PointerEvent) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      if ("anchor" in menu.at && menu.at.anchor.contains(e.target as Node)) return;
+      setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const items = [...(menuRef.current?.querySelectorAll<HTMLElement>("button, input") ?? [])];
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+        e.preventDefault();
+      }
+    };
+    const close = () => setMenu(null);
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [menu]);
+
   return (
-    <UiContext.Provider value={{ openDialog, closeDialog, toast }}>
+    <UiContext.Provider value={{ openDialog, closeDialog, toast, openMenu, closeMenu }}>
       {children}
+
+      {menu && (
+        <div
+          ref={menuRef}
+          className="context-menu"
+          role="menu"
+          style={{ left: menuPos?.left ?? -9999, top: menuPos?.top ?? -9999, maxHeight: "calc(100vh - 24px)" }}
+        >
+          {menu.items.map((item, i) => {
+            if (item.kind === "title") return <div key={i} className="menu-title">{item.label}</div>;
+            if (item.kind === "rule") return <div key={i} className="menu-rule" />;
+            if (item.kind === "check")
+              return (
+                <label key={i} role="menuitemcheckbox" aria-checked={item.checked}>
+                  <input type="checkbox" checked={item.checked} disabled={item.disabled} onChange={(e) => item.onToggle(e.target.checked)} />
+                  <span>{item.label}</span>
+                </label>
+              );
+            return (
+              <button
+                key={i}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenu(null);
+                  item.onSelect();
+                }}
+              >
+                {item.icon && <Icon name={item.icon} className={item.icon === "star" && item.label.startsWith("Remove") ? "star-fill" : ""} />}
+                {item.label}
+                {item.shortcut && <span className="menu-shortcut">{item.shortcut}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className={`toast ${toastVisible ? "show" : ""}`} role="status" aria-live="polite">
         {toastMessage}
@@ -67,7 +173,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
 
       <dialog
         ref={dialogRef}
-        className={`modal ${dialog?.variant === "drawer" ? "detail-drawer" : ""}`}
+        className={`modal ${dialog?.variant === "drawer" ? "detail-drawer" : dialog?.variant === "wide" ? "compare-dialog" : ""}`}
         aria-labelledby="modal-title"
         onClose={() => {
           document.body.style.overflow = "";

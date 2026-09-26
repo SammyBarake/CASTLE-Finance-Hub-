@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
-import { CompanyMark, Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
+import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
 import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { formatDate, formatDateFull, formatUsd, formatUsdB1 } from "@/lib/format";
 import { sum } from "@/lib/metrics";
+import { matchAdvisor } from "@/lib/search";
 
 type Sort = "value" | "deals";
 
@@ -18,13 +19,17 @@ export function AdvisorsView() {
   const { openAdvisor } = useDetails();
   const { toast } = useUi();
   const [sort, setSort] = useState<Sort>("value");
+  const [query, setQuery] = useState("");
+  const [minDeals, setMinDeals] = useState("");
   const entries = data.leagueTable.entries;
 
-  // Value ranking is the league table's native order; the rank shown follows the chosen sort.
-  const rows = useMemo(
-    () => (sort === "value" ? entries.map((e, i) => ({ e, valueRank: i + 1 })) : [...entries.map((e, i) => ({ e, valueRank: i + 1 }))].sort((a, b) => b.e.dealCount - a.e.dealCount || b.e.dealValueUsd - a.e.dealValueUsd)),
-    [entries, sort],
-  );
+  // Rank follows the chosen sort across all advisors; filters only hide rows.
+  const rows = useMemo(() => {
+    const ranked = entries.map((e, i) => ({ e, valueRank: i + 1 }));
+    const sorted = sort === "value" ? ranked : [...ranked].sort((a, b) => b.e.dealCount - a.e.dealCount || b.e.dealValueUsd - a.e.dealValueUsd);
+    return sorted.map((r, i) => ({ ...r, rank: i + 1 }));
+  }, [entries, sort]);
+  const visibleRows = rows.filter(({ e }) => matchAdvisor(e, query.trim().toLowerCase()) && (!minDeals || e.dealCount >= Number(minDeals)));
   const top = entries[0];
   const maxValue = top?.dealValueUsd || 1;
 
@@ -51,7 +56,20 @@ export function AdvisorsView() {
 
       <section className="panel">
         <div className="table-tools">
-          <h2>League table</h2>
+          <FilterSearch id="advisor-search" label="Filter advisors" placeholder="Find an advisor" value={query} onChange={setQuery} />
+          <div className="table-filters">
+            <Select
+              id="advisor-min"
+              label="Minimum deals advised"
+              value={minDeals}
+              onChange={setMinDeals}
+              options={[
+                { value: "", label: "Any deal count" },
+                { value: "3", label: "3+ deals" },
+                { value: "5", label: "5+ deals" },
+                { value: "10", label: "10+ deals" },
+              ]}
+            />
           <Select
             id="advisor-sort"
             label="Rank advisors by"
@@ -62,6 +80,7 @@ export function AdvisorsView() {
               { value: "deals", label: "Rank by deal count" },
             ]}
           />
+          </div>
         </div>
         <div className="table-scroll">
           <table>
@@ -76,13 +95,13 @@ export function AdvisorsView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ e, valueRank }, i) => {
+              {visibleRows.map(({ e, valueRank, rank }) => {
                 const change = e.rankChange;
                 const showChange = sort === "value" && change !== 0;
                 return (
                   <RowLink key={e.advisor.name} label={`${e.advisor.name} advisory activity`} onOpen={() => openAdvisor(e, valueRank)}>
                     <td className="table-date">
-                      {String(i + 1).padStart(2, "0")}
+                      {String(rank).padStart(2, "0")}
                       <span className={`rank-change ${showChange ? (change > 0 ? "up" : "down") : "muted"}`} aria-label={sort !== "value" ? "Prior rank shown for value ranking only" : change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}>
                         {showChange ? (
                           <>
@@ -111,7 +130,7 @@ export function AdvisorsView() {
                   </RowLink>
                 );
               })}
-              {!rows.length && <EmptyRow colSpan={5}>No advisor data yet.</EmptyRow>}
+              {!visibleRows.length && <EmptyRow colSpan={5}>{rows.length ? "No advisors match this selection." : "No advisor data yet."}</EmptyRow>}
             </tbody>
           </table>
         </div>

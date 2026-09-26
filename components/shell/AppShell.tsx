@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
+import { useWorkspaceDialogs } from "@/components/workspace/actions";
+import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { formatTimestampET } from "@/lib/format";
 import { GlobalSearch } from "./GlobalSearch";
 import { ROUTES, routeForPath } from "./routes";
@@ -16,11 +18,38 @@ import { ROUTES, routeForPath } from "./routes";
 export function AppShell({ children }: { children: ReactNode }) {
   const { data } = useHubData();
   const { openDefinitions } = useDetails();
-  const { toast } = useUi();
+  const { toast, openMenu } = useUi();
+  const ws = useWorkspace();
+  const { openWatchlist, openShortcuts, openManageViews } = useWorkspaceDialogs();
+
+  const applyViewFromAnywhere = (index: number) => {
+    document.querySelector<HTMLDialogElement>("dialog[open]")?.close();
+    ws.setPendingView(index);
+    if (pathname !== "/deal-flow") router.push("/deal-flow");
+  };
+
+  const openSettings = (anchor: HTMLElement) =>
+    openMenu(
+      [
+        { kind: "title", label: "Table density" },
+        { kind: "action", label: `${ws.prefs.density === "comfortable" ? "✓" : "○"} Comfortable`, onSelect: () => ws.setDensity("comfortable") },
+        { kind: "action", label: `${ws.prefs.density === "compact" ? "✓" : "○"} Compact`, onSelect: () => ws.setDensity("compact") },
+        { kind: "rule" },
+        { kind: "check", label: "Interface animations", checked: ws.prefs.motion, onToggle: (on) => ws.setMotion(on) },
+        { kind: "rule" },
+        { kind: "action", label: "Keyboard shortcuts", shortcut: "?", onSelect: openShortcuts },
+        { kind: "action", label: "Manage saved views", onSelect: () => openManageViews(applyViewFromAnywhere) },
+      ],
+      { anchor },
+    );
   const pathname = usePathname();
   const router = useRouter();
   const route = routeForPath(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
+  const shortcutsRef = useRef(openShortcuts);
+  useEffect(() => {
+    shortcutsRef.current = openShortcuts;
+  });
 
   // Close the mobile menu on navigation; move focus to the page title for screen readers.
   useEffect(() => {
@@ -31,6 +60,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMenuOpen(false);
+      const typing = (e.target as HTMLElement)?.matches?.("input, textarea, select, [contenteditable]");
+      if (e.key === "?" && !typing) {
+        e.preventDefault();
+        shortcutsRef.current();
+      }
       // Alt+1…6 jumps between sections.
       if (e.altKey && /^[1-6]$/.test(e.key)) {
         e.preventDefault();
@@ -108,6 +142,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               Last updated<span>{formatTimestampET(data.asOf)}</span>
             </div>
             {data.isSample && <span className="sample-label sample-tag">Sample data</span>}
+            <button type="button" className="tool-icon wide" aria-label={`Open watchlist (${ws.prefs.watch.length})`} title="Watchlist" onClick={openWatchlist}>
+              <Icon name="star" className={ws.prefs.watch.length ? "star-fill" : ""} />
+              <span className="watch-count">{ws.prefs.watch.length}</span>
+            </button>
+            <button type="button" className="tool-icon" aria-label="Display options" title="Display options" onClick={(e) => openSettings(e.currentTarget)}>
+              <Icon name="settings" />
+            </button>
           </div>
         </header>
         <main className="main" id="main">

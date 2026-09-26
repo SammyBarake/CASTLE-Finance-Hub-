@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
 import { useHubData } from "@/components/data/HubDataProvider";
-import { DOWN, PageLink, SectorDot, Segment, Sparkline, UP } from "@/components/ui/primitives";
+import { DOWN, PageLink, SectorDot, Segment, Select, Sparkline, UP } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { formatMonth, formatQuarter, formatSignedPct } from "@/lib/format";
 import { sectorMomentum, valuationCards, type ValuationMetric, type VolumeMetric } from "@/lib/metrics";
@@ -68,26 +68,48 @@ const RANGES = [
   { value: 24, label: "2Y" },
 ];
 
+/** Group the last `range` months into calendar quarters; a quarter with fewer than 3 months is marked "*". */
+function periodGroups(months: string[], granularity: "month" | "quarter") {
+  if (granularity === "month") return months.map((m, i) => ({ label: formatMonth(m), idx: [i] }));
+  const groups = new Map<string, number[]>();
+  months.forEach((m, i) => {
+    const key = `Q${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1} ${m.slice(0, 4)}`;
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  });
+  return [...groups].map(([label, idx]) => ({ label: idx.length < 3 ? `${label}*` : label, idx }));
+}
+
 export function VolumePanel({ state, large = false }: { state: VolumeState; large?: boolean }) {
   const { matrix, data } = useHubData();
   const { visible, toggle } = useSectorToggle();
   const { metric, range } = state;
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
+  const [granularity, setGranularity] = useState<"month" | "quarter">("month");
+  const [grid, setGrid] = useState(true);
 
-  const labels = useMemo(() => matrix.months.slice(-range).map(formatMonth), [matrix, range]);
+  const months = matrix.months.slice(-range);
+  const groups = useMemo(() => periodGroups(matrix.months.slice(-range), granularity), [matrix, range, granularity]);
+  const labels = useMemo(() => groups.map((g) => g.label), [groups]);
   const series = useMemo(
     () =>
-      SECTORS.map((s) => ({
-        label: s,
-        color: SECTOR_COLORS[s],
-        data: matrix.bySector[s][metric].slice(-range).map((v) => (metric === "value" ? Math.round((v / 1e9) * 10) / 10 : v)),
-        hidden: !visible.has(s),
-      })),
-    [matrix, metric, range, visible],
+      SECTORS.map((s) => {
+        const values = matrix.bySector[s][metric].slice(-range);
+        return {
+          label: s,
+          color: SECTOR_COLORS[s],
+          data: groups.map((g) => {
+            const v = g.idx.reduce((a, i) => a + values[i], 0);
+            return metric === "value" ? Math.round((v / 1e9) * 10) / 10 : v;
+          }),
+          hidden: !visible.has(s),
+        };
+      }),
+    [matrix, metric, range, visible, groups],
   );
   const momentum = sectorMomentum(matrix, metric);
-  const months = matrix.months;
-  const latest = months.at(-1);
-  const prev = months.at(-2);
+  const latest = matrix.months.at(-1);
+  const prev = matrix.months.at(-2);
+  const periodLabel = months.length ? `${formatMonth(months[0])} – ${formatMonth(months.at(-1)!)}` : "";
   const shortMonth = (m?: string) => (m ? formatMonth(m).split(" ")[0] : "");
 
   return (
@@ -111,6 +133,32 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
           {!large && <PageLink href="/deal-volume">Open</PageLink>}
         </div>
       </div>
+      <div className="chart-options">
+        <Select
+          id={`chart-type-${large ? "l" : "s"}`}
+          label="Chart type"
+          value={chartType}
+          onChange={setChartType}
+          options={[
+            { value: "line", label: "Line chart" },
+            { value: "bar", label: "Bar chart" },
+          ]}
+        />
+        <Select
+          id={`chart-granularity-${large ? "l" : "s"}`}
+          label="Aggregation"
+          value={granularity}
+          onChange={setGranularity}
+          options={[
+            { value: "month", label: "Monthly" },
+            { value: "quarter", label: "Quarterly" },
+          ]}
+        />
+        <label className="check-label">
+          <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
+          Grid
+        </label>
+      </div>
       <div className="chart-layout">
         <div className="chart-main">
           <div className="chart-meta">
@@ -119,6 +167,8 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
           </div>
           <LineChart
             className={`chart-wrap ${large ? "large" : ""}`}
+            type={chartType}
+            grid={grid}
             labels={labels}
             series={series}
             format={(v) => (metric === "value" ? `$${v}B` : `${v} deals`)}
@@ -152,9 +202,12 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
       </div>
       <div className="panel-foot volume-foot">
         <span>
-          {labels[0]} – {labels.at(-1)}
+          {periodLabel}
+          {granularity === "quarter" && labels.some((l) => l.endsWith("*")) ? " · * Partial quarter" : ""}
         </span>
-        <span className="secondary-note">Announced transactions · Monthly totals{data.isSample ? "" : " · SEC EDGAR"}</span>
+        <span className="secondary-note">
+          Announced transactions · {granularity === "month" ? "Monthly" : "Quarterly"} totals{data.isSample ? "" : " · SEC EDGAR"}
+        </span>
       </div>
     </section>
   );
