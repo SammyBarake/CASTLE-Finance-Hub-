@@ -81,7 +81,7 @@ export function Hub({ data }: { data: HubData }) {
       <Sidebar
         open={menuOpen}
         active={activeNav}
-        dealCount={data.deals.length}
+        dealCount={data.totalDeals}
         onNavigate={navigate}
         onAbout={showAbout}
         onSoon={(feature) => {

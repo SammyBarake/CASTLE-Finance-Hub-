@@ -22,11 +22,22 @@ const M = 1e6;
 
 const company = (name: string, ticker: string | null = null) => ({ name, ticker, cik: null });
 
+// Fields the sample deals don't vary.
+type SampleDeal = Omit<Deal, "industry" | "statusDate" | "enterpriseValueUsd" | "evEbitda" | "evRevenue">;
+const withDealDefaults = (d: SampleDeal): Deal => ({
+  ...d,
+  industry: null,
+  statusDate: null,
+  enterpriseValueUsd: null,
+  evEbitda: null,
+  evRevenue: null,
+});
+
 // ---------------------------------------------------------------------------
 // Feature 1: deal flow
 // ---------------------------------------------------------------------------
 
-const deals: Deal[] = [
+const sampleDeals: SampleDeal[] = [
   {
     id: "d-2026-0924-clcd",
     announcedDate: "2026-09-24",
@@ -164,6 +175,8 @@ const deals: Deal[] = [
   },
 ];
 
+const deals = sampleDeals.map(withDealDefaults);
+
 // ---------------------------------------------------------------------------
 // Feature 2: deal volume. 24 months, Sep 2024 – Aug 2026.
 // Compact per-sector series below are expanded into MonthlySectorVolume rows.
@@ -212,7 +225,7 @@ const monthlyVolume: MonthlySectorVolume[] = Object.entries(volumeSeries).flatMa
 // Feature 3: IPO pipeline
 // ---------------------------------------------------------------------------
 
-const ipos: Ipo[] = [
+const sampleIpos: Omit<Ipo, "industry">[] = [
   {
     id: "ipo-lmna",
     company: company("Lumina Data", "LMNA"),
@@ -293,6 +306,8 @@ const ipos: Ipo[] = [
   },
 ];
 
+const ipos: Ipo[] = sampleIpos.map((i) => ({ ...i, industry: null }));
+
 // ---------------------------------------------------------------------------
 // Feature 4: who's advising
 // ---------------------------------------------------------------------------
@@ -365,6 +380,7 @@ const valuations: SectorValuation[] = Object.entries(valuationSeries).flatMap(([
 export const sampleHubData: HubData = {
   asOf: "2026-09-24T22:00:00Z",
   isSample: true,
+  totalDeals: deals.length,
   deals,
   monthlyVolume,
   ipos,

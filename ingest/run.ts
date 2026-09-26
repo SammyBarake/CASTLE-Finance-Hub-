@@ -1,0 +1,76 @@
+/**
+ * Castle ingest CLI.
+ *
+ *   npm run ingest                         daily update (last 5 days), writes to Supabase if configured
+ *   npm run ingest -- --from 2024-09-01    backfill from a date
+ *   npm run ingest -- --local              force the local JSON store (.data/castle.json)
+ *   npm run ingest -- --only deals|ipos    run one pipeline
+ */
+import { buildDirectory, ingestDeals } from "./deals";
+import { edgarRequestCount, getListedCompanies } from "./edgar";
+import { ingestIpos } from "./ipos";
+import { storeFromEnv } from "./store";
+
+function arg(name: string): string | undefined {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+const flag = (name: string) => process.argv.includes(`--${name}`);
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+async function main() {
+  const started = Date.now();
+  const today = isoDay(new Date());
+  const to = arg("to") ?? today;
+  const from = arg("from") ?? isoDay(new Date(Date.now() - 5 * 86_400_000));
+  const only = arg("only");
+  const log = (s: string) => console.log(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] ${s}`);
+
+  const store = storeFromEnv({ local: flag("local") });
+  log(`Castle ingest ${from} -> ${to} using ${store.label}`);
+  const state = await store.load();
+  log(`loaded ${state.deals.length} deals, ${state.ipos.length} IPOs, ${state.seen.size} seen documents`);
+
+  // --reenrich: recompute names, status, sector and multiples for every stored deal
+  // (use after changing enrichment logic; doesn't re-read press releases).
+  if (flag("reenrich")) {
+    for (const d of state.deals) {
+      d.statusCheckedAt = null;
+      d.financialsCheckedAt = null;
+      if (d.status !== "Terminated") d.status = d.status === "Closed" && d.statusDate ? d.status : "Announced";
+    }
+    log(`re-enriching all ${state.deals.length} deals`);
+  }
+
+  const directory = buildDirectory(await getListedCompanies());
+  log(`company directory: ${directory.byTicker.size} listed tickers`);
+
+  // Save progress periodically and at the end (even on failure), so long backfills can resume.
+  const checkpoint = async () => {
+    state.asOf = new Date().toISOString();
+    await store.save(state);
+    log(`  checkpoint saved (${state.deals.length} deals)`);
+  };
+  try {
+    if (!only || only === "deals") {
+      log("deals: discovering announcements");
+      const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint });
+      log(`deals: read ${s.documents} documents, ${s.parsed} parsed, ${s.newDeals} new deals, ${s.enriched} enriched`);
+    }
+    if (!only || only === "ipos") {
+      log("ipos: discovering registrations");
+      const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
+      log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
+    }
+  } finally {
+    state.asOf = new Date().toISOString();
+    await store.save(state);
+    log(`saved to ${store.label}: ${state.deals.length} deals, ${state.ipos.length} IPOs (${edgarRequestCount()} EDGAR requests)`);
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

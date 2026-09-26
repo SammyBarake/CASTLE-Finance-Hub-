@@ -54,18 +54,22 @@ export function ValuationMoves({ valuations }: { valuations: SectorValuation[] }
               </div>
               <div className="flex items-baseline gap-[7px] max-laptop:gap-[5px] max-tablet:block max-phone:flex max-phone:gap-[7px]">
                 <div className="num text-[23px] leading-[1.15] font-medium tracking-[-0.5px] wide:text-[26px] max-laptop:text-[20px] max-phone:text-[23px]">
-                  {c.latest != null ? c.latest.toFixed(1) : "n/a"}
-                  <span className="ml-0.5 text-[14px] text-muted">{m.unit}</span>
+                  {c.latest != null ? c.latest.toFixed(1) : "—"}
+                  {c.latest != null && <span className="ml-0.5 text-[14px] text-muted">{m.unit}</span>}
                 </div>
-                <span
-                  className={`text-[9px] whitespace-nowrap max-laptop:text-[8px] max-tablet:mt-[5px] max-tablet:block max-phone:inline max-phone:text-[8px] ${up ? "text-up" : "text-down"}`}
-                >
-                  {up ? "↗" : "↘"} {up ? "+" : ""}
-                  {delta.toFixed(1)}
-                  {m.deltaUnit}
-                </span>
+                {c.latest != null && c.previous != null && (
+                  <span
+                    className={`text-[9px] whitespace-nowrap max-laptop:text-[8px] max-tablet:mt-[5px] max-tablet:block max-phone:inline max-phone:text-[8px] ${up ? "text-up" : "text-down"}`}
+                  >
+                    {up ? "↗" : "↘"} {up ? "+" : ""}
+                    {delta.toFixed(1)}
+                    {m.deltaUnit}
+                  </span>
+                )}
               </div>
-              <div className="mt-[7px] text-[8px] text-dim max-tablet:mt-1 max-tablet:text-[7px] max-phone:mt-[7px] max-phone:text-[8px]">vs. last quarter</div>
+              <div className="mt-[7px] text-[8px] text-dim max-tablet:mt-1 max-tablet:text-[7px] max-phone:mt-[7px] max-phone:text-[8px]">
+                {c.latest == null ? "No priced deals this quarter" : c.previous == null ? "No prior-quarter data" : "vs. last quarter"}
+              </div>
               <Sparkline
                 values={c.series}
                 width={63}

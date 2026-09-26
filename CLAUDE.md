@@ -40,7 +40,13 @@ Colours, type sizes and breakpoints were ported from it. Check it before changin
 npm run dev      # http://localhost:3000
 npm run build    # production build (also type-checks)
 npm run lint
+npm test                               # vitest: parsers, financials, aggregation
+npm run ingest -- --local              # pull the last 5 days of EDGAR into .data/castle.json
+npm run ingest:backfill -- --local     # 24-month backfill (resumable; set EDGAR_CACHE_DIR=.data/cache)
+npm run ingest                         # same, but writes to Supabase when its env vars are set
 ```
+
+Going live (Supabase, GitHub secrets, Vercel) is documented step by step in [SETUP.md](SETUP.md).
 
 ## Architecture
 
@@ -59,18 +65,33 @@ components/
 lib/
   types.ts            THE DATA CONTRACT: every shape the UI renders
   sampleData.ts       The ONLY file with sample numbers (fictional)
-  data.ts             getHubData(): the single data entry point (server-only)
+  data.ts             getHubData(): Supabase → .data/castle.json → sample (server-only)
+  aggregate.ts        Raw deals → monthly volume, league table, valuation medians (+ public field stripping)
   metrics.ts          Pure derived figures: YTD, momentum, medians, valuation cards
+  banks.ts            Known banks, name variants, monograms (shared by ingest + UI)
   search.ts           Search / filter predicates
   format.ts           Money, %, multiples, dates
   sectors.ts          Sector colours (UI config)
   csv.ts              Deal export
+ingest/               The SEC data engine (Node, run by GitHub Actions; never imported by components)
+  run.ts              CLI entry: load store → deals → IPOs → save
+  edgar.ts            EDGAR client: User-Agent, ~8 req/s throttle, retries, optional disk cache
+  deals.ts            Full-text search → parse → resolve CIKs → merge → status/sector/multiples
+  ipos.ts             S-1/F-1 registrants → filters → Filed / Priced (424B4) / Trading
+  financials.ts       XBRL company facts → LTM revenue/EBITDA, debt, cash → EV multiples
+  sectors.ts          SIC code → 5 display sectors
+  store.ts            JsonStore (.data/castle.json) and SupabaseStore
+  text.ts             EDGAR HTML → plain text
+  parse/              Pure text parsers (press releases, IPO documents, company names) + tests
+supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon)
+.github/workflows/    ingest.yml (cron 09:30 + 21:30 ET, manual backfill) and ci.yml (lint/test/build)
 ```
 
 ### Data rules (important)
 
-- Components **never** import `lib/sampleData.ts`. They get `HubData` from `getHubData()` via props.
-- Swapping in real data = change `lib/data.ts` to return the same `HubData` shape from Supabase and set `isSample: false`. UI copy (badges, notes, footer) switches on `isSample` automatically.
+- Components **never** import `lib/sampleData.ts` or `ingest/`. They get `HubData` from `getHubData()` via props.
+- Stored records are the `Deal` / `Ipo` shapes plus ingest-only fields (`StoredDeal`/`StoredIpo` in `ingest/store.ts`); `lib/aggregate.ts` strips those before data reaches the browser. The browser gets the latest 100 deals and 40 IPOs; aggregates use everything.
+- UI copy (badges, notes, footer, methodology) switches on `HubData.isSample`.
 - Conventions in `lib/types.ts`: money is plain USD, dates are ISO strings, percentages are whole numbers (34.2 = 34.2%), `null` means undisclosed.
 - KPIs, momentum and medians are computed in `lib/metrics.ts` from raw rows. Never hardcode derived numbers in the UI.
 - Sample bank names are real institutions, but their activity and ranks are fictional. Keep them labelled as sample data.
@@ -81,8 +102,18 @@ lib/
 - Breakpoints mirror the design's max-width queries. Use `max-laptop:` (≤1250px), `max-tablet:` (≤1000px), `max-phone:` (≤760px), and `wide:` (≥1650px).
 - Repeated primitives (`.panel`, `.data-table`, `.segment`, `.status-*`, `.btn`, `.modal`) live in `globals.css` `@layer components`.
 
+### SEC data engine rules
+
+- **$0:** extraction is regex/heuristics over filing text. No paid APIs, no LLM calls.
+- **Never guess:** if a term isn't clearly stated, leave it `null`. Blank is better than wrong.
+- **Deal scope:** targets must be SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe). Private targets, SPAC combinations and OTC targets are skipped.
+- **Merging:** documents about the same target (by CIK) merge into one deal. Only an announcement can create a deal; updates, completions and terminations modify existing deals.
+- **Status comes from the target's filing history:** PREM14A / DEFM14A / SC 14D9 / SC TO-T / S-4 → Pending; Form 25 / 15 or an 8-K Item 5.01 → Closed; an 8-K Item 1.02 that mentions terminating the merger agreement → Terminated.
+- **Parser changes need a test** in `ingest/parse/*.test.ts`. Fixtures are synthetic text in the style of real filings.
+- **EDGAR etiquette:** always go through `ingest/edgar.ts`, which sends the User-Agent and throttles to ~8 requests/second.
+
 ## Roadmap
 
 - **Task 1 (done):** scaffold, CLAUDE.md, hub rebuilt as components on sample data.
-- **Task 2 (next):** the SEC data engine. EDGAR ingestion (8-K, DEFM14A, S-4, S-1, 424B4) on GitHub Actions cron, writing to Supabase and reading in `lib/data.ts`.
-  Do not start Task 2 until the founder asks.
+- **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with hourly ISR).
+- **Ideas / known gaps:** better recall for stock-for-stock bank mergers and deals announced only in 8-K bodies; a "Consumer" sector if the founder wants to split it from Industrials; World Economies (currently "Soon").

@@ -2,8 +2,6 @@
 
 A modern, free web terminal for investment banking activity (M&A deal flow, deal volume, the IPO pipeline, advisor league tables and valuation multiples), built on public SEC EDGAR data.
 
-> The hub currently runs on **sample (fictional) data**. The SEC EDGAR data engine is the next milestone.
-
 ## Run locally
 
 ```bash
@@ -11,14 +9,27 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. With nothing configured, the site shows built-in sample data.
 
-## Environment
+## Load real SEC data locally
 
-Copy `.env.example` to `.env.local` when variables are needed. Never commit `.env.local`.
+1. Copy `.env.example` to `.env.local` and set `SEC_USER_AGENT` (the SEC requires a contact email).
+2. Pull filings into `.data/castle.json`:
+
+   ```bash
+   npm run ingest:backfill -- --local
+   ```
+
+   This is a 24-month backfill; it's resumable, and `EDGAR_CACHE_DIR=.data/cache` speeds up re-runs.
+   For just the last few days, run `npm run ingest -- --local` instead.
+3. `npm run dev`. The site now reads the local file.
+
+## Go live
+
+Supabase (database), GitHub Actions (twice-daily updates) and Vercel (hosting), all on free tiers: see [SETUP.md](SETUP.md).
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · Chart.js. Deploys free on Vercel. Data will live in Supabase (free tier), refreshed by GitHub Actions.
+Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · Chart.js · Supabase · GitHub Actions · Vitest.
 
 See [CLAUDE.md](CLAUDE.md) for architecture and project rules.

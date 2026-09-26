@@ -17,7 +17,13 @@
 export const SECTORS = ["Tech", "Healthcare", "Energy", "Financials", "Industrials"] as const;
 export type Sector = (typeof SECTORS)[number];
 
-export const DEAL_STATUSES = ["Announced", "Pending", "Closed"] as const;
+/**
+ * Announced: definitive agreement signed.
+ * Pending:   proxy / tender offer / S-4 on file (shareholder or regulatory stage).
+ * Closed:    completed (target delisted or change-of-control 8-K).
+ * Terminated: agreement terminated.
+ */
+export const DEAL_STATUSES = ["Announced", "Pending", "Closed", "Terminated"] as const;
 export type DealStatus = (typeof DEAL_STATUSES)[number];
 
 export const IPO_STAGES = ["Filed", "Priced", "Trading"] as const;
@@ -52,9 +58,19 @@ export interface Deal {
   pricePerShare: number | null;
   /** Premium of offer price over the unaffected share price, in %. */
   premiumPct: number | null;
-  consideration: Consideration;
+  consideration: Consideration | null;
   sector: Sector;
+  /** Target's SEC industry (SIC description), e.g. "Services-Prepackaged Software". */
+  industry: string | null;
   status: DealStatus;
+  /** Date the current status was reached (closing / termination / proxy filing). */
+  statusDate: string | null;
+  /** Target enterprise value in USD (stated, or equity value + debt − cash). */
+  enterpriseValueUsd: number | null;
+  /** EV / last-twelve-months EBITDA of the target. */
+  evEbitda: number | null;
+  /** EV / last-twelve-months revenue of the target. */
+  evRevenue: number | null;
   /** Financial advisors, lead first. */
   acquirerAdvisors: string[];
   targetAdvisors: string[];
@@ -74,6 +90,7 @@ export interface Ipo {
   id: string;
   company: Company;
   sector: Sector;
+  industry: string | null;
   stage: IpoStage;
   /** Date of the initial S-1 / F-1. */
   filedDate: string;
@@ -125,6 +142,8 @@ export interface HubData {
   asOf: string;
   /** True while running on lib/sampleData.ts; drives the "Sample data" badges. */
   isSample: boolean;
+  /** Total deals in the dataset (HubData.deals may be only the latest slice). */
+  totalDeals: number;
   deals: Deal[];
   monthlyVolume: MonthlySectorVolume[];
   ipos: Ipo[];

@@ -67,8 +67,10 @@ export function formatMonthEnd(month: string): string {
 /** "2026-Q3" -> "Q3 2026" */
 export const formatQuarter = (quarter: string) => quarter.split("-").reverse().join(" ");
 
-export const CONSIDERATION_LABEL: Record<Consideration, string> = {
+const CONSIDERATION_LABEL: Record<Consideration, string> = {
   Cash: "All cash",
   Stock: "All stock",
   Mixed: "Cash and stock",
 };
+
+export const considerationLabel = (c: Consideration | null) => (c ? CONSIDERATION_LABEL[c] : "Not disclosed");

@@ -57,7 +57,7 @@ export function DealVolumePanel({ matrix, isSample }: { matrix: VolumeMatrix; is
   return (
     <section id="deal-volume" aria-labelledby="volume-heading" className="panel mb-[21px] max-phone:mb-[17px]">
       <div className="flex items-center justify-between gap-4 px-5 pt-[19px] pb-4 max-tablet:p-[17px] max-phone:flex-wrap max-phone:gap-2.5">
-        <PanelTitle id="volume-heading" title="Deal volume" tag="M&A" subtitle="Announced U.S. transactions, by sector" />
+        <PanelTitle id="volume-heading" title="Deal volume" tag="M&A" subtitle={isSample ? "Announced U.S. transactions, by sector" : "Announced deals for U.S.-listed targets tracked by Castle, by sector"} />
         <div className="flex items-center gap-2.5 max-tablet:gap-1.5 max-phone:gap-[7px]">
           <Segment
             label="Chart metric"

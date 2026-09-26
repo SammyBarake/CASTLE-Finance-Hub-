@@ -1,14 +1,6 @@
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailHeading, DetailItem, Note, type DialogContent } from "@/components/ui/UiProvider";
-import {
-  CONSIDERATION_LABEL,
-  formatDateLong,
-  formatPct,
-  formatPrice,
-  formatRaise,
-  formatUsd,
-  formatUsdB1,
-} from "@/lib/format";
+import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { Deal, Filing, Ipo, LeagueTableEntry } from "@/lib/types";
 
 const SampleNote = () => (
@@ -33,26 +25,34 @@ function Filings({ filings }: { filings: Filing[] }) {
 
 const orDash = (xs: string[]) => (xs.length ? xs.join(", ") : "Not disclosed");
 
+const withTicker = (c: Deal["target"]) => (c.ticker ? `${c.name} (${c.ticker})` : c.name);
+
 export function dealDetail(d: Deal, isSample: boolean): DialogContent {
+  const statusLabel = d.statusDate && d.status !== "Announced" ? ` · ${formatDateLong(d.statusDate)}` : "";
   return {
-    eyebrow: `Transaction brief · ${d.sector}`,
+    eyebrow: `Transaction brief · ${d.sector}${d.industry ? ` · ${d.industry}` : ""}`,
     title: `${d.acquirer.name} → ${d.target.name}`,
     body: (
       <>
         <p>
-          {d.acquirer.name} announced an agreement to acquire {d.target.name}
+          {withTicker(d.acquirer)} announced an agreement to acquire {withTicker(d.target)}
           {d.valueUsd != null && <> for {formatUsd(d.valueUsd)}</>}
-          {d.premiumPct != null && <>, representing a {formatPct(d.premiumPct)} premium to the unaffected share price</>}.
+          {d.premiumPct != null && <>, representing a {formatPct(d.premiumPct)} premium to the target&apos;s share price</>}.
         </p>
         <DetailGrid>
           <DetailItem label="Announced">{formatDateLong(d.announcedDate)}</DetailItem>
           <DetailItem label="Status">
             <StatusTag status={d.status} />
+            {statusLabel && <span className="ml-2 text-[10px] font-normal text-dim">{statusLabel.slice(3)}</span>}
           </DetailItem>
           <DetailItem label="Transaction value">{formatUsd(d.valueUsd)}</DetailItem>
           <DetailItem label="Offer price per share">{formatPrice(d.pricePerShare)}</DetailItem>
-          <DetailItem label="Consideration">{CONSIDERATION_LABEL[d.consideration]}</DetailItem>
+          <DetailItem label="Consideration">{considerationLabel(d.consideration)}</DetailItem>
           <DetailItem label="Premium">{formatPct(d.premiumPct)}</DetailItem>
+          <DetailItem label="Enterprise value">{formatUsd(d.enterpriseValueUsd)}</DetailItem>
+          <DetailItem label="EV / EBITDA · EV / Revenue (LTM)">
+            {formatMultiple(d.evEbitda)} · {formatMultiple(d.evRevenue)}
+          </DetailItem>
           <DetailItem label="Acquirer advisor">{orDash(d.acquirerAdvisors)}</DetailItem>
           <DetailItem label="Target advisor">{orDash(d.targetAdvisors)}</DetailItem>
         </DetailGrid>
@@ -85,8 +85,8 @@ export function ipoDetail(i: Ipo, isSample: boolean): DialogContent {
           </DetailItem>
           <DetailItem label="Expected gross raise">{formatRaise(i.expectedRaiseUsd)}</DetailItem>
           <DetailItem label="Proposed ticker">{i.company.ticker ?? "n/a"}</DetailItem>
-          <DetailItem label="Lead underwriter">{i.underwriters[0] ?? "n/a"}</DetailItem>
-          <DetailItem label="Joint bookrunner">{i.underwriters.slice(1).join(", ") || "n/a"}</DetailItem>
+          <DetailItem label="Lead underwriter">{i.underwriters[0] ?? "Not identified"}</DetailItem>
+          <DetailItem label="Joint bookrunners">{i.underwriters.slice(1).join(", ") || "n/a"}</DetailItem>
           {i.pricedDate && <DetailItem label="Priced">{formatDateLong(i.pricedDate)}</DetailItem>}
           {i.offerPrice != null && <DetailItem label="Offer price">{formatPrice(i.offerPrice)}</DetailItem>}
         </DetailGrid>
@@ -165,9 +165,26 @@ export function aboutDetail(isSample: boolean, dealCount: number): DialogContent
           Castle is an investment banking terminal built around public SEC EDGAR filings.
           {isSample && " This build runs on fictional companies, transactions, and market data until the SEC data engine is connected."}
         </p>
+        {!isSample && (
+          <>
+            <DetailHeading>Where the data comes from</DetailHeading>
+            <p>
+              Twice a day Castle reads new filings from SEC EDGAR. <strong>Deals</strong> come from merger press releases filed with 8-K, DEFA14A, 425 and tender-offer
+              communications, covering acquisitions of U.S.-listed companies. Terms (price, premium, value, advisors) are extracted from the release text; anything
+              not clearly stated is left blank. <strong>Status</strong> follows the target&apos;s filings: a merger proxy or tender offer marks a deal pending, a
+              delisting or change-of-control 8-K marks it closed. <strong>IPOs</strong> are first-time S-1 / F-1 registrants; a 424B4 prospectus marks pricing.{" "}
+              <strong>Multiples</strong> use the target&apos;s last-twelve-months XBRL financials as filed before the announcement. Sectors map from SEC industry codes.
+            </p>
+            <p>
+              Coverage is automated and best-effort. Some deals are missed or have fields left blank. Figures count only the deals Castle has detected, not the whole
+              market. Always check the linked filings. Not investment advice.
+            </p>
+          </>
+        )}
         <DetailHeading>What the numbers mean</DetailHeading>
         <p>
-          <strong>Deal volume:</strong> monthly announced U.S. M&amp;A by sector. YTD metrics compare the current year through the latest full month with the same months of the prior year.
+          <strong>Deal volume:</strong> monthly announced {isSample ? "U.S." : "Castle-tracked"} M&amp;A by sector. YTD metrics compare the current year through the latest full
+          month with the same months of the prior year.
           <br />
           <strong>Sector momentum:</strong> the latest month versus the month before, using the selected chart metric.
           <br />

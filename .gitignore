@@ -41,3 +41,7 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# --- Local scratch & ingest output ---
+/.scratch/
+/.data/

@@ -238,6 +238,11 @@
     background: #1c2923;
     border-color: #2b3c32;
   }
+  .status-terminated {
+    color: #c9959b;
+    background: #2a1c1f;
+    border-color: #3f2a2e;
+  }
 
   /* Data tables */
   .data-table {

@@ -7,6 +7,9 @@ import { formatDate, formatPct, formatUsd } from "@/lib/format";
 import { sum } from "@/lib/metrics";
 import type { DealFilters } from "@/lib/search";
 import { DEAL_STATUSES, SECTORS, type Deal } from "@/lib/types";
+import { useState } from "react";
+
+const COLLAPSED_ROWS = 12;
 
 export function DealFlowTable({
   deals,
@@ -23,6 +26,8 @@ export function DealFlowTable({
   onSelect: (d: Deal) => void;
   onReset: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? deals : deals.slice(0, COLLAPSED_ROWS);
   return (
     <section id="deal-flow" aria-labelledby="flow-heading" className="panel mb-[21px] max-phone:mb-[17px]">
       <div className="flex items-center justify-between gap-4 px-5 pt-[19px] pb-4 max-tablet:p-[17px] max-phone:flex-wrap max-phone:gap-2.5">
@@ -59,7 +64,7 @@ export function DealFlowTable({
             </tr>
           </thead>
           <tbody>
-            {deals.map((d) => (
+            {visible.map((d) => (
               <RowLink key={d.id} label={`View ${d.acquirer.name} acquisition of ${d.target.name}`} onOpen={() => onSelect(d)}>
                 <td className="font-mono !text-[9px] !text-[#858b9e] tabular-nums">{formatDate(d.announcedDate)}</td>
                 <td className="company-cell">{d.acquirer.name}</td>
@@ -94,9 +99,15 @@ export function DealFlowTable({
         <span className="text-[9px] max-phone:text-[8px]">
           {deals.length} of {totalCount} transactions · {formatUsd(sum(deals.map((d) => d.valueUsd ?? 0)))} disclosed value
         </span>
-        <span className="inline-flex items-center gap-1 text-[8px] text-[#717689] max-phone:hidden">
-          Select any transaction to explore <Icon name="right" className="!size-2.5" />
-        </span>
+        {deals.length > COLLAPSED_ROWS ? (
+          <button type="button" onClick={() => setExpanded((e) => !e)} className="inline-flex items-center gap-1 p-0 text-[9px] text-[#a9a1d7] hover:text-[#d5ccff]">
+            {expanded ? "Show fewer" : `Show all ${deals.length}`} <Icon name="chevron" className={`!size-2.5 transition-transform ${expanded ? "-rotate-90" : "rotate-90"}`} />
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[8px] text-[#717689] max-phone:hidden">
+            Select any transaction to explore <Icon name="right" className="!size-2.5" />
+          </span>
+        )}
       </div>
     </section>
   );

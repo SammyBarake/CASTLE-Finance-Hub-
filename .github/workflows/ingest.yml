@@ -1,0 +1,49 @@
+name: Ingest SEC data
+
+# Pulls new EDGAR filings into Supabase twice a day.
+# Run it by hand from the Actions tab ("Run workflow"); set "from" (YYYY-MM-DD) for a backfill.
+on:
+  schedule:
+    - cron: "30 1 * * *" # 21:30 ET (after EDGAR's evening filings)
+    - cron: "30 13 * * *" # 09:30 ET
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Backfill start date (YYYY-MM-DD). Leave empty for the normal daily window."
+        required: false
+        default: ""
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check secrets are configured
+        run: |
+          for v in SEC_USER_AGENT SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Missing repository secret $v"; exit 1; fi
+          done
+      - name: Ingest
+        run: |
+          if [ -n "${{ inputs.from }}" ]; then
+            npm run ingest -- --from "${{ inputs.from }}"
+          else
+            npm run ingest
+          fi

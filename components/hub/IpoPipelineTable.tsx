@@ -42,9 +42,11 @@ export function IpoPipelineTable({ ipos, totalCount, onSelect }: { ipos: Ipo[]; 
                 </td>
                 <td>
                   <div className="text-[8px] text-[#989daf]">
-                    {i.underwriters.map((u) => (
+                    {i.underwriters.slice(0, 2).map((u) => (
                       <div key={u}>{u}</div>
                     ))}
+                    {i.underwriters.length > 2 && <div className="text-dim">+{i.underwriters.length - 2} more</div>}
+                    {!i.underwriters.length && <div className="text-dim">—</div>}
                   </div>
                 </td>
                 <td>
