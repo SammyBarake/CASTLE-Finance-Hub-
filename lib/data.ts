@@ -15,20 +15,28 @@ import type { Deal, HubData, Ipo, Macro } from "./types";
  * 3. lib/sampleData.ts (fresh clone, nothing ingested yet).
  */
 export async function getHubData(): Promise<HubData> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Pasted dashboard values often carry stray spaces, newlines or quotes; any of them breaks the request.
+  const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, "").trim() || undefined;
+  const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, "");
+  const anonKey = clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present).
   const forceLocal = process.env.CASTLE_DATA_SOURCE === "local";
+  let sampleReason: string | undefined;
   if (url && anonKey && !forceLocal) {
     try {
       return await fromSupabase(url, anonKey);
     } catch (err) {
       console.error("Castle: Supabase read failed, falling back", err);
+      sampleReason = `database read failed (${(err as Error).message})`;
     }
+  } else if (!forceLocal && process.env.VERCEL) {
+    const missing = [!url && "NEXT_PUBLIC_SUPABASE_URL", !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY"].filter(Boolean).join(", ");
+    console.error(`Castle: ${missing} not set for this deployment; showing sample data`);
+    sampleReason = `${missing} not set for this deployment`;
   }
   const local = fromLocalFile();
   if (local) return local;
-  return sampleHubData;
+  return sampleReason ? { ...sampleHubData, sampleReason } : sampleHubData;
 }
 
 const PAGE = 1000;

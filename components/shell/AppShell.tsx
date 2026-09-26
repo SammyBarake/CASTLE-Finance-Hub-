@@ -157,7 +157,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </main>
         <footer className="footer">
-          <span className="sample-tag">{data.isSample ? "Sample data · Fictional transactions and rankings" : "SEC EDGAR · Refreshed twice daily · Not investment advice"}</span>
+          <span className="sample-tag">
+            {data.isSample
+              ? `Sample data · Fictional transactions and rankings${data.sampleReason ? ` · Live data unavailable: ${data.sampleReason}` : ""}`
+              : "SEC EDGAR · Refreshed twice daily · Not investment advice"}
+          </span>
           <button type="button" onClick={openDefinitions}>
             Data definitions
           </button>

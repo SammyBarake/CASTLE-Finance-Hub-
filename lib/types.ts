@@ -170,6 +170,8 @@ export interface HubData {
   asOf: string;
   /** True while running on lib/sampleData.ts; drives the "Sample data" badges. */
   isSample: boolean;
+  /** Why the real data couldn't be loaded, when a database was configured but sample data is shown. */
+  sampleReason?: string;
   /** Total deals in the dataset (HubData.deals may be only the latest slice). */
   totalDeals: number;
   deals: Deal[];
