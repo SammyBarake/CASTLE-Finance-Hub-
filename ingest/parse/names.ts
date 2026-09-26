@@ -71,5 +71,5 @@ export const isPlausibleName = (s: string | null | undefined): s is string =>
   /[A-Za-z]/.test(s) &&
   !/^(it|we|the company|company|shareholders|stockholders)$/i.test(s) &&
   // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".
-  !/\b(?:board of directors|that certain|special committee)\b/i.test(s) &&
+  !/\b(?:board of directors|that certain|special committee|net to the|without interest|per share|Exchange Commission)\b/i.test(s) &&
   !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s);

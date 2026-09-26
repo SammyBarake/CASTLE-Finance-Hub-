@@ -252,18 +252,23 @@ export function extractPremium(t: string): number | null {
   for (const m of t.matchAll(re)) {
     const v = Number(m[1] ?? m[2]);
     if (!(v > 0 && v < 500)) continue;
-    const ctx = t.slice(m.index!, m.index! + 220);
+    // Only this premium's own clause: stop at the next "premium" or the end of the sentence.
+    const raw = t.slice(m.index!, m.index! + 220);
+    const stop = /\bpremium\b|\.\s+(?=[A-Z])/gi;
+    stop.lastIndex = m[0].length;
+    const ctx = raw.slice(0, stop.exec(raw)?.index ?? raw.length);
     const before = t.slice(Math.max(0, m.index! - 120), m.index!);
     if (/conversion|convertible|notes?\b|exchangeable|warrant/i.test(before + ctx.slice(0, 80))) continue;
     let score = 0;
     if (/unaffected/i.test(ctx)) score += 3;
     if (/closing (?:share |stock )?price|last (?:full )?trading day|close\b/i.test(ctx)) score += 2;
-    if (/volume[- ]weighted|VWAP|\d{2,3}[- ]day|52[- ]week|average/i.test(ctx.slice(0, 140))) score -= 1;
+    if (/volume[- ]weighted|VWAP|\d{1,3}[- ](?:trading[- ]|calendar[- ])?day|52[- ]week|average|month/i.test(ctx)) score -= 3;
     found.push({ v, score, i: m.index! });
   }
   if (!found.length) return null;
   found.sort((a, b) => b.score - a.score || a.i - b.i);
-  return found[0].v;
+  // Only averages (VWAP, 30-day) were stated: that isn't the premium over the unaffected price.
+  return found[0].score >= 0 ? found[0].v : null;
 }
 
 export function extractValue(t: string): { usd: number; kind: ParsedPress["valueKind"] } | null {

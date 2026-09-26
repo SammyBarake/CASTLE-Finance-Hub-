@@ -161,6 +161,12 @@ describe("term extractors", () => {
 
   it("prefers the premium to the unaffected price", () => {
     expect(extractPremium("a premium of 20% to the 30-day VWAP and a premium of 35% to the unaffected closing price")).toBe(35);
+    expect(
+      extractPremium(
+        "represents a premium of approximately 39% over the closing price on November 22, 2024, and a premium of approximately 90% over the 60-day volume-weighted average price. On December 30, the closing price was $4.40.",
+      ),
+    ).toBe(39);
+    expect(extractPremium("a premium of 49% to the 30-day volume-weighted average price")).toBeNull();
   });
 
   it("reads value kind and units", () => {

@@ -24,6 +24,7 @@ import {
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
 import { parseMergerItem } from "./parse/eightk";
+import { parseMergerProxy } from "./parse/proxy";
 import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
@@ -286,7 +287,9 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
 // ---------------------------------------------------------------------------
 
 const CLOSED_FORMS = /^(25-NSE|25|15-12B|15-12G|15-15D)$/;
-const PENDING_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|SC14D9|S-4|F-4)(\/A)?$/;
+const PROXY_ORDER = ["DEFM14A", "SC 14D9", "SC14D9", "PREM14A", "DEFM14C", "PREM14C"];
+const PROXY_FORMS = /^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
+const PENDING_FORMS =/^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|SC14D9|S-4|F-4)(\/A)?$/;
 
 async function isMergerTermination(cik: string, adsh: string, doc: string) {
   try {
@@ -325,6 +328,28 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     }
   }
   deal.statusCheckedAt = today;
+
+  // Deals first seen in an 8-K lack the premium and advisors; the target's proxy states both.
+  if (sub && !deal.proxyCheckedAt && (deal.premiumPct == null || !deal.targetAdvisors.length)) {
+    const proxy = recentFilings(sub)
+      .filter((f) => f.date >= deal.announcedDate && PROXY_FORMS.test(f.form))
+      .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+    if (proxy) {
+      try {
+        const text = htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 900_000));
+        const p = parseMergerProxy(text, deal.target.name);
+        deal.premiumPct ??= p.premiumPct;
+        if (!deal.targetAdvisors.length) deal.targetAdvisors = p.targetAdvisors;
+        const src = `${proxy.adsh}:${proxy.primaryDocument}`;
+        if (!deal.sources.includes(src)) deal.sources.push(src);
+        deal.proxyCheckedAt = today;
+      } catch {
+        // Try again on the next run.
+      }
+    } else if (deal.status === "Closed" || deal.status === "Terminated") {
+      deal.proxyCheckedAt = today; // No proxy will come now.
+    }
+  }
 
   if (!deal.financialsCheckedAt && deal.target.cik) {
     const fin = await getTargetFinancials(deal.target.cik, deal.announcedDate);
@@ -473,7 +498,13 @@ export async function ingestDeals(
   log(`  backstop recovered ${recovered} deals`);
 
   // Enrich new/changed deals, plus open deals whose status may have moved.
-  const toEnrich = state.deals.filter((d) => touched.has(d) || (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) || !d.financialsCheckedAt);
+  const toEnrich = state.deals.filter(
+    (d) =>
+      touched.has(d) ||
+      (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
+      !d.financialsCheckedAt ||
+      (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)),
+  );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {
     const cik = deal.target.cik!;

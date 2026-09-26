@@ -19,6 +19,8 @@ export interface StoredDeal extends Deal {
   statusCheckedAt: string | null;
   /** Set once XBRL financials were looked up (whether or not they were found). */
   financialsCheckedAt: string | null;
+  /** Set once the target's merger proxy / 14D-9 was read for premium and advisors. */
+  proxyCheckedAt?: string | null;
 }
 
 export interface StoredIpo extends Ipo {
