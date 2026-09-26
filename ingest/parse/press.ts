@@ -148,6 +148,13 @@ const BODY_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
     re: rx(String.raw`${NAME}\s+\([^)]{0,120}\)[^.]{0,260}?\b(?i:to be acquired by)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["tgt", "acq"],
   },
+  // "...announced today that BioMarin has entered into a definitive agreement to acquire Amicus for $14.50"
+  {
+    re: rx(
+      String.raw`${NAME}\s+(?:\([^)]{0,80}\)\s+)?(?i:has|have)\s+(?i:entered into|signed)\s+(?i:a\s+|an\s+)?(?i:definitive\s+)?(?i:merger\s+)?(?i:agreement)\s+(?i:to acquire|under which it will acquire|for the acquisition of)\s+${ALL_SHARES}${LEAD_QUAL}${NAME}${STOP}`,
+    ),
+    roles: ["acq", "tgt"],
+  },
 ];
 
 const TICKER_RE =
@@ -220,7 +227,7 @@ const unitMult = (u: string) => (/^b/i.test(u) ? 1e9 : /^t/i.test(u) ? 1e12 : 1e
 /** Offer price per share. Needs buyout context; ignores par values, dividends, EPS and note prices. */
 export function extractPrice(t: string): number | null {
   const re =
-    /(?:US|U\.S\.)?\$\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)\s*(?:per|a|\/)\s*(?:(?:[A-Z][\w&.'’\-]*\s){0,4})?(?:outstanding\s|issued\s)?(?:common\s|ordinary\s)?share\b/gi;
+    /(?:(?:US|U\.S\.)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)\s*(?:per|a|\/)\s*(?:(?:[A-Z][\w&.'’\-]*\s){0,4})?(?:outstanding\s|issued\s)?(?:common\s|ordinary\s)?share\b/gi;
   let best: { v: number; score: number } | null = null;
   for (const m of t.matchAll(re)) {
     const v = num(m[1]);
@@ -261,7 +268,7 @@ export function extractPremium(t: string): number | null {
 
 export function extractValue(t: string): { usd: number; kind: ParsedPress["valueKind"] } | null {
   const re =
-    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|valued at|valuing\b[\w\s,]{0,40}?\bat|value of|values? [\w\s']{0,40}? at)[^$.;]{0,70}?(?:US|U\.S\.|C|CAD|A)?\$\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
+    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|valued at|valuing\b[\w\s,]{0,40}?\bat|value of|values? [\w\s']{0,40}? at)[^$.;]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
   for (const m of t.matchAll(re)) {
     const lead = m[1].toLowerCase();
     if (/per share/i.test(t.slice(m.index!, m.index! + m[0].length + 12))) continue;
@@ -374,13 +381,23 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   if (/\b(?:propos(?:es|ed|al)|non-binding|unsolicited|indication of interest|letter to (?:the )?board|rejects?|bid for)\b/i.test(headline) && !/definitive (?:merger )?agreement|agreement and plan of merger/i.test(headline + " " + intro.slice(0, 600))) {
     return null;
   }
-  // Financing / capital markets releases that happen to mention "premium".
-  if (/\b(?:notes?|offering|debentures|credit facility|dividend|earnings|results|guidance|tender offer for .*notes)\b/i.test(headline) && !dealWords.test(headline)) return null;
+  // Financing / capital markets releases that happen to mention "premium" — unless the body clearly
+  // describes an acquisition (deal sub-headlines often say "accretive to earnings").
+  const dealIntro = /definitive (?:merger |arrangement )?agreement|agreement and plan of merger|(?:will|to) acquire\b|to be acquired/i.test(intro.slice(0, 1500));
+  if (/\b(?:notes?|offering|debentures|credit facility|dividend|earnings|results|guidance|tender offer for .*notes)\b/i.test(headline) && !dealWords.test(headline) && !dealIntro) return null;
 
   let kind: PressKind = "announcement";
-  const hlNoExpect = hl.replace(/(?:expected to (?:close|complete)|towards? (?:the )?completion|expected completion|anticipated completion)[^,.;]*/g, "");
-  if (/\bterminat/.test(hlNoExpect)) kind = "termination";
-  else if (/\b(?:completes?|completed|completion of|closes|closed|closing of|finalizes|finalized)\b/.test(hlNoExpect)) kind = "completion";
+  if (/\bterminat/.test(hl.slice(0, 160))) kind = "termination";
+  // Completion only when the headline's main verb says so ("X Completes Acquisition of Y"),
+  // not when a sub-clause mentions closing or completion.
+  else if (
+    /^.{0,90}?\b(?:completes?|completed|closes|closed|finalizes|finalized)\b\s+(?:its\s+|the\s+)?(?:previously announced\s+)?(?:\$[\d.,]+\s*(?:billion|million)\s+)?(?:acquisition|merger|sale|combination|business combination|tender offer|transaction|take[- ]private)/i.test(
+      headline,
+    ) ||
+    /^(?:completion|closing) of (?:the )?(?:acquisition|merger)/i.test(headline)
+  ) {
+    kind = "completion";
+  }
   else if (
     /previously announced|previously disclosed/i.test(intro.slice(0, 600)) ||
     /\b(?:(?:stockholders?|shareholders?|regulators?|court|members) (?:approve|approval)|receives? (?:\w+ )?approval|go-shop|expiration|expires|record date|special meeting|clearance|\bhsr\b|extends?|update|adjourn|early termination of waiting)/i.test(hl)
@@ -405,14 +422,17 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   if (!parties && /go(?:ing)? private|take (?:the )?company private|to be acquired/i.test(headline) && bodyParties) parties = bodyParties;
   if (!parties) return null;
 
-  // Prefer the fuller body names when they refer to the same companies (e.g. "ACV" -> "ACV Auctions Inc.").
+  // Prefer the fuller body names when they clearly extend the same name (e.g. "ACV" -> "ACV Auctions Inc."),
+  // but never adopt run-on captures that cross a sentence ("CD&R. About Sealed Air ...").
+  const extends_ = (longer: string, shorter: string) =>
+    longer.length > shorter.length && longer.length <= 70 && longer.toLowerCase().startsWith(shorter.toLowerCase()) && !/\.\s+[A-Z]/.test(longer.slice(shorter.length));
   if (bodyParties) {
-    if (sameCompany(bodyParties.acq, parties.acq) && bodyParties.acq.length > parties.acq.length) parties.acq = bodyParties.acq;
-    if (sameCompany(bodyParties.tgt, parties.tgt) && bodyParties.tgt.length > parties.tgt.length) parties.tgt = bodyParties.tgt;
+    if (extends_(bodyParties.acq, parties.acq)) parties.acq = bodyParties.acq;
+    if (extends_(bodyParties.tgt, parties.tgt)) parties.tgt = bodyParties.tgt;
   }
 
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
-  const tgtFirst = parties.tgt.replace(/^The\s+/, "").split(/\s+/)[0];
+  const tgtFirst = parties.tgt.replace(/^The\s+/, "").split(/[\s,]+/)[0];
   if (tgtFirst.length >= 3) {
     const at = parties.acq.indexOf(` ${tgtFirst}`);
     if (at > 0) parties.acq = parties.acq.slice(0, at);

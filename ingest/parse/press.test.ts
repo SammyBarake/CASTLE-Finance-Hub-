@@ -95,6 +95,43 @@ BOSTON, May 5, 2026 - Keystone Software, Inc. (NYSE: KSW) today announced that i
     expect(parsePressRelease(NOTES, { filerName: "Acme Corp", filerTickers: ["ACME"] })).toBeNull();
   });
 
+  it("keeps deals whose sub-headline mentions earnings, and reads USD-prefixed prices", () => {
+    const text = `Exhibit 99.1
+Will Accelerate Revenue Growth Immediately After Close; Expected to be Accretive to Non-GAAP Diluted Earnings
+BOSTON, May 5, 2026 - Orion Pharma Inc. (Nasdaq: ORPH) and Keystone Rare Disease Inc. (Nasdaq: KRD) today announced a definitive agreement under which Orion will acquire Keystone for USD 14.50 per share in cash, a premium of 33% to the unaffected closing price, for a total equity value of approximately USD 4.8 billion.`;
+    const p = parsePressRelease(text, { filerName: "Keystone Rare Disease Inc.", filerTickers: ["KRD"] })!;
+    expect(p.kind).toBe("announcement");
+    expect(p.target.ticker).toBe("KRD");
+    expect(p.pricePerShare).toBe(14.5);
+    expect(p.valueUsd).toBe(4.8e9);
+  });
+
+  it("does not treat 'expected to close' or separation completion as a completed deal", () => {
+    const text = `Exhibit 99.1
+Northwind to acquire Bluebird for $72.00 per share in cash; transaction expected to close in the first half of 2027 following completion of the spin-off
+AUSTIN, Texas, March 3, 2026 - Northwind Systems, Inc. (NASDAQ: NWSY) today announced a definitive agreement to acquire Bluebird Analytics, Inc. (NYSE: BLBD).`;
+    expect(parsePressRelease(text, { filerName: "Northwind Systems, Inc.", filerTickers: ["NWSY"] })?.kind).toBe("announcement");
+  });
+
+  it("never lets a party name run across a sentence", () => {
+    const text = `Exhibit 99.1
+Harbor Freight Logistics to be Acquired by CD&R for $42.15 per Share in Cash
+DENVER, CO, June 9, 2026 - Harbor Freight Logistics, Inc. (NYSE: HFL) today announced a definitive agreement under which it will be acquired by CD&R. About Harbor Freight Logistics Harbor Freight Logistics is a leading carrier.`;
+    const p = parsePressRelease(text, { filerName: "Harbor Freight Logistics, Inc.", filerTickers: ["HFL"] })!;
+    expect(p.acquirer.name).toBe("CD&R");
+    expect(p.target.ticker).toBe("HFL");
+  });
+
+  it("reads 'X has entered into a definitive agreement to acquire Y'", () => {
+    const text = `Exhibit 99.1
+Establishes a Durable Platform for Long-Term Revenue Growth
+SAN DIEGO, April 6, 2026 - Orion Biosciences, Inc. (Nasdaq: ORBI) and Keystone Therapeutics, Inc. (Nasdaq: KYTX) today announced that Orion has entered into a definitive agreement to acquire Keystone for $53.00 per share in cash, representing a total transaction equity value of $2.9 billion.`;
+    const p = parsePressRelease(text, { filerName: "Keystone Therapeutics, Inc.", filerTickers: ["KYTX"] })!;
+    expect(p.acquirer.ticker).toBe("ORBI");
+    expect(p.target.ticker).toBe("KYTX");
+    expect(p.pricePerShare).toBe(53);
+  });
+
   it("rejects unsolicited proposals", () => {
     const text = `Exhibit 99.1
 Crestline Partners Proposes to Acquire Harbor Freight Logistics for $20.00 Per Share

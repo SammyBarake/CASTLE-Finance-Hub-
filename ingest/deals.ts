@@ -10,6 +10,7 @@
  */
 import {
   archiveUrl,
+  filingDocuments,
   fullTextSearch,
   getSubmissions,
   getText,
@@ -22,7 +23,8 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
-import { sameCompany, normalizeName } from "./parse/names";
+import { parseMergerItem } from "./parse/eightk";
+import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
@@ -40,22 +42,57 @@ const QUERIES = [
 ];
 const FORMS = ["8-K", "DEFA14A", "425", "SC TO-C", "SC14D9C"];
 
+/**
+ * Target-side 8-K language: "Merger Sub will merge with and into the Company" only appears when the
+ * filer is the company being acquired. Parsed from the Item 1.01 text, so no press release is needed.
+ */
+const ITEM_QUERIES = ['"merge with and into the Company"', '"merged with and into the Company"', '"commence a tender offer" "Agreement and Plan of Merger"'];
+
 /** Only press-release-like documents: EX-99.x exhibits, or the main document of communication forms. */
 function isPressDoc(h: FtsHit): boolean {
   if (/^EX-99/i.test(h.fileType)) return true;
   return h.fileType === h.form && h.form !== "8-K" && h.form !== "8-K/A";
 }
 
-export async function discoverDealDocs(from: string, to: string, log: (s: string) => void): Promise<FtsHit[]> {
-  const byId = new Map<string, FtsHit>();
+/** A document to read, and which parser applies. */
+export type Candidate = FtsHit & { via: "press" | "item101" };
+
+export async function discoverDealDocs(from: string, to: string, log: (s: string) => void): Promise<Candidate[]> {
+  const byId = new Map<string, Candidate>();
   for (const [start, end] of monthWindows(from, to)) {
     for (const q of QUERIES) {
       const hits = await fullTextSearch({ q, forms: FORMS, from: start, to: end });
-      for (const h of hits) if (isPressDoc(h)) byId.set(h.id, h);
+      for (const h of hits) if (isPressDoc(h)) byId.set(h.id, { ...h, via: "press" });
     }
-    log(`  searched ${start} â†’ ${end}: ${byId.size} candidate documents so far`);
+    for (const q of ITEM_QUERIES) {
+      const hits = await fullTextSearch({ q, forms: ["8-K"], from: start, to: end });
+      for (const h of hits) {
+        const mainDoc = h.fileType === h.form || /^8-K/.test(h.fileType);
+        if (mainDoc && h.items.includes("1.01") && !byId.has(h.id)) byId.set(h.id, { ...h, via: "item101" });
+      }
+    }
+    log(`  searched ${start} -> ${end}: ${byId.size} candidate documents so far`);
   }
   return [...byId.values()].sort((a, b) => a.fileDate.localeCompare(b.fileDate) || a.id.localeCompare(b.id));
+}
+
+/** Companies that filed a merger proxy or tender-offer response: the "answer key" for the backstop. */
+export async function discoverMergerFilers(from: string, to: string) {
+  const out = new Map<string, { firstDate: string; hit: FtsHit }>();
+  for (const [start, end] of monthWindows(from, to)) {
+    for (const form of ["PREM14A", "DEFM14A", "SC 14D9", "SC 13E3"]) {
+      const hits = await fullTextSearch({ q: "", forms: [form], from: start, to: end });
+      for (const h of hits) {
+        if (h.form !== form || h.sics.includes("6770")) continue;
+        const f = parseDisplayName(h.displayNames[0]);
+        if (/\b(?:Fund|Trust|Portfolio|ETF)\b/i.test(f.name)) continue;
+        const cik = f.cik ?? trimCik(h.ciks[0]);
+        const prev = out.get(cik);
+        if (!prev || h.fileDate < prev.firstDate) out.set(cik, { firstDate: h.fileDate, hit: h });
+      }
+    }
+  }
+  return out;
 }
 
 export function monthWindows(from: string, to: string): [string, string][] {
@@ -130,7 +167,13 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   const f = filers.find((x) => sameCompany(x.name, p.name)) ?? filers.find((x) => normalizeName(x.name).length >= 5 && pn.includes(normalizeName(x.name)));
   if (f?.cik) {
     const listed = dir.byCik.get(f.cik);
-    return { cik: f.cik, ticker: ticker ?? listed?.ticker ?? f.tickers[0] ?? null, listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") };
+    // Had a ticker when it filed but is no longer in the listed-company file: delisted after the deal closed.
+    const delistedSince = !listed && f.tickers.length > 0;
+    return {
+      cik: f.cik,
+      ticker: ticker ?? listed?.ticker ?? f.tickers[0] ?? null,
+      listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || delistedSince,
+    };
   }
   const byName = dir.byName.get(normalizeName(p.name));
   if (byName) return { cik: byName.cik, ticker: ticker ?? byName.ticker, listedInUs: pressUs || US_LISTED.test(byName.exchange ?? "") };
@@ -157,8 +200,15 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
   const candidates = state.deals
     .filter((d) => d.target.cik === target.cik)
     .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
+  const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   let deal =
     candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik)) ??
+    // The same signing often reaches us as an 8-K naming a shell buyer and a press release naming the sponsor.
+    (parsed.kind === "announcement" ? candidates.find((d) => daysApart(d.announcedDate, hit.fileDate) <= 14) : undefined) ??
+    // A later filing naming only the acquisition vehicle belongs to the live deal it implements.
+    (parsed.kind === "announcement" && isPlaceholderBuyer(parsed.acquirer.name)
+      ? candidates.find((d) => d.status !== "Terminated" && daysApart(d.announcedDate, hit.fileDate) <= 365)
+      : undefined) ??
     (parsed.kind !== "announcement" ? candidates.find((d) => OPEN.includes(d.status)) : undefined);
 
   if (!deal) {
@@ -207,7 +257,12 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
   if (prefer && hit.fileDate < deal.announcedDate) deal.announcedDate = hit.fileDate;
   // Longer names are usually the legal names ("ACV" -> "ACV Auctions Inc.").
   if (parsed.target.name.length > deal.target.name.length) deal.target.name = parsed.target.name;
-  if (parsed.acquirer.name.length > deal.acquirer.name.length && sameCompany(parsed.acquirer.name, deal.acquirer.name)) deal.acquirer.name = parsed.acquirer.name;
+  if (isPlaceholderBuyer(deal.acquirer.name) && !isPlaceholderBuyer(parsed.acquirer.name)) {
+    // Replace a shell / defined-term buyer ("Anchor Parent, LLC", "Parent") with the real name.
+    deal.acquirer = company(parsed.acquirer, acquirer);
+  } else if (parsed.acquirer.name.length > deal.acquirer.name.length && sameCompany(parsed.acquirer.name, deal.acquirer.name)) {
+    deal.acquirer.name = parsed.acquirer.name;
+  }
   deal.acquirer.ticker ??= acquirer.ticker;
   deal.acquirer.cik ??= acquirer.cik;
   deal.acquirerAdvisors = [...new Set([...deal.acquirerAdvisors, ...parsed.acquirerAdvisors])];
@@ -305,8 +360,20 @@ export async function ingestDeals(
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
 
+  /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
+  const accept = (parsed: ParsedPress, hit: FtsHit): StoredDeal | null => {
+    const target = resolveParty(parsed.target, hit, directory);
+    if (!target.cik || !target.listedInUs) return null;
+    const acquirer = resolveParty(parsed.acquirer, hit, directory);
+    if (acquirer.cik && acquirer.cik === target.cik) return null;
+    // SPAC business combinations aren't the M&A this terminal tracks.
+    if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
+    stats.parsed++;
+    return applyParsed(state, parsed, hit, target, acquirer);
+  };
+
   const docs = (await discoverDealDocs(opts.from, opts.to, log)).filter((h) => !state.seen.has(h.id));
-  log(`  ${docs.length} new documents to read`);
+  log(`  ${docs.length} new documents to read (${docs.filter((d) => d.via === "item101").length} merger 8-Ks)`);
 
   for (const hit of docs) {
     // Progress + checkpoint first: the loop body `continue`s on most documents.
@@ -317,17 +384,11 @@ export async function ingestDeals(
       const filer = parseDisplayName(hit.displayNames[0]);
       const cik = filer.cik ?? trimCik(hit.ciks[0]);
       const text = htmlToText(await getText(archiveUrl(cik, hit.adsh, hit.file)));
-      const parsed = parsePressRelease(text, { filerName: displayName(filer.name), filerTickers: filer.tickers });
+      const ctx = { filerName: displayName(filer.name), filerTickers: filer.tickers };
+      const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : parsePressRelease(text, ctx);
       state.seen.add(hit.id);
       if (!parsed) continue;
-      const target = resolveParty(parsed.target, hit, directory);
-      if (!target.cik || !target.listedInUs) continue;
-      const acquirer = resolveParty(parsed.acquirer, hit, directory);
-      if (acquirer.cik && acquirer.cik === target.cik) continue;
-      // SPAC business combinations aren't the M&A this terminal tracks.
-      if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) continue;
-      stats.parsed++;
-      const deal = applyParsed(state, parsed, hit, target, acquirer);
+      const deal = accept(parsed, hit);
       if (deal) touched.add(deal);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -338,17 +399,86 @@ export async function ingestDeals(
     }
   }
 
+  // Backstop: companies that filed a merger proxy / tender response but have no deal yet.
+  // Find their announcement 8-K (Item 1.01, within ~7 months before) and parse it.
+  const subs = new Map<string, Submissions | null>();
+  const submissions = async (cik: string) => {
+    if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
+    return subs.get(cik)!;
+  };
+  const filers = await discoverMergerFilers(opts.from, opts.to);
+  const knownTargets = new Set(state.deals.map((d) => d.target.cik));
+  const todo = [...filers].filter(([cik]) => !knownTargets.has(cik) && !state.seen.has(`backstop:${cik}`));
+  log(`  backstop: ${filers.size} merger-proxy filers, ${todo.length} without a deal to look up`);
+  let recovered = 0;
+  for (const [cik, { firstDate, hit: proxyHit }] of todo) {
+    try {
+      state.seen.add(`backstop:${cik}`);
+      const sub = await submissions(cik);
+      if (!sub || sub.sic === "6770") continue;
+      const lo = new Date(Date.parse(firstDate) - 210 * 86_400_000).toISOString().slice(0, 10);
+      const announcements = recentFilings(sub)
+        .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= firstDate)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 3);
+      const displayNames = [`${sub.name}${sub.tickers?.length ? `  (${sub.tickers.join(", ")})` : ""}  (CIK ${cik.padStart(10, "0")})`];
+      const ctx = { filerName: displayName(sub.name), filerTickers: sub.tickers ?? [] };
+      for (const f of announcements) {
+        const docsIn = await filingDocuments(sub.cik, f.adsh);
+        const exhibits = docsIn.filter((d) => /ex-?99|dex99/i.test(d) && /\.htm/i.test(d));
+        // Press-release exhibits first (they carry premiums and advisors), then the 8-K's own Item 1.01.
+        const attempts: { file: string; parse: () => Promise<ParsedPress | null> }[] = [
+          ...exhibits.map((ex) => ({
+            file: ex,
+            parse: async () => {
+              const p = parsePressRelease(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, ex))), ctx);
+              return p && p.kind === "announcement" && sameCompany(p.target.name, sub.name) ? p : null;
+            },
+          })),
+          {
+            file: f.primaryDocument,
+            parse: async () => parseMergerItem(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))), ctx),
+          },
+        ];
+        let deal: StoredDeal | null = null;
+        for (const { file, parse } of attempts) {
+          const parsed = await parse();
+          if (!parsed) continue;
+          const synthetic: FtsHit = {
+            id: `${f.adsh}:${file}`,
+            adsh: f.adsh,
+            file,
+            form: f.form,
+            rootForm: "8-K",
+            fileType: file === f.primaryDocument ? f.form : "EX-99.1",
+            fileDate: f.date,
+            ciks: [cik],
+            displayNames,
+            sics: proxyHit.sics,
+            items: f.items.split(","),
+          };
+          deal = accept(parsed, synthetic);
+          if (deal) break;
+        }
+        if (deal) {
+          touched.add(deal);
+          recovered++;
+          break;
+        }
+      }
+    } catch (err) {
+      log(`  ! backstop ${cik}: ${(err as Error).message}`);
+    }
+  }
+  log(`  backstop recovered ${recovered} deals`);
+
   // Enrich new/changed deals, plus open deals whose status may have moved.
   const toEnrich = state.deals.filter((d) => touched.has(d) || (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) || !d.financialsCheckedAt);
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
-  const subs = new Map<string, Submissions | null>();
   for (const deal of toEnrich) {
     const cik = deal.target.cik!;
     try {
-      if (!subs.has(cik)) {
-        subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
-      }
-      const sub = subs.get(cik)!;
+      const sub = await submissions(cik);
       if (sub && sub.sic === "6770") {
         // Blank-check shell as target: drop.
         state.deals = state.deals.filter((d) => d !== deal);

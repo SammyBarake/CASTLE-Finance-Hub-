@@ -41,6 +41,13 @@ export function cleanPartyName(raw: string): string {
     /^(?:certain |an? )?(?:affiliates? of|entities (?:affiliated with|managed by)|funds? (?:managed|advised) by|an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by|an? subsidiary of|a wholly[- ]owned subsidiary of|an investor group led by|investment funds? (?:managed|advised) by)\s+/i,
     "",
   );
+  // A name never spans sentences: cut at ". Capital" unless the period ends an abbreviation (Inc., Co., J.P., H.I.G.).
+  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|L\.P|N\.V|S\.A|[A-Z]))\.\s+(?=[A-Z])/.exec(s);
+  if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
+  // "AkzoNobel, that certain Joinder Agreement, dated ..." -> "AkzoNobel"
+  s = s.replace(/,\s+(?:that certain|dated|pursuant|as amended)\b.*$/i, "");
+  // "Delaware corporation, American Family Mutual" -> "American Family Mutual"
+  s = s.replace(/^(?:an?\s+)?(?:[A-Z][a-z]+\s){1,2}(?:corporation|limited liability company|limited partnership|company),\s+(?=[A-Z])/, "");
   // "Investor Group Led by Chairman and CEO Thomas Priore" -> "Investor Group Led by Thomas Priore"
   s = s.replace(/\b(?:its |the Company's )?(?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President)(?:,? and (?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President))*\s+(?=[A-Z])/g, "");
   s = s.replace(/['’]s$/, "");
@@ -50,5 +57,19 @@ export function cleanPartyName(raw: string): string {
   return s;
 }
 
+/** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
+export const isPlaceholderBuyer = (name: string) =>
+  /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
+  /\b(?:Merger Sub|MergeCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
+  /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
+  /^Acquiror\b/.test(name);
+
 export const isPlausibleName = (s: string | null | undefined): s is string =>
-  !!s && s.length >= 2 && s.length <= 90 && /[A-Za-z]/.test(s) && !/^(it|we|the company|company|shareholders|stockholders)$/i.test(s);
+  !!s &&
+  s.length >= 2 &&
+  s.length <= 90 &&
+  /[A-Za-z]/.test(s) &&
+  !/^(it|we|the company|company|shareholders|stockholders)$/i.test(s) &&
+  // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".
+  !/\b(?:board of directors|that certain|special committee)\b/i.test(s) &&
+  !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s);

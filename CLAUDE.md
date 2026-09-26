@@ -103,7 +103,7 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   sectors.ts          SIC code → 5 display sectors
   store.ts            JsonStore (.data/castle.json) and SupabaseStore
   text.ts             EDGAR HTML → plain text
-  parse/              Pure text parsers (press releases, IPO documents, company names) + tests
+  parse/              Pure text parsers (press releases, merger 8-K Item 1.01, IPO documents, company names) + tests
 supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon)
 .github/workflows/    ingest.yml (cron 09:30 + 21:30 ET, manual backfill) and ci.yml (lint/test/build)
 ```
@@ -128,7 +128,12 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 - **$0:** extraction is regex/heuristics over filing text. No paid APIs, no LLM calls.
 - **Never guess:** if a term isn't clearly stated, leave it `null`. Blank is better than wrong.
 - **Deal scope:** targets must be SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe). Private targets, SPAC combinations and OTC targets are skipped.
-- **Merging:** documents about the same target (by CIK) merge into one deal. Only an announcement can create a deal; updates, completions and terminations modify existing deals.
+- **Three discovery channels** (all in `ingest/deals.ts`):
+  1. Press releases (EX-99) found by full-text search → `parse/press.ts`.
+  2. Merger 8-Ks with Item 1.01 ("merge with and into the Company", tender offers) → `parse/eightk.ts`, which reads defined terms ("Parent", "Merger Sub", "Ultimate Parent") and names the sponsor behind a shell buyer.
+  3. Backstop: every PREM14A / DEFM14A / SC 14D9 / SC 13E3 filer without a deal gets its Item 1.01 8-Ks from the prior 210 days re-parsed (press exhibit first, then the 8-K body).
+- **Merging:** documents about the same target (by CIK) merge into one deal. Two announcements for the same target within 14 days are the same deal. A placeholder or shell buyer name ("Parent", "… Merger Sub", "… BidCo") is replaced by a real name from a later document. Only an announcement can create a deal; updates, completions and terminations modify existing deals.
+- **Recall benchmark:** `.scratch/recall.mts <from> <to>` (git-ignored) compares deals against merger-proxy filers. It was 32% before the 8-K channels and about 54% after. Many misses are acquirer-side votes, SPACs and BDC mergers, which the benchmark counts even though they are out of scope.
 - **Status comes from the target's filing history:** PREM14A / DEFM14A / SC 14D9 / SC TO-T / S-4 → Pending; Form 25 / 15 or an 8-K Item 5.01 → Closed; an 8-K Item 1.02 that mentions terminating the merger agreement → Terminated.
 - **Parser changes need a test** in `ingest/parse/*.test.ts`. Fixtures are synthetic text in the style of real filings.
 - **EDGAR etiquette:** always go through `ingest/edgar.ts`, which sends the User-Agent and throttles to ~8 requests/second.
@@ -137,4 +142,4 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 
 - **Task 1 (done):** scaffold, CLAUDE.md, hub rebuilt as components on sample data.
 - **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with hourly ISR).
-- **Ideas / known gaps:** better recall for stock-for-stock bank mergers and deals announced only in 8-K bodies; a "Consumer" sector if the founder wants to split it from Industrials; World Economies (currently "Soon").
+- **Ideas / known gaps:** premiums for 8-K-only deals (need the unaffected price); advisors for deals without a press release (could come from the merger proxy); a "Consumer" sector if the founder wants to split it from Industrials.
