@@ -519,6 +519,29 @@
   .fee-band { grid-template-columns: 110px minmax(0, 1fr) 110px; }
   .fee-explain { font-size: 11px; color: #9a9a9a; line-height: 1.55; margin: 14px 18px 18px; padding-top: 12px; border-top: 1px solid var(--color-line); }
 
+  /* ---------- buyer types (valuations page) ---------- */
+  .buyer-panel { margin-bottom: 20px; }
+  .buyer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 4px 18px 6px; }
+  .buyer-card { border: 1px solid #262626; border-radius: 6px; padding: 14px 16px; background: #0b0b0b; }
+  .buyer-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .buyer-card h3 { font-size: 14px; font-weight: 500; margin: 0; color: #eee; }
+  .buyer-card-head .mono { font-size: 10px; color: #999; }
+  .buyer-blurb { font-size: 10px; color: #8a8a8a; margin: 5px 0 12px; line-height: 1.5; }
+  .buyer-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+  .buyer-stats div { min-width: 0; }
+  .buyer-stats dt { font-size: 9px; color: #7d7d7d; margin-bottom: 3px; }
+  .buyer-stats dd { margin: 0; font-size: 16px; color: #f0f0f0; white-space: nowrap; }
+  .buyer-top { border-top: 1px solid #222; margin-top: 12px; padding-top: 10px; }
+  .buyer-top-label { font-size: 9px; color: #7d7d7d; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .buyer-notes { margin: 8px 0 0; padding: 4px 22px 18px 34px; display: grid; gap: 8px; }
+  .buyer-notes li { font-size: 12px; color: #d0d0d0; line-height: 1.55; }
+  @media (max-width: 1020px) {
+    .buyer-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .buyer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
   /* ---------- precedent transactions ---------- */
   .precedents-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); animation: none; border-bottom: 0; }
   .precedents-filters .filter-search { width: 100%; }

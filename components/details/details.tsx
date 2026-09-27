@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
+import { buyerType } from "@/lib/buyers";
 import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
@@ -141,6 +142,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             </DetailItem>
             <DetailItem label="Sector">{deal.sector}</DetailItem>
             <DetailItem label="Industry">{deal.industry ?? "n/a"}</DetailItem>
+            <DetailItem label="Buyer type">{buyerType(deal)}</DetailItem>
           </DetailGrid>
           <div className="related-title">Related {deal.sector.toLowerCase()} transactions</div>
           {related.length ? (

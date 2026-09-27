@@ -10,6 +10,7 @@ import { formatDateFull, formatQuarter } from "@/lib/format";
 import { valuationCards, type ValuationMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
 import type { SectorValuation } from "@/lib/types";
+import { BuyerTypes } from "./BuyerTypes";
 import { Legend, useSectorToggle, ValuationCards, ValuationMetricToggle, VALUATION_METRICS } from "./sections";
 
 type Sort = "sector" | "latest" | "change";
@@ -92,6 +93,8 @@ export function ValuationsView() {
           <span>{latestQ && formatQuarter(latestQ)} to date · gaps mean no priced deals</span>
         </div>
       </section>
+
+      <BuyerTypes />
 
       <section className="panel">
         <div className="table-tools">
