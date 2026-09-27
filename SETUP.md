@@ -42,8 +42,12 @@ and takes a few minutes. (Public repos get unlimited Actions minutes; private re
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
+   Choose type **Config**, not **Secret**. Vercel does not pass Secret values with a `NEXT_PUBLIC_` prefix to the
+   build, so the site gets empty keys (the red "Live data is unavailable" banner). These two values are public by
+   design: the anon key can only read.
+
    Do **not** add the service_role key to Vercel.
-3. Deploy. The page rebuilds itself at most once an hour, so it picks up each ingest automatically.
+3. Deploy (after changing variables, Redeploy). Pages rebuild themselves every 15 minutes, so they pick up each ingest automatically.
 
 ## Checking it works
 
