@@ -113,6 +113,7 @@ export function toPublicDeal(d: Deal): Deal {
     acquirerAdvisors: d.acquirerAdvisors,
     targetAdvisors: d.targetAdvisors,
     filings: d.filings,
+    ...(d.fairness?.length ? { fairness: d.fairness } : {}),
   };
 }
 

@@ -106,7 +106,7 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   sectors.ts          SIC code → 5 display sectors
   store.ts            JsonStore (.data/castle.json) and SupabaseStore
   text.ts             EDGAR HTML → plain text
-  parse/              Pure text parsers (press releases, merger 8-K Item 1.01, merger proxies, IPO documents, company names) + tests
+  parse/              Pure text parsers (press releases, merger 8-K Item 1.01, merger proxies, fairness opinions, IPO documents, company names) + tests
 supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon)
 .github/workflows/    ingest.yml (cron 09:30 + 21:30 ET, manual backfill) and ci.yml (lint/test/build)
 ```
@@ -149,5 +149,6 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 - **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with hourly ISR).
 - **Company pages (done):** every acquirer, target and IPO issuer links to `/company/[id]`. Use `CompanyLink` for company names; generic buyer names ("The Investor Group") get no page.
 - **Precedent transactions (done):** `/precedents` (`lib/precedents.ts` + `PrecedentsView`). Screen by sector / industry / size / window, untick outliers, summary rows (high, 75th, mean, median, 25th, low), CSV export. A deal drawer's "Precedents" button opens `/precedents?deal=<id>` seeded from that deal (same sector, ⅓×–3× its size).
-- **Next on the roadmap:** merger-proxy valuation data (fairness-opinion DCF ranges, comps, fees).
+- **Fairness-opinion valuation (done):** `ingest/parse/fairness.ts` reads each "Opinion of <Bank>" section of the target's DEFM14A / SC 14D9 / PREM14A: implied per-share ranges by analysis, DCF discount rate / perpetuity growth / terminal multiple, and the bank's fee. Stored as `Deal.fairness`; shown as a football field in the deal drawer's Valuation tab (`components/details/Valuation.tsx`). Ranges are only read inside a bank's section (bids in the background story and termination fees are ignored); a section ends at the next "Opinion of" line, another bank's analysis heading, or a major heading such as the projections. A preliminary proxy is re-read when the definitive one arrives (`fairnessAdsh` / `fairnessCheckedAt`). About 270 of 377 deals have one.
+- **Ideas next:** fairness data in the precedents tool (median DCF range vs offer by sector), fee league table (who earns what), deal timelines (announcement → proxy → close), alerts, accounts.
 - **Ideas / known gaps:** acquirer-side advisors for deals without a press release (the proxy names the target's bank only); placeholder buyer names when no filing names the sponsor; a "Consumer" sector if the founder wants to split it from Industrials.

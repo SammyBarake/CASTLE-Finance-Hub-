@@ -65,6 +65,8 @@ export interface Deal {
   status: DealStatus;
   /** Date the current status was reached (closing / termination / proxy filing). */
   statusDate: string | null;
+  /** Fairness opinions from the target's merger proxy (valuation ranges, DCF inputs, fees). */
+  fairness?: FairnessOpinion[];
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
   /** EV / last-twelve-months EBITDA of the target. */
@@ -86,6 +88,27 @@ export interface MonthlySectorVolume {
 }
 
 /** Feature 3: a company in the IPO pipeline. */
+/** One valuation analysis from a fairness opinion: implied value per target share. */
+export interface ValuationRange {
+  /** "Discounted cash flow", "Trading comparables", "Precedent transactions", ... */
+  method: string;
+  low: number;
+  high: number;
+}
+
+/** A bank's fairness opinion as summarised in the merger proxy / Schedule 14D-9. */
+export interface FairnessOpinion {
+  bank: string | null;
+  /** Whose board the bank advised. */
+  side: "target" | "acquirer";
+  ranges: ValuationRange[];
+  feeUsd: number | null;
+  /** DCF assumptions, [low, high]. */
+  discountRatePct: [number, number] | null;
+  perpetuityGrowthPct: [number, number] | null;
+  terminalMultiple: [number, number] | null;
+}
+
 export interface Ipo {
   id: string;
   company: Company;

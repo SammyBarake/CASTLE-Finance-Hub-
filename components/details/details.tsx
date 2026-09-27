@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
+import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
@@ -41,7 +42,7 @@ function Filings({ filings }: { filings: Filing[] }) {
   );
 }
 
-type Tab = "overview" | "advisors" | "filings" | "notes";
+type Tab = "overview" | "valuation" | "advisors" | "filings" | "notes";
 
 /** Watch / copy / compare buttons at the top of a drawer. */
 function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo }) {
@@ -113,7 +114,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
   return (
     <>
       <DrawerActions kind="deal" record={deal} />
-      <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings", "notes"]} />
+      <Tabs tab={tab} onChange={setTab} tabs={deal.fairness?.length ? ["overview", "valuation", "advisors", "filings", "notes"] : ["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
           <DetailGrid>
@@ -187,6 +188,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
           ))}
         </div>
       )}
+      {tab === "valuation" && <ValuationTab deal={deal} />}
       {tab === "filings" && <Filings filings={deal.filings} />}
       {tab === "notes" && <NotesTab kind="deal" id={deal.id} />}
       <SourceNote isSample={data.isSample} />
@@ -295,6 +297,10 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: final 424B4 prospectus filed. Trading: now listed. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
+    [
+      "Valuation (fairness opinions)",
+      "The value ranges each bank's analyses implied for the target's shares (DCF, trading comparables, precedent transactions, premiums paid and others), read from the fairness-opinion summary in the merger proxy or Schedule 14D-9, with the bank's fee and DCF assumptions. The dashed line is the offer price.",
+    ],
     [
       "Precedent transactions",
       "Comparable deals picked by sector, industry, size and date. Deal size is enterprise value, or the headline value when EV isn't available. Statistics (high, 75th percentile, mean, median, 25th percentile, low) use only ticked rows and skip undisclosed values; percentiles interpolate like Excel's PERCENTILE.INC.",

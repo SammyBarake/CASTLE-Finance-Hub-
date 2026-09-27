@@ -24,6 +24,7 @@ import {
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
 import { parseMergerItem } from "./parse/eightk";
+import { parseFairness } from "./parse/fairness";
 import { parseMergerProxy } from "./parse/proxy";
 import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
@@ -288,7 +289,9 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
 
 const CLOSED_FORMS = /^(25-NSE|25|15-12B|15-12G|15-15D)$/;
 const PROXY_ORDER = ["DEFM14A", "SC 14D9", "SC14D9", "PREM14A", "DEFM14C", "PREM14C"];
-const PROXY_FORMS = /^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
+/** Best source of fairness opinions first. */
+const FAIRNESS_FORMS = ["DEFM14A", "SC 14D9", "SC14D9", "DEFM14C", "PREM14A"];
+const PROXY_FORMS =/^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
 const PENDING_FORMS =/^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|SC14D9|S-4|F-4)(\/A)?$/;
 
 async function isMergerTermination(cik: string, adsh: string, doc: string) {
@@ -349,6 +352,26 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     } else if (deal.status === "Closed" || deal.status === "Terminated") {
       deal.proxyCheckedAt = today; // No proxy will come now.
     }
+  }
+
+  // Fairness opinions (valuation ranges, DCF inputs, fees) from the full proxy. A preliminary proxy is
+  // re-read once the definitive one is filed; the search ends with a definitive proxy or when the deal is over.
+  if (sub && !deal.fairnessCheckedAt) {
+    const proxy = recentFilings(sub)
+      .filter((f) => f.date >= deal.announcedDate && FAIRNESS_FORMS.includes(f.form))
+      .sort((a, b) => FAIRNESS_FORMS.indexOf(a.form) - FAIRNESS_FORMS.indexOf(b.form) || b.date.localeCompare(a.date))[0];
+    if (proxy && proxy.adsh !== deal.fairnessAdsh) {
+      try {
+        const text = htmlToText(await getText(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument)));
+        const opinions = parseFairness(text, { acquirerName: deal.acquirer.name, offerPrice: deal.pricePerShare });
+        if (opinions.length) deal.fairness = opinions;
+        deal.fairnessAdsh = proxy.adsh;
+      } catch {
+        // Try again on the next run.
+      }
+    }
+    const final = proxy && proxy.form !== "PREM14A" && proxy.adsh === deal.fairnessAdsh;
+    if (final || deal.status === "Closed" || deal.status === "Terminated") deal.fairnessCheckedAt = today;
   }
 
   if (!deal.financialsCheckedAt && deal.target.cik) {
@@ -503,7 +526,8 @@ export async function ingestDeals(
       touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       !d.financialsCheckedAt ||
-      (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)),
+      (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
+      !d.fairnessCheckedAt,
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {
