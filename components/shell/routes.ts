@@ -1,6 +1,6 @@
 import type { IconName } from "@/components/ui/Icon";
 
-export type RouteId = "hub" | "deal-flow" | "deal-volume" | "ipo-pipeline" | "advisors" | "valuations" | "precedents" | "world-economies";
+export type RouteId = "hub" | "deal-flow" | "deal-volume" | "ipo-pipeline" | "advisors" | "valuations" | "precedents" | "timelines" | "world-economies";
 
 export interface RouteDef {
   id: RouteId;
@@ -19,6 +19,7 @@ export const ROUTES: RouteDef[] = [
   { id: "advisors", href: "/advisors", title: "Advisors", icon: "bank" },
   { id: "valuations", href: "/valuations", title: "Valuations", icon: "values" },
   { id: "precedents", href: "/precedents", title: "Precedents", icon: "comps" },
+  { id: "timelines", href: "/timelines", title: "Timelines", icon: "clock" },
   { id: "world-economies", href: "/world-economies", title: "World Economies", icon: "globe" },
 ];
 

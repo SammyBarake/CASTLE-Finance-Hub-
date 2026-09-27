@@ -25,6 +25,7 @@ import {
 import { computeMultiples, getTargetFinancials } from "./financials";
 import { parseMergerItem } from "./parse/eightk";
 import { parseFairness } from "./parse/fairness";
+import { milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
@@ -329,6 +330,8 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         deal.statusDate = pending.date;
       }
     }
+    // Milestones come from the same filing index (no extra requests).
+    deal.milestones = milestonesFrom(recentFilings(sub), deal.announcedDate, deal.status === "Terminated" ? deal.statusDate : null);
   }
   deal.statusCheckedAt = today;
 
@@ -527,7 +530,9 @@ export async function ingestDeals(
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       !d.financialsCheckedAt ||
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
-      !d.fairnessCheckedAt,
+      !d.fairnessCheckedAt ||
+      !d.milestones ||
+      d.milestones.voteHeld === undefined,
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {

@@ -67,6 +67,7 @@ export interface Deal {
   statusDate: string | null;
   /** Fairness opinions from the target's merger proxy (valuation ranges, DCF inputs, fees). */
   fairness?: FairnessOpinion[];
+  milestones?: DealMilestones;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
   /** EV / last-twelve-months EBITDA of the target. */
@@ -88,6 +89,20 @@ export interface MonthlySectorVolume {
 }
 
 /** Feature 3: a company in the IPO pipeline. */
+/** Dates a deal passed through, from the target's SEC filing history. */
+export interface DealMilestones {
+  /** How shareholders approve: a tender offer (SC 14D9 / SC TO-T) or a vote on a merger proxy. */
+  path: "tender" | "vote" | null;
+  /** First merger proxy, 14D-9 or S-4 filed after the announcement. */
+  firstFiling: { form: string; date: string } | null;
+  /** Definitive proxy (DEFM14A) mailed to shareholders, for vote deals. */
+  definitiveProxy: string | null;
+  /** Shareholder vote results reported (8-K Item 5.07 after the definitive proxy). */
+  voteHeld?: string | null;
+  closed: string | null;
+  terminated: string | null;
+}
+
 /** One valuation analysis from a fairness opinion: implied value per target share. */
 export interface ValuationRange {
   /** "Discounted cash flow", "Trading comparables", "Precedent transactions", ... */

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
+import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
@@ -117,6 +118,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
       <Tabs tab={tab} onChange={setTab} tabs={deal.fairness?.length ? ["overview", "valuation", "advisors", "filings", "notes"] : ["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
+          <DealTimeline deal={deal} asOf={data.asOf} />
           <DetailGrid>
             <DetailItem label="Acquirer">
               <CompanyLink company={deal.acquirer}>{withTicker(deal.acquirer)}</CompanyLink>
@@ -297,6 +299,10 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: final 424B4 prospectus filed. Trading: now listed. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
+    [
+      "Timelines",
+      "Milestones come from the target's SEC filings: announcement, first proxy / tender-offer document, definitive proxy, shareholder vote results (8-K Item 5.07), and closing (delisting or change-of-control filing). Time to close is announcement to closing. Deals first seen at completion, or open 18+ months with no closing filing, are left out of the timings.",
+    ],
     [
       "Valuation (fairness opinions)",
       "The value ranges each bank's analyses implied for the target's shares (DCF, trading comparables, precedent transactions, premiums paid and others), read from the fairness-opinion summary in the merger proxy or Schedule 14D-9, with the bank's fee and DCF assumptions. The dashed line is the offer price.",

@@ -470,6 +470,50 @@
     .ff-lo, .ff-hi { font-size: 8px; }
   }
 
+  /* ---------- deal timelines ---------- */
+  .deal-timeline { border: 1px solid #262626; border-radius: 6px; padding: 12px 14px; margin: 0 0 18px; background: #0b0b0b; }
+  .deal-timeline-head { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; color: #8a8a8a; margin-bottom: 10px; }
+  .deal-timeline-head b { color: #e6e6e6; font-weight: 500; }
+  .deal-timeline ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .deal-timeline li { position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; }
+  .deal-timeline li:not(:last-child)::after { content: ""; position: absolute; left: 4px; top: 17px; bottom: -7px; width: 1px; background: #333; }
+  .deal-timeline-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #555; background: #000; z-index: 1; }
+  .step-done .deal-timeline-dot { background: #cfcfcf; border-color: #cfcfcf; }
+  .step-current .deal-timeline-dot { border-color: #eee; box-shadow: 0 0 0 3px #ffffff1f; }
+  .step-failed .deal-timeline-dot { background: var(--color-down); border-color: var(--color-down); }
+  .deal-timeline-label { color: #d6d6d6; }
+  .step-todo .deal-timeline-label, .step-todo .deal-timeline-date { color: #666; }
+  .deal-timeline-date { font: 10px var(--font-mono); color: #a8a8a8; white-space: nowrap; }
+  .deal-timeline-date small { color: #777; }
+  .timeline-notes ul { margin: 0; padding: 4px 22px 18px 34px; display: grid; gap: 8px; }
+  .timeline-notes li { font-size: 12px; color: #d0d0d0; line-height: 1.55; }
+  .timeline-grid { margin-bottom: 20px; }
+  .timeline-grid .panel { margin-bottom: 0; }
+  .timeline-chart { height: 250px; padding: 4px 14px 14px 8px; }
+  .timeline-sectors { padding: 8px 18px 4px; display: grid; gap: 10px; }
+  .timeline-sector { display: grid; grid-template-columns: 100px minmax(0, 1fr) 92px; align-items: center; gap: 10px; font-size: 11px; }
+  .timeline-sector-name { display: flex; align-items: center; gap: 7px; color: #d4d4d4; }
+  .timeline-sector-bar { height: 8px; background: #1a1a1a; border-radius: 4px; overflow: hidden; }
+  .timeline-sector-bar i { display: block; height: 100%; border-radius: 4px; opacity: 0.85; }
+  .timeline-sector-value { font: 11px var(--font-mono); color: #e0e0e0; text-align: right; }
+  .timeline-sector-value small { display: block; font: 9px var(--font-sans, inherit); color: #777; }
+  .timeline-compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--color-line); margin-top: 14px; }
+  .timeline-compare div { padding: 12px 18px; border-left: 1px solid var(--color-line); }
+  .timeline-compare div:first-child { border-left: 0; }
+  .timeline-compare span { display: block; font-size: 9px; color: #808080; margin-bottom: 4px; }
+  .timeline-compare b { font-size: 15px; font-weight: 500; color: #eee; }
+  .timeline-progress-cell { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+  .timeline-progress { flex: 1; height: 6px; background: #1c1c1c; border-radius: 3px; overflow: hidden; }
+  .timeline-progress i { display: block; height: 100%; background: #bdbdbd; }
+  .timeline-progress.late i { background: #d6a36b; }
+  .timeline-progress-cell small { font: 10px var(--font-mono); color: #999; width: 34px; text-align: right; }
+  @media (max-width: 760px) {
+    .timeline-sector { grid-template-columns: 84px minmax(0, 1fr) 76px; }
+    .timeline-compare { grid-template-columns: 1fr; }
+    .timeline-compare div { border-left: 0; border-top: 1px solid var(--color-line); }
+    .timeline-compare div:first-child { border-top: 0; }
+  }
+
   /* ---------- precedent transactions ---------- */
   .precedents-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); animation: none; border-bottom: 0; }
   .precedents-filters .filter-search { width: 100%; }

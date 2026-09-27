@@ -271,7 +271,7 @@ function ManageViewsBody({ onApply }: { onApply: (index: number) => void }) {
 function Shortcuts() {
   const rows: [string, string][] = [
     ["Ctrl K / ⌘ K", "Search companies, transactions and banks."],
-    ["Alt 1–8", "Open a sidebar section."],
+    ["Alt 1–9", "Open a sidebar section."],
     ["Enter", "Open a focused table row or search result."],
     ["Escape", "Close details, menus or search."],
     ["Right-click a deal or IPO", "Open its actions menu."],
