@@ -34,7 +34,7 @@ async function throttle() {
 
 export class NotFoundError extends Error {}
 
-async function request(url: string): Promise<Response> {
+async function request(url: string, opts: { missingIs403?: boolean } = {}): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     await throttle();
     requestCount++;
@@ -47,12 +47,25 @@ async function request(url: string): Promise<Response> {
       continue;
     }
     if (res.ok) return res;
-    if (res.status === 404) throw new NotFoundError(`404 ${url}`);
+    if (res.status === 404 || (opts.missingIs403 && res.status === 403)) throw new NotFoundError(`${res.status} ${url}`);
     // 429/403 = rate limited; 5xx = transient. Back off and retry.
     if (attempt >= MAX_RETRIES || ![403, 429, 500, 502, 503, 504].includes(res.status)) {
       throw new Error(`EDGAR ${res.status} for ${url}`);
     }
     await sleep(res.status === 429 || res.status === 403 ? 10_000 : 1000 * 2 ** attempt);
+  }
+}
+
+/**
+ * A daily index file, or null when there is none (weekends and holidays). The archive answers a
+ * missing file with 403, which `request` would otherwise treat as rate limiting and retry.
+ */
+export async function getDailyIndex(url: string): Promise<string | null> {
+  try {
+    return await (await request(url, { missingIs403: true })).text();
+  } catch (err) {
+    if (err instanceof NotFoundError) return null;
+    throw err;
   }
 }
 

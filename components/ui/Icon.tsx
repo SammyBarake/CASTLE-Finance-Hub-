@@ -22,6 +22,7 @@ const PATHS = {
       <rect x="17" y="10" width="4" height="5" rx=".7" />
     </>
   ),
+  megaphone: <path d="M4 10v4h3l7 4V6l-7 4H4Zm13-1.5a4 4 0 0 1 0 7M7 14l1.5 5h2L9 14" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

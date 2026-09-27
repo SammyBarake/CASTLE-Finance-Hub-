@@ -4,9 +4,11 @@
  *   npm run ingest                         daily update (last 5 days), writes to Supabase if configured
  *   npm run ingest -- --from 2024-09-01    backfill from a date
  *   npm run ingest -- --local              force the local JSON store (.data/castle.json)
- *   npm run ingest -- --only deals|ipos|macro    run one pipeline
+ *   npm run ingest -- --only deals|ipos|activists|macro    run one pipeline
+ *   npm run ingest -- --only activists --from 2025-01-01   backfill activist 13Ds
  *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
  */
+import { ingestActivists } from "./activists";
 import { buildDirectory, ingestDeals } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { ingestIpos } from "./ipos";
@@ -76,6 +78,16 @@ async function main() {
       log("ipos: discovering registrations");
       const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
       log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
+    }
+    if (!only || only === "activists") {
+      // Non-critical: a failure keeps the stored stakes.
+      try {
+        log("activists: reading Schedule 13D filings");
+        const s = await ingestActivists(state, { from, to, directory, log });
+        log(`activists: ${s.added} new stakes, ${s.total} stored`);
+      } catch (err) {
+        log(`activists: skipped (${(err as Error).message})`);
+      }
     }
     if (!only || only === "macro") {
       // Non-critical: on failure keep the last good snapshot and carry on.

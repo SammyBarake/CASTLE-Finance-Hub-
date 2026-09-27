@@ -55,7 +55,7 @@ export interface CompanyProfile {
   saleStatus: DealStatus | null;
 }
 
-export function findCompany(data: Pick<HubData, "deals" | "ipos">, id: string): CompanyProfile | null {
+export function findCompany(data: Pick<HubData, "deals" | "ipos" | "activists">, id: string): CompanyProfile | null {
   if (!hasCompanyPage({ name: id.slice(2).replace(/-/g, " "), ticker: null, cik: id.startsWith("n-") ? null : id })) return null;
   const byCik = !id.startsWith("n-");
   const cik = byCik ? id.replace(/^0+/, "") : null;
@@ -75,11 +75,13 @@ export function findCompany(data: Pick<HubData, "deals" | "ipos">, id: string): 
   }
   deals.sort((a, b) => b.deal.announcedDate.localeCompare(a.deal.announcedDate));
   const ipos = data.ipos.filter((i) => matches(i.company)).sort((a, b) => b.filedDate.localeCompare(a.filedDate));
-  if (!deals.length && !ipos.length) return null;
+  // Companies known only from an activist 13D still get a page.
+  const stake = (data.activists ?? []).find((s) => matches(s.company));
+  if (!deals.length && !ipos.length && !stake) return null;
 
   // Identity: SEC-registered records (targets, issuers) carry the official name and ticker.
   const asTarget = deals.find((d) => d.role === "Target")?.deal;
-  const official = asTarget?.target ?? ipos[0]?.company ?? deals[0].deal.acquirer;
+  const official = asTarget?.target ?? ipos[0]?.company ?? stake?.company ?? deals[0].deal.acquirer;
   const withTicker = [asTarget?.target, ipos[0]?.company, ...deals.filter((d) => d.role === "Acquirer").map((d) => d.deal.acquirer)].find((c) => c?.ticker);
   const company: Company = { name: official.name, ticker: official.ticker ?? withTicker?.ticker ?? null, cik: official.cik ?? cik };
 

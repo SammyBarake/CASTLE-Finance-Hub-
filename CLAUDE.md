@@ -91,6 +91,7 @@ lib/
   aggregate.ts        Raw deals → monthly volume, league table, valuation medians (+ public field stripping)
   metrics.ts          Pure derived figures: YTD, momentum, medians, valuation cards
   banks.ts            Known banks, name variants, monograms (shared by ingest + UI)
+  activists.ts        Activist stakes: stats, demands, later deals, insights + tests
   buyers.ts           Strategic vs private-equity buyer classification + comparison, insights + tests
   fees.ts             Advisory fees: league by total fees, fee % by deal size, insights + tests
   timelines.ts        Deal timelines: time to close by sector / path / consideration, open-deal progress, insights + tests
@@ -107,6 +108,7 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   edgar.ts            EDGAR client: User-Agent, ~8 req/s throttle, retries, optional disk cache
   deals.ts            Full-text search → parse → resolve CIKs → merge → status/sector/multiples
   ipos.ts             S-1/F-1 registrants → filters → Filed / Priced (424B4) / Trading
+  activists.ts        Schedule 13D activist stakes from the daily form index (stored in meta "activists")
   macro.ts            World Economies: IMF WEO (growth, inflation) + BIS policy rates; failure keeps last snapshot
   financials.ts       XBRL company facts → LTM revenue/EBITDA, debt, cash → EV multiples
   sectors.ts          SIC code → 5 display sectors
@@ -160,5 +162,6 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 - **Deal timelines (done):** `ingest/timeline.ts` derives `Deal.milestones` (path tender/vote, first filing, definitive proxy, vote held via 8-K Item 5.07, closed, terminated) from the target's filing index during enrichment (no extra requests). `lib/timelines.ts` computes time-to-close stats and plain-English insights; `/timelines` page (`TimelinesView`) and a timeline strip at the top of the deal drawer (`DealTimeline`). Deals closing < 7 days after the first filing Castle saw ("seen at completion") and deals open 18+ months (data gaps) are excluded from timings.
 - **Advisory fees (done):** Advisors page has a "Fees earned" view (`AdvisorFees`, model `lib/fees.ts`): fee league table, fee as % of deal by size band, biggest paydays, insights. Fees come from `Deal.fairness[].feeUsd`; `bankFee()` in `parse/fairness.ts` only accepts payments to the adviser (not termination fees or the target's own "fee-related earnings"). Bump `FAIRNESS_PARSER_VERSION` after changing the fairness parser; stored opinions are then re-read on the next ingest.
 - **Buyer types (done):** `lib/buyers.ts` classifies each buyer as Strategic or Private equity (known-sponsor list, fund-shaped names, unlisted buyout vehicles); the Valuations page has a "Who pays more" comparison (`BuyerTypes`) and the deal drawer shows the buyer type. Extend the `SPONSORS` list when a sponsor is missed.
-- **Ideas next:** fairness data in the precedents tool (median DCF range vs offer by sector), activist tracking (13D filings), alerts, accounts, a data-quality monitor page.
+- **Activists (done):** `ingest/activists.ts` reads EDGAR's daily form index (full-text search barely indexes XML 13Ds), fetches each new SCHEDULE 13D whose issuer is US-listed (`primary_doc.xml`, parsed in `parse/thirteend.ts`), and keeps activists only: known funds (`KNOWN_ACTIVISTS`) or a concrete campaign in Item 4 after the SEC checklist boilerplate is stripped (`campaignText`). 13D/A amendments are counted from the index. Stored in `meta` key `activists` (newest 300, ~18 months), shown on `/activists` and on company pages. Missing daily index files return 403: use `getDailyIndex`, not `getText`. Backfill: `npm run ingest -- --only activists --from 2025-01-01`.
+- **Ideas next:** fairness data in the precedents tool (median DCF range vs offer by sector), alerts, accounts, a data-quality monitor page.
 - **Ideas / known gaps:** acquirer-side advisors for deals without a press release (the proxy names the target's bank only); placeholder buyer names when no filing names the sponsor; a "Consumer" sector if the founder wants to split it from Industrials.

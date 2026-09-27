@@ -203,6 +203,30 @@ export interface Macro {
 }
 
 /** Everything the hub page needs, fetched in one call. */
+/** A 5%+ stake disclosed on Schedule 13D (investors who may seek to influence the company). */
+export interface ActivistStake {
+  /** Accession number of the initial 13D. */
+  id: string;
+  filedDate: string;
+  /** Date the 5% threshold was crossed ("date of event"). */
+  eventDate: string | null;
+  investor: { name: string; cik: string | null };
+  company: Company;
+  /** Largest reported % of the class among the reporting persons (they overlap; not additive). */
+  percent: number | null;
+  shares: number | null;
+  /** Tags from Item 4: "Board seats", "Sale or strategic review", "Capital return", ... */
+  aims: string[];
+  /** Short excerpt of Item 4, "Purpose of Transaction". */
+  purpose: string;
+  /** Known activist fund, or a campaign stated in Item 4. */
+  activist: boolean;
+  /** 13D/A amendments filed since. */
+  amendments: number;
+  lastAmended: string | null;
+  url: string;
+}
+
 export interface HubData {
   /** When the underlying data was last refreshed (ISO timestamp). */
   asOf: string;
@@ -219,4 +243,6 @@ export interface HubData {
   valuations: SectorValuation[];
   /** World Economies; null until the macro job has run. */
   macro: Macro | null;
+  /** Recent Schedule 13D activist stakes, newest first (empty until the activists job has run). */
+  activists?: ActivistStake[];
 }

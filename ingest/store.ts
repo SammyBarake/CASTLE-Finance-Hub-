@@ -9,7 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Deal, Ipo, Macro } from "../lib/types";
+import type { ActivistStake, Deal, Ipo, Macro } from "../lib/types";
 
 export interface StoredDeal extends Deal {
   valueKind: "enterprise" | "equity" | "transaction" | null;
@@ -44,6 +44,8 @@ export interface State {
   asOf: string | null;
   /** World Economies (IMF + BIS); kept from the last successful fetch. */
   macro: Macro | null;
+  /** Schedule 13D activist stakes, newest first; stored in `meta` like macro. */
+  activists: ActivistStake[];
 }
 
 export interface Store {
@@ -60,14 +62,14 @@ export class JsonStore implements Store {
   constructor(private path = LOCAL_DATA_PATH) {}
 
   async load(): Promise<State> {
-    if (!existsSync(this.path)) return { deals: [], ipos: [], seen: new Set(), asOf: null, macro: null };
+    if (!existsSync(this.path)) return { deals: [], ipos: [], seen: new Set(), asOf: null, macro: null, activists: [] };
     const raw = JSON.parse(readFileSync(this.path, "utf8"));
-    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null, macro: raw.macro ?? null };
+    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null, macro: raw.macro ?? null, activists: raw.activists ?? [] };
   }
 
   async save(state: State) {
     mkdirSync(dirname(this.path), { recursive: true });
-    const out = { asOf: state.asOf, macro: state.macro, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
+    const out = { asOf: state.asOf, macro: state.macro, activists: state.activists, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
     writeFileSync(this.path, JSON.stringify(out, null, 1));
   }
 }
@@ -105,7 +107,7 @@ export class SupabaseStore implements Store {
       selectAll<{ data: StoredDeal }>(this.db, "deals", "data"),
       selectAll<{ data: StoredIpo }>(this.db, "ipos", "data"),
       selectAll<{ id: string }>(this.db, "seen_docs", "id"),
-      this.db.from("meta").select("key, value").in("key", ["asOf", "macro"]),
+      this.db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"]),
     ]);
     this.loadedSeen = new Set(seen.map((s) => s.id));
     const metaValue = (key: string) => meta.data?.find((m) => m.key === key)?.value;
@@ -115,6 +117,7 @@ export class SupabaseStore implements Store {
       seen: new Set(this.loadedSeen),
       asOf: (metaValue("asOf") as string | undefined) ?? null,
       macro: (metaValue("macro") as Macro | undefined) ?? null,
+      activists: (metaValue("activists") as ActivistStake[] | undefined) ?? [],
     };
   }
 
@@ -154,7 +157,11 @@ export class SupabaseStore implements Store {
     }
     const newSeen = [...state.seen].filter((id) => !this.loadedSeen.has(id)).map((id) => ({ id }));
     await upsertChunks(this.db, "seen_docs", newSeen);
-    const metaRows = [{ key: "asOf", value: state.asOf }, ...(state.macro ? [{ key: "macro", value: state.macro }] : [])];
+    const metaRows = [
+      { key: "asOf", value: state.asOf },
+      ...(state.macro ? [{ key: "macro", value: state.macro }] : []),
+      ...(state.activists.length ? [{ key: "activists", value: state.activists }] : []),
+    ];
     const { error } = await this.db.from("meta").upsert(metaRows);
     if (error) throw new Error(`Supabase upsert meta: ${error.message}`);
   }

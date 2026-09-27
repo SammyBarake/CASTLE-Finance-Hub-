@@ -35,6 +35,7 @@ export function CompanyView({ id }: { id: string }) {
   }
 
   const { company, deals, ipos, banks, filings } = profile;
+  const stakes = (data.activists ?? []).filter((s) => company.cik && s.company.cik?.replace(/^0+/, "") === company.cik.replace(/^0+/, ""));
   const bought = deals.filter((d) => d.role === "Acquirer");
   const sold = deals.filter((d) => d.role === "Target");
   const isRanked = (name: string) => data.leagueTable.entries.some((e) => e.advisor.name === name);
@@ -163,6 +164,29 @@ export function CompanyView({ id }: { id: string }) {
                 <small>{i.stage}</small>
               </span>
             </button>
+          ))}
+        </section>
+      )}
+
+      {!!stakes.length && (
+        <section className="panel">
+          <PanelHead title="Activist investors" subtitle="5%+ stakes filed on Schedule 13D by investors seeking change" />
+          {stakes.map((s) => (
+            <a key={s.id} className="preview-row" href={s.url} target="_blank" rel="noreferrer">
+              <span className="preview-company">
+                <span>
+                  <strong>{s.investor.name}</strong>
+                  <small>
+                    Filed {formatDateLong(s.filedDate)}
+                    {s.aims.length ? ` · ${s.aims.join(", ")}` : ""}
+                  </small>
+                </span>
+              </span>
+              <span className="preview-value">
+                {s.percent != null ? `${s.percent.toFixed(1)}%` : "n/a"}
+                <small>stake</small>
+              </span>
+            </a>
           ))}
         </section>
       )}

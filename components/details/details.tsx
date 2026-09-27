@@ -302,6 +302,10 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
     [
+      "Activist investors",
+      "Schedule 13D filings (structured format, since December 2024) where the company is U.S.-listed and the investor is a known activist fund or describes a concrete campaign in Item 4: nominating directors, a letter to the board, a settlement agreement, a special meeting. Founders, insiders, SPAC sponsors, holders above 50% and shares bought from the company are left out. Stake = the largest percentage reported by the related funds.",
+    ],
+    [
       "Timelines",
       "Milestones come from the target's SEC filings: announcement, first proxy / tender-offer document, definitive proxy, shareholder vote results (8-K Item 5.07), and closing (delisting or change-of-control filing). Time to close is announcement to closing. Deals first seen at completion, or open 18+ months with no closing filing, are left out of the timings.",
     ],

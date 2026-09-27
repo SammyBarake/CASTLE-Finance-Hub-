@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { bankShortName } from "./banks";
 import { buildHubData } from "./aggregate";
 import { sampleHubData } from "./sampleData";
-import type { Deal, HubData, Ipo, Macro } from "./types";
+import type { ActivistStake, Deal, HubData, Ipo, Macro } from "./types";
 
 /**
  * The single entry point the UI uses to get data. Sources, in order:
@@ -62,7 +62,7 @@ async function fromSupabase(url: string, anonKey: string): Promise<HubData> {
   const [deals, ipos, meta] = await Promise.all([
     readAll<Deal>("deals", "announced_date"),
     readAll<Ipo>("ipos", "filed_date"),
-    db.from("meta").select("key, value").in("key", ["asOf", "macro"]),
+    db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"]),
   ]);
   if (!deals.length && !ipos.length) throw new Error("Supabase is empty; run the ingest first");
   const metaValue = (key: string) => meta.data?.find((m) => m.key === key)?.value;
@@ -71,6 +71,7 @@ async function fromSupabase(url: string, anonKey: string): Promise<HubData> {
     ipos,
     asOf: (metaValue("asOf") as string) ?? new Date().toISOString(),
     macro: (metaValue("macro") as Macro | undefined) ?? null,
+    activists: (metaValue("activists") as ActivistStake[] | undefined) ?? [],
     shortName: bankShortName,
   });
 }
@@ -78,7 +79,7 @@ async function fromSupabase(url: string, anonKey: string): Promise<HubData> {
 function fromLocalFile(): HubData | null {
   const path = ".data/castle.json";
   if (!existsSync(path)) return null;
-  const raw = JSON.parse(readFileSync(path, "utf8")) as { deals: Deal[]; ipos: Ipo[]; asOf: string | null; macro?: Macro | null };
+  const raw = JSON.parse(readFileSync(path, "utf8")) as { deals: Deal[]; ipos: Ipo[]; asOf: string | null; macro?: Macro | null; activists?: ActivistStake[] };
   if (!raw.deals?.length && !raw.ipos?.length) return null;
-  return buildHubData({ deals: raw.deals, ipos: raw.ipos, asOf: raw.asOf ?? new Date().toISOString(), macro: raw.macro ?? null, shortName: bankShortName });
+  return buildHubData({ deals: raw.deals, ipos: raw.ipos, asOf: raw.asOf ?? new Date().toISOString(), macro: raw.macro ?? null, activists: raw.activists ?? [], shortName: bankShortName });
 }

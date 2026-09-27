@@ -90,6 +90,25 @@ describe("findCompany", () => {
     expect(searchCompanies({ deals: generic, ipos: [] }, "investor")).toEqual([]);
   });
 
+  it("gives a page to a company known only from an activist stake", () => {
+    const stake = {
+      id: "a",
+      filedDate: "2026-08-03",
+      eventDate: null,
+      investor: { name: "Coliseum", cik: "9" },
+      company: { name: "Sonos Inc", ticker: "SONO", cik: "1314727" },
+      percent: 15,
+      shares: null,
+      aims: [],
+      purpose: "",
+      activist: true,
+      amendments: 0,
+      lastAmended: null,
+      url: "",
+    };
+    expect(findCompany({ deals: [], ipos: [], activists: [stake] }, "1314727")!.company).toEqual({ name: "Sonos Inc", ticker: "SONO", cik: "1314727" });
+  });
+
   it("returns null for unknown companies", () => {
     expect(findCompany({ deals, ipos: [] }, "n-nobody")).toBeNull();
     expect(findCompany({ deals, ipos: [] }, "123")).toBeNull();
