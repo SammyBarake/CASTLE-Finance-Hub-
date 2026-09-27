@@ -107,6 +107,30 @@ function lastMention(s: string, skipIncidental: boolean): string | null {
   return best?.method ?? null;
 }
 
+/** Bump when the parser changes so stored opinions are re-read on the next ingest. */
+export const FAIRNESS_PARSER_VERSION = 3;
+
+/**
+ * The bank's own fee: "the Company has agreed to pay Goldman Sachs a transaction fee of approximately
+ * $42 million". Never a termination fee, and never the target's own fee income ("management fees",
+ * "fee-related earnings of $132 million"), which asset-manager proxies are full of.
+ */
+export function bankFee(body: string): number | null {
+  for (const m of body.matchAll(/(\w+\s+)?fees?\b[^.$]{0,70}?(?:of|totaling|equal to|currently estimated to be|estimated at)\s+(?:approximately |up to )?\$(\d+(?:\.\d+)?)\s*(million|billion)/gi)) {
+    // A fixed window, not a sentence split: bank names like "J.P. Morgan" contain ". ".
+    const end = m.index! + m[0].length;
+    const lead = body.slice(Math.max(0, m.index! - 220), end);
+    const sentence = body.slice(Math.max(0, m.index! - 120), end);
+    const near = body.slice(Math.max(0, m.index! - 40), m.index!) + m[0];
+    if (/termination|break[- ]?up|expense|reimburse/i.test(near.slice(0, near.length - (m[2].length + 12)))) continue;
+    if (/management fees?|fee[- ]related|catch-up|FRE\b|fee revenue|fee income|fee earnings|incentive fees? (?:revenue|income)/i.test(sentence)) continue;
+    // It must be a payment to the adviser.
+    if (!/\b(?:pay|paid|payable|receive[sd]?|entitled|agreed|engagement letter|compensat)/i.test(lead)) continue;
+    return Number(m[2]) * (/billion/i.test(m[3]) ? 1e9 : 1e6);
+  }
+  return null;
+}
+
 const pair = (s: string, re: RegExp): [number, number] | null => {
   const m = re.exec(s);
   if (!m) return null;
@@ -165,14 +189,9 @@ export function parseFairness(text: string, ctx: { acquirerName: string; offerPr
       if (ranges.length >= 10) break;
     }
     if (!ranges.length) continue;
-
-    // The bank's fee, never a termination fee.
     let feeUsd: number | null = null;
-    for (const m of body.matchAll(/(\w+\s+)?fees?\b[^.$]{0,70}?(?:of|totaling|equal to|currently estimated to be|estimated at)\s+(?:approximately |up to )?\$(\d+(?:\.\d+)?)\s*(million|billion)/gi)) {
-      if (/termination|break[- ]?up|expense|reimburse/i.test(body.slice(Math.max(0, m.index! - 40), m.index! + m[0].length - 20))) continue;
-      feeUsd = Number(m[2]) * (/billion/i.test(m[3]) ? 1e9 : 1e6);
-      break;
-    }
+
+    feeUsd = bankFee(body);
 
     opinions.push({
       bank,

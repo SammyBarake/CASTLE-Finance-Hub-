@@ -24,7 +24,7 @@ import {
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
 import { parseMergerItem } from "./parse/eightk";
-import { parseFairness } from "./parse/fairness";
+import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
@@ -359,6 +359,13 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
 
   // Fairness opinions (valuation ranges, DCF inputs, fees) from the full proxy. A preliminary proxy is
   // re-read once the definitive one is filed; the search ends with a definitive proxy or when the deal is over.
+  if (sub && deal.fairnessParser !== FAIRNESS_PARSER_VERSION) {
+    // A newer parser re-reads the proxy even if the search had finished.
+    deal.fairnessCheckedAt = null;
+    deal.fairnessAdsh = null;
+    deal.fairness = undefined;
+    deal.fairnessParser = FAIRNESS_PARSER_VERSION;
+  }
   if (sub && !deal.fairnessCheckedAt) {
     const proxy = recentFilings(sub)
       .filter((f) => f.date >= deal.announcedDate && FAIRNESS_FORMS.includes(f.form))
@@ -531,6 +538,7 @@ export async function ingestDeals(
       !d.financialsCheckedAt ||
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
       !d.fairnessCheckedAt ||
+      d.fairnessParser !== FAIRNESS_PARSER_VERSION ||
       !d.milestones ||
       d.milestones.voteHeld === undefined,
   );

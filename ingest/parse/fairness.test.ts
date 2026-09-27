@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { methodFor, parseFairness } from "./fairness";
+import { bankFee, methodFor, parseFairness } from "./fairness";
 
 // Synthetic proxy excerpts in the style of real DEFM14A / 14D-9 filings.
 const PROXY = `
@@ -63,6 +63,16 @@ describe("parseFairness", () => {
 
   it("finds nothing in a document without fairness opinions", () => {
     expect(parseFairness("The Company entered into a credit agreement. Values of $1.00 to $2.00 per share.", { acquirerName: "X", offerPrice: null })).toEqual([]);
+  });
+});
+
+describe("bankFee", () => {
+  it("reads the adviser's fee but not the target's fee income", () => {
+    expect(bankFee("Pursuant to its engagement letter, the Company has agreed to pay Barclays a fee of approximately $28 million, of which $3 million became payable on delivery.")).toBe(28e6);
+    expect(bankFee("For services rendered in connection with the merger, the Company has agreed to pay J.P. Morgan an estimated fee of approximately $30 million.")).toBe(30e6);
+    expect(bankFee("Barclays applied the multiples to fee-related earnings (excluding $5.6 million of one-time catch-up fees) for its fiscal year 2026 of $132 million.")).toBeNull();
+    expect(bankFee("The Company must pay Parent a termination fee of $85 million.")).toBeNull();
+    expect(bankFee("Management fees for the year of $40 million were received from the funds.")).toBeNull();
   });
 });
 

@@ -24,6 +24,8 @@ export interface StoredDeal extends Deal {
   /** Proxy the fairness opinions were read from, and when the search finished (final proxy read or deal over). */
   fairnessAdsh?: string | null;
   fairnessCheckedAt?: string | null;
+  /** FAIRNESS_PARSER_VERSION the opinions were read with; a newer parser triggers a re-read. */
+  fairnessParser?: number;
 }
 
 export interface StoredIpo extends Ipo {

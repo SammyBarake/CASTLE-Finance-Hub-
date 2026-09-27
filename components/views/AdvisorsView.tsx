@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
-import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
+import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, Select } from "@/components/ui/primitives";
+import { AdvisorFees } from "./AdvisorFees";
 import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -18,6 +19,7 @@ export function AdvisorsView() {
   const { data } = useHubData();
   const { openAdvisor } = useDetails();
   const { toast } = useUi();
+  const [view, setView] = useState<"deals" | "fees">("deals");
   const [sort, setSort] = useState<Sort>("value");
   const [query, setQuery] = useState("");
   const [minDeals, setMinDeals] = useState("");
@@ -45,8 +47,28 @@ export function AdvisorsView() {
 
   return (
     <>
-      <PageHeading title="Advisors" subtitle={`U.S. M&A league table · ${data.leagueTable.period}`} date={formatDateFull(data.asOf)} onExport={exportRows} />
+      <PageHeading
+        title="Advisors"
+        subtitle={view === "deals" ? `U.S. M&A league table · ${data.leagueTable.period}` : "Advisory fees disclosed in merger proxies"}
+        date={formatDateFull(data.asOf)}
+        onExport={view === "deals" ? exportRows : undefined}
+      />
+      <div className="advisor-view-toggle">
+        <Segment
+          label="Advisors view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "deals", label: "Deals advised" },
+            { value: "fees", label: "Fees earned" },
+          ]}
+        />
+      </div>
 
+      {view === "fees" ? (
+        <AdvisorFees />
+      ) : (
+        <>
       <Kpis label="Advisor summary">
         <Kpi label="Top advisor by value" value={top?.advisor.name ?? "—"} note={top ? `${formatUsdB1(top.dealValueUsd)} advised` : "No data"} text />
         <Kpi label="Advisors ranked" value={entries.length} note="U.S. M&A · financial advisors" />
@@ -142,6 +164,8 @@ export function AdvisorsView() {
         </div>
       </section>
       <p className="note">A transaction may be credited to multiple advisors. Gross totals include shared mandates and do not represent unique market volume.</p>
+        </>
+      )}
     </>
   );
 }
