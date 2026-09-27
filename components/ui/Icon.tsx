@@ -95,6 +95,7 @@ const PATHS = {
     </>
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
+  expand: <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   pulse: <path d="M2 12h5l3-7 4 14 3-7h5" />,
   file: <path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8m-8 4h5" />,

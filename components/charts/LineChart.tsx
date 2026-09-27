@@ -41,9 +41,28 @@ const crosshair: Plugin<"line" | "bar"> = {
   },
 };
 
+/** Shaded band behind the selected period (explorer drill-down). */
+const highlightBand: Plugin<"line" | "bar"> = {
+  id: "castleHighlight",
+  beforeDatasetsDraw(chart) {
+    const index = (chart.options.plugins as { castleHighlight?: { index: number | null } }).castleHighlight?.index;
+    if (index == null || !chart.data.labels?.length) return;
+    const x = chart.scales.x;
+    const step = chart.data.labels.length > 1 ? Math.abs(x.getPixelForValue(1) - x.getPixelForValue(0)) : chart.chartArea.width;
+    const center = x.getPixelForValue(index);
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.fillStyle = "#ffffff12";
+    ctx.fillRect(center - step / 2, top, step, bottom - top);
+    ctx.restore();
+  },
+};
+
 /**
  * Multi-series line chart with the design's tooltip and crosshair.
  * `format` renders values in the tooltip; `formatTick` the y axis.
+ * `onPointClick` reports the clicked period (and the series under the pointer, if any); `highlight` shades a period.
  */
 export function LineChart({
   labels,
@@ -55,6 +74,10 @@ export function LineChart({
   points = false,
   type = "line",
   grid = true,
+  stacked = false,
+  highlight = null,
+  onPointClick,
+  maxTicks = 8,
 }: {
   labels: string[];
   series: ChartSeries[];
@@ -65,7 +88,13 @@ export function LineChart({
   points?: boolean;
   type?: "line" | "bar";
   grid?: boolean;
+  /** Bar charts only: stack sectors on top of each other. */
+  stacked?: boolean;
+  highlight?: number | null;
+  onPointClick?: (index: number, series: string | null) => void;
+  maxTicks?: number;
 }) {
+  const clickRef = useRef(onPointClick);
   const { prefs } = useWorkspace();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -77,6 +106,7 @@ export function LineChart({
   useEffect(() => {
     fmt.current = { format, formatTick };
     motionRef.current = prefs.motion;
+    clickRef.current = onPointClick;
   });
 
   // Create (again only when switching between line and bar).
@@ -106,12 +136,21 @@ export function LineChart({
     chartRef.current = new Chart<"line" | "bar">(canvasRef.current, {
       type,
       data: { labels: [], datasets: [] },
-      plugins: [crosshair],
+      plugins: [crosshair, highlightBand],
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: reduceMotion ? false : { duration: 300 },
         interaction: { mode: "index", intersect: false },
+        onClick(event, elements, chart) {
+          if (!clickRef.current || !elements.length) return;
+          const near = chart.getElementsAtEventForMode(event as unknown as Event, "nearest", { intersect: true }, false)[0];
+          clickRef.current(elements[0].index, near ? (chart.data.datasets[near.datasetIndex]?.label ?? null) : null);
+        },
+        onHover(event, elements) {
+          const target = event.native?.target as HTMLElement | undefined;
+          if (target) target.style.cursor = clickRef.current && elements.length ? "pointer" : "";
+        },
         layout: { padding: { top: 7, right: 4, left: 0, bottom: 0 } },
         plugins: { legend: { display: false }, tooltip: { enabled: false, external } },
         scales: {
@@ -150,9 +189,13 @@ export function LineChart({
     if (!chart) return;
     chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 300 } : false;
     if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.display = grid;
+    const scales = chart.options.scales as { x: { stacked?: boolean; ticks: { maxTicksLimit?: number } }; y: { stacked?: boolean } };
+    scales.x.stacked = scales.y.stacked = type === "bar" && stacked;
+    scales.x.ticks.maxTicksLimit = maxTicks;
+    (chart.options.plugins as { castleHighlight?: { index: number | null } }).castleHighlight = { index: highlight };
     const style = (s: ChartSeries) =>
       type === "bar"
-        ? { type: "bar" as const, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: 2, maxBarThickness: 14 }
+        ? { type: "bar" as const, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: stacked ? 0 : 2, maxBarThickness: stacked ? 28 : 14 }
         : {
             type: "line" as const,
             borderColor: s.color,
@@ -184,7 +227,7 @@ export function LineChart({
     // A different time window is a different picture: switch without a sliding animation.
     chart.update(labelsChanged && sameShape ? "none" : undefined);
     setTip((t) => ({ ...t, visible: false }));
-  }, [labels, series, points, type, grid, prefs.motion]);
+  }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks]);
 
   return (
     <div className={className}>

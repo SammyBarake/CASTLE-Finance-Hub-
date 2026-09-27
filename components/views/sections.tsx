@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
+import { Icon } from "@/components/ui/Icon";
+import { VolumeExplorer } from "./VolumeExplorer";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { DOWN, PageLink, SectorDot, Segment, Select, Sparkline, UP } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
@@ -86,6 +88,8 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [granularity, setGranularity] = useState<"month" | "quarter">("month");
   const [grid, setGrid] = useState(true);
+  const [exploring, setExploring] = useState(false);
+  const closeExplorer = useCallback(() => setExploring(false), []);
 
   const months = matrix.months.slice(-range);
   const groups = useMemo(() => periodGroups(matrix.months.slice(-range), granularity), [matrix, range, granularity]);
@@ -130,9 +134,14 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
             ]}
           />
           <Segment label="Chart time range" value={range} onChange={state.setRange} options={RANGES} />
+          <button type="button" className="button explorer-open" onClick={() => setExploring(true)} title="Open the full-screen explorer">
+            <Icon name="expand" />
+            Expand
+          </button>
           {!large && <PageLink href="/deal-volume">Open</PageLink>}
         </div>
       </div>
+      {exploring && <VolumeExplorer seed={{ metric, range, sectors: SECTORS.filter((s) => visible.has(s)) }} onClose={closeExplorer} />}
       <div className="chart-options">
         <Select
           id={`chart-type-${large ? "l" : "s"}`}
