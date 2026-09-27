@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { bankShortName } from "./banks";
-import { buildHubData } from "./aggregate";
+import { buildHubData, toPublicDeal } from "./aggregate";
 import { sampleHubData } from "./sampleData";
 import type { ActivistStake, Deal, HubData, Ipo, Macro } from "./types";
 
@@ -18,32 +18,60 @@ import type { ActivistStake, Deal, HubData, Ipo, Macro } from "./types";
 /** Memoized per request, so the layout and page metadata share one read. */
 export const getHubData = cache(loadHubData);
 
+// Pasted dashboard values often carry stray spaces, newlines or quotes; any of them breaks the request.
+const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, "").trim() || undefined;
+// `process.env.NEXT_PUBLIC_X` is frozen into the bundle at build time; a dynamic lookup reads the server's
+// environment when the page is (re)generated, so keys added after a build still take effect on the next refresh.
+const env = (name: string) => clean((process.env as Record<string, string | undefined>)[name]);
+
+function sourceConfig() {
+  return {
+    url: (clean(process.env.NEXT_PUBLIC_SUPABASE_URL) ?? env("NEXT_PUBLIC_SUPABASE_URL") ?? env("SUPABASE_URL"))?.replace(/\/+$/, ""),
+    anonKey: clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? env("NEXT_PUBLIC_SUPABASE_ANON_KEY") ?? env("SUPABASE_ANON_KEY"),
+    // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present).
+    forceLocal: process.env.CASTLE_DATA_SOURCE === "local",
+  };
+}
+
+/** One deal with its full detail (fairness opinions), for the drawer. Same sources as getHubData. */
+export async function getDeal(id: string): Promise<Deal | null> {
+  const { url, anonKey, forceLocal } = sourceConfig();
+  if (url && anonKey && !forceLocal) {
+    const db = createClient(url, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await db.from("deals").select("data").eq("id", id).maybeSingle();
+    if (!error && data) return toPublicDeal(data.data as Deal, { withFairness: true });
+  }
+  if (existsSync(".data/castle.json")) {
+    const raw = JSON.parse(readFileSync(".data/castle.json", "utf8")) as { deals: Deal[] };
+    const d = raw.deals?.find((x) => x.id === id);
+    if (d) return toPublicDeal(d, { withFairness: true });
+  }
+  return sampleHubData.deals.find((d) => d.id === id) ?? null;
+}
+
 async function loadHubData(): Promise<HubData> {
-  // Pasted dashboard values often carry stray spaces, newlines or quotes; any of them breaks the request.
-  const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, "").trim() || undefined;
-  // `process.env.NEXT_PUBLIC_X` is frozen into the bundle at build time; a dynamic lookup reads the server's
-  // environment when the page is (re)generated, so keys added after a build still take effect on the next refresh.
-  const env = (name: string) => clean((process.env as Record<string, string | undefined>)[name]);
-  const url = (clean(process.env.NEXT_PUBLIC_SUPABASE_URL) ?? env("NEXT_PUBLIC_SUPABASE_URL") ?? env("SUPABASE_URL"))?.replace(/\/+$/, "");
-  const anonKey = clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? env("NEXT_PUBLIC_SUPABASE_ANON_KEY") ?? env("SUPABASE_ANON_KEY");
-  // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present).
-  const forceLocal = process.env.CASTLE_DATA_SOURCE === "local";
-  let sampleReason: string | undefined;
+  const { url, anonKey, forceLocal } = sourceConfig();
+  let dataError: string | undefined;
   if (url && anonKey && !forceLocal) {
     try {
       return await fromSupabase(url, anonKey);
     } catch (err) {
-      console.error("Castle: Supabase read failed, falling back", err);
-      sampleReason = `database read failed (${(err as Error).message})`;
+      console.error("Castle: Supabase read failed", err);
+      dataError = `the database read failed (${(err as Error).message})`;
     }
   } else if (!forceLocal && process.env.VERCEL) {
     const missing = [!url && "NEXT_PUBLIC_SUPABASE_URL", !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY"].filter(Boolean).join(", ");
-    console.error(`Castle: ${missing} not set for this deployment; showing sample data`);
-    sampleReason = `${missing} not set for this deployment (Vercel environment: ${env("VERCEL_ENV") ?? "unknown"})`;
+    console.error(`Castle: ${missing} not set for this deployment`);
+    dataError = `${missing} not set for this deployment (Vercel environment: ${env("VERCEL_ENV") ?? "unknown"})`;
   }
   const local = fromLocalFile();
   if (local) return local;
-  return sampleReason ? { ...sampleHubData, sampleReason } : sampleHubData;
+  // The deployed site never shows fictional numbers: without live data it says so and stays empty.
+  // Sample data is only for local development before anything has been ingested.
+  if (process.env.VERCEL) {
+    return { ...buildHubData({ deals: [], ipos: [], asOf: new Date().toISOString(), macro: null, activists: [], shortName: bankShortName }), dataError: dataError ?? "no data source is configured" };
+  }
+  return sampleHubData;
 }
 
 const PAGE = 1000;

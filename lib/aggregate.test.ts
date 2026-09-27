@@ -33,6 +33,13 @@ describe("monthlyVolume", () => {
     expect(months.at(-1)).toBe("2026-08");
     expect(rows.find((r) => r.month === "2026-08" && r.sector === "Tech")).toMatchObject({ dealCount: 1, dealValueUsd: 1e9 });
   });
+
+  it("extends back to the first deal, up to six years", () => {
+    const months = (d: string) => [...new Set(monthlyVolume([deal({ announcedDate: d })], "2026-09-25T00:00:00Z").map((r) => r.month))];
+    expect(months("2021-03-10")[0]).toBe("2021-03");
+    expect(months("2021-03-10")).toHaveLength(66);
+    expect(months("2015-01-01")).toHaveLength(72);
+  });
 });
 
 describe("leagueTable", () => {

@@ -2,14 +2,19 @@
  * Build the hub's derived series (deal volume, league table, valuation medians)
  * from raw deals. Pure and deterministic, so it works on sample or real data.
  */
+import { feeRows } from "./fees";
 import { median } from "./metrics";
 import { SECTORS, type ActivistStake, type Deal, type HubData, type Ipo, type LeagueTableEntry, type Macro, type MonthlySectorVolume, type SectorValuation } from "./types";
 
 const MONTHS = 24;
+const MAX_MONTHS = 72;
 const QUARTERS = 8;
 const LEAGUE_SIZE = 30;
-/** Caps on what ships to the browser (the screener filters client-side). Aggregates use everything. */
-export const DEAL_FEED_SIZE = 600;
+/**
+ * Caps on what ships to the browser (the screener filters client-side). Aggregates use everything.
+ * Heavy per-deal detail (fairness opinions) is left out and loaded on demand from /api/deal/[id].
+ */
+export const DEAL_FEED_SIZE = 4000;
 export const IPO_FEED_SIZE = 150;
 
 const monthKey = (y: number, m0: number) => {
@@ -18,10 +23,16 @@ const monthKey = (y: number, m0: number) => {
 };
 const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
 
-/** The 24 complete months before `asOf`'s month. */
+/**
+ * Complete months before `asOf`'s month: as far back as the data goes (at least 24, at most 72),
+ * so a longer history shows up without inventing empty months before coverage began.
+ */
 export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[] {
   const now = new Date(asOf);
-  const months = Array.from({ length: MONTHS }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - MONTHS + i));
+  const first = deals.reduce((m, d) => (d.announcedDate < m ? d.announcedDate : m), asOf.slice(0, 10));
+  const span = (now.getUTCFullYear() - Number(first.slice(0, 4))) * 12 + (now.getUTCMonth() - (Number(first.slice(5, 7)) - 1));
+  const length = Math.min(MAX_MONTHS, Math.max(MONTHS, span));
+  const months = Array.from({ length }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - length + i));
   const rows = new Map<string, MonthlySectorVolume>();
   for (const month of months) for (const sector of SECTORS) rows.set(`${month}|${sector}`, { month, sector, dealValueUsd: 0, dealCount: 0 });
   for (const d of deals) {
@@ -92,8 +103,12 @@ export function sectorValuations(deals: Deal[], asOf: string): SectorValuation[]
   return out;
 }
 
-/** Strip ingest-only fields so only the public contract reaches the browser. */
-export function toPublicDeal(d: Deal): Deal {
+/**
+ * Strip ingest-only fields so only the public contract reaches the browser. Fairness opinions are
+ * heavy and only needed in one drawer tab, so the page feed carries a flag and /api/deal/[id]
+ * serves the full record (`withFairness`).
+ */
+export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): Deal {
   return {
     id: d.id,
     announcedDate: d.announcedDate,
@@ -113,7 +128,7 @@ export function toPublicDeal(d: Deal): Deal {
     acquirerAdvisors: d.acquirerAdvisors,
     targetAdvisors: d.targetAdvisors,
     filings: d.filings,
-    ...(d.fairness?.length ? { fairness: d.fairness } : {}),
+    ...(d.fairness?.length ? (opts.withFairness ? { fairness: d.fairness, hasFairness: true } : { hasFairness: true }) : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
   };
 }
@@ -149,7 +164,8 @@ export function buildHubData(input: {
     asOf: input.asOf,
     isSample: false,
     totalDeals: deals.length,
-    deals: deals.slice(0, DEAL_FEED_SIZE).map(toPublicDeal),
+    deals: deals.slice(0, DEAL_FEED_SIZE).map((d) => toPublicDeal(d)),
+    fees: feeRows(deals),
     monthlyVolume: monthlyVolume(deals, input.asOf),
     ipos: ipos.slice(0, IPO_FEED_SIZE).map(toPublicIpo),
     leagueTable: leagueTable(deals, input.asOf, input.shortName),

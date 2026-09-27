@@ -16,7 +16,7 @@ const PAGE = 15;
 export function AdvisorFees() {
   const { data } = useHubData();
   const { openDeal, openAdvisorByName } = useDetails();
-  const records = useMemo(() => feeRecords(data.deals), [data.deals]);
+  const records = useMemo(() => feeRecords(data.fees ?? [], data.deals), [data.fees, data.deals]);
   const league = useMemo(() => feeLeague(records), [records]);
   const bySize = useMemo(() => feesBySize(records), [records]);
   const notes = useMemo(() => feeInsights(records, league, bySize), [records, league, bySize]);

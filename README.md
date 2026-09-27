@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. With nothing configured, the site shows built-in sample data.
+Open http://localhost:3000. With nothing configured, the local dev site shows built-in sample data (the deployed site never does).
 
 ## Load real SEC data locally
 
@@ -26,7 +26,7 @@ Open http://localhost:3000. With nothing configured, the site shows built-in sam
 
 ## Go live
 
-Supabase (database), GitHub Actions (twice-daily updates) and Vercel (hosting), all on free tiers: see [SETUP.md](SETUP.md).
+Supabase (database), GitHub Actions (updates every 3 hours) and Vercel (hosting), all on free tiers: see [SETUP.md](SETUP.md).
 
 ## Stack
 

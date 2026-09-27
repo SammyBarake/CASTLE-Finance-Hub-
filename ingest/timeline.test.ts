@@ -29,6 +29,12 @@ describe("milestonesFrom", () => {
     expect(m.closed).toBe("2026-03-20");
   });
 
+  it("ignores a preferred-series delisting when the company keeps reporting", () => {
+    const filings = [f("DEFM14A", "2022-05-01"), f("25-NSE", "2022-06-01"), f("10-Q", "2022-08-05"), f("10-K", "2023-02-20")];
+    expect(milestonesFrom(filings, "2022-02-28", null).closed).toBeNull();
+    expect(milestonesFrom([f("DEFM14A", "2022-05-01"), f("25-NSE", "2022-06-01"), f("15-12B", "2022-06-12")], "2022-02-28", null).closed).toBe("2022-06-01");
+  });
+
   it("keeps a terminated deal open-ended and a fresh deal empty", () => {
     expect(milestonesFrom([f("PREM14A", "2026-03-01"), f("25-NSE", "2026-09-01")], "2026-02-01", "2026-05-01")).toMatchObject({ closed: null, terminated: "2026-05-01" });
     expect(milestonesFrom([], "2026-09-20", null)).toEqual({ path: null, firstFiling: null, definitiveProxy: null, voteHeld: null, closed: null, terminated: null });

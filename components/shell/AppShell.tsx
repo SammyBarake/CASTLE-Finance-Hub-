@@ -138,9 +138,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="top-tools">
             <GlobalSearch />
-            <div className="updated">
-              Last updated<span>{formatTimestampET(data.asOf)}</span>
-            </div>
+            {!data.dataError && (
+              <div className="updated">
+                Last updated<span>{formatTimestampET(data.asOf)}</span>
+              </div>
+            )}
             {data.isSample && <span className="sample-label sample-tag">Sample data</span>}
             <button type="button" className="tool-icon wide" aria-label={`Open watchlist (${ws.prefs.watch.length})`} title="Watchlist" onClick={openWatchlist}>
               <Icon name="star" className={ws.prefs.watch.length ? "star-fill" : ""} />
@@ -152,6 +154,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="main" id="main">
+          {data.dataError && (
+            <div className="data-error" role="alert">
+              <strong>Live data is unavailable right now.</strong> The site could not reach its database: {data.dataError}. No numbers are shown until it
+              reconnects.
+            </div>
+          )}
           <div className="page-enter" key={pathname}>
             {children}
           </div>
@@ -159,8 +167,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <footer className="footer">
           <span className="sample-tag">
             {data.isSample
-              ? `Sample data · Fictional transactions and rankings${data.sampleReason ? ` · Live data unavailable: ${data.sampleReason}` : ""}`
-              : "SEC EDGAR · Refreshed twice daily · Not investment advice"}
+              ? "Sample data (local development) · Fictional transactions and rankings"
+              : "SEC EDGAR · Refreshed every few hours · Not investment advice"}
           </span>
           <button type="button" onClick={openDefinitions}>
             Data definitions

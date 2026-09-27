@@ -25,7 +25,7 @@ import {
 import { computeMultiples, getTargetFinancials } from "./financials";
 import { parseMergerItem } from "./parse/eightk";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
-import { milestonesFrom } from "./timeline";
+import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
@@ -288,7 +288,6 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
 // Enrichment
 // ---------------------------------------------------------------------------
 
-const CLOSED_FORMS = /^(25-NSE|25|15-12B|15-12G|15-15D)$/;
 const PROXY_ORDER = ["DEFM14A", "SC 14D9", "SC14D9", "PREM14A", "DEFM14C", "PREM14C"];
 /** Best source of fairness opinions first. */
 const FAIRNESS_FORMS = ["DEFM14A", "SC 14D9", "SC14D9", "DEFM14C", "PREM14A"];
@@ -316,7 +315,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       const after = recentFilings(sub)
         .filter((f) => f.date >= deal.announcedDate)
         .sort((a, b) => a.date.localeCompare(b.date));
-      const closed = after.find((f) => CLOSED_FORMS.test(f.form) || (/^8-K/.test(f.form) && /\b5\.01\b/.test(f.items)));
+      const closed = after.find((f) => isClosingFiling(after, f));
       const termination8k = after.find((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate);
       const pending = after.find((f) => PENDING_FORMS.test(f.form));
       if (closed) {

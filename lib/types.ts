@@ -65,8 +65,10 @@ export interface Deal {
   status: DealStatus;
   /** Date the current status was reached (closing / termination / proxy filing). */
   statusDate: string | null;
-  /** Fairness opinions from the target's merger proxy (valuation ranges, DCF inputs, fees). */
+  /** Fairness opinions from the target's merger proxy (valuation ranges, DCF inputs, fees). Only on /api/deal/[id]. */
   fairness?: FairnessOpinion[];
+  /** The page feed's stand-in for `fairness`: true when the full record has opinions. */
+  hasFairness?: boolean;
   milestones?: DealMilestones;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
@@ -203,6 +205,13 @@ export interface Macro {
 }
 
 /** Everything the hub page needs, fetched in one call. */
+export interface FeeRow {
+  dealId: string;
+  bank: string;
+  feeUsd: number;
+  side: "target" | "acquirer";
+}
+
 /** A 5%+ stake disclosed on Schedule 13D (investors who may seek to influence the company). */
 export interface ActivistStake {
   /** Accession number of the initial 13D. */
@@ -232,8 +241,8 @@ export interface HubData {
   asOf: string;
   /** True while running on lib/sampleData.ts; drives the "Sample data" badges. */
   isSample: boolean;
-  /** Why the real data couldn't be loaded, when a database was configured but sample data is shown. */
-  sampleReason?: string;
+  /** Set when live data couldn't be loaded on the deployed site (which then shows no data, never sample data). */
+  dataError?: string;
   /** Total deals in the dataset (HubData.deals may be only the latest slice). */
   totalDeals: number;
   deals: Deal[];
@@ -245,4 +254,6 @@ export interface HubData {
   macro: Macro | null;
   /** Recent Schedule 13D activist stakes, newest first (empty until the activists job has run). */
   activists?: ActivistStake[];
+  /** Advisory fees from fairness opinions, one row per bank per deal (computed from all deals). */
+  fees?: FeeRow[];
 }

@@ -16,14 +16,9 @@ import { formatDate, formatPct, formatUsd } from "@/lib/format";
 import type { VolumeMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
 import type { Sector } from "@/lib/types";
-import { Legend } from "./sections";
+import { Legend, rangesFor } from "./sections";
 
 const PAGE = 50;
-const RANGES = [
-  { value: 6, label: "6M" },
-  { value: 12, label: "1Y" },
-  { value: 24, label: "2Y" },
-];
 
 export interface ExplorerSeed {
   metric: VolumeMetric;
@@ -157,7 +152,7 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
               ]}
             />
           )}
-          <Segment label="Time range" value={range} onChange={(r) => (setRange(r), setMonth(null), setShown(PAGE))} options={RANGES} />
+          <Segment label="Time range" value={range} onChange={(r) => (setRange(r), setMonth(null), setShown(PAGE))} options={rangesFor(matrix.months.length)} />
         </div>
 
         <div className="explorer-grid">

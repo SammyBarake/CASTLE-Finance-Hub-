@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { DetailGrid, DetailItem, Note } from "@/components/ui/UiProvider";
 import { formatPrice, formatUsd } from "@/lib/format";
 import type { Deal, FairnessOpinion, ValuationRange } from "@/lib/types";
@@ -84,8 +84,31 @@ function OpinionFacts({ o }: { o: FairnessOpinion }) {
   );
 }
 
+/** The page feed leaves fairness opinions out; fetch the full record when the tab opens. */
+function useFairness(deal: Deal): { opinions: FairnessOpinion[] | null; failed: boolean } {
+  const [state, setState] = useState<{ id: string; opinions: FairnessOpinion[] | null; failed: boolean }>({ id: "", opinions: null, failed: false });
+  useEffect(() => {
+    if (deal.fairness) return;
+    let live = true;
+    fetch(`/api/deal/${encodeURIComponent(deal.id)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<Deal>) : Promise.reject(new Error(String(r.status)))))
+      .then((full) => live && setState({ id: deal.id, opinions: full.fairness ?? [], failed: false }))
+      .catch(() => live && setState({ id: deal.id, opinions: null, failed: true }));
+    return () => {
+      live = false;
+    };
+  }, [deal]);
+  if (deal.fairness) return { opinions: deal.fairness, failed: false };
+  return state.id === deal.id ? state : { opinions: null, failed: false };
+}
+
 export function ValuationTab({ deal }: { deal: Deal }) {
-  const opinions = deal.fairness ?? [];
+  const { opinions: loaded, failed } = useFairness(deal);
+  if (!loaded) return <p className="dim ff-intro">{failed ? "Couldn't load the valuation detail. Try again in a moment." : "Loading valuation detail…"}</p>;
+  return <ValuationBody deal={deal} opinions={loaded} />;
+}
+
+function ValuationBody({ deal, opinions }: { deal: Deal; opinions: FairnessOpinion[] }) {
   const targetSide = opinions.filter((o) => o.side === "target");
   const rows: Row[] = targetSide
     .flatMap((o) => o.ranges.map((r) => ({ ...r, bank: targetSide.length > 1 ? o.bank : null })))

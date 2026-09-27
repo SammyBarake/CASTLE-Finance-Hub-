@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feeInsights, feeLeague, feeRecords, feesBySize, formatBps } from "./fees";
+import { feeInsights, feeLeague, feeRecords, feeRows, feesBySize, formatBps } from "./fees";
 import type { Deal, FairnessOpinion } from "./types";
 
 const op = (bank: string, feeUsd: number | null, side: "target" | "acquirer" = "target"): FairnessOpinion => ({
@@ -44,7 +44,7 @@ describe("fees", () => {
     deal(1e8, [op("Tiny Bank", 50e6)]), // 50% of the deal: a parsing slip
     deal(null, [op("Evercore", 10e6), op(null as unknown as string, 5e6)]),
   ];
-  const records = feeRecords(deals);
+  const records = feeRecords(feeRows(deals), deals);
 
   it("collects fees, dropping implausible ones and unnamed banks", () => {
     expect(records).toHaveLength(8);

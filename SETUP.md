@@ -19,7 +19,7 @@ The data engine works without any of this: `npm run ingest -- --local` writes re
    SUPABASE_SERVICE_ROLE_KEY=<service_role key>
    ```
 
-> Free Supabase projects pause after about a week without activity. The twice-daily ingest keeps yours active.
+> Free Supabase projects pause after about a week without activity. The ingest (every 3 hours) keeps yours active.
 
 ## 2. GitHub Actions (daily updates)
 
@@ -49,4 +49,4 @@ and takes a few minutes. (Public repos get unlimited Actions minutes; private re
 
 - Actions → latest "Ingest SEC data" run is green, and the log ends with `saved to Supabase: N deals, M IPOs`.
 - Supabase → Table Editor → `deals` has rows.
-- The live site no longer shows the "Sample data" badge.
+- The live site shows real deals, with no red "Live data is unavailable" banner. (The deployed site never shows sample data; if it can't reach Supabase it says why in that banner.)

@@ -1,11 +1,11 @@
 name: Ingest SEC data
 
-# Pulls new EDGAR filings into Supabase twice a day.
+# Pulls new EDGAR filings into Supabase every 3 hours.
 # Run it by hand from the Actions tab ("Run workflow"); set "from" (YYYY-MM-DD) for a backfill.
 on:
   schedule:
-    - cron: "30 1 * * *" # 21:30 ET (after EDGAR's evening filings)
-    - cron: "30 13 * * *" # 09:30 ET
+    # Every 3 hours (UTC). A normal run takes a few minutes, well inside the free Actions allowance.
+    - cron: "20 */3 * * *"
   workflow_dispatch:
     inputs:
       from:
@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       rebuild:
-        description: "Rebuild all deals from scratch with the current parsers (uses 'from', default 2024-09-01). Removes stale or wrong deals. Takes ~15-30 min."
+        description: "Rebuild all deals from scratch with the current parsers (uses 'from', default 2021-01-01) and reload activist 13Ds. Removes stale or wrong deals. The first full run takes 1-2 hours."
         type: boolean
         required: false
         default: false
@@ -28,7 +28,8 @@ permissions:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # A normal run takes minutes; a full rebuild from 2021 can take a couple of hours (GitHub's cap is 6).
+    timeout-minutes: 350
     env:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -48,7 +49,8 @@ jobs:
       - name: Ingest
         run: |
           if [ "${{ inputs.rebuild }}" = "true" ]; then
-            npm run ingest -- --only deals --rebuild-deals --from "${{ inputs.from || '2024-09-01' }}"
+            npm run ingest -- --only deals --rebuild-deals --from "${{ inputs.from || '2021-01-01' }}"
+            npm run ingest -- --only activists --from 2024-12-18
           elif [ -n "${{ inputs.from }}" ]; then
             npm run ingest -- --from "${{ inputs.from }}"
           else

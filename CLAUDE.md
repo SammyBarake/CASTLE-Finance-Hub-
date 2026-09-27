@@ -116,13 +116,16 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   text.ts             EDGAR HTML → plain text
   parse/              Pure text parsers (press releases, merger 8-K Item 1.01, merger proxies, fairness opinions, IPO documents, company names) + tests
 supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon)
-.github/workflows/    ingest.yml (cron 09:30 + 21:30 ET, manual backfill) and ci.yml (lint/test/build)
+.github/workflows/    ingest.yml (every 3 hours; manual backfill / "rebuild" from 2021) and ci.yml (lint/test/build)
+app/api/deal/[id]/    Full record for one deal (fairness opinions); the page feed leaves them out
 ```
 
 ### Data rules (important)
 
 - Components **never** import `lib/sampleData.ts` or `ingest/`. They read `HubData` through `useHubData()`, which the terminal layout fills from `getHubData()`.
-- Stored records are the `Deal` / `Ipo` shapes plus ingest-only fields (`StoredDeal`/`StoredIpo` in `ingest/store.ts`); `lib/aggregate.ts` strips those before data reaches the browser. The browser gets up to 600 deals and 150 IPOs (the full two-year set today), so screeners filter client-side.
+- **The deployed site never shows sample data.** On Vercel, if Supabase can't be read, `getHubData()` returns empty data with `dataError` and the shell shows a red banner saying why. Sample data exists only for local development before anything is ingested.
+- Stored records are the `Deal` / `Ipo` shapes plus ingest-only fields (`StoredDeal`/`StoredIpo` in `ingest/store.ts`); `lib/aggregate.ts` strips those before data reaches the browser. The browser gets up to 4,000 deals and 150 IPOs, so screeners filter client-side. Fairness opinions are left out of the feed (`hasFairness` flag instead; fees go in `HubData.fees`) and loaded from `/api/deal/[id]` when the Valuation tab opens. Keep heavy per-deal detail out of the feed.
+- Freshness: ingest every 3 hours; pages regenerate every 15 minutes (`revalidate = 900`). Volume charts cover as many months as the data has (24–72).
 - UI copy (badges, notes, footer, methodology) switches on `HubData.isSample`.
 - Conventions in `lib/types.ts`: money is plain USD, dates are ISO strings, percentages are whole numbers (34.2 = 34.2%), `null` means undisclosed.
 - KPIs, momentum and medians are computed in `lib/metrics.ts` from raw rows. Never hardcode derived numbers in the UI.
@@ -154,7 +157,7 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 ## Roadmap
 
 - **Task 1 (done):** scaffold, CLAUDE.md, hub rebuilt as components on sample data.
-- **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with hourly ISR).
+- **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with 15-minute ISR). History goes back to 2021 (run the workflow with "rebuild").
 - **Company pages (done):** every acquirer, target and IPO issuer links to `/company/[id]`. Use `CompanyLink` for company names; generic buyer names ("The Investor Group") get no page.
 - **Precedent transactions (done):** `/precedents` (`lib/precedents.ts` + `PrecedentsView`). Screen by sector / industry / size / window, untick outliers, summary rows (high, 75th, mean, median, 25th, low), CSV export. A deal drawer's "Precedents" button opens `/precedents?deal=<id>` seeded from that deal (same sector, ⅓×–3× its size).
 - **Fairness-opinion valuation (done):** `ingest/parse/fairness.ts` reads each "Opinion of <Bank>" section of the target's DEFM14A / SC 14D9 / PREM14A: implied per-share ranges by analysis, DCF discount rate / perpetuity growth / terminal multiple, and the bank's fee. Stored as `Deal.fairness`; shown as a football field in the deal drawer's Valuation tab (`components/details/Valuation.tsx`). Ranges are only read inside a bank's section (bids in the background story and termination fees are ignored); a section ends at the next "Opinion of" line, another bank's analysis heading, or a major heading such as the projections. A preliminary proxy is re-read when the definitive one arrives (`fairnessAdsh` / `fairnessCheckedAt`). About 270 of 377 deals have one.

@@ -2,7 +2,7 @@
  * Advisory fees disclosed in merger proxies (from each fairness opinion): which banks earn the
  * most, and what fees look like as a share of the deal. Pure and testable.
  */
-import type { Deal } from "./types";
+import type { Deal, FeeRow } from "./types";
 
 export interface FeeRecord {
   bank: string;
@@ -13,16 +13,25 @@ export interface FeeRecord {
   bps: number | null;
 }
 
-export function feeRecords(deals: Deal[]): FeeRecord[] {
-  const out: FeeRecord[] = [];
+/** Compact fee rows from full deals (server side, so the page feed can drop the opinions). */
+export function feeRows(deals: Deal[]): FeeRow[] {
+  const out: FeeRow[] = [];
   for (const deal of deals)
-    for (const o of deal.fairness ?? []) {
-      if (!o.bank || o.feeUsd == null || o.feeUsd <= 0) continue;
-      // A fee above 5% of the deal is a parsing slip (e.g. a fee range read as a single number): leave it out.
-      const bps = deal.valueUsd ? (o.feeUsd / deal.valueUsd) * 10_000 : null;
-      if (bps != null && bps > 500) continue;
-      out.push({ bank: o.bank, deal, feeUsd: o.feeUsd, side: o.side, bps });
-    }
+    for (const o of deal.fairness ?? []) if (o.bank && o.feeUsd != null && o.feeUsd > 0) out.push({ dealId: deal.id, bank: o.bank, feeUsd: o.feeUsd, side: o.side });
+  return out;
+}
+
+/** Fee rows joined to their deals. A fee above 5% of the deal is a parsing slip (e.g. a fee range read as one number): left out. */
+export function feeRecords(rows: FeeRow[], deals: Deal[]): FeeRecord[] {
+  const byId = new Map(deals.map((d) => [d.id, d]));
+  const out: FeeRecord[] = [];
+  for (const r of rows) {
+    const deal = byId.get(r.dealId);
+    if (!deal) continue;
+    const bps = deal.valueUsd ? (r.feeUsd / deal.valueUsd) * 10_000 : null;
+    if (bps != null && bps > 500) continue;
+    out.push({ bank: r.bank, deal, feeUsd: r.feeUsd, side: r.side, bps });
+  }
   return out;
 }
 

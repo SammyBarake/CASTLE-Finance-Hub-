@@ -5,8 +5,8 @@ import { UiProvider } from "@/components/ui/UiProvider";
 import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
 import { getHubData } from "@/lib/data";
 
-// Rebuild pages at most once an hour; the ingest job refreshes the data twice a day.
-export const revalidate = 3600;
+// Rebuild pages at most every 15 minutes; the ingest job refreshes the data every 3 hours.
+export const revalidate = 900;
 
 /** Every terminal page shares one data load, the shell (sidebar / top bar) and the dialog layer. */
 export default async function TerminalLayout({ children }: { children: ReactNode }) {

@@ -116,7 +116,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
   return (
     <>
       <DrawerActions kind="deal" record={deal} />
-      <Tabs tab={tab} onChange={setTab} tabs={deal.fairness?.length ? ["overview", "valuation", "advisors", "filings", "notes"] : ["overview", "advisors", "filings", "notes"]} />
+      <Tabs tab={tab} onChange={setTab} tabs={deal.hasFairness || deal.fairness?.length ? ["overview", "valuation", "advisors", "filings", "notes"] : ["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
           <DealTimeline deal={deal} asOf={data.asOf} />
@@ -334,7 +334,7 @@ function Definitions({ isSample }: { isSample: boolean }) {
       <p style={{ fontSize: 10, margin: "18px 0 0" }}>
         {isSample
           ? "All figures, transactions and rankings are sample data."
-          : "Built on public SEC EDGAR filings and refreshed twice a day. Coverage is automated and best-effort; figures count deals Castle has detected, not the whole market. Not investment advice."}
+          : "Built on public SEC EDGAR filings and refreshed every few hours. Coverage is automated and best-effort; figures count deals Castle has detected, not the whole market. Not investment advice."}
       </p>
     </>
   );

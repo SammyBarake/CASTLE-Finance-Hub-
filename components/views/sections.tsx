@@ -64,11 +64,15 @@ export function useVolumeState(): VolumeState {
   return { metric, setMetric, range, setRange };
 }
 
-const RANGES = [
+const ALL_RANGES = [
   { value: 6, label: "6M" },
   { value: 12, label: "1Y" },
   { value: 24, label: "2Y" },
+  { value: 36, label: "3Y" },
+  { value: 60, label: "5Y" },
 ];
+/** Ranges the data actually covers (3Y / 5Y appear once the history is that long). */
+export const rangesFor = (months: number) => ALL_RANGES.filter((r) => r.value <= Math.max(24, months));
 
 /** Group the last `range` months into calendar quarters; a quarter with fewer than 3 months is marked "*". */
 function periodGroups(months: string[], granularity: "month" | "quarter") {
@@ -133,7 +137,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
               { value: "count", label: "Deal count" },
             ]}
           />
-          <Segment label="Chart time range" value={range} onChange={state.setRange} options={RANGES} />
+          <Segment label="Chart time range" value={range} onChange={state.setRange} options={rangesFor(matrix.months.length)} />
           <button type="button" className="button explorer-open" onClick={() => setExploring(true)} title="Open the full-screen explorer">
             <Icon name="expand" />
             Expand
