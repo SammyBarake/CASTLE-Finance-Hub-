@@ -394,18 +394,57 @@
   .explorer-head h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; margin: 0; }
   .explorer-sub { font-size: 11px; color: #8a8a8a; margin: 4px 0 0; }
   .explorer-head .icon { width: 12px; height: 12px; }
-  .explorer-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 30px 34px; }
-  .explorer-chart-panel { margin-bottom: 20px; }
-  .explorer-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 16px 18px 4px; }
-  .explorer-chart-meta { padding: 10px 18px 0; }
-  .explorer-chart { height: min(52vh, 520px); padding: 6px 14px 14px 8px; }
-  .explorer-clear { margin-left: 12px; font-size: 10px; font-weight: 400; color: #aaa; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; vertical-align: middle; }
+  .explorer-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 30px 34px; }
+  .explorer-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .explorer-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; margin-bottom: 20px; align-items: start; }
+  .explorer-chart-panel { margin-bottom: 0; }
+  .explorer-chart-meta { padding: 14px 18px 0; }
+  .explorer-chart { height: min(56vh, 560px); padding: 6px 14px 8px 8px; }
+  .explorer-chart-foot { font-size: 10px; color: #7a7a7a; padding: 0 18px 14px; line-height: 1.5; }
+  .scatter-tooltip { min-width: 210px; }
+  .scatter-tip-line { color: #9a9a9a; margin: -2px 0 8px; }
+  .scatter-tip-hint { color: #6f6f6f; margin-top: 8px; font-size: 9px; }
+  .explorer-side { margin-bottom: 0; padding: 16px 18px 18px; position: sticky; top: 0; }
+  .explorer-side-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .explorer-side-eyebrow { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #777; }
+  .explorer-side h2 { font-size: 16px; font-weight: 500; margin: 3px 0 0; }
+  .explorer-clear { font-size: 10px; color: #aaa; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; }
   .explorer-clear:hover { color: #fff; border-color: #777; }
+  .explorer-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0 4px; }
+  .explorer-stats div { border: 1px solid #252525; border-radius: 5px; padding: 9px 10px; background: #0b0b0b; min-width: 0; }
+  .explorer-stats b { display: block; font-size: 17px; font-weight: 500; color: #f2f2f2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .explorer-stats span { font-size: 9px; color: #808080; }
+  .explorer-block { border-top: 1px solid #222; margin-top: 14px; padding-top: 12px; }
+  .explorer-block h3 { font-size: 10px; font-weight: 500; color: #9a9a9a; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }
+  .explorer-notes { margin: 0; padding: 0 0 0 14px; display: grid; gap: 7px; }
+  .explorer-notes li { font-size: 11px; color: #cfcfcf; line-height: 1.5; }
+  .explorer-deal { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 4px; border-radius: 4px; font-size: 10px; }
+  .explorer-deal:hover { background: #151515; }
+  .explorer-rank { font: 9px var(--font-mono); color: #666; }
+  .explorer-deal-names { min-width: 0; }
+  .explorer-deal-names strong { display: block; font-size: 11px; font-weight: 450; color: #e2e2e2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .explorer-deal-names small { display: block; color: #7d7d7d; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .explorer-deal .mono { font-size: 10px; color: #d6d6d6; }
+  .explorer-bar-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 28px; align-items: center; gap: 8px; font-size: 10px; padding: 3px 0; }
+  .explorer-bar-label { display: flex; align-items: center; gap: 6px; color: #cfcfcf; }
+  .explorer-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+  .explorer-bar i { display: block; height: 100%; border-radius: 3px; opacity: 0.8; }
+  .explorer-bar-row .mono { text-align: right; color: #999; }
+  .explorer-buyer { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; padding: 4px 0; }
+  .explorer-buyer .company-link { color: #ddd; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .explorer-buyer .dim { font-size: 10px; white-space: nowrap; }
+  .explorer-empty { font-size: 11px; margin: 14px 0 0; }
+  @media (max-width: 1280px) {
+    .explorer-grid { grid-template-columns: minmax(0, 1fr); }
+    .explorer-side { position: static; }
+  }
   @media (max-width: 760px) {
     .explorer-head { padding: 12px 16px; }
     .explorer-head h1 { font-size: 16px; }
     .explorer-scroll { padding: 14px 16px 24px; }
-    .explorer-chart { height: 300px; }
+    .explorer-chart { height: 320px; }
+    .explorer-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .explorer-controls .segmented button { white-space: nowrap; }
   }
 
   /* ---------- valuation football field (deal drawer) ---------- */

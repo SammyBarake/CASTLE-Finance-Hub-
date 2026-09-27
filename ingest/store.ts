@@ -46,7 +46,8 @@ export interface State {
 
 export interface Store {
   load(): Promise<State>;
-  save(state: State): Promise<void>;
+  /** `prune`: also delete stored deals / seen documents missing from `state` (end of a full rebuild). */
+  save(state: State, opts?: { prune?: boolean }): Promise<void>;
   readonly label: string;
 }
 
@@ -115,12 +116,27 @@ export class SupabaseStore implements Store {
     };
   }
 
-  async save(state: State) {
+  async save(state: State, opts: { prune?: boolean } = {}) {
     await upsertChunks(
       this.db,
       "deals",
       state.deals.map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d })),
     );
+    // After a full rebuild (final save only), drop deals and seen documents the new run no longer has.
+    if (opts.prune) {
+      const keepDeals = new Set(state.deals.map((d) => d.id));
+      const staleDeals = (await selectAll<{ id: string }>(this.db, "deals", "id")).map((r) => r.id).filter((id) => !keepDeals.has(id));
+      for (let i = 0; i < staleDeals.length; i += 200) {
+        const { error } = await this.db.from("deals").delete().in("id", staleDeals.slice(i, i + 200));
+        if (error) throw new Error(`Supabase delete deals: ${error.message}`);
+      }
+      const staleSeen = [...this.loadedSeen].filter((id) => !state.seen.has(id));
+      for (let i = 0; i < staleSeen.length; i += 200) {
+        const { error } = await this.db.from("seen_docs").delete().in("id", staleSeen.slice(i, i + 200));
+        if (error) throw new Error(`Supabase delete seen_docs: ${error.message}`);
+      }
+      this.loadedSeen = new Set([...this.loadedSeen].filter((id) => state.seen.has(id)));
+    }
     await upsertChunks(
       this.db,
       "ipos",

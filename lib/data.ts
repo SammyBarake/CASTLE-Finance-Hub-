@@ -21,8 +21,11 @@ export const getHubData = cache(loadHubData);
 async function loadHubData(): Promise<HubData> {
   // Pasted dashboard values often carry stray spaces, newlines or quotes; any of them breaks the request.
   const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, "").trim() || undefined;
-  const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, "");
-  const anonKey = clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  // `process.env.NEXT_PUBLIC_X` is frozen into the bundle at build time; a dynamic lookup reads the server's
+  // environment when the page is (re)generated, so keys added after a build still take effect on the next refresh.
+  const env = (name: string) => clean((process.env as Record<string, string | undefined>)[name]);
+  const url = (clean(process.env.NEXT_PUBLIC_SUPABASE_URL) ?? env("NEXT_PUBLIC_SUPABASE_URL") ?? env("SUPABASE_URL"))?.replace(/\/+$/, "");
+  const anonKey = clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? env("NEXT_PUBLIC_SUPABASE_ANON_KEY") ?? env("SUPABASE_ANON_KEY");
   // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present).
   const forceLocal = process.env.CASTLE_DATA_SOURCE === "local";
   let sampleReason: string | undefined;
@@ -36,7 +39,7 @@ async function loadHubData(): Promise<HubData> {
   } else if (!forceLocal && process.env.VERCEL) {
     const missing = [!url && "NEXT_PUBLIC_SUPABASE_URL", !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY"].filter(Boolean).join(", ");
     console.error(`Castle: ${missing} not set for this deployment; showing sample data`);
-    sampleReason = `${missing} not set for this deployment`;
+    sampleReason = `${missing} not set for this deployment (Vercel environment: ${env("VERCEL_ENV") ?? "unknown"})`;
   }
   const local = fromLocalFile();
   if (local) return local;

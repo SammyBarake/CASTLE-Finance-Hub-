@@ -5,6 +5,7 @@
  *   npm run ingest -- --from 2024-09-01    backfill from a date
  *   npm run ingest -- --local              force the local JSON store (.data/castle.json)
  *   npm run ingest -- --only deals|ipos|macro    run one pipeline
+ *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
  */
 import { buildDirectory, ingestDeals } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
@@ -44,6 +45,16 @@ async function main() {
     log(`re-enriching all ${state.deals.length} deals`);
   }
 
+  // --rebuild-deals: forget every deal and seen document and re-read all filings from --from with the
+  // current parsers. Deals the new run doesn't produce are deleted at the end (only if the run succeeds).
+  const rebuild = flag("rebuild-deals");
+  if (rebuild) {
+    if (!arg("from")) throw new Error("--rebuild-deals needs --from (e.g. --from 2024-09-01)");
+    state.deals = [];
+    state.seen = new Set();
+    log("rebuilding all deals from scratch");
+  }
+
   // The SEC company directory is only needed for deals and IPOs.
   const directory = only === "macro" ? buildDirectory([]) : buildDirectory(await getListedCompanies());
   if (only !== "macro") log(`company directory: ${directory.byTicker.size} listed tickers`);
@@ -54,6 +65,7 @@ async function main() {
     await store.save(state);
     log(`  checkpoint saved (${state.deals.length} deals)`);
   };
+  let succeeded = false;
   try {
     if (!only || only === "deals") {
       log("deals: discovering announcements");
@@ -74,9 +86,10 @@ async function main() {
         log(`macro: skipped, keeping previous data (${(err as Error).message})`);
       }
     }
+    succeeded = true;
   } finally {
     state.asOf = new Date().toISOString();
-    await store.save(state);
+    await store.save(state, { prune: rebuild && succeeded });
     log(`saved to ${store.label}: ${state.deals.length} deals, ${state.ipos.length} IPOs (${edgarRequestCount()} EDGAR requests)`);
   }
 }

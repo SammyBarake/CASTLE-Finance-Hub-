@@ -12,6 +12,11 @@ on:
         description: "Backfill start date (YYYY-MM-DD). Leave empty for the normal daily window."
         required: false
         default: ""
+      rebuild:
+        description: "Rebuild all deals from scratch with the current parsers (uses 'from', default 2024-09-01). Removes stale or wrong deals. Takes ~15-30 min."
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ingest
@@ -42,7 +47,9 @@ jobs:
           done
       - name: Ingest
         run: |
-          if [ -n "${{ inputs.from }}" ]; then
+          if [ "${{ inputs.rebuild }}" = "true" ]; then
+            npm run ingest -- --only deals --rebuild-deals --from "${{ inputs.from || '2024-09-01' }}"
+          elif [ -n "${{ inputs.from }}" ]; then
             npm run ingest -- --from "${{ inputs.from }}"
           else
             npm run ingest
