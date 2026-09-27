@@ -34,7 +34,7 @@ export function HubView() {
       <Kpis label="Market snapshot">
         <Kpi label="Announced M&A value" value={ytd ? formatUsd(ytd.value) : "—"} note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />
         <Kpi label="M&A transactions" value={ytd ? ytd.count.toLocaleString("en-US") : "—"} note={ytdNote} change={ytd && <Change value={ytd.countChangePct} />} />
-        <Kpi label="Median premium" value={formatPct(medianPremiumPct)} note={`Latest ${Math.min(25, data.deals.length)} transactions`} />
+        <Kpi label="Median premium" value={formatPct(medianPremiumPct)} note={`Latest ${Math.min(25, data.deals.filter((d) => d.premiumPct != null).length)} public-target deals`} />
         <Kpi label="IPO pipeline" value={formatRaise(ipoSummary.expectedRaiseUsd)} note={`${ipoSummary.filedCount} filed companies · expected raise`} />
       </Kpis>
 

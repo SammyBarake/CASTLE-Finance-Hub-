@@ -20,6 +20,8 @@ export interface DealScreen {
   premium: string;
   advisor: string; // "all" or a bank name (either side)
   consideration: Consideration | "all";
+  /** Listed targets only, private companies only, or both. */
+  targetType: "all" | "public" | "private";
   watchOnly: boolean;
   sort: DealSort;
 }
@@ -34,6 +36,7 @@ export const DEFAULT_SCREEN: DealScreen = {
   premium: "",
   advisor: "all",
   consideration: "all",
+  targetType: "all",
   watchOnly: false,
   sort: "date",
 };
@@ -69,6 +72,7 @@ export function screenDeals(deals: Deal[], s: DealScreen, ctx: { asOf: string; i
       (prem == null || (d.premiumPct != null && d.premiumPct >= prem)) &&
       (s.advisor === "all" || d.acquirerAdvisors.includes(s.advisor) || d.targetAdvisors.includes(s.advisor)) &&
       (s.consideration === "all" || d.consideration === s.consideration) &&
+      ((s.targetType ?? "all") === "all" || (s.targetType === "private") === !!d.privateTarget) &&
       (!s.watchOnly || ctx.isWatched(d.id)),
   );
   // Unknown values sort last.
@@ -96,6 +100,7 @@ export function activeFilters(s: DealScreen): { key: keyof DealScreen; label: st
   if (num(s.premium) != null) out.push({ key: "premium", label: `Premium ≥ ${s.premium}%` });
   if (s.advisor !== "all") out.push({ key: "advisor", label: s.advisor });
   if (s.consideration !== "all") out.push({ key: "consideration", label: CONSIDERATION_LABEL[s.consideration] });
+  if (s.targetType && s.targetType !== "all") out.push({ key: "targetType", label: s.targetType === "private" ? "Private targets" : "Public targets" });
   if (s.watchOnly) out.push({ key: "watchOnly", label: "Watchlist" });
   return out;
 }

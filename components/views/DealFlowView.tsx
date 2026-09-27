@@ -53,6 +53,7 @@ function Cell({ d, col }: { d: Deal; col: DealColumn }) {
           <span className="company-line">
             <CompanyMark name={d.target.name} />
             <CompanyLink company={d.target} />
+            {d.privateTarget && <span className="aim-chip private-chip">Private</span>}
           </span>
         </td>
       );
@@ -262,6 +263,20 @@ export function DealFlowView() {
                 value={screen.consideration}
                 onChange={(consideration) => edit({ consideration })}
                 options={[{ value: "all" as const, label: "Any consideration" }, ...CONSIDERATION_OPTIONS]}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="f-target-type">Target</label>
+              <Select
+                id="f-target-type"
+                label="Target type"
+                value={screen.targetType ?? "all"}
+                onChange={(targetType) => edit({ targetType })}
+                options={[
+                  { value: "all" as const, label: "Public and private" },
+                  { value: "public" as const, label: "U.S.-listed targets" },
+                  { value: "private" as const, label: "Private companies" },
+                ]}
               />
             </div>
             <div className="field">

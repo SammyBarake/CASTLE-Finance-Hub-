@@ -125,7 +125,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
       <div className="panel-head">
         <div className="panel-heading">
           <h2>{large ? "Monthly activity" : "M&A volume"}</h2>
-          {!data.isSample && <small>Announced deals for U.S.-listed targets tracked by Castle</small>}
+          {!data.isSample && <small>Announced deals tracked by Castle: U.S.-listed targets and private companies bought by listed acquirers</small>}
         </div>
         <div className="panel-controls">
           <Segment

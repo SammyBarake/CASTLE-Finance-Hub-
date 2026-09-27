@@ -30,6 +30,8 @@ export interface ParsedPress {
   consideration: Consideration | null;
   acquirerAdvisors: string[];
   targetAdvisors: string[];
+  /** The release calls the target privately held (only then may an unlisted target become a deal). */
+  privateTarget?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,12 +99,17 @@ const NAME = String.raw`([A-Z0-9][\w&.'’\-]*(?:${SUFFIX}|\s(?:[A-Z0-9&][\w&.'�
 const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the )?`;
 const STOP = String.raw`(?=['’]s\b|\s*(?:[,;:(]|$)|\.(?:\s|$)|\s(?i:for|in|at|to|from|with|via|and (?:expand|create|strength|accelerat|add|form)|creating|expanding|adding|strengthening|accelerating|valued|forming|through|—|-|–)(?:\b|\s))`;
 
+/** A capitalized word followed by a lowercase one (not a name connector): the start of a sub-headline. */
+const SUBHEAD_STOP = String.raw`(?=\s[A-Z][a-z]+\s(?!(?:of|and|de|du|la|for|the|by)\b)[a-z])`;
+/** Headline words that follow the target, never part of its name ("… BankWyse Subject to …", "… DBM Global Transaction …"). */
+const TAIL_STOP = String.raw`(?=\s(?:Subject|Transaction|Deal|Acquisition|Agreement|Following|Pending|Upon|After|Expanding|Adding|Creating|Strengthening|Establishing|Accelerating|Enhancing|Broadening|Extending)\b)`;
+
 const rx = (src: string) => new RegExp(src);
 
 const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
   {
     re: rx(
-      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}${STOP}`,
+      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
     ),
     roles: ["acq", "tgt"],
   },
@@ -116,7 +123,13 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
     re: rx(String.raw`^${NAME}\s+(?i:to go private|to be taken private|agrees to go private)\s+(?i:through|via|in)\s+[^.]{0,80}?\s(?i:by|with)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["tgt", "acq"],
   },
-  { re: rx(String.raw`^${NAME}\s+(?i:completes?|closes|finalizes)\s+(?i:its\s+|the\s+)?(?i:acquisition of)\s+${NAME}${STOP}`), roles: ["acq", "tgt"] },
+  { re: rx(String.raw`^${NAME}\s+(?i:completes?|closes|finalizes)\s+(?i:its\s+|the\s+)?(?i:acquisition of)\s+${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`), roles: ["acq", "tgt"] },
+  // Private-company deals: "Acme Acquires Widget Co.", "Acme Has Acquired …", "Acme Announces (the) Acquisition of …".
+  // (SUBHEAD_STOP also ends the target where a glued-on sub-headline starts: "… Valve Systems Expands flow-control portfolio".)
+  {
+    re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces (?:the |its )?acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
+    roles: ["acq", "tgt"],
+  },
   {
     re: rx(String.raw`^${NAME}\s+(?i:completes?|closes)\s+(?i:its\s+)?(?i:sale|merger)\s+(?i:to|with)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["tgt", "acq"],
@@ -147,6 +160,13 @@ const BODY_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
   {
     re: rx(String.raw`${NAME}\s+\([^)]{0,120}\)[^.]{0,260}?\b(?i:to be acquired by)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["tgt", "acq"],
+  },
+  // "...announced today that it has completed the acquisition of Widget Co., a privately held ..."
+  {
+    re: rx(
+      String.raw`${NAME}\s+(?:\([^)]{0,80}\)\s+)?(?i:today\s+)?(?i:announced\s+(?:today\s+)?(?:that\s+)?(?:it\s+|the company\s+)?)?(?i:has|have|today)\s+(?i:completed (?:its |the )?acquisition of|closed (?:its |the )?acquisition of|acquired)\s+${LEAD_QUAL}${NAME}${STOP}`,
+    ),
+    roles: ["acq", "tgt"],
   },
   // "...announced today that BioMarin has entered into a definitive agreement to acquire Amicus for $14.50"
   {
@@ -284,6 +304,13 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";
     return { usd, kind };
   }
+  // Private-company deals usually just say "acquired Widget Co. … for $185 million".
+  const priceFor =
+    /\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])){0,220}?\bfor\s+(?:a\s+(?:total|aggregate)\s+(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?(?:US)?\$\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b(?!\s*(?:per share|a share))/i.exec(t);
+  if (priceFor) {
+    const usd = num(priceFor[1]) * unitMult(priceFor[2]);
+    if (usd >= 1e6 && usd <= 1e12) return { usd, kind: "transaction" };
+  }
   return null;
 }
 
@@ -354,8 +381,12 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
 // Main
 // ---------------------------------------------------------------------------
 
-/** "BOWMAN CONSULTING GROUP LTD." -> "Bowman Consulting Group Ltd." (EDGAR names are often upper-case). */
-export function displayName(name: string): string {
+/**
+ * "BOWMAN CONSULTING GROUP LTD." -> "Bowman Consulting Group Ltd." (EDGAR names are often upper-case),
+ * without EDGAR's state-of-incorporation tags ("DIODES INC /DEL/", "AMETEK INC/", "SEALED AIR CORP/DE").
+ */
+export function displayName(raw: string): string {
+  const name = raw.replace(/\s*\/[A-Za-z]{2,4}\/?\s*$/, "").replace(/\s*\/\s*$/, "").trim();
   if (name !== name.toUpperCase()) return name;
   return name
     .toLowerCase()
@@ -369,6 +400,30 @@ export interface PressContext {
   /** Name of the company that filed the document. */
   filerName: string;
   filerTickers: string[];
+}
+
+/**
+ * The target looks like a private company: no ticker, and the release either calls it privately held
+ * or names it with a company suffix ("Widget Co., LLC", "DataLoom, Inc."). Whether it is really
+ * unlisted is checked later against the SEC's listed-company file.
+ */
+export function isPrivateTarget(targetName: string, intro: string, targetTicker: string | null): boolean {
+  if (targetTicker) return false;
+  const first = targetName.split(/[\s,]+/)[0];
+  const at = first.length >= 3 ? intro.indexOf(first) : -1;
+  if (at < 0) return false;
+  const near = intro.slice(at, at + 260);
+  if (/\bprivately[- ]held\b|\bprivately[- ]owned\b|\ba private (?:company|firm)\b|\bfounder[- ]led\b|\bbacked by\b[^.]{0,60}\b(?:private equity|capital|partners)\b/i.test(near)) return true;
+  const escaped = targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${escaped},?\\s+(?:Inc|LLC|L\\.L\\.C|Ltd|Limited|Corp|Corporation|GmbH|AG|S\\.A|B\\.V|N\\.V|plc|Co|L\\.P|LP|Pty|SAS|S\\.r\\.l)\\b`).test(intro);
+}
+
+/** "Acme Acquires Honeywell's Aerospace Unit": a carve-out, not a purchase of the named company. */
+export function isCarveOut(headline: string, intro: string, targetName: string): boolean {
+  if (/['’]s\s+[A-Za-z]|s['’]\s+[A-Za-z]/.test(targetName)) return true;
+  const escaped = targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const possessive = new RegExp(`${escaped}['’]s\\s+[A-Za-z]`);
+  return possessive.test(headline) || new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escaped}`, "i").test(intro.slice(0, 1200));
 }
 
 export function parsePressRelease(text: string, ctx: PressContext): ParsedPress | null {
@@ -399,7 +454,10 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     /^.{0,90}?\b(?:completes?|completed|closes|closed|finalizes|finalized)\b\s+(?:its\s+|the\s+)?(?:previously announced\s+)?(?:\$[\d.,]+\s*(?:billion|million)\s+)?(?:acquisition|merger|sale|combination|business combination|tender offer|transaction|take[- ]private)/i.test(
       headline,
     ) ||
-    /^(?:completion|closing) of (?:the )?(?:acquisition|merger)/i.test(headline)
+    /^(?:completion|closing) of (?:the )?(?:acquisition|merger)/i.test(headline) ||
+    // "Acme Acquires Widget" / "Acme Has Acquired Widget": signed and closed at once (typical for private targets).
+    /^.{0,90}?\b(?:acquires|has acquired)\b/i.test(headline) ||
+    (/^.{0,90}?\bannounces (?:the |its )?acquisition of\b/i.test(headline) && /\b(?:has|have) (?:completed|closed|acquired)\b|\b(?:completed|closed) (?:its|the) acquisition\b/i.test(intro.slice(0, 900)))
   ) {
     kind = "completion";
   }
@@ -425,6 +483,17 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   if (!parties) parties = bodyParties;
   // Headline "go private" / "announces agreement" with the issuer as target.
   if (!parties && /go(?:ing)? private|take (?:the )?company private|to be acquired/i.test(headline) && bodyParties) parties = bodyParties;
+  // The buyer filed this 8-K: "RBC bearings Incorporated Acquires …", "The Arena Group d/b/a Paradium.AI Acquires …"
+  // have buyer names the patterns can't read, so take the filer as the buyer when it's named in the headline.
+  if (!parties) {
+    const buy = new RegExp(String.raw`^(.{2,90}?)\s+(?i:acquires|has acquired|completes (?:the |its )?acquisition of|announces (?:the |its )?acquisition of|to acquire|agrees to acquire|announces (?:a )?(?:definitive )?agreement to acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`).exec(headline);
+    const filerWord = filerDisplay.split(/[\s,.]+/).find((w) => w.length >= 3)?.toLowerCase();
+    const namesFiler = buy && ((filerWord && buy[1].toLowerCase().includes(filerWord)) || ctx.filerTickers.some((t) => new RegExp(`\\b${t}\\b`).test(buy[1])));
+    if (buy && namesFiler) {
+      const tgt = cleanPartyName(buy[2]);
+      if (isPlausibleName(tgt) && !sameCompany(tgt, filerDisplay)) parties = { acq: filerDisplay, tgt };
+    }
+  }
   if (!parties) return null;
 
   // Prefer the fuller body names when they clearly extend the same name (e.g. "ACV" -> "ACV Auctions Inc."),
@@ -446,6 +515,8 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
 
   const acquirer = withTicker(parties.acq, mentions);
   const target = withTicker(parties.tgt, mentions);
+  // Buying a division or assets of a named company is not buying that company.
+  if (isCarveOut(headline, intro, target.name)) return null;
 
   const issuerRole: "acquirer" | "target" | null =
     sameCompany(ctx.filerName, target.name) || (target.ticker && ctx.filerTickers.includes(target.ticker))
@@ -462,6 +533,7 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     headline,
     acquirer,
     target,
+    privateTarget: isPrivateTarget(target.name, intro, target.ticker),
     pricePerShare: extractPrice(terms),
     premiumPct: extractPremium(terms),
     valueUsd: value?.usd ?? null,

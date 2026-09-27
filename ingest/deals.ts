@@ -46,6 +46,12 @@ const QUERIES = [
 const FORMS = ["8-K", "DEFA14A", "425", "SC TO-C", "SC14D9C"];
 
 /**
+ * US-listed companies buying private companies (most M&A by count). Buyer-filed 8-K press exhibits;
+ * the parser decides whether the target is a private company (see `isPrivateTarget`).
+ */
+const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of"', '"definitive agreement to acquire"', '"completes acquisition of"', "acquired privately held"];
+
+/**
  * Target-side 8-K language: "Merger Sub will merge with and into the Company" only appears when the
  * filer is the company being acquired. Parsed from the Item 1.01 text, so no press release is needed.
  */
@@ -66,6 +72,10 @@ export async function discoverDealDocs(from: string, to: string, log: (s: string
     for (const q of QUERIES) {
       const hits = await fullTextSearch({ q, forms: FORMS, from: start, to: end });
       for (const h of hits) if (isPressDoc(h)) byId.set(h.id, { ...h, via: "press" });
+    }
+    for (const q of PRIVATE_QUERIES) {
+      const hits = await fullTextSearch({ q, forms: ["8-K"], from: start, to: end });
+      for (const h of hits) if (isPressDoc(h) && !byId.has(h.id)) byId.set(h.id, { ...h, via: "press" });
     }
     for (const q of ITEM_QUERIES) {
       const hits = await fullTextSearch({ q, forms: ["8-K"], from: start, to: end });
@@ -199,9 +209,20 @@ function company(p: PartyMention, r: Resolved): Company {
   return { name: p.name, ticker: r.ticker, cik: r.cik };
 }
 
-function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved): StoredDeal | null {
+/** A real company name for a private target, not an asset description ("certain assets of …", "12 properties"). */
+export function isPrivateTargetName(name: string, acquirerName: string): boolean {
+  const n = name.trim();
+  if (n.length < 3 || n.length > 70 || sameCompany(n, acquirerName)) return false;
+  if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
+  if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
+  // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
+  return !/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|properties|facility|facilities|plant|mine|fleet|vessels?|patents?|product line|division|business line|stake|interest)\b/i.test(n);
+}
+
+function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
+  // Private targets have no CIK: they are matched by name (and buyer below).
   const candidates = state.deals
-    .filter((d) => d.target.cik === target.cik)
+    .filter((d) => (isPrivate ? d.privateTarget && sameCompany(d.target.name, parsed.target.name) : d.target.cik === target.cik))
     .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   let deal =
@@ -216,9 +237,11 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
 
   if (!deal) {
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
-    if (parsed.kind !== "announcement") return null;
+    // Private deals are often signed and closed at once ("Acme has acquired Widget"): a completion creates them.
+    if (parsed.kind !== "announcement" && !(isPrivate && parsed.kind === "completion")) return null;
     deal = {
-      id: `${target.cik}-${hit.fileDate}`,
+      id: isPrivate ? `p-${normalizeName(parsed.target.name).replace(/\s+/g, "-")}-${hit.fileDate}` : `${target.cik}-${hit.fileDate}`,
+      ...(isPrivate ? { privateTarget: true } : {}),
       announcedDate: hit.fileDate,
       acquirer: company(parsed.acquirer, acquirer),
       target: company(parsed.target, target),
@@ -301,6 +324,35 @@ async function isMergerTermination(cik: string, adsh: string, doc: string) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Private targets have no filings of their own. Sector and industry come from the acquirer, and an
+ * announced deal closes when the acquirer files an 8-K Item 2.01 ("Completion of Acquisition").
+ */
+export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | null, today: string, directory?: Directory) {
+  if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
+  if (acquirerSub) {
+    deal.acquirer.ticker ??= acquirerSub.tickers?.[0] ?? null;
+    deal.sector = sectorForSic(acquirerSub.sic, acquirerSub.name);
+    deal.industry = acquirerSub.sicDescription || null;
+    if (deal.status === "Announced") {
+      const limit = new Date(Date.parse(deal.announcedDate) + 400 * 86_400_000).toISOString().slice(0, 10);
+      const done = recentFilings(acquirerSub)
+        .filter((f) => /^8-K/.test(f.form) && /\b2\.01\b/.test(f.items) && f.date > deal.announcedDate && f.date <= limit)
+        .sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (done) {
+        deal.status = "Closed";
+        deal.statusDate = done.date;
+      }
+    }
+  }
+  deal.statusCheckedAt = today;
+  // Nothing else to look up for a private company.
+  deal.financialsCheckedAt = today;
+  deal.proxyCheckedAt = today;
+  deal.fairnessCheckedAt = today;
+  deal.fairnessParser = FAIRNESS_PARSER_VERSION;
 }
 
 export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory) {
@@ -406,6 +458,8 @@ export interface DealRunStats {
   parsed: number;
   newDeals: number;
   enriched: number;
+  /** Documents accepted as private-target deals (announcements, completions). */
+  privateDeals: number;
 }
 
 export async function ingestDeals(
@@ -413,20 +467,30 @@ export async function ingestDeals(
   opts: { from: string; to: string; directory: Directory; log: (s: string) => void; today: string; checkpoint?: () => Promise<void> },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
-  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0 };
+  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0 };
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
 
   /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
   const accept = (parsed: ParsedPress, hit: FtsHit): StoredDeal | null => {
-    const target = resolveParty(parsed.target, hit, directory);
-    if (!target.cik || !target.listedInUs) return null;
-    const acquirer = resolveParty(parsed.acquirer, hit, directory);
-    if (acquirer.cik && acquirer.cik === target.cik) return null;
     // SPAC business combinations aren't the M&A this terminal tracks.
     if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
-    stats.parsed++;
-    return applyParsed(state, parsed, hit, target, acquirer);
+    const target = resolveParty(parsed.target, hit, directory);
+    const acquirer = resolveParty(parsed.acquirer, hit, directory);
+    if (target.cik && target.listedInUs) {
+      if (acquirer.cik && acquirer.cik === target.cik) return null;
+      stats.parsed++;
+      return applyParsed(state, parsed, hit, target, acquirer, false);
+    }
+    // A private company bought by a US-listed acquirer: the target resolves to no SEC registrant and has no
+    // ticker, and isn't the target of a public deal we already track (a delisted public company, e.g. after closing).
+    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, parsed.target.name));
+    if (!target.cik && !target.ticker && acquirer.cik && acquirer.listedInUs && isPrivateTargetName(parsed.target.name, parsed.acquirer.name) && !knownPublic()) {
+      stats.parsed++;
+      stats.privateDeals++;
+      return applyParsed(state, parsed, hit, target, acquirer, true);
+    }
+    return null;
   };
 
   const docs = (await discoverDealDocs(opts.from, opts.to, log)).filter((h) => !state.seen.has(h.id));
@@ -530,9 +594,10 @@ export async function ingestDeals(
   log(`  backstop recovered ${recovered} deals`);
 
   // Enrich new/changed deals, plus open deals whose status may have moved.
-  const toEnrich = state.deals.filter(
-    (d) =>
-      touched.has(d) ||
+  const toEnrich = state.deals.filter((d) =>
+    d.privateTarget
+      ? touched.has(d) || (d.status === "Announced" && d.statusCheckedAt !== opts.today) || !d.statusCheckedAt
+      : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       !d.financialsCheckedAt ||
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
@@ -543,9 +608,13 @@ export async function ingestDeals(
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {
-    const cik = deal.target.cik!;
     try {
-      const sub = await submissions(cik);
+      if (deal.privateTarget) {
+        enrichPrivateDeal(deal, deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null, opts.today, directory);
+        stats.enriched++;
+        continue;
+      }
+      const sub = await submissions(deal.target.cik!);
       if (sub && sub.sic === "6770") {
         // Blank-check shell as target: drop.
         state.deals = state.deals.filter((d) => d !== deal);

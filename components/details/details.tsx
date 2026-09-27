@@ -135,6 +135,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Offer price per share">{formatPrice(deal.pricePerShare)}</DetailItem>
             <DetailItem label="Target">
               <CompanyLink company={deal.target}>{withTicker(deal.target)}</CompanyLink>
+              {deal.privateTarget && <span className="aim-chip private-chip">Private company</span>}
             </DetailItem>
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / EBITDA · EV / Revenue">
@@ -293,7 +294,7 @@ function Definitions({ isSample }: { isSample: boolean }) {
       "Deal flow",
       isSample
         ? "Announced U.S. M&A across five sample sectors."
-        : "Acquisitions of U.S.-listed companies, found in merger press releases filed with the SEC (8-K, DEFA14A, 425 and tender-offer communications). Terms not clearly stated in the filing are left blank.",
+        : "Acquisitions of U.S.-listed companies, plus private companies bought by U.S.-listed acquirers (marked \"Private\"), found in press releases and merger filings with the SEC (8-K, DEFA14A, 425 and tender-offer communications). Private targets have no share price, so premiums and multiples cover public targets only; their sector is the acquirer's. Terms not clearly stated in the filing are left blank.",
     ],
     ["Status", "Announced: agreement signed. Pending: merger proxy or tender offer on file. Closed: target delisted or change of control reported. Terminated: agreement ended."],
     ["Deal value & premium", "Disclosed transaction value. Premium compares the offer price with the target's unaffected share price, as stated in the announcement."],

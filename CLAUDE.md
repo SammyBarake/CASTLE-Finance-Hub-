@@ -141,7 +141,8 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 
 - **$0:** extraction is regex/heuristics over filing text. No paid APIs, no LLM calls.
 - **Never guess:** if a term isn't clearly stated, leave it `null`. Blank is better than wrong.
-- **Deal scope:** targets must be SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe). Private targets, SPAC combinations and OTC targets are skipped.
+- **Deal scope:** (1) targets that are SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe), and (2) **private companies bought by a US-listed acquirer** (`Deal.privateTarget`, id `p-<name>-<date>`). SPAC combinations, OTC / foreign-listed targets, minority stakes, carve-outs of a named company's business ("acquires Honeywell's valve unit") and asset / product-rights purchases are skipped.
+- **Private targets:** found by extra full-text searches ("has acquired", "completed the acquisition of", "definitive agreement to acquire", …; `PRIVATE_QUERIES`). A target counts as private when it resolves to no SEC registrant, has no ticker, passes `isPrivateTargetName`, and no public deal already tracks it (catches delisted public targets). They are often signed and closed at once, so a completion release can create one (status Closed). Enrichment (`enrichPrivateDeal`) takes sector / industry from the acquirer and marks Closed on the acquirer's 8-K Item 2.01; no premium, multiples, proxy, fairness or milestones. Premium and valuation medians therefore cover public targets only. The Deal Flow screener has a Public / Private target filter.
 - **Three discovery channels** (all in `ingest/deals.ts`):
   1. Press releases (EX-99) found by full-text search → `parse/press.ts`.
   2. Merger 8-Ks with Item 1.01 ("merge with and into the Company", tender offers) → `parse/eightk.ts`, which reads defined terms ("Parent", "Merger Sub", "Ultimate Parent") and names the sponsor behind a shell buyer.

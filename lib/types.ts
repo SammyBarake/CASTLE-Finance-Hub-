@@ -65,6 +65,11 @@ export interface Deal {
   status: DealStatus;
   /** Date the current status was reached (closing / termination / proxy filing). */
   statusDate: string | null;
+  /**
+   * The target is a private company (bought by a US-listed acquirer). No share price, premium,
+   * multiples or proxy: those stay null, and sector / industry are the acquirer's.
+   */
+  privateTarget?: boolean;
   /** Fairness opinions from the target's merger proxy (valuation ranges, DCF inputs, fees). Only on /api/deal/[id]. */
   fairness?: FairnessOpinion[];
   /** The page feed's stand-in for `fairness`: true when the full record has opinions. */

@@ -23,7 +23,8 @@ export function HubDataProvider({ data, children }: { data: HubData; children: R
       matrix,
       ytd: ytdSummary(matrix),
       // Headline premium: median across the latest 25 deals.
-      medianPremiumPct: medianPremium(data.deals.slice(0, 25)),
+      // The latest 25 deals that disclose a premium (private-company deals never do).
+      medianPremiumPct: medianPremium(data.deals.filter((d) => d.premiumPct != null).slice(0, 25)),
       ipoSummary: ipoPipelineSummary(data.ipos),
     };
   }, [data]);

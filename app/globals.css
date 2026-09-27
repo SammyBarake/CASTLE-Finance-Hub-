@@ -523,6 +523,7 @@
   .aim-row:hover { background: #121212; }
   .aim-row.on { background: #1a1a1a; }
   .aim-chip { display: inline-block; font-size: 9px; color: #bdbdbd; border: 1px solid #333; border-radius: 10px; padding: 1px 7px; margin: 1px 4px 1px 0; white-space: nowrap; }
+  .private-chip { margin-left: 8px; color: #b9c4d6; border-color: #3a4556; }
   .aim-chip.sold { color: #9fd3b9; border-color: #35584a; margin-left: 8px; }
   .active-row { background: #151515; }
   .stake-purpose { margin: 0 0 14px; padding: 12px 14px; border-left: 2px solid #444; background: #0c0c0c; font-size: 11px; line-height: 1.6; color: #cfcfcf; }

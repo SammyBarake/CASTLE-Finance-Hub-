@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
+import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
 
 // Fixtures are synthetic releases written in the style of real 8-K exhibits.
 
@@ -36,6 +36,77 @@ AUSTIN, Texas, September 1, 2026 - Northwind Systems, Inc. (NASDAQ: NWSY) today 
 const NOTES = `Exhibit 99.1
 Acme Corp Announces Pricing of $500 Million Convertible Senior Notes Offering
 NEW YORK, April 2, 2026 - Acme Corp (NYSE: ACME) today announced the pricing of $500 million of convertible notes. The initial conversion price represents a premium of approximately 32.5% over the last reported sale price.`;
+
+describe("displayName", () => {
+  it("title-cases EDGAR names and drops state tags", () => {
+    expect(displayName("DIODES INC /DEL/")).toBe("Diodes Inc");
+    expect(displayName("AMETEK INC/")).toBe("Ametek Inc");
+    expect(displayName("Sealed Air Corp/De")).toBe("Sealed Air Corp");
+    expect(displayName("Copart, Inc.")).toBe("Copart, Inc.");
+  });
+});
+
+describe("private-company acquisitions", () => {
+  const ACQUIRES = `EX-99.1
+Acme Industrial Corp. Acquires Precision Valve Systems
+Expands flow-control portfolio
+CLEVELAND, March 3, 2026 -- Acme Industrial Corp. (NYSE: ACME) today announced that it has acquired Precision Valve Systems, LLC, a privately held manufacturer of industrial valves, for $185 million in cash. The acquisition is expected to be accretive in the first full year.`;
+
+  const AGREEMENT = `EX-99.1
+Orbit Software to Acquire DataLoom
+AUSTIN, June 9, 2026 -- Orbit Software, Inc. (Nasdaq: ORBT) today announced that it has entered into a definitive agreement to acquire DataLoom, Inc., a privately held data-integration company, for approximately $420 million in cash and stock. The transaction is expected to close in the third quarter.`;
+
+  const ANNOUNCES = `EX-99.1
+Summit Health Announces Acquisition of Riverbend Clinics
+DENVER, Aug. 4, 2026 -- Summit Health Inc. (NYSE: SMHI) announced today that it has completed the acquisition of Riverbend Clinics, a privately-held network of 14 outpatient clinics. Terms were not disclosed.`;
+
+  it("reads 'Acquires' as a completed private deal", () => {
+    const p = parsePressRelease(ACQUIRES, { filerName: "ACME INDUSTRIAL CORP", filerTickers: ["ACME"] })!;
+    expect(p.kind).toBe("completion");
+    expect(p.acquirer.name).toBe("Acme Industrial Corp.");
+    expect(p.target.name).toBe("Precision Valve Systems");
+    expect(p.privateTarget).toBe(true);
+    expect(p.valueUsd).toBe(185e6);
+  });
+
+  it("reads an agreement to acquire a private company as an announcement", () => {
+    const p = parsePressRelease(AGREEMENT, { filerName: "ORBIT SOFTWARE, INC.", filerTickers: ["ORBT"] })!;
+    expect(p.kind).toBe("announcement");
+    expect(p.target.name).toBe("DataLoom");
+    expect(p.privateTarget).toBe(true);
+    expect(p.valueUsd).toBe(420e6);
+  });
+
+  it("treats 'Announces Acquisition of' with 'has completed' as closed, undisclosed value", () => {
+    const p = parsePressRelease(ANNOUNCES, { filerName: "SUMMIT HEALTH INC", filerTickers: ["SMHI"] })!;
+    expect(p.kind).toBe("completion");
+    expect(p.target.name).toBe("Riverbend Clinics");
+    expect(p.privateTarget).toBe(true);
+    expect(p.valueUsd).toBeNull();
+  });
+
+  it("rejects carve-outs of a named company's business", () => {
+    const carve = `EX-99.1
+Acme Industrial Corp. to Acquire Honeywell's Valve Business
+CLEVELAND, March 3, 2026 -- Acme Industrial Corp. (NYSE: ACME) today announced a definitive agreement to acquire the industrial valve business of Honeywell for $300 million.`;
+    expect(parsePressRelease(carve, { filerName: "ACME INDUSTRIAL CORP", filerTickers: ["ACME"] })).toBeNull();
+  });
+
+  it("treats a suffixed name without a ticker as a private target", () => {
+    const suffixed = `EX-99.1
+Orbit Software Completes Acquisition of Nimbus Labs
+AUSTIN, June 9, 2026 -- Orbit Software, Inc. (Nasdaq: ORBT) today announced that it has completed the acquisition of Nimbus Labs, Inc., a developer of edge-computing tools.`;
+    const p = parsePressRelease(suffixed, { filerName: "ORBIT SOFTWARE, INC.", filerTickers: ["ORBT"] })!;
+    expect(p.kind).toBe("completion");
+    expect(p.target.name).toBe("Nimbus Labs");
+    expect(p.privateTarget).toBe(true);
+  });
+
+  it("does not call a listed target private", () => {
+    const p = parsePressRelease(CASH_DEAL, { filerName: "Northwind Systems, Inc.", filerTickers: ["NWSY"] })!;
+    expect(p.privateTarget).toBe(false);
+  });
+});
 
 describe("parsePressRelease", () => {
   it("parses a cash acquisition announced by the acquirer", () => {

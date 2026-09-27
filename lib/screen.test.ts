@@ -40,6 +40,13 @@ describe("screenDeals", () => {
     expect(screenDeals(deals, { ...DEFAULT_SCREEN, consideration: "Stock" }, ctx).map((d) => d.id)).toEqual(["b"]);
   });
 
+  it("filters public vs private targets", () => {
+    const mixed = [...deals, deal({ id: "p", privateTarget: true, target: { name: "Widget LLC", ticker: null, cik: null }, premiumPct: null })];
+    expect(screenDeals(mixed, { ...DEFAULT_SCREEN, targetType: "private" }, ctx).map((d) => d.id)).toEqual(["p"]);
+    expect(screenDeals(mixed, { ...DEFAULT_SCREEN, targetType: "public" }, ctx)).toHaveLength(3);
+    expect(activeFilters({ ...DEFAULT_SCREEN, targetType: "private" })).toContainEqual({ key: "targetType", label: "Private targets" });
+  });
+
   it("applies date windows relative to the data date", () => {
     expect(dateCutoff("week", ctx.asOf)).toBe("2026-09-18");
     expect(dateCutoff("quarter", ctx.asOf)).toBe("2026-07-01");

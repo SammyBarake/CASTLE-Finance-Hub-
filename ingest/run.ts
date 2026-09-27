@@ -72,7 +72,7 @@ async function main() {
     if (!only || only === "deals") {
       log("deals: discovering announcements");
       const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint });
-      log(`deals: read ${s.documents} documents, ${s.parsed} parsed, ${s.newDeals} new deals, ${s.enriched} enriched`);
+      log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched`);
     }
     if (!only || only === "ipos") {
       log("ipos: discovering registrations");
