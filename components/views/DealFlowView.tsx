@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
+import { CompanyLink } from "@/components/ui/CompanyLink";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, SectorLabel, Select, StatusTag } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
@@ -41,13 +42,17 @@ function Cell({ d, col }: { d: Deal; col: DealColumn }) {
     case "date":
       return <td className="table-date">{formatDate(d.announcedDate)}</td>;
     case "acquirer":
-      return <td className="company">{d.acquirer.name}</td>;
+      return (
+        <td className="company">
+          <CompanyLink company={d.acquirer} />
+        </td>
+      );
     case "target":
       return (
         <td className="company">
           <span className="company-line">
             <CompanyMark name={d.target.name} />
-            {d.target.name}
+            <CompanyLink company={d.target} />
           </span>
         </td>
       );

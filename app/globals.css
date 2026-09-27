@@ -370,6 +370,16 @@
   .related-deal { display: flex; align-items: center; justify-content: space-between; width: 100%; border-top: 1px solid #252525; padding: 12px 0; text-align: left; font-size: 11px; color: #ccc; gap: 12px; }
   .related-deal:hover { color: white; }
   .related-deal small { display: block; font-size: 9px; color: #888; margin-top: 3px; }
+  /* ---------- company pages ---------- */
+  .company-link { color: inherit; text-decoration: none; }
+  .company-link:hover, .company-link:focus-visible { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #555; }
+  .company-grid { margin-bottom: 20px; }
+  .company-grid .panel { margin-bottom: 0; }
+  .company-grid .preview-row:disabled { cursor: default; }
+  .company-grid .preview-row:disabled:hover { background: none; }
+  .company-grid .preview-row > .icon { width: 12px; height: 12px; color: #777; flex: none; }
+  .company-filings { padding: 0 16px 6px; }
+  .company-filings > p { font-size: 11px; padding: 20px 0; margin: 0; }
   .filing-link { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #252525; padding: 10px 0; font-size: 11px; color: #ccc; }
   .filing-link:hover { color: #fff; }
   .filing-link .icon { width: 12px; height: 12px; }

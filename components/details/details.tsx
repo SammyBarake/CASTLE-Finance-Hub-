@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
+import { CompanyLink } from "@/components/ui/CompanyLink";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
@@ -108,7 +109,9 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
       {tab === "overview" && (
         <>
           <DetailGrid>
-            <DetailItem label="Acquirer">{withTicker(deal.acquirer)}</DetailItem>
+            <DetailItem label="Acquirer">
+              <CompanyLink company={deal.acquirer}>{withTicker(deal.acquirer)}</CompanyLink>
+            </DetailItem>
             <DetailItem label="Status">
               <StatusTag status={deal.status} />
               {statusDate && <span className="dim" style={{ fontSize: 10, marginLeft: 8 }}>{statusDate.slice(3)}</span>}
@@ -118,7 +121,9 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Announced">{formatDateLong(deal.announcedDate)}</DetailItem>
             <DetailItem label="Consideration">{considerationLabel(deal.consideration)}</DetailItem>
             <DetailItem label="Offer price per share">{formatPrice(deal.pricePerShare)}</DetailItem>
-            <DetailItem label="Target ticker">{deal.target.ticker ?? "n/a"}</DetailItem>
+            <DetailItem label="Target">
+              <CompanyLink company={deal.target}>{withTicker(deal.target)}</CompanyLink>
+            </DetailItem>
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / EBITDA · EV / Revenue">
               {formatMultiple(deal.evEbitda)} · {formatMultiple(deal.evRevenue)}
@@ -197,7 +202,9 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
               <StatusTag status={ipo.stage} />
             </DetailItem>
             <DetailItem label="Expected gross raise">{formatRaise(ipo.expectedRaiseUsd)}</DetailItem>
-            <DetailItem label="Proposed ticker">{ipo.company.ticker ?? "n/a"}</DetailItem>
+            <DetailItem label="Company">
+              <CompanyLink company={ipo.company}>{withTicker(ipo.company)}</CompanyLink>
+            </DetailItem>
             {ipo.pricedDate && <DetailItem label="Priced">{formatDateLong(ipo.pricedDate)}</DetailItem>}
             {ipo.offerPrice != null && <DetailItem label="Offer price">{formatPrice(ipo.offerPrice)}</DetailItem>}
             <DetailItem label="Sector">{ipo.sector}</DetailItem>

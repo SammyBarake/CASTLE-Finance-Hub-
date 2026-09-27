@@ -7,6 +7,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyMark } from "@/components/ui/primitives";
 import { formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
+import { companyHref, companyId, searchCompanies } from "@/lib/companies";
 import { matchAdvisor, matchDeal, matchIpo } from "@/lib/search";
 
 const noopSubscribe = () => () => {};
@@ -26,6 +27,7 @@ export function GlobalSearch() {
   const results = useMemo(() => {
     if (!q) return null;
     return {
+      companies: searchCompanies(data, q, 4),
       deals: data.deals.filter((d) => matchDeal(d, { query: q, sector: "all", status: "all" })).slice(0, 5),
       ipos: data.ipos.filter((i) => matchIpo(i, q)).slice(0, 4),
       advisors: data.leagueTable.entries.map((e, i) => ({ e, rank: i + 1 })).filter(({ e }) => matchAdvisor(e, q)).slice(0, 4),
@@ -78,7 +80,7 @@ export function GlobalSearch() {
     }
   };
 
-  const empty = results && !results.deals.length && !results.ipos.length && !results.advisors.length;
+  const empty = results && !results.companies.length && !results.deals.length && !results.ipos.length && !results.advisors.length;
 
   return (
     <div className="search" ref={wrapRef} onKeyDown={onKeyDown}>
@@ -110,6 +112,20 @@ export function GlobalSearch() {
       {open && results && (
         <div className="search-results" id="search-results" aria-label="Search results">
           {empty && <div className="search-empty">No matching companies, deals, or advisors.</div>}
+          {!!results.companies.length && <div className="search-group">Companies</div>}
+          {results.companies.map(({ company, count }) => (
+            <button key={companyId(company)} type="button" className="search-result" onClick={() => pick(() => {}, companyHref(company))}>
+              <CompanyMark name={company.name} />
+              <span className="search-result-label">
+                {company.name}
+                <small>
+                  {company.ticker ? `${company.ticker} · ` : ""}
+                  {count} record{count === 1 ? "" : "s"}
+                </small>
+              </span>
+              <Icon name="right" />
+            </button>
+          ))}
           {!!results.deals.length && <div className="search-group">Deals</div>}
           {results.deals.map((d) => (
             <button key={d.id} type="button" className="search-result" onClick={() => pick(() => openDeal(d), "/deal-flow")}>

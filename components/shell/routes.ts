@@ -21,4 +21,8 @@ export const ROUTES: RouteDef[] = [
   { id: "world-economies", href: "/world-economies", title: "World Economies", icon: "globe" },
 ];
 
-export const routeForPath = (path: string) => ROUTES.find((r) => (r.href === "/" ? path === "/" : path.startsWith(r.href))) ?? ROUTES[0];
+/** Company pages sit outside the nav: no sidebar item is highlighted. */
+const COMPANY_ROUTE = { id: "company", href: "/company", title: "Company" } as const;
+
+export const routeForPath = (path: string): { id: string; title: string } =>
+  path.startsWith("/company/") ? COMPANY_ROUTE : (ROUTES.find((r) => (r.href === "/" ? path === "/" : path.startsWith(r.href))) ?? ROUTES[0]);

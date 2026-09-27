@@ -1,5 +1,6 @@
 import "server-only";
 import { existsSync, readFileSync } from "node:fs";
+import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { bankShortName } from "./banks";
 import { buildHubData } from "./aggregate";
@@ -14,7 +15,10 @@ import type { Deal, HubData, Ipo, Macro } from "./types";
  * 2. .data/castle.json, written by `npm run ingest -- --local` (local development).
  * 3. lib/sampleData.ts (fresh clone, nothing ingested yet).
  */
-export async function getHubData(): Promise<HubData> {
+/** Memoized per request, so the layout and page metadata share one read. */
+export const getHubData = cache(loadHubData);
+
+async function loadHubData(): Promise<HubData> {
   // Pasted dashboard values often carry stray spaces, newlines or quotes; any of them breaks the request.
   const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, "").trim() || undefined;
   const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, "");
