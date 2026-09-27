@@ -22,6 +22,7 @@ const PATHS = {
       <rect x="17" y="10" width="4" height="5" rx=".7" />
     </>
   ),
+  comps: <path d="M4 5h16M4 10h16M4 15h16M4 20h10M9 5v15" />,
   globe: (
     <>
       <circle cx="12" cy="12" r="9" />

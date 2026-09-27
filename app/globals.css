@@ -380,6 +380,19 @@
   .company-grid .preview-row > .icon { width: 12px; height: 12px; color: #777; flex: none; }
   .company-filings { padding: 0 16px 6px; }
   .company-filings > p { font-size: 11px; padding: 20px 0; margin: 0; }
+  /* ---------- precedent transactions ---------- */
+  .precedents-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); animation: none; border-bottom: 0; }
+  .precedents-filters .filter-search { width: 100%; }
+  .precedents-filters .filter-search input { font-size: 11px; }
+  .precedents-check { margin: 0; font-size: 10px; grid-column: span 1; }
+  .comps-table .cell-controls { width: 34px; }
+  .comps-excluded td:not(.cell-controls) { opacity: 0.35; }
+  .comps-subject td { background: #101010; color: #eee; }
+  .comps-subject .cell-controls .icon { width: 12px; height: 12px; color: #999; }
+  .comps-summary th, .comps-summary td { border-top: 1px solid #1f1f1f; padding-top: 8px; padding-bottom: 8px; font-size: 10px; color: #9a9a9a; background: #0b0b0b; }
+  .comps-summary tr:first-child th, .comps-summary tr:first-child td { border-top: 1px solid #3a3a3a; }
+  .comps-summary th { text-align: left; font-weight: 450; letter-spacing: 0.02em; }
+  .comps-summary .comps-median th, .comps-summary .comps-median td { color: #f2f2f2; font-weight: 500; }
   .filing-link { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #252525; padding: 10px 0; font-size: 11px; color: #ccc; }
   .filing-link:hover { color: #fff; }
   .filing-link .icon { width: 12px; height: 12px; }

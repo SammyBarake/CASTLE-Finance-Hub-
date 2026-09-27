@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
@@ -46,6 +47,7 @@ type Tab = "overview" | "advisors" | "filings" | "notes";
 function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo }) {
   const { isWatched, selected } = useWorkspace();
   const { toggleWatch, copySummary, toggleCompare } = useRecordActions();
+  const { closeDialog } = useUi();
   const watched = isWatched(kind, record.id);
   return (
     <div className="drawer-actions">
@@ -62,6 +64,12 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
           <Icon name="compare" />
           {selected.has(record.id) ? "Selected" : "Select"}
         </button>
+      )}
+      {kind === "deal" && (
+        <Link className="button" href={`/precedents?deal=${encodeURIComponent(record.id)}`} onClick={closeDialog}>
+          <Icon name="comps" />
+          Precedents
+        </Link>
       )}
     </div>
   );
@@ -287,6 +295,10 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: final 424B4 prospectus filed. Trading: now listed. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
+    [
+      "Precedent transactions",
+      "Comparable deals picked by sector, industry, size and date. Deal size is enterprise value, or the headline value when EV isn't available. Statistics (high, 75th percentile, mean, median, 25th percentile, low) use only ticked rows and skip undisclosed values; percentiles interpolate like Excel's PERCENTILE.INC.",
+    ],
     ["Sectors", "Mapped from SEC industry (SIC) codes into five groups. Consumer companies fall under Industrials, real estate under Financials, and utilities and mining under Energy."],
     [
       "World economies",

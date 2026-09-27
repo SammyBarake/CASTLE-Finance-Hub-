@@ -89,6 +89,7 @@ lib/
   aggregate.ts        Raw deals → monthly volume, league table, valuation medians (+ public field stripping)
   metrics.ts          Pure derived figures: YTD, momentum, medians, valuation cards
   banks.ts            Known banks, name variants, monograms (shared by ingest + UI)
+  precedents.ts       Precedent-transaction screen + comps statistics (percentiles) + tests
   companies.ts        Company profiles derived from deals + IPOs (ids, deal history, banks, filings, search) + tests
   search.ts           Search / filter predicates
   screen.ts           Deal screener model (filters, date windows, sort, chips, columns) + tests
@@ -147,5 +148,6 @@ supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only 
 - **Task 1 (done):** scaffold, CLAUDE.md, hub rebuilt as components on sample data.
 - **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with hourly ISR).
 - **Company pages (done):** every acquirer, target and IPO issuer links to `/company/[id]`. Use `CompanyLink` for company names; generic buyer names ("The Investor Group") get no page.
-- **Next on the roadmap:** precedent transactions tool (sector + size → comps table with median multiples), then merger-proxy valuation data (fairness-opinion DCF ranges, comps, fees).
+- **Precedent transactions (done):** `/precedents` (`lib/precedents.ts` + `PrecedentsView`). Screen by sector / industry / size / window, untick outliers, summary rows (high, 75th, mean, median, 25th, low), CSV export. A deal drawer's "Precedents" button opens `/precedents?deal=<id>` seeded from that deal (same sector, ⅓×–3× its size).
+- **Next on the roadmap:** merger-proxy valuation data (fairness-opinion DCF ranges, comps, fees).
 - **Ideas / known gaps:** acquirer-side advisors for deals without a press release (the proxy names the target's bank only); placeholder buyer names when no filing names the sponsor; a "Consumer" sector if the founder wants to split it from Industrials.
