@@ -76,11 +76,31 @@ export class JsonStore implements Store {
 
 const PAGE = 1000;
 
+/** Errors worth retrying: Supabase clock skew ("JWT issued at future"), timeouts, network blips, 5xx. */
+const TRANSIENT = /issued at future|fetch failed|timeout|timed out|ECONNRESET|ETIMEDOUT|socket|gateway|503|502|504|upstream/i;
+
+/** Run a Supabase call, retrying transient failures for up to ~3.5 minutes (10s, 20s, 40s, 60s, 80s). */
+async function withRetry<T>(label: string, call: () => PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
+  const waits = [10, 20, 40, 60, 80];
+  for (let attempt = 0; ; attempt++) {
+    let message: string;
+    try {
+      const { data, error } = await call();
+      if (!error) return data;
+      message = error.message;
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    if (attempt >= waits.length || !TRANSIENT.test(message)) throw new Error(`Supabase ${label}: ${message}`);
+    console.log(`  Supabase ${label} failed (${message}); retrying in ${waits[attempt]}s`);
+    await new Promise((r) => setTimeout(r, waits[attempt] * 1000));
+  }
+}
+
 async function selectAll<T>(db: SupabaseClient, table: string, columns: string): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await db.from(table).select(columns).range(from, from + PAGE - 1);
-    if (error) throw new Error(`Supabase select ${table}: ${error.message}`);
+    const data = await withRetry(`select ${table}`, () => db.from(table).select(columns).range(from, from + PAGE - 1));
     out.push(...((data ?? []) as T[]));
     if (!data || data.length < PAGE) return out;
   }
@@ -88,8 +108,7 @@ async function selectAll<T>(db: SupabaseClient, table: string, columns: string):
 
 async function upsertChunks(db: SupabaseClient, table: string, rows: object[]) {
   for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await db.from(table).upsert(rows.slice(i, i + 500));
-    if (error) throw new Error(`Supabase upsert ${table}: ${error.message}`);
+    await withRetry(`upsert ${table}`, () => db.from(table).upsert(rows.slice(i, i + 500)));
   }
 }
 
@@ -107,10 +126,10 @@ export class SupabaseStore implements Store {
       selectAll<{ data: StoredDeal }>(this.db, "deals", "data"),
       selectAll<{ data: StoredIpo }>(this.db, "ipos", "data"),
       selectAll<{ id: string }>(this.db, "seen_docs", "id"),
-      this.db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"]),
+      withRetry("select meta", () => this.db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"])),
     ]);
     this.loadedSeen = new Set(seen.map((s) => s.id));
-    const metaValue = (key: string) => meta.data?.find((m) => m.key === key)?.value;
+    const metaValue = (key: string) => meta?.find((m) => m.key === key)?.value;
     return {
       deals: deals.map((d) => d.data),
       ipos: ipos.map((i) => i.data),
@@ -132,13 +151,11 @@ export class SupabaseStore implements Store {
       const keepDeals = new Set(state.deals.map((d) => d.id));
       const staleDeals = (await selectAll<{ id: string }>(this.db, "deals", "id")).map((r) => r.id).filter((id) => !keepDeals.has(id));
       for (let i = 0; i < staleDeals.length; i += 200) {
-        const { error } = await this.db.from("deals").delete().in("id", staleDeals.slice(i, i + 200));
-        if (error) throw new Error(`Supabase delete deals: ${error.message}`);
+        await withRetry("delete deals", () => this.db.from("deals").delete().in("id", staleDeals.slice(i, i + 200)));
       }
       const staleSeen = [...this.loadedSeen].filter((id) => !state.seen.has(id));
       for (let i = 0; i < staleSeen.length; i += 200) {
-        const { error } = await this.db.from("seen_docs").delete().in("id", staleSeen.slice(i, i + 200));
-        if (error) throw new Error(`Supabase delete seen_docs: ${error.message}`);
+        await withRetry("delete seen_docs", () => this.db.from("seen_docs").delete().in("id", staleSeen.slice(i, i + 200)));
       }
       this.loadedSeen = new Set([...this.loadedSeen].filter((id) => state.seen.has(id)));
     }
@@ -152,8 +169,7 @@ export class SupabaseStore implements Store {
     const existing = await selectAll<{ id: string }>(this.db, "ipos", "id");
     const stale = existing.map((r) => r.id).filter((id) => !keep.has(id));
     for (let i = 0; i < stale.length; i += 200) {
-      const { error } = await this.db.from("ipos").delete().in("id", stale.slice(i, i + 200));
-      if (error) throw new Error(`Supabase delete ipos: ${error.message}`);
+      await withRetry("delete ipos", () => this.db.from("ipos").delete().in("id", stale.slice(i, i + 200)));
     }
     const newSeen = [...state.seen].filter((id) => !this.loadedSeen.has(id)).map((id) => ({ id }));
     await upsertChunks(this.db, "seen_docs", newSeen);
@@ -162,8 +178,7 @@ export class SupabaseStore implements Store {
       ...(state.macro ? [{ key: "macro", value: state.macro }] : []),
       ...(state.activists.length ? [{ key: "activists", value: state.activists }] : []),
     ];
-    const { error } = await this.db.from("meta").upsert(metaRows);
-    if (error) throw new Error(`Supabase upsert meta: ${error.message}`);
+    await withRetry("upsert meta", () => this.db.from("meta").upsert(metaRows));
   }
 }
 
