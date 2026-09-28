@@ -179,6 +179,16 @@ interface Resolved {
   listedInUs: boolean;
 }
 
+function exchangeKey(e: string | null | undefined): string | null {
+  if (!e) return null;
+  if (/american|mkt|amex/i.test(e)) return "amex";
+  if (/nasdaq/i.test(e)) return "nasdaq";
+  if (/nyse/i.test(e)) return "nyse";
+  if (/cboe|bats/i.test(e)) return "cboe";
+  return e.toLowerCase();
+}
+export const sameExchange = (a: string | null | undefined, b: string | null | undefined) => !!exchangeKey(a) && exchangeKey(a) === exchangeKey(b);
+
 function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   const filers = hit.displayNames.map(parseDisplayName);
   const pressUs = !!p.exchange && US_LISTED.test(p.exchange);
@@ -187,8 +197,9 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   if (ticker) {
     const f = filers.find((x) => x.tickers.includes(ticker));
     const listed = dir.byTicker.get(ticker);
-    // Guard against ticker collisions across exchanges (e.g. a TSX symbol).
-    if (listed && (pressUs || sameCompany(listed.name, p.name))) {
+    // Guard against ticker collisions: a TSX symbol, or a ticker reused after a delisting (Vonage's "VG" is now
+    // Venture Global's). The names must agree, or at least the press release's exchange must match today's listing.
+    if (listed && (sameCompany(listed.name, p.name) || (pressUs && sameExchange(p.exchange, listed.exchange)))) {
       return { cik: listed.cik, ticker, listedInUs: pressUs || US_LISTED.test(listed.exchange ?? "") };
     }
     if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs };
@@ -235,8 +246,30 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
-  return !/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|properties|facility|facilities|plant|mine|fleet|vessels?|patents?|product line|division|business line|stake|interest)\b/i.test(n);
+  if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|properties|facility|facilities|plant|mine|fleet|vessels?|patents?|product line|division|business line|stake|interest)\b/i.test(n)) return false;
+  // A description, not a name: "Next-Gen AI Drug Discovery Company", "a Leading Software Provider" (a real
+  // name with a legal suffix, "Acme Company, Inc.", is fine).
+  if (/\b(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|specialist)$/i.test(n) && !/\b(?:Inc|LLC|Ltd|Corp|L\.?P)\.?$/i.test(n)) return false;
+  // A single generic word ("Land", "Software", "Assets").
+  return !/^(?:land|software|technology|data|energy|media|health|capital|properties|solutions|services|products|systems|brands?)$/i.test(n);
 }
+
+const NAME_SUFFIX = /^(?:INC|CORP|LLC|LTD|LP|LLP|PLC|CO|USA|US|AG|SA|NV|SE|GMBH|BV|AB|AS|ASA|OY|SPA|SRL|AI|IT|HR|II|III|IV)[.,]?$/;
+
+/** "Sirius Computer Solutions LINCOLNSHIRE" -> "Sirius Computer Solutions": drop a dateline glued onto a mixed-case name. */
+export function stripDateline(name: string): string {
+  if (!/[a-z]/.test(name)) return name;
+  const words = name.trim().split(/\s+/);
+  let cut = words.length;
+  while (cut > 1 && /^[A-Z]{2,}[,.]?$/.test(words[cut - 1]) && !NAME_SUFFIX.test(words[cut - 1])) cut--;
+  const tail = words.slice(cut);
+  if (!tail.some((w) => w.replace(/[,.]/g, "").length >= 4)) return name;
+  const rest = words.slice(0, cut).join(" ");
+  return /[a-z]/.test(rest) ? rest.replace(/[,\s]+$/, "") : name;
+}
+
+/** Largest value believable for a private company: anything above is almost certainly a misread number. */
+export const MAX_PRIVATE_DEAL_VALUE = 40e9;
 
 function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
   // Private targets have no CIK: they are matched by name (and buyer below).
@@ -496,6 +529,9 @@ export async function ingestDeals(
   const accept = (parsed: ParsedPress, hit: FtsHit): StoredDeal | null => {
     // SPAC business combinations aren't the M&A this terminal tracks.
     if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
+    // A target written as its ticker ("Paramount … to acquire WBD") is that public company.
+    const asTicker = /^[A-Z]{1,5}$/.test(parsed.target.name) ? directory.byTicker.get(parsed.target.name) : undefined;
+    if (asTicker) parsed = { ...parsed, target: { ...parsed.target, name: asTicker.name, ticker: asTicker.ticker } };
     const target = resolveParty(parsed.target, hit, directory);
     const acquirer = resolveParty(parsed.acquirer, hit, directory);
     if (target.cik && target.listedInUs) {
@@ -505,11 +541,13 @@ export async function ingestDeals(
     }
     // A private company bought by a US-listed acquirer: the target resolves to no SEC registrant and has no
     // ticker, and isn't the target of a public deal we already track (a delisted public company, e.g. after closing).
-    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, parsed.target.name));
-    if (!target.cik && !target.ticker && acquirer.cik && acquirer.listedInUs && isPrivateTargetName(parsed.target.name, parsed.acquirer.name) && !knownPublic()) {
+    const name = stripDateline(parsed.target.name);
+    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, name));
+    if (!target.cik && !target.ticker && acquirer.cik && acquirer.listedInUs && isPrivateTargetName(name, parsed.acquirer.name) && !knownPublic()) {
       stats.parsed++;
       stats.privateDeals++;
-      return applyParsed(state, parsed, hit, target, acquirer, true);
+      const valueUsd = parsed.valueUsd != null && parsed.valueUsd > MAX_PRIVATE_DEAL_VALUE ? null : parsed.valueUsd;
+      return applyParsed(state, { ...parsed, target: { ...parsed.target, name }, valueUsd }, hit, target, acquirer, true);
     }
     return null;
   };

@@ -37,6 +37,18 @@ const NOTES = `Exhibit 99.1
 Acme Corp Announces Pricing of $500 Million Convertible Senior Notes Offering
 NEW YORK, April 2, 2026 - Acme Corp (NYSE: ACME) today announced the pricing of $500 million of convertible notes. The initial conversion price represents a premium of approximately 32.5% over the last reported sale price.`;
 
+describe("extractValue ignores numbers that aren't the deal price", () => {
+  it("skips market sizes, combined-company values and sponsor boilerplate", () => {
+    expect(extractValue("The global MICE market was valued at approximately USD $945.6 billion in 2025.")).toBeNull();
+    expect(extractValue("All stock transaction with combined enterprise value of approximately $135 billion.")).toBeNull();
+    expect(extractValue("Since its inception, CD&R has managed more than $40 billion with an aggregate transaction value of more than $175 billion.")).toBeNull();
+    expect(extractValue("The Company will be acquired in an all-cash transaction valued at approximately $2.5 billion.")).toEqual({ usd: 2.5e9, kind: "transaction" });
+  });
+  it("reads 'to acquire X for USD 6.2 billion'", () => {
+    expect(extractValue("Ericsson has agreed to acquire Vonage for USD 6.2 billion, to spearhead the creation of a global network platform.")).toEqual({ usd: 6.2e9, kind: "transaction" });
+  });
+});
+
 describe("displayName", () => {
   it("title-cases EDGAR names and drops state tags", () => {
     expect(displayName("DIODES INC /DEL/")).toBe("Diodes Inc");

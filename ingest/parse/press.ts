@@ -237,9 +237,21 @@ function resolveSymmetric(a: string, b: string, body: string) {
 // ---------------------------------------------------------------------------
 
 function termsSection(body: string): string {
-  const cut = body.search(/\b(?:Forward[- ]Looking Statements|Cautionary (?:Note|Statement)|Important Information (?:for|About)|Additional Information and Where|No Offer or Solicitation|Participants in the Solicitation)\b/i);
+  // Stop at the legal boilerplate and at the "About <Company>" profiles, which quote AUM, market sizes
+  // and lifetime deal totals ("aggregate transaction value of more than $175 billion").
+  const cut = body.search(
+    /\b(?:Forward[- ]Looking Statements|Cautionary (?:Note|Statement)|Important Information (?:for|About)|Additional Information and Where|No Offer or Solicitation|Participants in the Solicitation)\b|(?:^|\n|\.\s{1,3})About (?:the )?[A-Z][\w&.'’\- ]{1,60}\n/i,
+  );
   return cut > 400 ? body.slice(0, cut) : body;
 }
+
+/** Numbers that describe a market, a combined company or a firm's history, not this deal's price. */
+const NOT_DEAL_VALUE =
+  /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:company|enterprise|business|entity)|pro forma|since (?:its )?inception|has (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio compan\w*|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4})\b/i;
+const valueContext = (t: string, index: number, length: number) => t.slice(Math.max(0, index - 90), index + length + 50);
+
+/** No announced deal has been valued above this (the largest ever were ~$200B). */
+export const MAX_DEAL_VALUE = 300e9;
 
 const num = (s: string) => Number(s.replace(/,/g, ""));
 const unitMult = (u: string) => (/^b/i.test(u) ? 1e9 : /^t/i.test(u) ? 1e12 : 1e6);
@@ -299,17 +311,19 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     if (/per share/i.test(t.slice(m.index!, m.index! + m[0].length + 12))) continue;
     // Skip non-USD currencies (e.g. C$) — we only report USD.
     if (/(?:^|\s)(?:C|CAD|A)\$/.test(m[0])) continue;
+    if (NOT_DEAL_VALUE.test(valueContext(t, m.index!, m[0].length))) continue;
     const usd = num(m[2]) * unitMult(m[3]);
-    if (usd < 1e6 || usd > 1e12) continue;
+    if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
     const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";
     return { usd, kind };
   }
-  // Private-company deals usually just say "acquired Widget Co. … for $185 million".
+  // Private-company deals usually just say "acquired Widget Co. … for $185 million" (or "for USD 6.2 billion").
   const priceFor =
-    /\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])){0,220}?\bfor\s+(?:a\s+(?:total|aggregate)\s+(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?(?:US)?\$\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b(?!\s*(?:per share|a share))/i.exec(t);
-  if (priceFor) {
-    const usd = num(priceFor[1]) * unitMult(priceFor[2]);
-    if (usd >= 1e6 && usd <= 1e12) return { usd, kind: "transaction" };
+    /\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])){0,220}?\bfor\s+(?:a\s+(?:total|aggregate)\s+(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?(?:US\$|\$|USD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b(?!\s*(?:per share|a share))/gi;
+  for (const m of t.matchAll(priceFor)) {
+    if (NOT_DEAL_VALUE.test(t.slice(m.index! + m[0].length - 40, m.index! + m[0].length + 50))) continue;
+    const usd = num(m[1]) * unitMult(m[2]);
+    if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
   }
   return null;
 }
