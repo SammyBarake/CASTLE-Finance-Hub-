@@ -66,19 +66,38 @@ function isPressDoc(h: FtsHit): boolean {
 /** A document to read, and which parser applies. */
 export type Candidate = FtsHit & { via: "press" | "item101" };
 
-export async function discoverDealDocs(from: string, to: string, log: (s: string) => void): Promise<Candidate[]> {
+/**
+ * EDGAR's full-text search has brief outages (HTTP 500s). Retry with long pauses; if a search still
+ * fails, record the gap and carry on rather than losing the whole run.
+ */
+async function searchOrGap(opts: Parameters<typeof fullTextSearch>[0], gaps: string[], log: (s: string) => void): Promise<FtsHit[]> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fullTextSearch(opts);
+    } catch (err) {
+      if (attempt >= 2) {
+        gaps.push(`${opts.q} ${opts.from}`);
+        log(`  ! search failed, skipped: ${opts.q} ${opts.from}..${opts.to} (${(err as Error).message.slice(0, 80)})`);
+        return [];
+      }
+      await new Promise((r) => setTimeout(r, 30_000 * (attempt + 1)));
+    }
+  }
+}
+
+export async function discoverDealDocs(from: string, to: string, log: (s: string) => void, gaps: string[] = []): Promise<Candidate[]> {
   const byId = new Map<string, Candidate>();
   for (const [start, end] of monthWindows(from, to)) {
     for (const q of QUERIES) {
-      const hits = await fullTextSearch({ q, forms: FORMS, from: start, to: end });
+      const hits = await searchOrGap({ q, forms: FORMS, from: start, to: end }, gaps, log);
       for (const h of hits) if (isPressDoc(h)) byId.set(h.id, { ...h, via: "press" });
     }
     for (const q of PRIVATE_QUERIES) {
-      const hits = await fullTextSearch({ q, forms: ["8-K"], from: start, to: end });
+      const hits = await searchOrGap({ q, forms: ["8-K"], from: start, to: end }, gaps, log);
       for (const h of hits) if (isPressDoc(h) && !byId.has(h.id)) byId.set(h.id, { ...h, via: "press" });
     }
     for (const q of ITEM_QUERIES) {
-      const hits = await fullTextSearch({ q, forms: ["8-K"], from: start, to: end });
+      const hits = await searchOrGap({ q, forms: ["8-K"], from: start, to: end }, gaps, log);
       for (const h of hits) {
         const mainDoc = h.fileType === h.form || /^8-K/.test(h.fileType);
         if (mainDoc && h.items.includes("1.01") && !byId.has(h.id)) byId.set(h.id, { ...h, via: "item101" });
@@ -90,11 +109,11 @@ export async function discoverDealDocs(from: string, to: string, log: (s: string
 }
 
 /** Companies that filed a merger proxy or tender-offer response: the "answer key" for the backstop. */
-export async function discoverMergerFilers(from: string, to: string) {
+export async function discoverMergerFilers(from: string, to: string, gaps: string[] = [], log: (s: string) => void = () => {}) {
   const out = new Map<string, { firstDate: string; hit: FtsHit }>();
   for (const [start, end] of monthWindows(from, to)) {
     for (const form of ["PREM14A", "DEFM14A", "SC 14D9", "SC 13E3"]) {
-      const hits = await fullTextSearch({ q: "", forms: [form], from: start, to: end });
+      const hits = await searchOrGap({ q: "", forms: [form], from: start, to: end }, gaps, log);
       for (const h of hits) {
         if (h.form !== form || h.sics.includes("6770")) continue;
         const f = parseDisplayName(h.displayNames[0]);
@@ -460,6 +479,8 @@ export interface DealRunStats {
   enriched: number;
   /** Documents accepted as private-target deals (announcements, completions). */
   privateDeals: number;
+  /** Searches that still failed after retries; a rebuild must not prune when any occurred. */
+  searchGaps: string[];
 }
 
 export async function ingestDeals(
@@ -467,7 +488,7 @@ export async function ingestDeals(
   opts: { from: string; to: string; directory: Directory; log: (s: string) => void; today: string; checkpoint?: () => Promise<void> },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
-  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0 };
+  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [] };
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
 
@@ -493,7 +514,7 @@ export async function ingestDeals(
     return null;
   };
 
-  const docs = (await discoverDealDocs(opts.from, opts.to, log)).filter((h) => !state.seen.has(h.id));
+  const docs = (await discoverDealDocs(opts.from, opts.to, log, stats.searchGaps)).filter((h) => !state.seen.has(h.id));
   log(`  ${docs.length} new documents to read (${docs.filter((d) => d.via === "item101").length} merger 8-Ks)`);
 
   for (const hit of docs) {
@@ -527,7 +548,7 @@ export async function ingestDeals(
     if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
     return subs.get(cik)!;
   };
-  const filers = await discoverMergerFilers(opts.from, opts.to);
+  const filers = await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log);
   const knownTargets = new Set(state.deals.map((d) => d.target.cik));
   const todo = [...filers].filter(([cik]) => !knownTargets.has(cik) && !state.seen.has(`backstop:${cik}`));
   log(`  backstop: ${filers.size} merger-proxy filers, ${todo.length} without a deal to look up`);

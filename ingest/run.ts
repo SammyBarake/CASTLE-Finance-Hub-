@@ -68,11 +68,17 @@ async function main() {
     log(`  checkpoint saved (${state.deals.length} deals)`);
   };
   let succeeded = false;
+  // A rebuild only deletes stale deals when every search worked; a skipped month would otherwise lose its deals.
+  let complete = true;
   try {
     if (!only || only === "deals") {
       log("deals: discovering announcements");
       const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint });
       log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched`);
+      if (s.searchGaps.length) {
+        complete = false;
+        log(`deals: ${s.searchGaps.length} searches failed after retries; stale deals are kept this run (run again later to fill the gaps)`);
+      }
     }
     if (!only || only === "ipos") {
       log("ipos: discovering registrations");
@@ -101,7 +107,7 @@ async function main() {
     succeeded = true;
   } finally {
     state.asOf = new Date().toISOString();
-    await store.save(state, { prune: rebuild && succeeded });
+    await store.save(state, { prune: rebuild && succeeded && complete });
     log(`saved to ${store.label}: ${state.deals.length} deals, ${state.ipos.length} IPOs (${edgarRequestCount()} EDGAR requests)`);
   }
 }
