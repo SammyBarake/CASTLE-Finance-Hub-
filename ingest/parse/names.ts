@@ -50,6 +50,8 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/^(?:an?\s+)?(?:[A-Z][a-z]+\s){1,2}(?:corporation|limited liability company|limited partnership|company),\s+(?=[A-Z])/, "");
   // "Investor Group Led by Chairman and CEO Thomas Priore" -> "Investor Group Led by Thomas Priore"
   s = s.replace(/\b(?:its |the Company's )?(?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President)(?:,? and (?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President))*\s+(?=[A-Z])/g, "");
+  // "Mantle Therapeutics and Announces Multiple New Strategic …" -> "Mantle Therapeutics"
+  s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
   s = s.replace(/['’]s$/, "");
   s = s.replace(/[\s,;:\-–]+$/g, "").replace(/^["'\s]+|["'\s]+$/g, "");
   // Keep "Inc." / "Co." periods, drop a stray trailing sentence period otherwise.
@@ -71,5 +73,5 @@ export const isPlausibleName = (s: string | null | undefined): s is string =>
   /[A-Za-z]/.test(s) &&
   !/^(it|we|the company|company|shareholders|stockholders)$/i.test(s) &&
   // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".
-  !/\b(?:board of directors|that certain|special committee|net to the|without interest|per share|Exchange Commission)\b/i.test(s) &&
+  !/\b(?:board of directors|that certain|special committee|net to the|without interest|per share|Exchange Commission|(?:closing )?stock price|closing price)\b/i.test(s) &&
   !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s);

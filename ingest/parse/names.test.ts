@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { cleanPartyName, isPlaceholderBuyer, isPlausibleName } from "./names";
 
+describe("run-on names and stock-price fragments", () => {
+  it("cuts a second headline verb and rejects price phrases", () => {
+    expect(cleanPartyName("Mantle Therapeutics and Announces Multiple New Strategic")).toBe("Mantle Therapeutics");
+    expect(cleanPartyName("Johnson and Johnson")).toBe("Johnson and Johnson");
+    expect(isPlausibleName("SoundHound Closing Stock Price")).toBe(false);
+  });
+});
+
 describe("cleanPartyName / isPlausibleName", () => {
   it("cuts trailing agreement clauses and leading entity types", () => {
     expect(cleanPartyName("AkzoNobel, that certain Joinder Agreement, dated July 13, 2026")).toBe("AkzoNobel");

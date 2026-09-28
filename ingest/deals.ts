@@ -179,16 +179,6 @@ interface Resolved {
   listedInUs: boolean;
 }
 
-function exchangeKey(e: string | null | undefined): string | null {
-  if (!e) return null;
-  if (/american|mkt|amex/i.test(e)) return "amex";
-  if (/nasdaq/i.test(e)) return "nasdaq";
-  if (/nyse/i.test(e)) return "nyse";
-  if (/cboe|bats/i.test(e)) return "cboe";
-  return e.toLowerCase();
-}
-export const sameExchange = (a: string | null | undefined, b: string | null | undefined) => !!exchangeKey(a) && exchangeKey(a) === exchangeKey(b);
-
 function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   const filers = hit.displayNames.map(parseDisplayName);
   const pressUs = !!p.exchange && US_LISTED.test(p.exchange);
@@ -197,9 +187,10 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   if (ticker) {
     const f = filers.find((x) => x.tickers.includes(ticker));
     const listed = dir.byTicker.get(ticker);
-    // Guard against ticker collisions: a TSX symbol, or a ticker reused after a delisting (Vonage's "VG" is now
-    // Venture Global's). The names must agree, or at least the press release's exchange must match today's listing.
-    if (listed && (sameCompany(listed.name, p.name) || (pressUs && sameExchange(p.exchange, listed.exchange)))) {
+    // Guard against ticker collisions: a TSX symbol, or a ticker reused after a delisting on the same exchange
+    // (Vonage's "VG" is now Venture Global's, CoreSite's "COR" is Cencora's). The names must agree; otherwise
+    // fall through to the filers and the name directory.
+    if (listed && sameCompany(listed.name, p.name)) {
       return { cik: listed.cik, ticker, listedInUs: pressUs || US_LISTED.test(listed.exchange ?? "") };
     }
     if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs };
@@ -247,6 +238,8 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
   if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|properties|facility|facilities|plant|mine|fleet|vessels?|patents?|product line|division|business line|stake|interest)\b/i.test(n)) return false;
+  // A drug or programme, not a company: "ST-920 Fabry Disease Gene Therapy", "ABC-123".
+  if (/^[A-Z]{1,5}-?\d{2,}\b/.test(n) || /\b(?:therapy|therapies|program|programme|candidate|vaccine|compound|molecule|antibody|asset)$/i.test(n)) return false;
   // A description, not a name: "Next-Gen AI Drug Discovery Company", "a Leading Software Provider" (a real
   // name with a legal suffix, "Acme Company, Inc.", is fine).
   if (/\b(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|specialist)$/i.test(n) && !/\b(?:Inc|LLC|Ltd|Corp|L\.?P)\.?$/i.test(n)) return false;
@@ -266,6 +259,28 @@ export function stripDateline(name: string): string {
   if (!tail.some((w) => w.replace(/[,.]/g, "").length >= 4)) return name;
   const rest = words.slice(0, cut).join(" ");
   return /[a-z]/.test(rest) ? rest.replace(/[,\s]+$/, "") : name;
+}
+
+/**
+ * A "private" deal whose target is a tracked public company (documents are read in search order, so the private
+ * one can arrive first) is a duplicate: drop it, keeping its buyer name when the public deal's is unresolved junk
+ * ("SoundHound Closing Stock Price" vs "SoundHound AI, Inc.").
+ */
+export function dropPrivateDuplicates(deals: StoredDeal[]): void {
+  const DAY = 86_400_000;
+  const pub = deals.filter((d) => !d.privateTarget);
+  // Stricter than sameCompany (no shared-first-word match): "Providence" is not "Providence Service Corp".
+  const same = (a: string, b: string) => normalizeName(a).length >= 3 && normalizeName(a) === normalizeName(b);
+  for (let i = deals.length - 1; i >= 0; i--) {
+    const d = deals[i];
+    if (!d.privateTarget) continue;
+    const twin = pub.find(
+      (p) => same(p.target.name, d.target.name) && Math.abs(Date.parse(p.announcedDate) - Date.parse(d.announcedDate)) < 400 * DAY,
+    );
+    if (!twin) continue;
+    if (!twin.acquirer.cik && d.acquirer.cik && sameCompany(twin.acquirer.name, d.acquirer.name)) twin.acquirer = { ...d.acquirer };
+    deals.splice(i, 1);
+  }
 }
 
 /** Largest value believable for a private company: anything above is almost certainly a misread number. */
@@ -529,9 +544,16 @@ export async function ingestDeals(
   const accept = (parsed: ParsedPress, hit: FtsHit): StoredDeal | null => {
     // SPAC business combinations aren't the M&A this terminal tracks.
     if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
-    // A target written as its ticker ("Paramount … to acquire WBD") is that public company.
-    const asTicker = /^[A-Z]{1,5}$/.test(parsed.target.name) ? directory.byTicker.get(parsed.target.name) : undefined;
+    // A target written as its ticker ("Paramount … to acquire WBD") is that public company, unless the release gives
+    // it a different ticker ("ACV (NASDAQ: ACVA)" is ACV Auctions, not the fund trading as ACV).
+    const tn = parsed.target.name;
+    const asTicker =
+      /^[A-Z]{1,5}$/.test(tn) && (!parsed.target.ticker || parsed.target.ticker.toUpperCase() === tn) && !directory.byName.has(normalizeName(tn))
+        ? directory.byTicker.get(tn)
+        : undefined;
     if (asTicker) parsed = { ...parsed, target: { ...parsed.target, name: asTicker.name, ticker: asTicker.ticker } };
+    // "Elon Musk SAN FRANCISCO" -> "Elon Musk"
+    parsed = { ...parsed, acquirer: { ...parsed.acquirer, name: stripDateline(parsed.acquirer.name) } };
     const target = resolveParty(parsed.target, hit, directory);
     const acquirer = resolveParty(parsed.acquirer, hit, directory);
     if (target.cik && target.listedInUs) {
@@ -690,6 +712,7 @@ export async function ingestDeals(
     }
   }
 
+  dropPrivateDuplicates(state.deals);
   stats.newDeals = state.deals.filter((d) => !before.has(d.id)).length;
   return stats;
 }
