@@ -49,6 +49,15 @@ export async function getDeal(id: string): Promise<Deal | null> {
   return sampleHubData.deals.find((d) => d.id === id) ?? null;
 }
 
+/** When the database was last refreshed by the ingest (one tiny read), or null when Supabase isn't the source. */
+export async function latestAsOf(): Promise<string | null> {
+  const { url, anonKey, forceLocal } = sourceConfig();
+  if (!url || !anonKey || forceLocal) return null;
+  const db = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { data, error } = await db.from("meta").select("value").eq("key", "asOf").maybeSingle();
+  return !error && typeof data?.value === "string" ? data.value : null;
+}
+
 async function loadHubData(): Promise<HubData> {
   const { url, anonKey, forceLocal } = sourceConfig();
   let dataError: string | undefined;

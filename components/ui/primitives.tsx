@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { sectorColor } from "@/lib/sectors";
 import type { DealStatus, IpoStage, Sector } from "@/lib/types";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { Icon } from "./Icon";
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
@@ -52,7 +53,7 @@ export function Kpi({ label, value, note, change, text, title }: { label: string
     <div className="kpi" title={title}>
       <div className="kpi-label">{label}</div>
       <div className="kpi-line">
-        <span className={`kpi-value num ${text ? "text" : ""}`}>{value}</span>
+        <span className={`kpi-value num ${text ? "text" : ""}`}>{(typeof value === "string" || typeof value === "number") && !text ? <AnimatedNumber text={String(value)} /> : value}</span>
         {change}
       </div>
       <div className="kpi-note">{note}</div>

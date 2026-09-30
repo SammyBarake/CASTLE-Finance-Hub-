@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HubDataProvider } from "@/components/data/HubDataProvider";
+import { LiveUpdates } from "@/components/data/LiveUpdates";
 import { AppShell } from "@/components/shell/AppShell";
 import { UiProvider } from "@/components/ui/UiProvider";
 import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
@@ -16,6 +17,7 @@ export default async function TerminalLayout({ children }: { children: ReactNode
       <WorkspaceProvider>
         <UiProvider>
           <AppShell>{children}</AppShell>
+          <LiveUpdates />
         </UiProvider>
       </WorkspaceProvider>
     </HubDataProvider>
