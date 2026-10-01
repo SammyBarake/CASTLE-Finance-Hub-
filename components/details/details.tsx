@@ -58,21 +58,27 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
         <Icon name="star" className={watched ? "star-fill" : ""} />
         {watched ? "Watching" : "Watch"}
       </button>
-      <button type="button" className="button" onClick={() => copySummary(kind, record)}>
-        <Icon name="copy" />
-        Copy summary
-      </button>
-      {kind === "deal" && (
-        <button type="button" className="button" aria-pressed={selected.has(record.id)} onClick={() => toggleCompare(record.id)}>
-          <Icon name="compare" />
-          {selected.has(record.id) ? "Selected" : "Select"}
-        </button>
-      )}
       {kind === "deal" && (
         <Link className="button" href={`/precedents?deal=${encodeURIComponent(record.id)}`} onClick={closeDialog}>
           <Icon name="comps" />
-          Precedents
+          Find precedents
         </Link>
+      )}
+      <span className="drawer-actions-spacer" />
+      <button type="button" className="tool-icon" aria-label="Copy summary" title="Copy summary" onClick={() => copySummary(kind, record)}>
+        <Icon name="copy" />
+      </button>
+      {kind === "deal" && (
+        <button
+          type="button"
+          className={`tool-icon ${selected.has(record.id) ? "on" : ""}`}
+          aria-pressed={selected.has(record.id)}
+          aria-label={selected.has(record.id) ? "Remove from comparison" : "Add to comparison"}
+          title={selected.has(record.id) ? "Selected for comparison" : "Add to comparison"}
+          onClick={() => toggleCompare(record.id)}
+        >
+          <Icon name="compare" />
+        </button>
       )}
     </div>
   );
@@ -119,31 +125,48 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
       <Tabs tab={tab} onChange={setTab} tabs={deal.hasFairness || deal.fairness?.length ? ["overview", "valuation", "advisors", "filings", "notes"] : ["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
+          <div className="drawer-stats">
+            <div>
+              <span>Deal value</span>
+              <b>{formatUsd(deal.valueUsd)}</b>
+            </div>
+            <div>
+              <span>Premium</span>
+              <b>{formatPct(deal.premiumPct)}</b>
+            </div>
+            <div>
+              <span>EV / EBITDA</span>
+              <b>{formatMultiple(deal.evEbitda)}</b>
+            </div>
+            <div>
+              <span>Status</span>
+              <b>
+                <StatusTag status={deal.status} />
+              </b>
+              {statusDate && <small>{statusDate.slice(3)}</small>}
+            </div>
+          </div>
           <DealTimeline deal={deal} asOf={data.asOf} />
+          <h3 className="detail-section">Terms</h3>
+          <DetailGrid>
+            <DetailItem label="Offer price per share">{formatPrice(deal.pricePerShare)}</DetailItem>
+            <DetailItem label="Consideration">{considerationLabel(deal.consideration)}</DetailItem>
+            <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
+            <DetailItem label="EV / Revenue">{formatMultiple(deal.evRevenue)}</DetailItem>
+          </DetailGrid>
+          <h3 className="detail-section">Parties</h3>
           <DetailGrid>
             <DetailItem label="Acquirer">
               <CompanyLink company={deal.acquirer}>{withTicker(deal.acquirer)}</CompanyLink>
             </DetailItem>
-            <DetailItem label="Status">
-              <StatusTag status={deal.status} />
-              {statusDate && <span className="dim" style={{ fontSize: 10, marginLeft: 8 }}>{statusDate.slice(3)}</span>}
-            </DetailItem>
-            <DetailItem label="Transaction value">{formatUsd(deal.valueUsd)}</DetailItem>
-            <DetailItem label="Premium">{formatPct(deal.premiumPct)}</DetailItem>
-            <DetailItem label="Announced">{formatDateLong(deal.announcedDate)}</DetailItem>
-            <DetailItem label="Consideration">{considerationLabel(deal.consideration)}</DetailItem>
-            <DetailItem label="Offer price per share">{formatPrice(deal.pricePerShare)}</DetailItem>
             <DetailItem label="Target">
               <CompanyLink company={deal.target}>{withTicker(deal.target)}</CompanyLink>
-              {deal.privateTarget && <span className="aim-chip private-chip">Private company</span>}
+              {deal.privateTarget && <span className="aim-chip private-chip">Private</span>}
             </DetailItem>
-            <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
-            <DetailItem label="EV / EBITDA · EV / Revenue">
-              {formatMultiple(deal.evEbitda)} · {formatMultiple(deal.evRevenue)}
-            </DetailItem>
+            <DetailItem label="Buyer type">{buyerType(deal)}</DetailItem>
+            <DetailItem label="Announced">{formatDateLong(deal.announcedDate)}</DetailItem>
             <DetailItem label="Sector">{deal.sector}</DetailItem>
             <DetailItem label="Industry">{deal.industry ?? "—"}</DetailItem>
-            <DetailItem label="Buyer type">{buyerType(deal)}</DetailItem>
           </DetailGrid>
           <div className="related-title">Related {deal.sector.toLowerCase()} transactions</div>
           {related.length ? (
@@ -210,18 +233,34 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
       <Tabs tab={tab} onChange={setTab} tabs={["overview", "advisors", "filings", "notes"]} />
       {tab === "overview" && (
         <>
-          {ipo.description && <p>{ipo.description}</p>}
+          <div className="drawer-stats">
+            <div>
+              <span>Expected raise</span>
+              <b>{formatRaise(ipo.expectedRaiseUsd)}</b>
+            </div>
+            <div>
+              <span>Offer price</span>
+              <b>{formatPrice(ipo.offerPrice)}</b>
+            </div>
+            <div>
+              <span>Lead bank</span>
+              <b className="text">{ipo.underwriters[0] ?? "—"}</b>
+            </div>
+            <div>
+              <span>Stage</span>
+              <b>
+                <StatusTag status={ipo.stage} />
+              </b>
+            </div>
+          </div>
+          {ipo.description && <p className="drawer-description">{ipo.description}</p>}
+          <h3 className="detail-section">Offering</h3>
           <DetailGrid>
-            <DetailItem label="Filed">{formatDateLong(ipo.filedDate)}</DetailItem>
-            <DetailItem label="Stage">
-              <StatusTag status={ipo.stage} />
-            </DetailItem>
-            <DetailItem label="Expected gross raise">{formatRaise(ipo.expectedRaiseUsd)}</DetailItem>
             <DetailItem label="Company">
               <CompanyLink company={ipo.company}>{withTicker(ipo.company)}</CompanyLink>
             </DetailItem>
+            <DetailItem label="Filed">{formatDateLong(ipo.filedDate)}</DetailItem>
             {ipo.pricedDate && <DetailItem label="Priced">{formatDateLong(ipo.pricedDate)}</DetailItem>}
-            {ipo.offerPrice != null && <DetailItem label="Offer price">{formatPrice(ipo.offerPrice)}</DetailItem>}
             <DetailItem label="Sector">{ipo.sector}</DetailItem>
             <DetailItem label="Industry">{ipo.industry ?? "—"}</DetailItem>
           </DetailGrid>

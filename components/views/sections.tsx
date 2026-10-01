@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { Icon } from "@/components/ui/Icon";
 import { VolumeExplorer } from "./VolumeExplorer";
 import { useHubData } from "@/components/data/HubDataProvider";
@@ -262,7 +263,7 @@ export function ValuationCards({ metric, expanded = false }: { metric: Valuation
             </div>
             <div>
               <span className="valuation-number num">
-                {c.latest != null ? c.latest.toFixed(1) : "—"}
+                {c.latest != null ? <AnimatedNumber text={c.latest.toFixed(1)} /> : "—"}
                 {c.latest != null && <span>{m.unit}</span>}
               </span>
               {delta != null && (

@@ -142,12 +142,10 @@
   .nav-link.active .icon { color: #eee; }
   .nav-link .icon { width: 16px; height: 16px; }
   .nav-count { margin-left: auto; font: 9px var(--font-mono); color: #7b7b7b; }
-  .sidebar-divider { height: 1px; background: var(--color-line); margin: 13px 12px 11px; }
   .sidebar-foot { margin-top: auto; padding: 24px 10px; }
   .sidebar-foot button { font-size: 10px; color: #949494; display: flex; align-items: center; gap: 8px; padding: 9px 0; width: 100%; }
   .sidebar-foot button:hover { color: var(--color-fg); }
   .sidebar-foot .icon { width: 14px; height: 14px; }
-  .sidebar-meta { border-top: 1px solid var(--color-line); margin-top: 14px; padding-top: 15px; color: #6c6c6c; font-size: 9px; display: flex; justify-content: space-between; }
 
   /* ---------- shell / topbar ---------- */
   .shell { margin-left: 210px; min-height: 100vh; }
@@ -156,8 +154,6 @@
   .top-location .icon { width: 11px; height: 11px; color: #4c4c4c; }
   .top-location strong { font-weight: 450; color: #cfcfcf; }
   .top-tools { display: flex; align-items: center; gap: 15px; min-width: 0; }
-  .updated { font-size: 9px; color: #7d7d7d; white-space: nowrap; }
-  .updated span { color: #a7a7a7; margin-left: 4px; }
   /* Live data indicator: a softly pulsing dot, the refresh time beside it. */
   .live-status { display: inline-flex; align-items: center; gap: 7px; height: 29px; padding: 0 11px; border: 1px solid #262626; border-radius: 999px; font-size: 10px; color: #cfcfcf; white-space: nowrap; }
   .live-status i { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--color-up); }
@@ -197,7 +193,6 @@
   .page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23px; gap: 20px; }
   .page-heading p { font-size: 11px; color: #898989; margin-top: 7px; }
   .head-tools { display: flex; align-items: center; gap: 12px; }
-  .head-date { font-size: 10px; color: #8d8d8d; white-space: nowrap; }
   .footer { max-width: 1670px; margin: 0 30px; display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: #6d6d6d; padding: 19px 0 23px; gap: 20px; border-top: 1px solid var(--color-soft); }
   .footer button { font-size: 9px; color: #919191; padding: 0; }
   .footer button:hover { color: var(--color-fg); }
@@ -229,7 +224,6 @@
   .section-heading small { font-size: 10px; color: #7f7f7f; margin-left: 9px; font-weight: 400; }
 
   /* ---------- charts ---------- */
-  .chart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 197px; }
   .chart-main { padding: 0 19px 6px; min-width: 0; }
   .chart-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
   .legend { display: flex; flex-wrap: wrap; gap: 17px; }
@@ -244,17 +238,8 @@
   .quarter-chart { height: 275px; position: relative; padding: 0 15px 13px; }
   .horizontal-chart { height: 255px; position: relative; }
   .chart-card { padding: 0 18px 16px; }
-  .chart-options { padding: 0 19px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .chart-options select { font-size: 9px; }
   .check-label { font-size: 9px; color: #888; display: flex; align-items: center; gap: 5px; margin-left: 5px; }
   .check-label input { accent-color: #ccc; }
-  .momentum { border-left: 1px solid var(--color-line); padding: 0 17px 6px; }
-  .momentum-label { font-size: 9px; color: #858585; display: flex; justify-content: space-between; margin-bottom: 6px; }
-  .momentum-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-soft); padding: 10px 0; gap: 8px; }
-  .momentum-row:last-child { border-bottom: 0; }
-  .momentum-sector { font-size: 10px; color: #c7c7c7; display: flex; align-items: center; gap: 6px; }
-  .momentum-state { font-size: 8px; color: #7e7e7e; margin: 3px 0 0 11px; }
-  .momentum-change { font-size: 10px; }
   .chart-tooltip { position: absolute; pointer-events: none; z-index: 5; background: #111; border: 1px solid #3e3e3e; padding: 11px 13px; border-radius: 5px; min-width: 165px; box-shadow: 0 9px 30px #0006; font-size: 10px; transition: opacity 0.12s; }
   .tooltip-title { color: #e4e4e4; margin-bottom: 8px; font-weight: 500; }
   .tooltip-line { display: flex; align-items: center; gap: 6px; color: #9c9c9c; margin: 4px 0; }
@@ -413,6 +398,18 @@
   .detail-tabs button.active { color: #eee; border-bottom-color: #ddd; }
   .drawer-actions { display: flex; align-items: center; gap: 8px; margin: 18px 0 5px; flex-wrap: wrap; }
   .drawer-actions .button { font-size: 10px; }
+  .drawer-actions-spacer { flex: 1; }
+  .tool-icon.on { color: #eee; background: #1d1d1d; border-color: #444; }
+  /* Headline numbers at the top of a drawer's overview. */
+  .drawer-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #262626; border-radius: 6px; background: #0b0b0b; margin: 0 0 16px; animation: rise-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .drawer-stats > div { padding: 11px 13px 12px; border-left: 1px solid #222; min-width: 0; }
+  .drawer-stats > div:first-child { border-left: 0; }
+  .drawer-stats span { display: block; font-size: 9.5px; color: #808080; margin-bottom: 6px; white-space: nowrap; }
+  .drawer-stats b { display: block; font-size: 17px; font-weight: 500; color: #f0f0f0; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .drawer-stats b.text { font-size: 12px; padding-top: 4px; letter-spacing: 0; }
+  .drawer-stats small { display: block; font-size: 9px; color: #777; margin-top: 4px; }
+  .detail-section { font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #777; margin: 16px 0 2px; }
+  .drawer-description { font-size: 11.5px !important; color: #b4b4b4 !important; line-height: 1.65 !important; margin: 0 0 6px !important; }
   .related-title { font-size: 10px; color: #999; margin: 20px 0 8px; }
   .related-deal { display: flex; align-items: center; justify-content: space-between; width: 100%; border-top: 1px solid #252525; padding: 12px 0; text-align: left; font-size: 11px; color: #ccc; gap: 12px; }
   .related-deal:hover { color: white; }
@@ -527,8 +524,6 @@
   .step-todo .deal-timeline-label, .step-todo .deal-timeline-date { color: #666; }
   .deal-timeline-date { font: 10px var(--font-mono); color: #a8a8a8; white-space: nowrap; }
   .deal-timeline-date small { color: #777; }
-  .timeline-notes ul { margin: 0; padding: 4px 22px 18px 34px; display: grid; gap: 8px; }
-  .timeline-notes li { font-size: 12px; color: #d0d0d0; line-height: 1.55; }
   .timeline-grid { margin-bottom: 20px; }
   .timeline-grid .panel { margin-bottom: 0; }
   .timeline-chart { height: 250px; padding: 4px 14px 14px 8px; }
@@ -572,8 +567,8 @@
 
   /* ---------- advisor fees ---------- */
   .advisor-view-toggle { margin: -6px 0 18px; }
+  .advisor-view-toggle .segmented { display: inline-flex; }
   .fee-band { grid-template-columns: 110px minmax(0, 1fr) 110px; }
-  .fee-explain { font-size: 11px; color: #9a9a9a; line-height: 1.55; margin: 14px 18px 18px; padding-top: 12px; border-top: 1px solid var(--color-line); }
 
   /* ---------- buyer types (valuations page) ---------- */
   .buyer-panel { margin-bottom: 20px; }
@@ -694,7 +689,6 @@
   .main { padding-top: 35px; }
   .chart-wrap { height: 270px; }
   .chart-wrap.large { height: 390px; }
-  .momentum-row { padding: 13px 0; }
   .hub-grid .preview-row { min-height: 65px; }
   .kpi { padding-top: 19px; padding-bottom: 18px; }
   .kpi-value { font-size: 30px; }
@@ -707,11 +701,9 @@
   .nav-link { font-size: 11px; gap: 10px; padding-left: 10px; }
   .topbar { padding: 0 24px; }
   .top-tools { gap: 13px; }
-  .updated, .sample-label, .live-status span { display: none; }
+  .sample-label, .live-status span { display: none; }
   .main { padding: 26px 24px 0; }
   .footer { margin: 0 24px; }
-  .chart-layout { grid-template-columns: minmax(0, 1fr) 180px; }
-  .momentum { padding-left: 13px; padding-right: 13px; }
   .legend { gap: 12px; }
   .legend button { font-size: 9px; }
   .kpi { padding: 15px; }
@@ -744,17 +736,9 @@
   .main { padding: 24px 19px 0; }
   .topbar { padding: 0 19px; }
   .top-tools { gap: 9px; }
-  .head-date { display: none; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi:nth-child(2) { border-right: 0; }
   .kpi:nth-child(-n + 2) { border-bottom: 1px solid var(--color-line); }
-  .chart-layout { grid-template-columns: 1fr; }
-  .momentum { border-left: 0; border-top: 1px solid var(--color-line); display: flex; padding: 0 8px; gap: 0; }
-  .momentum-label { display: none; }
-  .momentum-row { flex: 1; display: block; border: 0; padding: 11px 7px; }
-  .momentum-change { display: block; margin: 4px 0 0 10px; }
-  .momentum-sector { font-size: 9px; }
-  .momentum-state { font-size: 7px; }
   .chart-wrap { height: 220px; }
   .chart-wrap.large { height: 290px; }
   .hub-grid { grid-template-columns: 1fr 1fr; }
@@ -795,6 +779,10 @@
   .top-location > span, .top-location > .icon { display: none; }
   .top-tools { flex: 1; justify-content: flex-end; gap: 6px; }
   .search { width: 210px; max-width: 55vw; }
+  .live-status { font-size: 0; gap: 0; padding: 0 10px; }
+  .drawer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .drawer-stats > div:nth-child(3) { border-left: 0; }
+  .drawer-stats > div:nth-child(n + 3) { border-top: 1px solid #222; }
   .search-field { height: 29px; padding: 0 7px; }
   .search-field kbd { display: none; }
   .search input { font-size: 9px; }
@@ -826,12 +814,6 @@
   .chart-unit { font-size: 8px; }
   .chart-wrap { height: 205px; }
   .chart-wrap.large { height: 260px; }
-  .momentum { padding: 0 4px; }
-  .momentum-row { padding: 10px 4px; }
-  .momentum-sector { font-size: 8px; gap: 4px; }
-  .momentum-state { font-size: 6px; margin-left: 9px; white-space: nowrap; }
-  .momentum-change { font-size: 9px; margin-left: 9px; }
-  .momentum .dot { width: 4px; height: 4px; }
   .panel-foot { padding: 9px 13px; font-size: 8px; }
   .volume-foot .secondary-note { display: none; }
   .section-heading h2 { font-size: 12px; }
@@ -880,7 +862,7 @@
   .views-row { padding: 9px 12px; }
   .views-row .save-view { margin-left: 0; }
   .bulk-bar { gap: 8px; flex-wrap: wrap; padding: 10px 12px; }
-  .filter-chips, .chart-options { padding-left: 13px; padding-right: 13px; }
+  .filter-chips { padding-left: 13px; padding-right: 13px; }
   .top-tools .tool-icon.wide { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

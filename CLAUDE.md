@@ -101,6 +101,7 @@ lib/
   search.ts           Search / filter predicates
   screen.ts           Deal screener model (filters, date windows, sort, chips, columns) + tests
   format.ts           Money, %, multiples, dates
+  names.ts            Company-name display (SEC tags, all-caps title case); shared with the ingest + tests
   sectors.ts          Sector colours (UI config)
   csv.ts              Deal export
 ingest/               The SEC data engine (Node, run by GitHub Actions; never imported by components)
@@ -137,6 +138,21 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 - Prefer the design's component classes in `globals.css` (`.panel`, `.kpis`, `.table-scroll`, `.segmented`, `.status-*`, `.button`, `.modal`, `.detail-drawer`...). Add new classes there, named like the design file's.
 - Tailwind utilities and tokens (`bg-panel`, `border-line`, `text-muted`, `text-dim`, `text-up`, `text-down`) are fine for one-off layout tweaks.
 - Breakpoints mirror the design: ≤1280px, ≤1020px, ≤760px (phone), ≥1650px (wide). Responsive rules live at the bottom of `globals.css`.
+
+### UI conventions (from the October 2026 polish pass; the founder wants clean, organised and professional, never cluttered, and no features removed)
+
+- **Page order:** `PageHeading` (title, subtitle, Export) → `Kpis` → optional `Takeaways` → panels → `AboutData`. The data date lives only in the top bar's live pill, not in headings.
+- **`Takeaways`** (primitives): 2–5 short, number-led lines (about 100 characters each) that add something the KPIs don't show. No textbook explanations there; those go in **`AboutData`** (a folded "About this data" disclosure), along with the methodology.
+- **Long tables** show `TABLE_PAGE` (25) rows plus `ShowMore` (`components/ui/table.tsx`).
+- **Missing values** are always "—" (from `lib/format.ts`).
+- **Company names** go through `displayCompanyName` (`lib/names.ts`) in `toPublicDeal` / `toPublicIpo`. It strips SEC state tags and title-cases all-capital names. The ingest uses the same `titleCaseCaps`.
+- **Controls:** keep a panel to a few visible controls; rarely used options go in a menu (`openMenu`), like the volume chart's ⚙ (chart style, period, gridlines). The volume legend doubles as the month-on-month scoreboard.
+- **Navigation** is grouped (Markets / Research / Macro) via `group` in `components/shell/routes.ts`.
+- **Motion:**
+  - page sections rise in one after another (`.page-enter > *`);
+  - KPI and valuation figures count up (`AnimatedNumber`, only after hydration, so the first load never flashes);
+  - charts grow in, table rows fade in, and hovers and tabs transition.
+  - Everything respects the animations setting (`.reduce-motion`) and `prefers-reduced-motion`.
 
 ### SEC data engine rules
 

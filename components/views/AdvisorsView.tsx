@@ -50,7 +50,6 @@ export function AdvisorsView() {
       <PageHeading
         title="Advisors"
         subtitle={view === "deals" ? `U.S. M&A league table · ${data.leagueTable.period}` : "Advisory fees disclosed in merger proxies"}
-       
         onExport={view === "deals" ? exportRows : undefined}
       />
       <div className="advisor-view-toggle">

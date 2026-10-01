@@ -12,7 +12,8 @@ import type { Economy, Region } from "@/lib/types";
 
 const pct = (v: number | null, digits = 1) => (v == null ? "—" : `${v.toFixed(digits)}%`);
 /** Policy rates keep their quarter-point precision (3.875%), trimmed of trailing zeros. */
-const rate = (v: number | null) => (v == null ? "—" : `${Number(v.toFixed(3))}%`);
+// Two decimals, or three when the rate needs them (the Fed's 3.875% midpoint): 6.50%, 1.00%, 3.875%.
+const rate = (v: number | null) => (v == null ? "—" : `${v.toFixed(Math.round(v * 1000) % 10 ? 3 : 2)}%`);
 const monthYear = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 
 function Delta({ now, prior }: { now: number | null; prior: number | null }) {
