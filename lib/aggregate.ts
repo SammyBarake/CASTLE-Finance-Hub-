@@ -22,6 +22,21 @@ const monthKey = (y: number, m0: number) => {
   const d = new Date(Date.UTC(y, m0, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 };
+/**
+ * The first month the data really covers: at least a quarter of a typical month's deals. The history starts in
+ * January 2021, but a few deals announced in 2020 were found later (when they closed); counting from them would
+ * open the volume chart with near-empty months that look like a collapse in M&A.
+ */
+export function coverageStart(deals: Deal[]): string | null {
+  const counts = new Map<string, number>();
+  for (const d of deals) if (d.status !== "Terminated") counts.set(d.announcedDate.slice(0, 7), (counts.get(d.announcedDate.slice(0, 7)) ?? 0) + 1);
+  if (!counts.size) return null;
+  const sorted = [...counts.values()].sort((a, b) => a - b);
+  const threshold = Math.max(1, sorted[Math.floor(sorted.length / 2)] / 4);
+  const month = [...counts].filter(([, n]) => n >= threshold).map(([m]) => m).sort()[0];
+  return `${month}-01`;
+}
+
 const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
 
 /**
@@ -30,7 +45,7 @@ const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso
  */
 export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[] {
   const now = new Date(asOf);
-  const first = deals.reduce((m, d) => (d.announcedDate < m ? d.announcedDate : m), asOf.slice(0, 10));
+  const first = coverageStart(deals) ?? asOf.slice(0, 10);
   const span = (now.getUTCFullYear() - Number(first.slice(0, 4))) * 12 + (now.getUTCMonth() - (Number(first.slice(5, 7)) - 1));
   const length = Math.min(MAX_MONTHS, Math.max(MONTHS, span));
   const months = Array.from({ length }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - length + i));
@@ -198,6 +213,10 @@ export function buildHubData(input: {
     leagueTable: leagueTable(deals, input.asOf, input.shortName),
     valuations: sectorValuations(deals, input.asOf),
     macro: input.macro ?? null,
-    activists: input.activists ?? [],
+    activists: (input.activists ?? []).map((a) => ({
+      ...a,
+      investor: { ...a.investor, name: displayCompanyName(a.investor.name) },
+      company: { ...a.company, name: displayCompanyName(a.company.name) },
+    })),
   };
 }

@@ -22,6 +22,9 @@ describe("displayCompanyName", () => {
     ["Acme Holdings Ltd", "Acme Holdings Ltd"],
     ["Wynn Resorts Ltd", "Wynn Resorts Ltd"],
     ["The Kroger Co", "The Kroger Co"],
+    ["Northstrive Fund Ii Lp", "Northstrive Fund II LP"],
+    ["Holly Energy Partners Lp", "Holly Energy Partners LP"],
+    ["Carl C. Icahn", "Carl C. Icahn"],
   ])("%s -> %s", (raw, shown) => expect(displayCompanyName(raw)).toBe(shown));
 });
 

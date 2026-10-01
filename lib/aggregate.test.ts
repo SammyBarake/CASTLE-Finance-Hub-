@@ -40,6 +40,15 @@ describe("monthlyVolume", () => {
     expect(months("2021-03-10")).toHaveLength(66);
     expect(months("2015-01-01")).toHaveLength(72);
   });
+
+  it("starts where coverage really begins, not at a few stray earlier deals", () => {
+    const deals = [
+      deal({ announcedDate: "2020-11-03" }), // found later, when it closed
+      ...Array.from({ length: 30 }, (_, i) => deal({ announcedDate: `2021-0${1 + (i % 6)}-1${i % 9}` })),
+    ];
+    const months = [...new Set(monthlyVolume(deals, "2026-09-25T00:00:00Z").map((r) => r.month))];
+    expect(months[0]).toBe("2021-01");
+  });
 });
 
 describe("leagueTable", () => {

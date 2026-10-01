@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { aimsOf, isActivist, parse13DXml, parseDailyIndex, purposeExcerpt } from "./thirteend";
+import { aimsOf, individualName, isActivist, parse13DXml, parseDailyIndex, personFromConformed, purposeExcerpt } from "./thirteend";
+
+describe("personFromConformed", () => {
+  it("turns EDGAR's last-name-first person names around", () => {
+    expect(personFromConformed("ICAHN CARL C")).toBe("Carl C. Icahn");
+    expect(personFromConformed("Stilwell Joseph")).toBe("Joseph Stilwell");
+    expect(personFromConformed("HOENE MARY JOAN")).toBe("Mary Joan Hoene");
+    expect(personFromConformed("KARP JASON H.")).toBe("Jason H. Karp");
+    expect(personFromConformed("MCDONALD JOHN JR")).toBe("John McDonald Jr.");
+    expect(personFromConformed("O'BRIEN MARY")).toBe("Mary O'Brien");
+  });
+
+  it("individualName: the person's own signature decides the order, else an all-capitals EDGAR name is turned", () => {
+    const base = { issuerCik: "1", issuerName: "X", eventDate: null, filerCik: null, purpose: "" };
+    const person = (name: string) => ({ name, cik: "9", percent: 6, shares: 1, individual: true });
+    // EDGAR has "Braeden Lichti" (typed in natural order); the signature confirms it.
+    expect(individualName({ ...base, persons: [person("Braeden Lichti")], signatures: [{ person: "Braeden Lichti", signature: "Braeden Lichti" }] }, "9", "Braeden Lichti")).toBe("Braeden Lichti");
+    expect(individualName({ ...base, persons: [person("HONIG JONATHAN")], signatures: [{ person: "HONIG JONATHAN", signature: "Jonathan Honig" }] }, "9", "HONIG JONATHAN")).toBe("Jonathan Honig");
+    expect(individualName({ ...base, persons: [person("Stifano Mario")], signatures: [{ person: "Stifano Mario", signature: "mario stifano" }] }, "9", "Stifano Mario")).toBe("Mario Stifano");
+    // Someone else signed (a fund's officer): only an all-capitals name is turned around.
+    expect(individualName({ ...base, persons: [person("STILWELL JOSEPH")], signatures: [{ person: "Stilwell Value LLC", signature: "Megan Parisi" }] }, "9", "Stilwell Joseph")).toBe("Joseph Stilwell");
+    expect(individualName({ ...base, persons: [person("Daniel Nissim")], signatures: [] }, "9", "Daniel Nissim")).toBeNull();
+    expect(individualName({ ...base, persons: [{ ...person("Starboard Value LP"), individual: false }], signatures: [] }, "9", "STARBOARD VALUE LP")).toBeNull();
+  });
+
+  it("leaves entities alone", () => {
+    for (const n of ["Starboard Value LP", "Saba Capital Management, L.P.", "Coliseum Capital Management, LLC", "Constellation Software Inc", "JANA Partners Management, LP", "Icahn Enterprises", "Northstrive Fund II LP"]) {
+      expect(personFromConformed(n), n).toBeNull();
+    }
+  });
+});
 
 const INDEX = `Form Type   Company Name                                                  CIK         Date Filed  File Name
 ---------------------------------------------------------------------------------------------------------------------------------------------
@@ -12,7 +42,7 @@ SCHEDULE 13D/A   Starboard Value LP                                            1
 const XML = `<?xml version="1.0"?><edgarSubmission><headerData><filerInfo><filer><filerCredentials><!-- Field: Name; Data: Acme Activist LP --><cik>0001517137</cik><ccc>X</ccc></filerCredentials></filer></filerInfo></headerData>
 <formData><coverPageHeader><dateOfEvent>09/17/2026</dateOfEvent><issuerInfo><issuerCIK>0000012345</issuerCIK><issuerName>Widget Corp &amp; Co.</issuerName></issuerInfo></coverPageHeader>
 <reportingPersons><reportingPersonInfo><reportingPersonCIK>0001517137</reportingPersonCIK><reportingPersonName>Starboard Value LP</reportingPersonName><aggregateAmountOwned>2598680.00</aggregateAmountOwned><percentOfClass>9.99</percentOfClass></reportingPersonInfo>
-<reportingPersonInfo><reportingPersonNoCIK>Y</reportingPersonNoCIK><reportingPersonName>Jeffrey C. Smith</reportingPersonName><aggregateAmountOwned>2598680.00</aggregateAmountOwned><percentOfClass>9.99</percentOfClass></reportingPersonInfo></reportingPersons>
+<reportingPersonInfo><reportingPersonNoCIK>Y</reportingPersonNoCIK><reportingPersonName>Jeffrey C. Smith</reportingPersonName><aggregateAmountOwned>2598680.00</aggregateAmountOwned><percentOfClass>9.99</percentOfClass><typeOfReportingPerson>IN</typeOfReportingPerson></reportingPersonInfo></reportingPersons>
 <items1To7><item4><transactionPurpose>The Reporting Persons believe the Shares are undervalued. They intend to nominate directors for election at the 2027 annual meeting and may urge the Board to explore strategic alternatives, including a sale of the Company.</transactionPurpose></item4></items1To7></formData></edgarSubmission>`;
 
 describe("parseDailyIndex", () => {
@@ -31,8 +61,9 @@ describe("parse13DXml", () => {
     expect(p.issuerName).toBe("Widget Corp & Co.");
     expect(p.eventDate).toBe("2026-09-17");
     expect(p.filerCik).toBe("1517137");
-    expect(p.persons[0]).toEqual({ name: "Starboard Value LP", cik: "1517137", percent: 9.99, shares: 2598680 });
+    expect(p.persons[0]).toEqual({ name: "Starboard Value LP", cik: "1517137", percent: 9.99, shares: 2598680, individual: false });
     expect(p.persons[1].cik).toBeNull();
+    expect(p.persons[1].individual).toBe(true);
     expect(p.purpose).toContain("nominate directors");
   });
   it("returns null without an issuer", () => {

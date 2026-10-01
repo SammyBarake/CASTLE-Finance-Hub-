@@ -5,8 +5,8 @@
  * counted from the index alone.
  */
 import type { Directory } from "./deals";
-import { adshNoDashes, filingIndexUrl, getDailyIndex, getText, trimCik } from "./edgar";
-import { aimsOf, campaignText, isActivist, parse13DXml, parseDailyIndex, purposeExcerpt, type DailyIndexRow } from "./parse/thirteend";
+import { adshNoDashes, filingIndexUrl, getDailyIndex, getSubmissions, getText, trimCik } from "./edgar";
+import { aimsOf, campaignText, individualName, isActivist, parse13DXml, parseDailyIndex, personFromConformed, purposeExcerpt, type DailyIndexRow } from "./parse/thirteend";
 import { displayName } from "./parse/press";
 import type { State } from "./store";
 
@@ -69,10 +69,13 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
       const issuer = p && directory.byCik.get(p.issuerCik);
       if (!p || !issuer) continue;
       const investorCik = p.filerCik && p.filerCik !== p.issuerCik ? p.filerCik : ([...g.names.keys()].find((c) => c !== p.issuerCik) ?? null);
-      const investorName =
-        (investorCik && g.names.get(investorCik)) ?? p.persons.find((x) => x.cik && x.cik !== p.issuerCik)?.name ?? p.persons[0]?.name ?? "Unknown investor";
+      const conformed = investorCik ? g.names.get(investorCik) : undefined;
+      const investorName = conformed ?? p.persons.find((x) => x.cik && x.cik !== p.issuerCik)?.name ?? p.persons[0]?.name ?? "Unknown investor";
+      // A person is listed by EDGAR as "ICAHN CARL C": show "Carl C. Icahn".
+      const shownName = individualName(p, investorCik, conformed) ?? displayName(investorName);
+      // A 13D means more than 5%: a figure under 1% is a misread (or one group member's direct holding).
       const percents = p.persons.map((x) => x.percent).filter((v): v is number => v != null && v <= 100);
-      const percent = percents.length ? Math.max(...percents) : null;
+      const percent = percents.length && Math.max(...percents) >= 1 ? Math.max(...percents) : null;
       if (!isActivist(investorName, p.purpose, { percent, issuerName: issuer.name })) continue;
       const aims = aimsOf(p.purpose);
       const shares = p.persons.map((x) => x.shares).filter((v): v is number => v != null);
@@ -80,7 +83,7 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
         id: g.adsh,
         filedDate: g.date,
         eventDate: p.eventDate,
-        investor: { name: displayName(investorName), cik: investorCik },
+        investor: { name: shownName, cik: investorCik },
         company: { name: displayName(issuer.name), ticker: issuer.ticker, cik: p.issuerCik },
         percent,
         shares: shares.length ? Math.max(...shares) : null,
@@ -95,6 +98,27 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
       added++;
     } catch (err) {
       log(`  ! 13D ${g.adsh}: ${(err as Error).message}`);
+    }
+  }
+
+  // Stakes stored before these rules: drop a sub-1% figure, and turn a person's name around ("Icahn Carl C" ->
+  // "Carl C. Icahn") when the 13D marks the investor as an individual. Once per stake.
+  for (const s of byId.values()) {
+    if (s.percent != null && s.percent < 1) s.percent = null;
+    // The company's current SEC name with today's display rules ("UMH PROPERTIES" -> "UMH Properties", not "Umh").
+    const listed = s.company.cik ? directory.byCik.get(s.company.cik) : undefined;
+    if (listed) s.company.name = displayName(listed.name);
+    const key = `13dname:${s.id}`;
+    if (state.seen.has(key) || !s.investor.cik || !s.company.cik) continue;
+    state.seen.add(key);
+    if (!personFromConformed(s.investor.name)) continue; // an entity's name
+    try {
+      const p = parse13DXml(await getText(`https://www.sec.gov/Archives/edgar/data/${trimCik(s.company.cik)}/${adshNoDashes(s.id)}/primary_doc.xml`));
+      if (!p?.persons.find((x) => x.cik === s.investor.cik)?.individual) continue;
+      s.investor.name = individualName(p, s.investor.cik, (await getSubmissions(s.investor.cik)).name) ?? s.investor.name;
+    } catch (err) {
+      state.seen.delete(key); // try again next run
+      log(`  ! 13D name ${s.id}: ${(err as Error).message}`);
     }
   }
 

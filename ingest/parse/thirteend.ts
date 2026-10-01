@@ -28,8 +28,11 @@ export interface Parsed13D {
   issuerName: string;
   eventDate: string | null;
   filerCik: string | null;
-  persons: { name: string; cik: string | null; percent: number | null; shares: number | null }[];
+  /** `individual`: the cover page's type of reporting person is "IN" (a person, not a fund or company). */
+  persons: { name: string; cik: string | null; percent: number | null; shares: number | null; individual: boolean }[];
   purpose: string;
+  /** Signature block: who signs for which reporting person ("/s/ Carl C. Icahn"). */
+  signatures: { person: string; signature: string }[];
 }
 
 const tag = (xml: string, name: string) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(xml)?.[1]?.trim() ?? null;
@@ -45,6 +48,27 @@ const decode = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** Words that mark an entity, not a person, in an EDGAR filer name. */
+const ENTITY_WORDS =
+  /\b(?:LLC|L\.?L\.?C|LP|L\.?P|LLP|Inc|Corp|Co|Company|Ltd|Limited|plc|N\.?V|S\.?A|AG|GmbH|Trust|Fund|Funds|Capital|Management|Partners|Partnership|Group|Holdings?|Advisors?|Advisers?|Associates|Investments?|Investors?|Ventures?|Opportunit\w*|Master|Foundation|Bank|Securities|Financial|Equity|Asset|Assets|Global|International|Enterprises?|Family|Office|Value|Strategies|Offshore|Onshore|Series|SPV|Estate|Revocable|Irrevocable|Living)\b/i;
+
+/**
+ * EDGAR lists a person as "ICAHN CARL C" (last name first). Returns "Carl C. Icahn" for such a name, or null when
+ * the name is an entity ("Starboard Value LP") or doesn't look like a person's.
+ */
+export function personFromConformed(name: string): string | null {
+  const s = name.replace(/\s+/g, " ").trim();
+  if (!s || ENTITY_WORDS.test(s) || /[\d&,/]/.test(s)) return null;
+  const words = s.split(" ");
+  if (words.length < 2 || words.length > 4 || !words.every((w) => /^[A-Za-z][A-Za-z'.-]*$/.test(w))) return null;
+  const suffix = /^(?:JR|SR|II|III|IV)\.?$/i.test(words.at(-1)!) ? words.pop()! : null;
+  if (words.length < 2) return null;
+  const [last, ...given] = words;
+  const cap = (w: string) => (/^[A-Z]\.?$/i.test(w) ? `${w[0].toUpperCase()}.` : w[0].toUpperCase() + w.slice(1).toLowerCase().replace(/(['-])([a-z])/g, (_, p, c) => p + c.toUpperCase()));
+  const capLast = cap(last).replace(/^(Mc|Mac)([a-z])/, (_, p, c) => p + c.toUpperCase());
+  return [...given.map(cap), capLast, ...(suffix ? [suffix.toUpperCase().replace(/^(JR|SR)\.?$/, (m) => m[0] + m[1].toLowerCase() + ".")] : [])].join(" ");
+}
+
 export function parse13DXml(xml: string): Parsed13D | null {
   const issuerCik = tag(xml, "issuerCIK");
   const issuerName = tag(xml, "issuerName");
@@ -58,6 +82,7 @@ export function parse13DXml(xml: string): Parsed13D | null {
       cik: tag(p, "reportingPersonCIK")?.replace(/^0+/, "") ?? null,
       percent: pct != null && !Number.isNaN(Number(pct)) ? Number(pct) : null,
       shares: sh != null && !Number.isNaN(Number(sh)) ? Number(sh) : null,
+      individual: /\bIN\b/.test(tag(p, "typeOfReportingPerson") ?? ""),
     };
   });
   const date = tag(xml, "dateOfEvent");
@@ -69,7 +94,28 @@ export function parse13DXml(xml: string): Parsed13D | null {
     filerCik: tag(tag(xml, "filerCredentials") ?? "", "cik")?.replace(/^0+/, "") ?? null,
     persons: persons.filter((p) => p.name),
     purpose: decode(tag(xml, "transactionPurpose") ?? ""),
+    signatures: [...xml.matchAll(/<signaturePerson>([\s\S]*?)<\/signaturePerson>/g)].map((m) => ({
+      person: decode(tag(m[1], "signatureReportingPerson") ?? ""),
+      signature: decode(tag(m[1], "signature") ?? "").replace(/^\/s\/\s*/i, ""),
+    })),
   };
+}
+
+/**
+ * How to show an individual investor's name. EDGAR's own (all-capitals) names put the surname first ("ICAHN CARL
+ * C"); names filers typed come in either order ("Braeden Lichti", "Stilwell Joseph"). People sign in their natural
+ * order, so the signature decides when the person signed for themselves; otherwise only an all-capitals EDGAR name is
+ * turned around. Null: not an individual, or no safe way to tell (keep the name as filed).
+ */
+export function individualName(p: Parsed13D, investorCik: string | null, conformed: string | null | undefined): string | null {
+  const person = p.persons.find((x) => x.cik === investorCik);
+  if (!person?.individual) return null;
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length > 1).sort().join(" ");
+  const own = key(person.name);
+  const signed = p.signatures.find((s) => key(s.person) === own && key(s.signature) === own)?.signature;
+  if (signed) return signed === signed.toUpperCase() || signed === signed.toLowerCase() ? signed.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_, b, c) => b + c.toUpperCase()) : signed;
+  const allCaps = [conformed, person.name].find((n): n is string => !!n && n === n.toUpperCase());
+  return allCaps ? personFromConformed(allCaps) : null;
 }
 
 /** What the investor says it wants, from Item 4. */

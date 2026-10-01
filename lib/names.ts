@@ -49,5 +49,7 @@ export function displayCompanyName(raw: string): string {
   s = s.replace(/\b[B-DF-HJ-NP-TV-XZ][b-df-hj-np-tv-xz]{1,4}\b/g, (w) => (/^(?:St|Mr|Mrs|Dr|Ft|Mt|Jr|Sr|Ltd|Svcs|Hldgs|Mgmt|Grp|Intl|Natl|Mfg|Pty|Bhd)$/.test(w) ? w : w.toUpperCase()));
   // Small words inside a name: "Bank Of Hawaii" -> "Bank of Hawaii".
   s = s.replace(/(?<=\S\s)(Of|And|For|The|At|In|On)(?=\s)/g, (w) => w.toLowerCase());
+  // Suffixes and numerals title-cased word by word: "Northstrive Fund Ii Lp" -> "Northstrive Fund II LP".
+  s = s.replace(/\b(?:Lp|Llp|Llc|Ii|Iii)\b/g, (w) => w.toUpperCase());
   return s;
 }

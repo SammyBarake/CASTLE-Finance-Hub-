@@ -57,6 +57,9 @@ describe("displayName", () => {
     expect(displayName("Copart, Inc.")).toBe("Copart, Inc.");
     expect(displayName("California BanCorp \\ CA")).toBe("California BanCorp");
     expect(displayName("Novo Nordisk A/S")).toBe("Novo Nordisk A/S");
+    expect(displayName("NORTHSTRIVE FUND II LP")).toBe("Northstrive Fund II LP");
+    expect(displayName("II-VI INC")).toBe("II-VI Inc");
+    expect(displayName("COPART")).toBe("Copart");
   });
 });
 
@@ -270,6 +273,11 @@ describe("term extractors", () => {
   it("classifies consideration, including negations", () => {
     expect(extractConsideration("holders will receive $10.00 in cash and 0.5 shares of Acme common stock")).toBe("Mixed");
     expect(extractConsideration("The consideration is payable in Acme common shares. No cash consideration is payable. The exchange ratio is fixed.")).toBe("Stock");
+    // One share plus cash is mixed, even with the share named first.
+    expect(extractConsideration("Norfolk Southern shareholders will receive one Union Pacific common share and $88.82 in cash for each Norfolk Southern share.")).toBe("Mixed");
+    // Financing language elsewhere doesn't make an all-cash offer mixed.
+    expect(extractConsideration("Juniper shareholders will receive $40.00 per share in cash. HPE intends to fund the transaction with cash and new shares of mandatory convertible preferred stock.")).toBe("Cash");
+    expect(extractConsideration("Discover shareholders will receive 1.0192 Capital One shares for each Discover share.")).toBe("Stock");
   });
 
   it("assigns advisors to the right side", () => {

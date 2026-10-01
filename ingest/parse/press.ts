@@ -8,7 +8,7 @@
 import { findBanks } from "../../lib/banks";
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
-import { cleanPartyName, isPlausibleName, normalizeName, sameCompany } from "./names";
+import { cleanPartyName, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 export type PressKind = "announcement" | "update" | "completion" | "termination";
 
@@ -330,16 +330,25 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
   return null;
 }
 
-export function extractConsideration(raw: string): Consideration | null {
-  const t = raw.replace(/no cash consideration[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*/gi, " ");
+function classifyConsideration(t: string): Consideration | null {
   const cash = /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per share\s*)?in cash|cash consideration|in cash for each/i.test(t);
   const stock =
-    /all[- ]stock|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(t);
+    /all[- ]stock|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(t) ||
+    // "one Union Pacific common share and $88.82 in cash", "0.5 Acme ADSs" (a count of shares, not a $ price per share)
+    /(?<![$\d.,]\s?)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:shares?|ADSs?)\b(?!\s+(?:outstanding|repurchase))/.test(t);
   const mixed = /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)|stock and cash|combination of cash and|cash-and-stock|cash and stock/i.test(t);
   if (mixed || (cash && stock)) return "Mixed";
   if (stock) return "Stock";
   if (cash) return "Cash";
   return null;
+}
+
+export function extractConsideration(raw: string): Consideration | null {
+  const t = raw.replace(/no cash consideration[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*/gi, " ");
+  // The sentence saying what holders get decides it. Financing talk elsewhere ("funded with cash on hand and new
+  // shares") made an all-cash deal (HPE / Juniper) look mixed.
+  const offer = /(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/i.exec(t)?.[0];
+  return (offer && classifyConsideration(offer)) || classifyConsideration(t);
 }
 
 // ---------------------------------------------------------------------------
@@ -404,6 +413,8 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
 export function displayName(raw: string): string {
   const name = raw.replace(/\s*[\\/]\s*[A-Za-z]{2,4}\s*[\\/]?\s*$/, "").replace(/\s*[\\/]\s*$/, "").trim();
   if (name !== name.toUpperCase()) return name;
+  // Several words: the shared rules keep acronyms and suffixes ("NORTHSTRIVE FUND II LP" -> "Northstrive Fund II LP").
+  if (/\s/.test(name)) return titleCaseCaps(name);
   return name
     .toLowerCase()
     .replace(/\b([a-z])/g, (c) => c.toUpperCase())
