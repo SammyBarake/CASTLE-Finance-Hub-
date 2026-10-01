@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, stripDateline, tidyTargetName } from "./deals";
+import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, registrantMatches, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -43,6 +43,33 @@ describe("dropPrivateDuplicates", () => {
     dropPrivateDuplicates(deals);
     expect(deals.map((d) => d.id)).toEqual(["a", "c", "d"]);
     expect(deals[0].acquirer.name).toBe("Soundhound Ai, Inc.");
+  });
+
+  it("matches the same buyer's private copy written differently, within weeks", () => {
+    const baxter = { name: "Baxter International Inc", ticker: "BAX", cik: "10456" };
+    const blackstone = { name: "Blackstone Inc.", ticker: "BX", cik: "1393818" };
+    const pub = (id: string, acq: Company, target: string, ticker: string | null, date: string) =>
+      ({ id, acquirer: acq, target: { name: target, ticker, cik: "1" }, announcedDate: date }) as unknown as StoredDeal;
+    const deals = [
+      pub("hrc", baxter, "Hill-Rom Holdings, Inc.", "HRC", "2021-09-02"),
+      deal("p1", baxter, "HILLROM", "2021-09-20", true),
+      pub("psb", blackstone, "PS Business Parks, Inc.", "PSB", "2022-04-25"),
+      deal("p2", blackstone, "PSB", "2022-04-25", true),
+      // The same buyer buying a different company the same month stays.
+      deal("p3", blackstone, "Simply Self Storage", "2022-04-26", true),
+    ];
+    dropPrivateDuplicates(deals);
+    expect(deals.map((d) => d.id)).toEqual(["hrc", "psb", "p3"]);
+  });
+});
+
+describe("registrant name matching", () => {
+  it("ignores spacing and trailing descriptors", () => {
+    expect(registrantMatches("Hill-Rom Holdings, Inc.", "HILLROM")).toBe(true);
+    expect(registrantMatches("Enable Midstream Partners, LP", "Enable Midstream")).toBe(true);
+    expect(registrantMatches("First American Financial Corp", "First American")).toBe(false);
+    expect(coreName("ENABLE MIDSTREAM Energy")).toBe("ENABLE MIDSTREAM");
+    expect(coreName("Aerie Pharmaceuticals")).toBe("Aerie Pharmaceuticals");
   });
 });
 

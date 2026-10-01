@@ -13,7 +13,7 @@ interface Fact {
   form: string;
   filed: string;
 }
-interface CompanyFacts {
+export interface CompanyFacts {
   facts: Record<string, Record<string, { units: Record<string, Fact[]> }>>;
 }
 
@@ -33,17 +33,24 @@ const SHARES = ["EntityCommonStockSharesOutstanding"];
 const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
 
-function series(cf: CompanyFacts, concepts: string[], unit: string, asOf: string): Fact[] {
-  // Pick the concept with the most recent data point; companies switch tags over time.
+/**
+ * Pick the concept with the most recent data point; companies switch tags over time. With `largest`, a tie on the
+ * latest date goes to the bigger figure: a REIT tags only its fee income as "RevenueFromContractWithCustomer…" and
+ * its total (rents included) as "Revenues", and the total is the revenue a multiple should use.
+ */
+export function series(cf: CompanyFacts, concepts: string[], unit: string, asOf: string, largest = false): Fact[] {
   let best: Fact[] = [];
   let bestEnd = "";
+  let bestVal = -Infinity;
   for (const taxonomy of ["us-gaap", "ifrs-full", "dei"]) {
     for (const c of concepts) {
       const rows = cf.facts[taxonomy]?.[c]?.units[unit]?.filter((f) => f.filed <= asOf && FORMS.test(f.form) && f.end <= asOf) ?? [];
       const end = rows.reduce((m, f) => (f.end > m ? f.end : m), "");
-      if (end > bestEnd) {
+      const val = largest ? Math.max(...rows.filter((f) => f.end === end).map((f) => f.val)) : 0;
+      if (end > bestEnd || (largest && end && end === bestEnd && val > bestVal)) {
         best = rows;
         bestEnd = end;
+        bestVal = val;
       }
     }
   }
@@ -93,7 +100,7 @@ export async function getTargetFinancials(cik: string, asOf: string): Promise<Ta
   }
   const usd = (concepts: string[]) => series(cf, concepts, "USD", asOf);
 
-  const revenueLtm = ltm(usd(REVENUE));
+  const revenueLtm = ltm(series(cf, REVENUE, "USD", asOf, true));
   const opInc = ltm(usd(OPERATING_INCOME));
   const da = ltm(usd(DA));
   const ebitdaLtm = opInc != null && da != null ? opInc + da : null;

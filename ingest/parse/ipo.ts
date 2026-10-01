@@ -79,6 +79,33 @@ export function extractDescription(text: string): string | null {
   return null;
 }
 
+/** Bump after changing these parsers: stored pipeline records are then re-read on the next ingest. */
+export const IPO_PARSER_VERSION = 2;
+
+/**
+ * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or
+ * underwritten: Advasa, Ionic Digital), or selling holders reselling with no underwriters after a SPAC merger
+ * (Securitize, Suncrete). An underwritten IPO where only existing holders sell (Innio, sold entirely by its private-
+ * equity owner) is still an IPO, so `underwriters` (the recognised bookrunners) keeps it.
+ */
+export function isResaleOnly(text: string, underwriters: string[] = []): boolean {
+  const head = flatten(text.slice(0, 80_000));
+  const cover = head.slice(0, 30_000);
+  if (/\bdirect listing\b|\bRegistered (?:Stockholders|Shareholders)\b/i.test(cover)) return true;
+  // "We are offering 10,000,000 shares", "Accelevation Holdings Corp. is offering", "we are selling", "shares offered
+  // by us": the company sells shares (selling holders may sell alongside it). The prospectus cover can sit after a
+  // long facing sheet, hence the wider window.
+  const primary =
+    [...head.matchAll(/([\w.]+)\s+(?:is|are)\s+(?:offering|selling|issuing)\b/gi)].some((m) => !/holders?$/i.test(m[1])) ||
+    /\b(?:offered|sold|issued) by (?:us|the company)\b/i.test(head) ||
+    // "We and the Selling Shareholders (as defined herein) are offering, on a firm commitment basis, …" (MediaOn)
+    /\bwe and the selling (?:stock|share|security)holders\b[^.]{0,80}\bare offering\b/i.test(head) ||
+    /(?<!\bnot\b[^.]{0,40})\bfirm[- ]commitment\b/i.test(cover);
+  if (primary) return false;
+  const noProceeds = /will not receive any (?:of the )?(?:net )?proceeds/i.test(cover) || /consummated (?:its|the) (?:previously announced )?business combination/i.test(cover);
+  return noProceeds && underwriters.length === 0;
+}
+
 export interface IpoTerms {
   expectedRaiseUsd: number | null;
   offerPrice: number | null;

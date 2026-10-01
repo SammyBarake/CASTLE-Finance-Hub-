@@ -30,8 +30,8 @@ export interface StoredDeal extends Deal {
   termsCheckedAt?: string | null;
   /** TERMS_PARSER_VERSION the terms were read with. */
   termsParser?: number;
-  /** Private targets: when EDGAR was searched for a listed registrant of that name (and the roles checked). */
-  registrantCheckedAt?: string | null;
+  /** Private targets: REGISTRANT_CHECK_VERSION of the EDGAR search for a listed registrant of that name. */
+  registrantCheck?: number;
 }
 
 export interface StoredIpo extends Ipo {
@@ -40,6 +40,8 @@ export interface StoredIpo extends Ipo {
   checkedAt: string | null;
   /** Latest registration statement parsed, to avoid re-downloading it. */
   parsedAdsh: string | null;
+  /** IPO_PARSER_VERSION it was parsed with; a newer parser re-reads it. */
+  parser?: number;
 }
 
 export interface State {

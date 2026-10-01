@@ -11,6 +11,13 @@ describe("headline and press-release debris", () => {
     expect(cleanPartyName("Sculptor Capital Management Together")).toBe("Sculptor Capital Management");
     expect(cleanPartyName("A Joint Venture Between Affiliates Of Highgate And Cerberus Capital Management")).toBe("Highgate and Cerberus Capital Management");
     expect(cleanPartyName("Procter And Gamble")).toBe("Procter And Gamble");
+    expect(cleanPartyName("Antibody and Reagent Leader BioLegend")).toBe("BioLegend");
+    expect(cleanPartyName("Sports Betting Company Openbet")).toBe("Openbet");
+    expect(cleanPartyName("API Media Technology Provider API")).toBe("API Media Technology Provider API");
+    expect(isPlausibleName("Merger As previously reported, Ideanomics, Inc.")).toBe(false);
+    expect(cleanPartyName("Ford Motor Company")).toBe("Ford Motor Company");
+    expect(cleanPartyName("Kraft Heinz Company Holdings")).toBe("Kraft Heinz Company Holdings");
+    expect(isPlaceholderBuyer("Oak-Eagle AcquireCo, Inc.")).toBe(true);
   });
 
   it("rejects deal paperwork as a party", () => {

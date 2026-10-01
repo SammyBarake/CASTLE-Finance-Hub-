@@ -199,6 +199,15 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     }
     if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs };
   }
+  // A party written as its ticker ("Blackstone to acquire PSB") is the filer that trades under it: the release was
+  // filed by PS Business Parks (PSB).
+  if (!ticker && /^[A-Z]{2,5}$/.test(p.name)) {
+    const f = filers.find((x) => x.tickers.includes(p.name));
+    if (f?.cik) {
+      const listed = dir.byCik.get(f.cik);
+      return { cik: f.cik, ticker: p.name, listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || !listed };
+    }
+  }
   // Also accept a filer whose registered name appears inside a run-on parsed name
   // ("America's First Transcontinental Railroad Union Pacific" contains "Union Pacific").
   const pn = normalizeName(p.name);
@@ -220,6 +229,12 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   return { cik: null, ticker, listedInUs: pressUs };
 }
 
+/**
+ * Bump when the private-target registrant check changes: stored private deals are then checked again.
+ * 2: every private target is looked up (not just ones quoting a share price), spacing-insensitive names.
+ */
+export const REGISTRANT_CHECK_VERSION = 2;
+
 const shiftDate = (date: string, days: number) => new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
 const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
 
@@ -235,22 +250,72 @@ export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: 
   return reporting && listed;
 }
 
-/** Words a registrant's name may add to a one-word target name: "Aerie" is "Aerie Pharmaceuticals", not "Aeries Technology". */
-const DESCRIPTOR = /^(?:pharmaceuticals?|pharma|therapeutics|biosciences?|biotherapeutics|biopharma(?:ceuticals)?|bio|oncology|medical|medtech|lithium|energy|resources|minerals|mining|realty|properties|software|networks|communications)$/;
+/** Forms only a company being bought files (its merger proxy, tender response, deal communications, delisting). */
+const TAKEOVER_FORMS = /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC14D9C|SC 14D9-C|SC TO-C|SC TO-T|SC 13E3|425|25-NSE|DEFA14A)(?:\/A)?$/;
+
+/**
+ * The registrant was being taken over around `date`: it filed takeover forms between ~18 months before (the date
+ * may be the closing) and ~13 months after. Guards the name lookup: "API" matched APi Group and "Longboard" matched
+ * Longboard Pharmaceuticals, neither of which was being bought then.
+ */
+export function takenOverAround(sub: Pick<Submissions, "filings">, date: string): boolean {
+  return recentFilings(sub as Submissions).some((f) => TAKEOVER_FORMS.test(f.form) && f.date >= shiftDate(date, -550) && f.date <= shiftDate(date, 400));
+}
+
+/**
+ * `date` is the closing, not the announcement: the target delisted or deregistered (Form 25 / 15) within days of
+ * it. A record first seen in a completion release ("Capital One completes its acquisition of Discover") carries the
+ * closing date; one created from the announcement (Aerie, signed months before its Form 25) does not.
+ */
+export function completedAround(sub: Pick<Submissions, "filings">, date: string): boolean {
+  return recentFilings(sub as Submissions).some((f) => /^(?:25|25-NSE|15-12B|15-12G)$/.test(f.form) && f.date >= shiftDate(date, -3) && f.date <= shiftDate(date, 10));
+}
+
+/** An 8-K Item 1.01 section that is the merger agreement with this party (not a credit facility or another deal). */
+export function isSigningFor(section: string, counterpartyName: string): boolean {
+  const who = normalizeName(counterpartyName);
+  return who.length >= 3 && /\b(?:merger|acquisition|acquire|amalgamation|arrangement)\b/i.test(section) && normalizeName(section).includes(who);
+}
+
+/**
+ * The date of the earliest 8-K Item 1.01 in `sub`'s filings, up to ~21 months before `closing` (NYCB / Flagstar
+ * took 19), whose agreement names one of `counterparties`: the signing of the deal that closed then.
+ */
+export async function signingDate(sub: Submissions, closing: string, counterparties: string[]): Promise<string | null> {
+  const candidates = recentFilings(sub)
+    .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= shiftDate(closing, -650) && f.date <= shiftDate(closing, -7))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 10);
+  for (const f of candidates) {
+    const section = item101(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))));
+    if (section && counterparties.some((n) => isSigningFor(section, n))) return f.date;
+  }
+  return null;
+}
+
+/** Words a registrant's name may add to the name a release used: "Aerie" is "Aerie Pharmaceuticals", not "Aeries Technology". */
+const DESCRIPTOR = /^(?:pharmaceuticals?|pharma|therapeutics|biosciences?|biotherapeutics|biopharma(?:ceuticals)?|bio|oncology|medical|medtech|lithium|energy|resources|minerals|mining|realty|properties|software|networks|communications|partners|pipeline|systems)$/;
 const nameKey = (s: string) => normalizeName(s.replace(/['’]/g, "")); // "Ruth's" = "Ruths"
 
 /**
- * Is `registrant` (its name on the deal date) the company a release called `target`? The same name, or the target's
- * name plus more words; a one-word target only gains descriptors, so "Fortune" (a bank) is not "Fortune Brands" and
- * "Beacon" is not "Beacon Financial".
+ * Is `registrant` (its name on the deal date) the company a release called `target`? The same name (suffixes such as
+ * Inc / Holdings / Group aside), or that name plus descriptors only: so "Fortune" (a bank) is not "Fortune Brands",
+ * "Beacon" is not "Beacon Financial" and a private "First American" bank is not First American Financial.
  */
 export function registrantMatches(registrant: string, target: string): boolean {
   const r = nameKey(registrant);
   const t = nameKey(target);
   if (r.length < 3 || t.length < 3) return false;
-  if (r === t) return true;
+  if (r === t || r.replace(/ /g, "") === t.replace(/ /g, "")) return true; // "Hill Rom" = "Hillrom"
   if (!r.startsWith(t + " ")) return false;
-  return t.includes(" ") || r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w));
+  return r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w));
+}
+
+/** The name minus trailing descriptors, so "Enable Midstream Energy" can be looked up as "Enable Midstream". */
+export function coreName(name: string): string {
+  const words = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim().split(" ");
+  while (words.length > 2 && DESCRIPTOR.test(words.at(-1)!.toLowerCase())) words.pop();
+  return words.join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -344,12 +409,21 @@ export function dropPrivateDuplicates(deals: StoredDeal[]): void {
   const pub = deals.filter((d) => !d.privateTarget);
   // Stricter than sameCompany (no shared-first-word match): "Providence" is not "Providence Service Corp".
   const same = (a: string, b: string) => normalizeName(a).length >= 3 && normalizeName(a) === normalizeName(b);
+  const apart = (a: StoredDeal, b: StoredDeal) => Math.abs(Date.parse(a.announcedDate) - Date.parse(b.announcedDate)) / DAY;
+  const sameBuyer = (a: StoredDeal, b: StoredDeal) => (!!a.acquirer.cik && a.acquirer.cik === b.acquirer.cik) || sameCompany(a.acquirer.name, b.acquirer.name);
+  // Looser, but only for the same buyer within weeks: "HILLROM" is Hill-Rom Holdings, "ENABLE MIDSTREAM Energy" is
+  // Enable Midstream Partners, and "PSB" is the ticker of PS Business Parks.
+  const alike = (pubName: string, pubTicker: string | null, privName: string) => {
+    const a = normalizeName(pubName).replace(/ /g, "");
+    const b = normalizeName(privName).replace(/ /g, "");
+    return (b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) || privName === pubTicker || sameCompany(pubName, privName);
+  };
   for (let i = deals.length - 1; i >= 0; i--) {
     const d = deals[i];
     if (!d.privateTarget) continue;
-    const twin = pub.find(
-      (p) => same(p.target.name, d.target.name) && Math.abs(Date.parse(p.announcedDate) - Date.parse(d.announcedDate)) < 400 * DAY,
-    );
+    const twin =
+      pub.find((p) => same(p.target.name, d.target.name) && apart(p, d) < 400) ??
+      pub.find((p) => sameBuyer(p, d) && apart(p, d) <= 45 && alike(p.target.name, p.target.ticker, d.target.name));
     if (!twin) continue;
     if (!twin.acquirer.cik && d.acquirer.cik && sameCompany(twin.acquirer.name, d.acquirer.name)) twin.acquirer = { ...d.acquirer };
     deals.splice(i, 1);
@@ -485,6 +559,9 @@ async function isMergerTermination(cik: string, adsh: string, doc: string) {
  */
 export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | null, today: string, directory?: Directory) {
   if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
+  // Delisted since (no longer in the listed-company file): its SEC name, not prose such as
+  // "Merger As previously reported, Ideanomics, Inc.".
+  else if (acquirerSub) deal.acquirer.name = displayName(nameOn(acquirerSub, deal.announcedDate));
   if (acquirerSub) {
     deal.acquirer.ticker ??= acquirerSub.tickers?.[0] ?? null;
     deal.sector = sectorForSic(acquirerSub.sic, acquirerSub.name);
@@ -710,18 +787,21 @@ export async function ingestDeals(
     const key = `${normalizeName(name)}|${date}`;
     if (lookups.has(key)) return lookups.get(key)!;
     const q = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim();
-    const words = q.split(" ");
+    // EDGAR's lookup wants the start of the registered name: "ENABLE MIDSTREAM Energy" finds nothing,
+    // "Enable Midstream" finds Enable Midstream Partners. The match is then checked against that core name.
+    const core = coreName(name);
     let found: Resolved | null = null;
     try {
-      search: for (const query of words.length > 2 ? [q, words.slice(0, 2).join(" ")] : [q]) {
+      search: for (const query of core !== q ? [q, core] : [q]) {
         const candidates = (await lookupCompanies(query))
-          .filter((c) => registrantMatches(c.name, name) || sameCompany(c.name, name))
-          .sort((a, b) => Number(registrantMatches(b.name, name)) - Number(registrantMatches(a.name, name)))
+          .filter((c) => registrantMatches(c.name, query) || sameCompany(c.name, query))
+          .sort((a, b) => Number(registrantMatches(b.name, query)) - Number(registrantMatches(a.name, query)))
           .slice(0, 3);
         for (const c of candidates) {
           const sub = await submissions(c.cik);
-          // Checked against the name it had then: "Beacon" in 2025 was not Berkshire Hills Bancorp.
-          if (sub && sub.sic !== "6770" && registrantMatches(nameOn(sub, date), name) && listedOn(sub, date)) {
+          // Checked against the name it had then ("Beacon" in 2025 was not Berkshire Hills Bancorp), and it must
+          // have been listed and in the middle of being bought.
+          if (sub && sub.sic !== "6770" && registrantMatches(nameOn(sub, date), query) && listedOn(sub, date) && takenOverAround(sub, date)) {
             found = { cik: c.cik, ticker: sub.tickers?.[0] ?? null, listedInUs: true };
             break search;
           }
@@ -791,24 +871,22 @@ export async function ingestDeals(
       !isMergerVehicle(name) &&
       !knownPublic()
     ) {
-      // A share price or a premium hints at a listed company the directory no longer has (delisted since).
-      if (parsed.premiumPct != null || parsed.pricePerShare != null) {
-        const listed = await resolveRegistrant(name, hit.fileDate);
-        if (listed) {
-          if (listed.cik === acquirer.cik) return null;
-          stats.parsed++;
-          return applyParsed(state, { ...parsed, target: { ...parsed.target, name } }, hit, listed, acquirer, false);
-        }
-        // A premium means a traded stock: an OTC or foreign-listed company, out of scope. (A per-share price
-        // alone is common for private banks and stays.)
-        // This also catches releases read backwards ("GenMark acquires Roche": the premium is GenMark's).
-        if (parsed.premiumPct != null) return null;
+      // A listed company the directory no longer has (delisted since the deal closed: Abiomed, Hillrom).
+      const listed = await resolveRegistrant(name, hit.fileDate);
+      if (listed) {
+        if (listed.cik === acquirer.cik) return null;
+        stats.parsed++;
+        return applyParsed(state, { ...parsed, target: { ...parsed.target, name } }, hit, listed, acquirer, false);
       }
+      // A premium means a traded stock: an OTC or foreign-listed company, out of scope. (A per-share price
+      // alone is common for private banks and stays.) This also catches releases read backwards
+      // ("GenMark acquires Roche": the premium is GenMark's).
+      if (parsed.premiumPct != null) return null;
       stats.parsed++;
       stats.privateDeals++;
       const valueUsd = parsed.valueUsd != null && parsed.valueUsd > MAX_PRIVATE_DEAL_VALUE ? null : parsed.valueUsd;
       const deal = applyParsed(state, { ...parsed, target: { ...parsed.target, name }, valueUsd }, hit, target, acquirer, true);
-      if (deal) deal.registrantCheckedAt ??= opts.today;
+      if (deal) deal.registrantCheck = REGISTRANT_CHECK_VERSION;
       return deal;
     }
     return null;
@@ -915,7 +993,7 @@ export async function ingestDeals(
       ? touched.has(d) ||
         (d.status === "Announced" && d.statusCheckedAt !== opts.today) ||
         !d.statusCheckedAt ||
-        !d.registrantCheckedAt ||
+        d.registrantCheck !== REGISTRANT_CHECK_VERSION ||
         (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)
       : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
@@ -935,30 +1013,40 @@ export async function ingestDeals(
   for (const deal of toEnrich) {
     try {
       // Private records stored before this check: the target may be a delisted listed company.
-      if (deal.privateTarget && !deal.registrantCheckedAt) {
-        if (deal.premiumPct != null || deal.pricePerShare != null) {
-          // With today's name rules ("Sculptor Capital Management Together" -> "Sculptor Capital Management").
-          const listed = await resolveRegistrant(cleanPartyName(deal.target.name), deal.announcedDate);
-          if (listed && listed.cik !== deal.acquirer.cik) {
-            const near = (d: StoredDeal) => Math.abs(Date.parse(d.announcedDate) - Date.parse(deal.announcedDate)) < 400 * 86_400_000;
-            if (state.deals.some((d) => d !== deal && d.target.cik === listed.cik && near(d))) {
-              drop(deal); // the public record of the same deal already exists
-              continue;
-            }
-            // Becomes a public-target deal, enriched from the target's own filings below.
-            dropped.add(deal.id);
-            deal.id = `${listed.cik}-${deal.announcedDate}`;
-            delete deal.privateTarget;
-            deal.target = { ...deal.target, cik: listed.cik, ticker: deal.target.ticker ?? listed.ticker };
-            deal.statusCheckedAt = deal.financialsCheckedAt = deal.proxyCheckedAt = deal.fairnessCheckedAt = deal.termsCheckedAt = null;
-            deal.fairnessParser = undefined;
-            deal.termsParser = undefined;
-          } else if (deal.premiumPct != null) {
-            drop(deal); // traded but not on a US exchange (out of scope), or read backwards
+      if (deal.privateTarget && deal.registrantCheck !== REGISTRANT_CHECK_VERSION) {
+        // With today's name rules ("Sculptor Capital Management Together" -> "Sculptor Capital Management").
+        const listed = await resolveRegistrant(cleanPartyName(deal.target.name), deal.announcedDate);
+        if (listed && listed.cik !== deal.acquirer.cik) {
+          const near = (d: StoredDeal) => Math.abs(Date.parse(d.announcedDate) - Date.parse(deal.announcedDate)) < 400 * 86_400_000;
+          if (state.deals.some((d) => d !== deal && d.target.cik === listed.cik && near(d))) {
+            drop(deal); // the public record of the same deal already exists
             continue;
           }
+          // Becomes a public-target deal, enriched from the target's own filings below. A record created from a
+          // completion release carries the closing date: the announcement is the signing 8-K (Item 1.01) naming the
+          // other party, the target's or else the buyer's (a foreign target files 6-Ks: CyberArk). Without one the
+          // date stays.
+          const targetSub = await submissions(listed.cik!);
+          if (targetSub && completedAround(targetSub, deal.announcedDate)) {
+            const closing = deal.announcedDate;
+            const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
+            const targetNames = [deal.target.name, displayName(nameOn(targetSub, closing))];
+            const signed = await signingDate(targetSub, closing, [deal.acquirer.name, ...(acquirerSub ? [displayName(nameOn(acquirerSub, closing))] : [])]) ??
+              (acquirerSub ? await signingDate(acquirerSub, closing, targetNames) : null);
+            if (signed) deal.announcedDate = signed;
+          }
+          dropped.add(deal.id);
+          deal.id = `${listed.cik}-${deal.announcedDate}`;
+          delete deal.privateTarget;
+          deal.target = { ...deal.target, cik: listed.cik, ticker: deal.target.ticker ?? listed.ticker };
+          deal.statusCheckedAt = deal.financialsCheckedAt = deal.proxyCheckedAt = deal.fairnessCheckedAt = deal.termsCheckedAt = null;
+          deal.fairnessParser = undefined;
+          deal.termsParser = undefined;
+        } else if (deal.premiumPct != null) {
+          drop(deal); // traded but not on a US exchange (out of scope), or read backwards
+          continue;
         }
-        deal.registrantCheckedAt = opts.today;
+        deal.registrantCheck = REGISTRANT_CHECK_VERSION;
       }
       if (deal.privateTarget) {
         enrichPrivateDeal(deal, deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null, opts.today, directory);

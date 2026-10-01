@@ -91,6 +91,11 @@ export function cleanPartyName(raw: string): string {
   if (jv.test(s)) s = s.replace(jv, "").replace(/\s+And\s+(?:Affiliates Of\s+)?(?=[A-Z])/gi, " and ");
   s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
+  // A description glued in front of a one-word brand: "Antibody and Reagent Leader BioLegend" -> "BioLegend",
+  // "Sports Betting Company Openbet" -> "Openbet".
+  const described = /^(?:[A-Z][\w-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform)\s+([A-Z][\w.-]{2,})$/.exec(s);
+  // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
+  if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
@@ -108,7 +113,7 @@ export { titleCaseCaps } from "../../lib/names";
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
 export const isPlaceholderBuyer = (name: string) =>
   /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
-  /\b(?:Merger Sub|MergeCo|MergerCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
+  /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
   /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
   /^Acquiror\b/.test(name);
 
@@ -129,7 +134,7 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
   // "During the five-year period following the Closing".
   !/^(?:Item|Exhibit)\s+\d/i.test(s) &&
-  !/^(?:During|Pursuant to|Following the|Upon|Prior to|In connection with)\b|\bGeneral Corporation Law\b|\bfollowing the Closing\b/i.test(s) &&
+  !/^(?:During|Pursuant to|Following the|Upon|Prior to|In connection with)\b|\bGeneral Corporation Law\b|\bfollowing the Closing\b|\bAs previously reported\b/i.test(s) &&
   // Deal paperwork and structure, not parties: "Definitive Agreement", "Entry into a Material Definitive Agreement",
   // "Company through a reverse triangular merger …", "Members of Company Management".
   !/\b(?:definitive agreement|material definitive|reverse triangular|similar structure|members of (?:the )?company management)\b/i.test(s) &&

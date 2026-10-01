@@ -19,14 +19,48 @@ const ENTITIES: Record<string, string> = {
   reg: "®",
   trade: "™",
   copy: "©",
-  eacute: "é",
+  szlig: "ß",
+  aelig: "æ",
+  AElig: "Æ",
+  oslash: "ø",
+  Oslash: "Ø",
+  eth: "ð",
+  thorn: "þ",
+  euro: "€",
+  pound: "£",
+  yen: "¥",
+  cent: "¢",
+  sect: "§",
+  deg: "°",
+  times: "×",
+  frac12: "½",
+  frac14: "¼",
+  frac34: "¾",
+  laquo: "«",
+  raquo: "»",
+  shy: "",
+  ensp: " ",
+  emsp: " ",
+  thinsp: " ",
+  zwnj: "",
+  zwj: "",
 };
+
+// Accented letters by name: "&auml;" -> "ä", "&Ccedil;" -> "Ç" (BillerudKorsnäs, Boa Vista Serviços).
+const MARKS: Record<string, string> = { acute: "́", grave: "̀", circ: "̂", uml: "̈", tilde: "̃", cedil: "̧", ring: "̊", caron: "̌" };
+
+function namedEntity(name: string): string | undefined {
+  if (ENTITIES[name] != null) return ENTITIES[name];
+  const accent = /^([A-Za-z])(acute|grave|circ|uml|tilde|cedil|ring|caron)$/.exec(name);
+  if (accent) return (accent[1] + MARKS[accent[2]]).normalize("NFC");
+  return ENTITIES[name.toLowerCase()];
+}
 
 export function decodeEntities(s: string): string {
   return s
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+    .replace(/&([a-z]+\d*);/gi, (m, n) => namedEntity(n) ?? m);
 }
 
 export function htmlToText(html: string): string {

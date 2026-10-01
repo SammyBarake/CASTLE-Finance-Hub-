@@ -24,8 +24,9 @@ import {
   type Submissions,
 } from "./edgar";
 import { monthWindows } from "./deals";
+import { normalizeName } from "./parse/names";
 import { displayName } from "./parse/press";
-import { parseFinalProspectus, parseRegistration, type IpoTerms } from "./parse/ipo";
+import { IPO_PARSER_VERSION, isResaleOnly, parseFinalProspectus, parseRegistration, type IpoTerms } from "./parse/ipo";
 import { sectorForSic } from "./sectors";
 import type { State, StoredIpo } from "./store";
 import { htmlToText } from "./text";
@@ -85,18 +86,27 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
 
   const filings = recentFilings(sub).sort((a, b) => a.date.localeCompare(b.date));
   const regs = filings.filter((f) => REG_FORMS.test(f.form));
-  // The current registration cycle starts at the latest original (non-amended) S-1 / F-1.
-  const initial = regs.filter((f) => !f.form.endsWith("/A")).at(-1) ?? regs[0];
+  // The IPO registration: the latest original (non-amended) S-1 / F-1 filed before the company had any periodic
+  // report or IPO prospectus. A later S-1 is a follow-on or resale (WhiteHawk filed one three months after its IPO);
+  // with nothing but those, the company was already public: not an IPO.
+  const originals = regs.filter((f) => !f.form.endsWith("/A"));
+  const alreadyPublicBy = (date: string) => filings.some((f) => (PERIODIC.test(f.form) || f.form === "424B4") && f.date < date);
+  const initial = [...(originals.length ? originals : regs.slice(0, 1))].reverse().find((r) => !alreadyPublicBy(r.date));
   if (!initial) return null;
-  // Already a reporting company before this registration: a follow-on or resale, not an IPO.
-  if (filings.some((f) => PERIODIC.test(f.form) && f.date < initial.date)) return null;
-  // A previous IPO prospectus before this S-1 means the company already went public.
-  if (filings.some((f) => f.form === "424B4" && f.date < initial.date)) return null;
+  // Registered a merger (S-4 / F-4) before this S-1 and left shell status (8-K Item 5.06, filed when a SPAC merger
+  // closes): it came public through a SPAC and the S-1 resells holders' shares (Securitize, Suncrete). An earlier
+  // S-4 alone isn't enough: WhiteHawk registered exchange offers before its underwritten IPO, so without the 5.06
+  // such a company is dropped only if no bookrunner is found (below). A mutual bank converting while buying another
+  // bank files its S-4 alongside or after the S-1 and is unaffected.
+  const mergedIn = filings.some((f) => /^(?:S-4|F-4)(?:\/A)?$/.test(f.form) && f.date < initial.date);
+  if (mergedIn && filings.some((f) => /^8-K/.test(f.form) && /\b5\.06\b/.test(f.items))) return null;
 
-  const withdrawn = filings.find((f) => f.form === "RW" && f.date >= initial.date);
-  if (withdrawn) return null;
   const priced = filings.find((f) => f.form === "424B4" && f.date >= initial.date);
-  const latestReg = regs.at(-1)!;
+  // Withdrawn before pricing (a withdrawal after the IPO concerns some later registration).
+  const withdrawn = filings.find((f) => f.form === "RW" && f.date >= initial.date && (!priced || f.date < priced.date));
+  if (withdrawn) return null;
+  // This IPO's own registration and amendments, not later follow-on S-1s.
+  const latestReg = regs.filter((f) => f.date >= initial.date && (!priced || f.date <= priced.date)).at(-1) ?? initial;
   const lastActivity = [latestReg.date, priced?.date ?? ""].sort().at(-1)!;
 
   const listed = dir.byCik.get(sub.cik.replace(/^0+/, ""));
@@ -112,10 +122,15 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   const docAdsh = priced?.adsh ?? latestReg.adsh;
   // Skip re-downloading a document we already parsed.
   let terms: IpoTerms | null = null;
-  if (!existing || existing.parsedAdsh !== docAdsh) {
+  if (!existing || existing.parsedAdsh !== docAdsh || existing.parser !== IPO_PARSER_VERSION) {
     const doc = priced ?? latestReg;
     const text = htmlToText(await getTextHead(archiveUrl(sub.cik, doc.adsh, doc.primaryDocument), 700_000));
     terms = priced ? parseFinalProspectus(text) : parseRegistration(text, await feeExhibitText(sub.cik, doc.adsh));
+    // A bank named in the company's own name isn't its bookrunner ("Baird Medical" is not Robert W. Baird).
+    const own = ` ${normalizeName(sub.name)} `;
+    terms.underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
+    // A direct listing, or selling holders reselling with no underwriters: no IPO offering.
+    if (isResaleOnly(text, terms.underwriters)) return null;
     // Amendments often omit the fee table; the original registration has it.
     if (!priced && terms.expectedRaiseUsd == null && doc.adsh !== initial.adsh) {
       terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };
@@ -160,10 +175,13 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     ipo.underwriters = terms.underwriters.length ? terms.underwriters : ipo.underwriters;
     ipo.description = terms.description ?? (ipo.description || sub.sicDescription || "");
     ipo.parsedAdsh = docAdsh;
+    ipo.parser = IPO_PARSER_VERSION;
   }
 
-  // Tiny self-underwritten offerings aren't the IPO market this tracks.
+  // Tiny self-underwritten offerings aren't the IPO market this tracks; nor is a post-merger registration with no
+  // bookrunner (a pending SPAC merger's resale or PIPE shares: Einride).
   if ((ipo.expectedRaiseUsd ?? 0) < MIN_RAISE && !ipo.underwriters.length) return null;
+  if (mergedIn && !ipo.underwriters.length) return null;
   if (ipo.expectedRaiseUsd != null && ipo.expectedRaiseUsd < 5e6) return null;
   return ipo;
 }

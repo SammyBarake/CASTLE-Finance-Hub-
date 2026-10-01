@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listedOn, registrantMatches } from "./deals";
+import { completedAround, isSigningFor, listedOn, registrantMatches, takenOverAround } from "./deals";
 import { nameOn } from "./edgar";
 import { junkReason, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
 import type { StoredDeal } from "./store";
@@ -141,6 +141,26 @@ describe("listing and role checks", () => {
     // Deregistered long ago: its old Form 25 and 10-Ks don't count.
     const bremer = { exchanges: [], filings: filings([["15-12G", "2004-03-01"], ["25-NSE", "2004-02-01"], ["10-K", "2003-03-01"]]) };
     expect(listedOn(bremer, "2025-01-27")).toBe(false);
+  });
+
+  it("takenOverAround: the registrant filed takeover forms around the deal date", () => {
+    const discover = { filings: filings([["25-NSE", "2025-05-19"], ["DEFM14A", "2024-12-20"], ["425", "2024-02-20"], ["10-K", "2024-02-15"]]) };
+    expect(takenOverAround(discover, "2025-05-19")).toBe(true);
+    const apiGroup = { filings: filings([["10-Q", "2025-11-01"], ["8-K", "2025-12-15"]]) };
+    expect(takenOverAround(apiGroup, "2026-01-23")).toBe(false);
+  });
+
+  it("completedAround: the stored date is the closing (the target delisted within days)", () => {
+    const discover = { filings: filings([["25-NSE", "2025-05-19"], ["DEFM14A", "2024-12-20"]]) };
+    expect(completedAround(discover, "2025-05-19")).toBe(true);
+    // Aerie's record was created from the announcement; its Form 25 came months later.
+    expect(completedAround({ filings: filings([["25-NSE", "2022-11-21"]]) }, "2022-08-23")).toBe(false);
+  });
+
+  it("isSigningFor: the 8-K Item 1.01 is the merger agreement with this acquirer", () => {
+    const section = "On February 19, 2024, Discover Financial Services entered into an Agreement and Plan of Merger with Capital One Financial Corporation.";
+    expect(isSigningFor(section, "Capital One Financial Corp")).toBe(true);
+    expect(isSigningFor("On February 1, 2024, the Company entered into a credit agreement with JPMorgan Chase Bank.", "Capital One Financial Corp")).toBe(false);
   });
 
   it("registrantMatches: one-word names only gain descriptors", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMultiples, latestInstant, ltm } from "./financials";
+import { computeMultiples, latestInstant, ltm, series } from "./financials";
 
 const f = (start: string | undefined, end: string, val: number) => ({ start, end, val, form: "10-Q", filed: end });
 
@@ -15,6 +15,22 @@ describe("ltm", () => {
 
   it("falls back to the fiscal year when no later quarter exists", () => {
     expect(ltm([f("2025-01-01", "2025-12-31", 800)])).toBe(800);
+  });
+});
+
+describe("series", () => {
+  it("takes total revenue over a sub-line tagged for the same period (REIT rents vs fee income)", () => {
+    const cf = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: { units: { USD: [f("2025-01-01", "2025-12-31", 12e6)] } },
+          Revenues: { units: { USD: [f("2025-01-01", "2025-12-31", 180e6)] } },
+        },
+      },
+    };
+    expect(ltm(series(cf, ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues"], "USD", "2026-06-01", true))).toBe(180e6);
+    // Without the tie-break the first concept in the list wins.
+    expect(ltm(series(cf, ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues"], "USD", "2026-06-01"))).toBe(12e6);
   });
 });
 
