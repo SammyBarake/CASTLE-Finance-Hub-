@@ -168,6 +168,15 @@ export function toPublicIpo(i: Ipo): Ipo {
   };
 }
 
+/**
+ * What every page carries: the dataset without its long lists (deals, IPOs, activist stakes, fees). The shell
+ * renders from this at once; the full dataset loads once per visit from /api/hub and stays in memory, so switching
+ * pages never re-downloads it.
+ */
+export function bootHubData(full: HubData): HubData {
+  return { ...full, deals: [], ipos: [], activists: [], fees: [] };
+}
+
 export function buildHubData(input: {
   deals: Deal[];
   ipos: (Ipo & { lastActivity?: string })[];

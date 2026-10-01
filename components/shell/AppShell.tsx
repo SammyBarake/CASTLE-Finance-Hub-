@@ -14,11 +14,12 @@ import { formatTimestampET } from "@/lib/format";
 import { GlobalSearch } from "./GlobalSearch";
 import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
 import { NavigationProgress } from "./NavigationProgress";
+import { PageSkeleton } from "./PageSkeleton";
 import { SectionTabs } from "./SectionTabs";
 
 /** Sidebar, top bar and footer around every page. */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data } = useHubData();
+  const { data, ready, loadError, reload } = useHubData();
   const { openDefinitions } = useDetails();
   const { openMenu } = useUi();
   const ws = useWorkspace();
@@ -87,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <NavigationProgress />
+      <NavigationProgress hold={!ready} />
       <div className={`menu-backdrop ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? "open" : ""}`} id="sidebar" aria-label="Primary navigation">
         <Link className="brand" href="/" aria-label="Castle home">
@@ -159,9 +160,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
           {section && section.routes.length > 1 && <SectionTabs section={section} activeId={route.id} />}
-          <div className="page-enter" key={pathname}>
+          {/* The page is always rendered normally (hiding or unmounting the route slot while the dataset loads
+              makes Next.js fall back to full page reloads on quick clicks). Until the data arrives a skeleton
+              covers it. */}
+          <div className="page-enter" key={pathname} hidden={!ready}>
             {children}
           </div>
+          {!ready && <PageSkeleton error={loadError} onRetry={reload} />}
         </main>
         <footer className="footer">
           <span className="sample-tag">

@@ -185,6 +185,31 @@
   .menu-toggle { display: none; padding: 3px; color: var(--color-muted); }
   .menu-backdrop { display: none; }
   .main { max-width: 1730px; margin: auto; padding: 29px 30px 0; min-height: calc(100vh - 110px); }
+  /* First-visit loading skeleton: soft shimmer in the page's own shapes, laid over the (still rendered) page. */
+  .page-stage { position: relative; }
+  .page-stage.loading > .page-enter { visibility: hidden; max-height: 100vh; overflow: hidden; }
+  .page-stage.loading > .skeleton, .page-stage.loading > .skeleton-error { position: absolute; inset: 0 0 auto 0; }
+  .skeleton { display: grid; gap: 22px; animation: fade-in 0.4s ease both; background: var(--color-bg); }
+  .sk { display: block; border-radius: 4px; background: linear-gradient(90deg, #101010 0%, #1a1a1a 40%, #101010 80%); background-size: 220% 100%; animation: shimmer 1.6s ease-in-out infinite; }
+  .skeleton-head { display: grid; gap: 10px; }
+  .sk-title { width: 220px; height: 28px; }
+  .sk-sub { width: 320px; height: 12px; }
+  .skeleton-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-panel); }
+  .skeleton-kpis > div { display: grid; gap: 10px; padding: 18px 19px; border-left: 1px solid var(--color-line); }
+  .skeleton-kpis > div:first-child { border-left: 0; }
+  .sk-label { width: 40%; height: 10px; }
+  .sk-value { width: 65%; height: 26px; }
+  .sk-note { width: 50%; height: 9px; }
+  .skeleton-panel { border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-panel); padding: 19px; display: grid; gap: 18px; }
+  .skeleton-bars { height: 220px; display: flex; align-items: flex-end; gap: 14px; }
+  .skeleton-bars .sk { flex: 1; border-radius: 3px 3px 0 0; }
+  .skeleton-rows { display: grid; gap: 10px; }
+  .sk-row { height: 44px; border-radius: 6px; }
+  .skeleton-error { display: grid; justify-items: start; gap: 10px; padding: 28px; border: 1px solid #3a2a2a; border-radius: 6px; background: #120b0b; color: #d8c4c4; font-size: 12px; }
+  .skeleton-error strong { color: #fff; font-weight: 500; font-size: 14px; }
+  @media (max-width: 1020px) {
+    .skeleton-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   /* Section tabs: the pages inside a sidebar section, with a sliding underline. */
   .section-tabs { position: relative; display: flex; gap: 26px; margin: -8px 0 24px; border-bottom: 1px solid var(--color-line); overflow-x: auto; scrollbar-width: none; animation: fade-in 0.3s ease both; }
   .section-tabs::-webkit-scrollbar { display: none; }
@@ -814,6 +839,7 @@
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bar-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
 
 /* Printing a tear sheet: only the paper, no stage, toolbar or animation. */

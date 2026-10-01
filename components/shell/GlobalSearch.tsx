@@ -14,7 +14,7 @@ const noopSubscribe = () => () => {};
 
 /** Top-bar search with grouped results (deals, IPOs, advisors). Ctrl/⌘ K focuses it. */
 export function GlobalSearch() {
-  const { data } = useHubData();
+  const { data, ready } = useHubData();
   const { openDeal, openIpo, openAdvisor } = useDetails();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -111,7 +111,7 @@ export function GlobalSearch() {
       </div>
       {open && results && (
         <div className="search-results" id="search-results" aria-label="Search results">
-          {empty && <div className="search-empty">No matching companies, deals, or advisors.</div>}
+          {empty && <div className="search-empty">{ready ? "No matching companies, deals, or advisors." : "Loading data…"}</div>}
           {!!results.companies.length && <div className="search-group">Companies</div>}
           {results.companies.map(({ company, count }) => (
             <button key={companyId(company)} type="button" className="search-result" onClick={() => pick(() => {}, companyHref(company))}>
