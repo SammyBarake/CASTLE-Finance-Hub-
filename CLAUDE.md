@@ -147,7 +147,7 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 - **Missing values** are always "—" (from `lib/format.ts`).
 - **Company names** go through `displayCompanyName` (`lib/names.ts`) in `toPublicDeal` / `toPublicIpo`. It strips SEC state tags and title-cases all-capital names. The ingest uses the same `titleCaseCaps`.
 - **Controls:** keep a panel to a few visible controls; rarely used options go in a menu (`openMenu`), like the volume chart's ⚙ (chart style, period, gridlines). The volume legend doubles as the month-on-month scoreboard.
-- **Navigation** is grouped (Markets / Research / Macro) via `group` in `components/shell/routes.ts`.
+- **Navigation:** six sidebar sections (Hub, M&A, Valuation, Advisors, IPOs, Macro; `SECTIONS` in `components/shell/routes.ts`). A section with several pages shows them as tabs above the page (`SectionTabs`, sliding underline); M&A = Deal Flow · Volume · Deal Terms · Timelines · Activism, Valuation = Multiples · Precedents. URLs are unchanged. The sidebar link returns to the tab last open in that section. Add a new page to an existing section rather than a new sidebar item.
 - **Motion:**
   - page sections rise in one after another (`.page-enter > *`);
   - KPI and valuation figures count up (`AnimatedNumber`, only after hydration, so the first load never flashes);

@@ -12,13 +12,14 @@ import { useWorkspaceDialogs } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { formatTimestampET } from "@/lib/format";
 import { GlobalSearch } from "./GlobalSearch";
-import { ROUTES, routeForPath } from "./routes";
+import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
+import { SectionTabs } from "./SectionTabs";
 
 /** Sidebar, top bar and footer around every page. */
 export function AppShell({ children }: { children: ReactNode }) {
   const { data } = useHubData();
   const { openDefinitions } = useDetails();
-  const { toast, openMenu } = useUi();
+  const { openMenu } = useUi();
   const ws = useWorkspace();
   const { openWatchlist, openShortcuts, openManageViews } = useWorkspaceDialogs();
 
@@ -45,7 +46,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const route = routeForPath(pathname);
+  const section = sectionOf(route.section);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The tab last open in each section, so the sidebar link returns to it.
+  const [lastTab, setLastTab] = useState<Partial<Record<SectionId, string>>>({});
+  useEffect(() => {
+    if (route.section && section && section.routes.length > 1) setLastTab((t) => (t[route.section!] === pathname ? t : { ...t, [route.section!]: pathname })); // eslint-disable-line react-hooks/set-state-in-effect -- remember the open tab
+  }, [pathname, route.section, section]);
   const shortcutsRef = useRef(openShortcuts);
   useEffect(() => {
     shortcutsRef.current = openShortcuts;
@@ -65,11 +72,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         e.preventDefault();
         shortcutsRef.current();
       }
-      // Alt+1…9 jumps between sections.
-      if (e.altKey && /^[1-9]$/.test(e.key)) {
+      // Alt+1…6 jumps between sections.
+      const target = e.altKey && /^[1-9]$/.test(e.key) ? SECTIONS[Number(e.key) - 1] : undefined;
+      if (target) {
         e.preventDefault();
         document.querySelector<HTMLDialogElement>("dialog[open]")?.close();
-        router.push(ROUTES[Number(e.key) - 1].href);
+        router.push(target.routes[0].href);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -84,29 +92,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Image src="/castle-logo.png" alt="Castle" width={640} height={629} priority />
         </Link>
         <nav className="nav">
-          {ROUTES.map((r, i) => {
-            const active = r.id === route.id;
-            const content = (
-              <>
-                <Icon name={r.icon} />
-                {r.title}
-                {r.id === "deal-flow" && <span className="nav-count">{data.totalDeals.toLocaleString("en-US")}</span>}
-                {r.soon && <span className="nav-count">SOON</span>}
-              </>
-            );
+          {SECTIONS.map((s, i) => {
+            const active = s.id === route.section;
             return (
-              <div key={r.id} style={{ display: "contents" }}>
-                {r.group !== ROUTES[i - 1]?.group && <div className="nav-group">{r.group}</div>}
-                {r.soon ? (
-                  <button type="button" className="nav-link" style={{ opacity: 0.6 }} onClick={() => toast(`${r.title} is coming soon.`)}>
-                    {content}
-                  </button>
-                ) : (
-                  <Link className={`nav-link ${active ? "active" : ""}`} href={r.href} aria-current={active ? "page" : undefined} title={`${r.title} · Alt ${i + 1}`}>
-                    {content}
-                  </Link>
-                )}
-              </div>
+              <Link
+                key={s.id}
+                className={`nav-link ${active ? "active" : ""}`}
+                href={lastTab[s.id] ?? s.routes[0].href}
+                aria-current={active ? "page" : undefined}
+                title={`${s.title}${s.routes.length > 1 ? `: ${s.routes.map((r) => r.tab).join(", ")}` : ""} · Alt ${i + 1}`}
+              >
+                <Icon name={s.icon} />
+                {s.title}
+                {s.id === "ma" && <span className="nav-count">{data.totalDeals.toLocaleString("en-US")}</span>}
+              </Link>
             );
           })}
         </nav>
@@ -128,7 +127,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon name="menu" />
           </button>
           <div className="top-location">
-            <span>Castle</span>
+            <span>{section && section.id !== "hub" ? section.title : "Castle"}</span>
             <Icon name="chevron" />
             <strong>{route.title}</strong>
           </div>
@@ -157,6 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               reconnects.
             </div>
           )}
+          {section && section.routes.length > 1 && <SectionTabs section={section} activeId={route.id} />}
           <div className="page-enter" key={pathname}>
             {children}
           </div>

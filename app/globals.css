@@ -134,8 +134,6 @@
   .brand img { width: 104px; height: auto; max-width: none; flex-shrink: 0; opacity: 0.94; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s; }
   .brand:hover img { transform: scale(1.03); opacity: 1; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
-  .nav-group { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #5c5c5c; padding: 16px 12px 6px; }
-  .nav-group:first-child { padding-top: 4px; }
   .nav-link { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; color: #959595; border: 1px solid transparent; border-radius: 6px; font-size: 12px; font-weight: 450; position: relative; text-align: left; white-space: nowrap; transition: background 0.15s, color 0.15s, border-color 0.15s; }
   .nav-link:hover { background: #0e0e0e; color: #d8d8d8; }
   .nav-link.active { color: #f2f2f2; background: #151515; border-color: #2c2c2c; }
@@ -183,6 +181,13 @@
   .menu-toggle { display: none; padding: 3px; color: var(--color-muted); }
   .menu-backdrop { display: none; }
   .main { max-width: 1730px; margin: auto; padding: 29px 30px 0; min-height: calc(100vh - 110px); }
+  /* Section tabs: the pages inside a sidebar section, with a sliding underline. */
+  .section-tabs { position: relative; display: flex; gap: 26px; margin: -8px 0 24px; border-bottom: 1px solid var(--color-line); overflow-x: auto; scrollbar-width: none; animation: fade-in 0.3s ease both; }
+  .section-tabs::-webkit-scrollbar { display: none; }
+  .section-tab { position: relative; padding: 10px 0 12px; font-size: 12px; color: #8a8a8a; white-space: nowrap; transition: color 0.18s; }
+  .section-tab:hover { color: #d6d6d6; }
+  .section-tab.active { color: #f2f2f2; }
+  .section-tab-mark { position: absolute; left: 0; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: #e8e8e8; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
   /* A page's sections arrive one after another: heading, KPIs, then panels. */
   .page-enter > * { animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
   .page-enter > :nth-child(2) { animation-delay: 0.04s; }
