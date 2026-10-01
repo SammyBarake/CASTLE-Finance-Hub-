@@ -2,6 +2,7 @@ import "server-only";
 import { existsSync, readFileSync } from "node:fs";
 import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
 import { bankShortName } from "./banks";
 import { buildHubData, toPublicDeal } from "./aggregate";
 import { sampleHubData } from "./sampleData";
@@ -63,9 +64,12 @@ async function loadHubData(): Promise<HubData> {
   let dataError: string | undefined;
   if (url && anonKey && !forceLocal) {
     try {
-      return await fromSupabase(url, anonKey);
+      return await fromSupabase();
     } catch (err) {
       console.error("Castle: Supabase read failed", err);
+      // On the live site a failed background refresh must not replace a good cached page with an empty one:
+      // throwing makes Next keep serving the last good version. (At build time there is none, so fall through.)
+      if (process.env.VERCEL && process.env.NEXT_PHASE !== "phase-production-build") throw err;
       dataError = `the database read failed (${(err as Error).message})`;
     }
   } else if (!forceLocal && process.env.VERCEL) {
@@ -83,30 +87,90 @@ async function loadHubData(): Promise<HubData> {
   return sampleHubData;
 }
 
-const PAGE = 1000;
+/*
+ * Shared data cache. Every page used to read all ~2,000 deals from Supabase itself (about 8 seconds each), so
+ * eleven pages regenerating together took up to a minute. Now one read is cached and shared by every page:
+ *  - meta (asOf, macro, activists): re-checked every 5 minutes;
+ *  - deals and IPOs: cached per `asOf`, so all chunks come from the same ingest snapshot and a new ingest
+ *    simply starts new cache entries. Deals are cached in chunks of 500 (Next's data cache stores at most
+ *    2 MB per entry).
+ */
+const CHUNK = 500;
+/** The deal fields the site uses; ingest bookkeeping (checked-at dates, source lists) stays in the database. */
+const DEAL_FIELDS = [
+  "id", "announcedDate", "acquirer", "target", "valueUsd", "pricePerShare", "premiumPct", "consideration", "sector", "industry", "status", "statusDate",
+  "enterpriseValueUsd", "evEbitda", "evRevenue", "acquirerAdvisors", "targetAdvisors", "filings", "milestones", "privateTarget", "terms", "fairness",
+];
+const DEAL_SELECT = DEAL_FIELDS.map((f) => `${f}:data->${f}`).join(",");
 
-async function fromSupabase(url: string, anonKey: string): Promise<HubData> {
-  const db = createClient(url, anonKey, { auth: { persistSession: false } });
-  const readAll = async <T,>(table: string, order: string): Promise<T[]> => {
-    const out: T[] = [];
-    for (let from = 0; ; from += PAGE) {
-      const { data, error } = await db.from(table).select("data").order(order, { ascending: false }).range(from, from + PAGE - 1);
-      if (error) throw new Error(`${table}: ${error.message}`);
-      out.push(...(data ?? []).map((r) => r.data as T));
-      if (!data || data.length < PAGE) return out;
+function supabase() {
+  const { url, anonKey } = sourceConfig();
+  return createClient(url!, anonKey!, { auth: { persistSession: false } });
+}
+
+/** Retry transient failures (many pages prerendering at once can drop a connection): 3 tries, 1s then 3s apart. */
+async function withRetry<T>(read: () => PromiseLike<{ data: T; error: { message: string } | null }>, label: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    let message: string;
+    try {
+      const { data, error } = await read();
+      if (!error) return data;
+      message = error.message;
+    } catch (err) {
+      message = (err as Error).message;
     }
-  };
-  const [deals, ipos, meta] = await Promise.all([
-    readAll<Deal>("deals", "announced_date"),
-    readAll<Ipo>("ipos", "filed_date"),
-    db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"]),
-  ]);
+    if (attempt >= 2) throw new Error(`${label}: ${message}`);
+    await new Promise((r) => setTimeout(r, attempt ? 3000 : 1000));
+  }
+}
+
+const cachedMeta = unstable_cache(
+  async () => {
+    const data = await withRetry(() => supabase().from("meta").select("key, value").in("key", ["asOf", "macro", "activists"]), "meta");
+    return data ?? [];
+  },
+  ["castle-meta-v1"],
+  { revalidate: 300, tags: ["hub"] },
+);
+
+const cachedDealChunk = unstable_cache(
+  async (_asOf: string, from: number) => {
+    const data = await withRetry(() => supabase().from("deals").select(DEAL_SELECT).order("announced_date", { ascending: false }).range(from, from + CHUNK - 1), "deals");
+    // Fields a record doesn't have come back as null; drop them so records keep their usual shape.
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => Object.fromEntries(Object.entries(r).filter(([, v]) => v != null)) as unknown as Deal);
+  },
+  ["castle-deals-v1"],
+  { revalidate: 86_400, tags: ["hub"] },
+);
+
+const cachedIpos = unstable_cache(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- `asOf` is only part of the cache key
+  async (_asOf: string) => {
+    const data = await withRetry(() => supabase().from("ipos").select("data").order("filed_date", { ascending: false }), "ipos");
+    return (data ?? []).map((r) => r.data as Ipo);
+  },
+  ["castle-ipos-v1"],
+  { revalidate: 86_400, tags: ["hub"] },
+);
+
+async function fromSupabase(): Promise<HubData> {
+  const meta = await cachedMeta();
+  const metaValue = (key: string) => meta.find((m) => m.key === key)?.value;
+  const asOf = (metaValue("asOf") as string | undefined) ?? "unknown";
+  const deals: Deal[] = [];
+  const seen = new Set<string>();
+  // Four chunks at a time: a cold read takes one round of queries instead of five in a row.
+  for (let from = 0; ; from += CHUNK * 4) {
+    const batch = await Promise.all([0, 1, 2, 3].map((i) => cachedDealChunk(asOf, from + i * CHUNK)));
+    for (const chunk of batch) for (const d of chunk) if (!seen.has(d.id) && seen.add(d.id)) deals.push(d);
+    if (batch.some((c) => c.length < CHUNK)) break;
+  }
+  const ipos = await cachedIpos(asOf);
   if (!deals.length && !ipos.length) throw new Error("Supabase is empty; run the ingest first");
-  const metaValue = (key: string) => meta.data?.find((m) => m.key === key)?.value;
   return buildHubData({
     deals,
     ipos,
-    asOf: (metaValue("asOf") as string) ?? new Date().toISOString(),
+    asOf: asOf === "unknown" ? new Date().toISOString() : asOf,
     macro: (metaValue("macro") as Macro | undefined) ?? null,
     activists: (metaValue("activists") as ActivistStake[] | undefined) ?? [],
     shortName: bankShortName,

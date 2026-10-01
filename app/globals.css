@@ -32,6 +32,9 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /* One motion language: quick to start, gentle to settle. */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   }
   /* Reserve the scrollbar's space so opening a dialog (which locks scrolling) doesn't shift the page sideways. */
   html {
@@ -116,8 +119,9 @@
   .right { text-align: right; }
   .nowrap { white-space: nowrap; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color); display: inline-block; flex-shrink: 0; }
-  .button { border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 7px 11px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #d1d1d1; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+  .button { border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 7px 11px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #d1d1d1; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s var(--ease-out); }
   .button:hover { background: #202020; border-color: #484848; }
+  .button:active, .tool-icon:active, .segmented button:active { transform: scale(0.97); }
   .button .icon { width: 13px; height: 13px; }
   .small-link { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: #b0b0b0; padding: 2px 0; white-space: nowrap; }
   .small-link:hover { color: #f3f3f3; }
@@ -187,15 +191,20 @@
   .section-tab { position: relative; padding: 10px 0 12px; font-size: 12px; color: #8a8a8a; white-space: nowrap; transition: color 0.18s; }
   .section-tab:hover { color: #d6d6d6; }
   .section-tab.active { color: #f2f2f2; }
-  .section-tab-mark { position: absolute; left: 0; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: #e8e8e8; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .section-tab-mark { position: absolute; left: 0; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: #e8e8e8; transition: transform 0.4s var(--ease-out), width 0.4s var(--ease-out); }
+  /* Navigation progress: a hairline across the top while a page loads. */
+  .nav-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.35s ease 0.1s; }
+  .nav-progress.on { opacity: 1; transition: opacity 0.12s; }
+  .nav-progress i { display: block; height: 100%; transform-origin: left center; background: linear-gradient(90deg, #6d6d6d, #f4f4f4); box-shadow: 0 0 10px #ffffff40; transition: transform 0.2s linear; }
+  .nav-progress.done i { transition: transform 0.18s var(--ease-out); }
   /* A page's sections arrive one after another: heading, KPIs, then panels. */
-  .page-enter > * { animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-  .page-enter > :nth-child(2) { animation-delay: 0.04s; }
-  .page-enter > :nth-child(3) { animation-delay: 0.08s; }
-  .page-enter > :nth-child(4) { animation-delay: 0.12s; }
-  .page-enter > :nth-child(5) { animation-delay: 0.16s; }
-  .page-enter > :nth-child(6) { animation-delay: 0.2s; }
-  .page-enter > :nth-child(n + 7) { animation-delay: 0.24s; }
+  .page-enter > * { animation: rise-in 0.45s var(--ease-out) both; }
+  .page-enter > :nth-child(2) { animation-delay: 0.035s; }
+  .page-enter > :nth-child(3) { animation-delay: 0.07s; }
+  .page-enter > :nth-child(4) { animation-delay: 0.105s; }
+  .page-enter > :nth-child(5) { animation-delay: 0.14s; }
+  .page-enter > :nth-child(6) { animation-delay: 0.175s; }
+  .page-enter > :nth-child(n + 7) { animation-delay: 0.21s; }
   .page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23px; gap: 20px; }
   .page-heading p { font-size: 11px; color: #898989; margin-top: 7px; }
   .head-tools { display: flex; align-items: center; gap: 12px; }
@@ -363,13 +372,13 @@
    * simply show/hide instantly.
    */
   .modal { background: #0a0a0a; border: 1px solid #363636; border-radius: 8px; color: var(--color-fg); padding: 0; margin: auto; width: 590px; max-width: calc(100vw - 30px); max-height: 85vh; box-shadow: 0 30px 100px #000b;
-    opacity: 0; transform: translateY(6px) scale(0.99);
-    transition: opacity 0.16s ease, transform 0.16s ease, overlay 0.16s allow-discrete, display 0.16s allow-discrete; }
+    opacity: 0; transform: translateY(8px) scale(0.985);
+    transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out), overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
   .modal[open] { opacity: 1; transform: none; }
-  .modal::backdrop { background: #000b; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.16s ease, overlay 0.16s allow-discrete, display 0.16s allow-discrete; }
+  .modal::backdrop { background: #000b; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.25s ease, overlay 0.25s allow-discrete, display 0.25s allow-discrete; }
   .modal[open]::backdrop { opacity: 1; }
   @starting-style {
-    .modal[open] { opacity: 0; transform: translateY(6px) scale(0.99); }
+    .modal[open] { opacity: 0; transform: translateY(8px) scale(0.985); }
     .modal[open]::backdrop { opacity: 0; }
   }
   .modal-header { padding: 23px 25px 20px; position: relative; border-bottom: 1px solid var(--color-line); }
@@ -390,7 +399,7 @@
   .definition strong { display: block; font-size: 11px; font-weight: 500; color: #d7d7d7; margin-bottom: 4px; }
   .definition p { font-size: 11px; margin: 0; color: #9c9c9c; }
   .modal.detail-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: 510px; max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-left: 1px solid #363636; border-radius: 0;
-    opacity: 1; transform: translateX(100%); transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), overlay 0.24s allow-discrete, display 0.24s allow-discrete; }
+    opacity: 1; transform: translateX(100%); transition: transform 0.38s var(--ease-drawer), overlay 0.38s allow-discrete, display 0.38s allow-discrete; }
   .modal.detail-drawer[open] { transform: none; }
   .modal.detail-drawer::backdrop { background: #0006; backdrop-filter: none; }
   @starting-style {
@@ -800,7 +809,7 @@
 
 @keyframes reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes page-in { from { transform: translateY(4px); } to { transform: none; } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes live-pulse { 0% { opacity: 0.7; transform: scale(0.6); } 70%, 100% { opacity: 0; transform: scale(1.8); } }
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

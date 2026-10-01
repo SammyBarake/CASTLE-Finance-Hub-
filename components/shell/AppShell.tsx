@@ -13,6 +13,7 @@ import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { formatTimestampET } from "@/lib/format";
 import { GlobalSearch } from "./GlobalSearch";
 import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
+import { NavigationProgress } from "./NavigationProgress";
 import { SectionTabs } from "./SectionTabs";
 
 /** Sidebar, top bar and footer around every page. */
@@ -86,6 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <NavigationProgress />
       <div className={`menu-backdrop ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? "open" : ""}`} id="sidebar" aria-label="Primary navigation">
         <Link className="brand" href="/" aria-label="Castle home">
