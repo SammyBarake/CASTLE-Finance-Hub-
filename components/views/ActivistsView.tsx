@@ -5,15 +5,15 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { Icon } from "@/components/ui/Icon";
-import { Kpi, Kpis, PageHeading, PanelHead } from "@/components/ui/primitives";
-import { EmptyRow, RowLink } from "@/components/ui/table";
+import { AboutData, Kpi, Kpis, PageHeading, PanelHead, Takeaways } from "@/components/ui/primitives";
+import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { activistInsights, activistStats, laterDeal } from "@/lib/activists";
-import { formatDate, formatDateFull, formatDateLong, formatUsd } from "@/lib/format";
+import { formatDate, formatDateLong, formatUsd } from "@/lib/format";
 import type { ActivistStake, Deal } from "@/lib/types";
 
 const PAGE = 25;
-const pct = (v: number | null) => (v == null ? "n/a" : `${v.toFixed(1)}%`);
+const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
 function StakeBody({ stake, deal, onOpenDeal }: { stake: ActivistStake; deal: Deal | null; onOpenDeal: (d: Deal) => void }) {
   return (
@@ -24,8 +24,8 @@ function StakeBody({ stake, deal, onOpenDeal }: { stake: ActivistStake; deal: De
           <CompanyLink company={stake.company}>{stake.company.ticker ? `${stake.company.name} (${stake.company.ticker})` : stake.company.name}</CompanyLink>
         </DetailItem>
         <DetailItem label="Stake">{pct(stake.percent)}</DetailItem>
-        <DetailItem label="Shares">{stake.shares != null ? stake.shares.toLocaleString("en-US") : "n/a"}</DetailItem>
-        <DetailItem label="Crossed 5%">{stake.eventDate ? formatDateLong(stake.eventDate) : "n/a"}</DetailItem>
+        <DetailItem label="Shares">{stake.shares != null ? stake.shares.toLocaleString("en-US") : "—"}</DetailItem>
+        <DetailItem label="Crossed 5%">{stake.eventDate ? formatDateLong(stake.eventDate) : "—"}</DetailItem>
         <DetailItem label="Filed">{formatDateLong(stake.filedDate)}</DetailItem>
         <DetailItem label="Amendments since">{stake.amendments ? `${stake.amendments} (latest ${formatDateLong(stake.lastAmended!)})` : "None"}</DetailItem>
         <DetailItem label="What they want">{stake.aims.length ? stake.aims.join(", ") : "Not specific"}</DetailItem>
@@ -79,7 +79,7 @@ export function ActivistsView() {
   if (!stakes.length) {
     return (
       <>
-        <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change" date={formatDateFull(data.asOf)} />
+        <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change" />
         <section className="panel">
           <div className="empty-small">{data.isSample ? "Activist stakes come from real SEC filings, so they appear once the site is showing live data." : "No activist filings yet. They appear after the next data refresh."}</div>
         </section>
@@ -89,7 +89,7 @@ export function ActivistsView() {
 
   return (
     <>
-      <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change · Schedule 13D" date={formatDateFull(data.asOf)} />
+      <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change · Schedule 13D" />
 
       <Kpis label="Activist summary">
         <Kpi label="Activist stakes" value={stats.count} note={stats.since ? `Since ${formatDate(stats.since)}` : ""} />
@@ -98,14 +98,7 @@ export function ActivistsView() {
         <Kpi label="Later agreed to a sale" value={stats.sold.length} note="Deal announced after the stake" />
       </Kpis>
 
-      <section className="panel timeline-notes">
-        <PanelHead title="What is an activist?" subtitle="How the 13D works, and what the filings show" />
-        <ul>
-          {notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      </section>
+      <Takeaways items={notes} />
 
       <div className="two-col timeline-grid">
         <section className="panel">
@@ -199,21 +192,20 @@ export function ActivistsView() {
             </tbody>
           </table>
         </div>
-        {rows.length > shown && (
-          <div className="panel-foot">
-            <span>
-              Showing {shown} of {rows.length}
-            </span>
-            <button type="button" className="small-link" onClick={() => setShown((n) => n + PAGE * 2)}>
-              Show more
-            </button>
-          </div>
-        )}
+        <ShowMore shown={shown} total={rows.length} onMore={() => setShown((n) => n + PAGE * 2)} />
       </section>
-      <p className="note">
-        From Schedule 13D filings (the structured format the SEC introduced in December 2024) where the company is U.S.-listed and the investor is a known activist fund or states
-        a campaign in Item 4 (board seats, a sale, capital return, governance changes or a break-up). Founders and holders who received shares in a merger are left out.
-      </p>
+      <AboutData>
+        <p>
+          <strong>What a 13D is.</strong> Anyone who buys more than 5% of a U.S.-listed company and may try to influence it must file a Schedule 13D within 5
+          business days, saying who they are, how much they own and what they want. Passive investors file the shorter 13G instead. Activists rarely need
+          control, just enough shares to be taken seriously; pushing for a sale is one of the fastest ways to cash in.
+        </p>
+        <p>
+          <strong>Sources.</strong> Schedule 13D filings (the structured format the SEC introduced in December 2024) where the company is U.S.-listed and the
+          investor is a known activist fund or states a campaign in Item 4 (board seats, a sale, capital return, governance changes or a break-up). Founders
+          and holders who received shares in a merger are left out.
+        </p>
+      </AboutData>
     </>
   );
 }

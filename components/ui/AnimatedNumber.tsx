@@ -16,21 +16,33 @@ const render = (p: NonNullable<ReturnType<typeof split>>, v: number) =>
 const reduced = () =>
   document.documentElement.classList.contains("reduce-motion") || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// Figures count up from zero when a page opens inside the running app. On the very first load the server-rendered
+// value is shown as is: counting would first flash the real number, then zero.
+let hydrated = false;
+
 /**
- * Shows a formatted figure; when it changes (new data arriving in the background) it counts from the old value
- * to the new one over ~0.9s instead of jumping. First render, unit changes ("$950B" -> "$1.02T") and reduced
+ * Shows a formatted figure; when it changes (a page opening, a filter, new data arriving in the background) it
+ * counts from the old value to the new one instead of jumping. Unit changes ("$950B" -> "$1.02T") and reduced
  * motion show the new text directly.
  */
 export function AnimatedNumber({ text }: { text: string }) {
-  const [shown, setShown] = useState(text);
+  const [initial] = useState(() => {
+    const p = typeof window !== "undefined" && hydrated && !reduced() ? split(text) : null;
+    return p ? render(p, 0) : text;
+  });
+  const [shown, setShown] = useState(initial);
   // What is on screen right now, so an interrupted count continues from there.
-  const onScreen = useRef(text);
-  const show = (s: string) => {
-    onScreen.current = s;
-    setShown(s);
-  };
+  const onScreen = useRef(initial);
 
   useEffect(() => {
+    hydrated = true;
+  }, []);
+
+  useEffect(() => {
+    const show = (s: string) => {
+      onScreen.current = s;
+      setShown(s);
+    };
     const a = split(onScreen.current);
     const b = split(text);
     if (!a || !b || a.prefix !== b.prefix || a.suffix !== b.suffix || a.value === b.value || reduced()) {
@@ -38,10 +50,11 @@ export function AnimatedNumber({ text }: { text: string }) {
       return;
     }
     const start = performance.now();
+    const duration = a.value === 0 ? 800 : 900;
     let frame = 0;
     const step = (now: number) => {
       // A frame's timestamp can precede `start`: clamp, or the first frame would move the wrong way.
-      const t = Math.min(1, Math.max(0, (now - start) / 900));
+      const t = Math.min(1, Math.max(0, (now - start) / duration));
       const eased = 1 - Math.pow(1 - t, 3);
       show(t < 1 ? render(b, a.value + (b.value - a.value) * eased) : text);
       if (t < 1) frame = requestAnimationFrame(step);
@@ -51,7 +64,7 @@ export function AnimatedNumber({ text }: { text: string }) {
     const settle = setTimeout(() => {
       cancelAnimationFrame(frame);
       show(text);
-    }, 1000);
+    }, duration + 150);
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settle);

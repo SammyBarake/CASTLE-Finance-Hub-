@@ -7,7 +7,7 @@ import { Change, CompanyMark, Kpi, Kpis, PageHeading, PageLink } from "@/compone
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions } from "@/components/workspace/actions";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
-import { formatDate, formatDateFull, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
+import { formatDate, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { ValuationMetric } from "@/lib/metrics";
 import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRICS, VolumePanel } from "./sections";
 
@@ -29,7 +29,7 @@ export function HubView() {
 
   return (
     <>
-      <PageHeading title="Hub" subtitle={`U.S. investment banking · ${monthYear(data.asOf)}`} date={formatDateFull(data.asOf)} onExport={exportDeals} exportLabel="Export deals as CSV" />
+      <PageHeading title="Hub" subtitle={`U.S. investment banking · ${monthYear(data.asOf)}`} onExport={exportDeals} exportLabel="Export deals as CSV" />
 
       <Kpis label="Market snapshot">
         <Kpi label="Announced M&A value" value={ytd ? formatUsd(ytd.value) : "—"} note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />

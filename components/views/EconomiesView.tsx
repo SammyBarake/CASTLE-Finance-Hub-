@@ -7,7 +7,7 @@ import { Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDate, formatDateFull } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import type { Economy, Region } from "@/lib/types";
 
 const pct = (v: number | null, digits = 1) => (v == null ? "—" : `${v.toFixed(digits)}%`);
@@ -51,7 +51,7 @@ export function EconomiesView() {
   if (!macro) {
     return (
       <>
-        <PageHeading title="World Economies" subtitle="Growth, inflation and interest rates" date={formatDateFull(data.asOf)} />
+        <PageHeading title="World Economies" subtitle="Growth, inflation and interest rates" />
         <section className="panel">
           <div className="empty-small">Macro data hasn&apos;t been collected yet. It&apos;s fetched with the next scheduled data update.</div>
         </section>
@@ -64,7 +64,7 @@ export function EconomiesView() {
 
   return (
     <>
-      <PageHeading title="World Economies" subtitle={`Growth, inflation and interest rates · ${monthYear(macro.asOf)}`} date={formatDateFull(data.asOf)} onExport={exportRows} />
+      <PageHeading title="World Economies" subtitle={`Growth, inflation and interest rates · ${monthYear(macro.asOf)}`} onExport={exportRows} />
 
       <Kpis label="U.S. snapshot">
         <Kpi label="U.S. GDP growth" value={pct(us?.gdpGrowth ?? null)} note={`${year} IMF estimate · ${us?.gdpGrowthPrior != null ? `${pct(us.gdpGrowthPrior)} in ${year - 1}` : ""}`} />

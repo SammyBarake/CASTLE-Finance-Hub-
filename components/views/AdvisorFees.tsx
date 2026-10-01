@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { CompanyMark, Kpi, Kpis, PanelHead } from "@/components/ui/primitives";
-import { EmptyRow, RowLink } from "@/components/ui/table";
+import { AboutData, CompanyMark, Kpi, Kpis, PanelHead, Takeaways } from "@/components/ui/primitives";
+import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { bankShortName } from "@/lib/banks";
 import { feeInsights, feeLeague, feeRecords, feesBySize, formatBps } from "@/lib/fees";
 import { formatDate, formatUsd } from "@/lib/format";
@@ -49,14 +49,7 @@ export function AdvisorFees() {
         <Kpi label="Median fee % of deal" value={formatBps(medianBps)} note="Fee ÷ deal value" />
       </Kpis>
 
-      <section className="panel timeline-notes">
-        <PanelHead title="What the data says" subtitle="How investment banks get paid for M&A advice" />
-        <ul>
-          {notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      </section>
+      <Takeaways items={notes} />
 
       <div className="two-col timeline-grid">
         <section className="panel">
@@ -111,10 +104,6 @@ export function AdvisorFees() {
               </div>
             ))}
           </div>
-          <p className="fee-explain">
-            A 1% fee on a $300M deal is $3M; on a $30B deal it would be $300M, which no board would pay. Banks charge more in percentage terms on small deals and less on large ones, but
-            the dollar amounts still rise with size.
-          </p>
         </section>
       </div>
 
@@ -152,21 +141,19 @@ export function AdvisorFees() {
             </tbody>
           </table>
         </div>
-        {paydays.length > shown && (
-          <div className="panel-foot">
-            <span>
-              Showing {shown} of {paydays.length}
-            </span>
-            <button type="button" className="small-link" onClick={() => setShown((n) => n + PAGE * 2)}>
-              Show more
-            </button>
-          </div>
-        )}
+        <ShowMore shown={shown} total={paydays.length} onMore={() => setShown((n) => n + PAGE * 2)} />
       </section>
-      <p className="note">
-        Fees as stated in the fairness-opinion section of each merger proxy or Schedule 14D-9, usually the bank&apos;s total expected fee including the part paid only if the deal
-        closes. Not every proxy states a fee; fees above 5% of the deal value are left out as likely parsing errors.
-      </p>
+      <AboutData>
+        <p>
+          <strong>How banks are paid.</strong> Most of an M&amp;A fee is a success fee, paid only if the deal closes; a smaller part is due when the bank delivers
+          its fairness opinion. The work doesn&apos;t shrink with the deal, so small deals pay a larger percentage: 1% of $300M is $3M, while 1% of $30B would be
+          $300M, which no board would pay.
+        </p>
+        <p>
+          <strong>Sources.</strong> Fees as stated in the fairness-opinion section of each merger proxy or Schedule 14D-9, usually the bank&apos;s total expected fee
+          including the success fee. Not every proxy states a fee; fees above 5% of the deal value are left out as likely parsing errors.
+        </p>
+      </AboutData>
     </>
   );
 }

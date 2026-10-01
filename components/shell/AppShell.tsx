@@ -90,13 +90,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               <>
                 <Icon name={r.icon} />
                 {r.title}
-                {r.id === "deal-flow" && <span className="nav-count">{data.totalDeals}</span>}
+                {r.id === "deal-flow" && <span className="nav-count">{data.totalDeals.toLocaleString("en-US")}</span>}
                 {r.soon && <span className="nav-count">SOON</span>}
               </>
             );
             return (
               <div key={r.id} style={{ display: "contents" }}>
-                {r.id === "world-economies" && <div className="sidebar-divider" />}
+                {r.group !== ROUTES[i - 1]?.group && <div className="nav-group">{r.group}</div>}
                 {r.soon ? (
                   <button type="button" className="nav-link" style={{ opacity: 0.6 }} onClick={() => toast(`${r.title} is coming soon.`)}>
                     {content}
@@ -115,14 +115,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon name="file" />
             Data definitions
           </button>
-          <button type="button" onClick={() => document.getElementById("global-search")?.focus()}>
-            <Icon name="search" />
-            Search <kbd style={{ marginLeft: "auto" }}>Ctrl K</kbd>
+          <button type="button" onClick={openShortcuts}>
+            <Icon name="info" />
+            Shortcuts <kbd style={{ marginLeft: "auto" }}>?</kbd>
           </button>
-          <div className="sidebar-meta">
-            <span>United States</span>
-            <span>USD</span>
-          </div>
         </div>
       </aside>
 
@@ -138,9 +134,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="top-tools">
             <GlobalSearch />
-            {!data.dataError && (
-              <div className="updated">
-                Last updated<span>{formatTimestampET(data.asOf)}</span>
+            {!data.dataError && !data.isSample && (
+              <div className="live-status" title={`SEC EDGAR data, last refreshed ${formatTimestampET(data.asOf)}. Open pages update on their own.`}>
+                <i aria-hidden="true" />
+                Live<span>{formatTimestampET(data.asOf)}</span>
               </div>
             )}
             {data.isSample && <span className="sample-label sample-tag">Sample data</span>}

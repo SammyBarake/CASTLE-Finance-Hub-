@@ -159,7 +159,7 @@ export function PageLink({ href, children = "View all" }: { href: string; childr
 }
 
 /** Page title block with date and export button. */
-export function PageHeading({ title, subtitle, date, onExport, exportLabel }: { title: string; subtitle: string; date: string; onExport?: () => void; exportLabel?: string }) {
+export function PageHeading({ title, subtitle, onExport, exportLabel }: { title: string; subtitle: string; onExport?: () => void; exportLabel?: string }) {
   return (
     <div className="page-heading">
       <div>
@@ -169,7 +169,6 @@ export function PageHeading({ title, subtitle, date, onExport, exportLabel }: { 
         <p>{subtitle}</p>
       </div>
       <div className="head-tools">
-        <span className="head-date">{date}</span>
         {onExport && (
           <button type="button" className="button" onClick={onExport} aria-label={exportLabel ?? `Export ${title} data as CSV`}>
             <Icon name="download" />
@@ -178,6 +177,34 @@ export function PageHeading({ title, subtitle, date, onExport, exportLabel }: { 
         )}
       </div>
     </div>
+  );
+}
+
+/** A slim strip of short, number-led findings under a page's KPIs. */
+export function Takeaways({ items, label = "Key takeaways" }: { items: string[]; label?: string }) {
+  if (!items.length) return null;
+  return (
+    <section className="takeaways" aria-label={label}>
+      <h2>{label}</h2>
+      <ul>
+        {items.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Methodology and background, folded away until asked for. */
+export function AboutData({ title = "About this data", children }: { title?: string; children: ReactNode }) {
+  return (
+    <details className="about-data">
+      <summary>
+        <Icon name="info" />
+        {title}
+      </summary>
+      <div className="about-data-body">{children}</div>
+    </details>
   );
 }
 

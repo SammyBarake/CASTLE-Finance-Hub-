@@ -6,7 +6,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { PageHeading, SectorLabel, Select } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDateFull, formatQuarter } from "@/lib/format";
+import { formatQuarter } from "@/lib/format";
 import { valuationCards, type ValuationMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
 import type { SectorValuation } from "@/lib/types";
@@ -55,7 +55,7 @@ export function ValuationsView() {
 
   return (
     <>
-      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · LTM to ${latestQ ? formatQuarter(latestQ) : ""}`} date={formatDateFull(data.asOf)} onExport={exportRows} />
+      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · LTM to ${latestQ ? formatQuarter(latestQ) : ""}`} onExport={exportRows} />
 
       <div className="section-heading">
         <h2>

@@ -21,7 +21,7 @@ export function summaryText(kind: RecordKind, r: Deal | Ipo, isSample: boolean):
       `${d.acquirer.name} → ${d.target.name}${d.target.ticker ? ` (${d.target.ticker})` : ""}`,
       `Value: ${formatUsd(d.valueUsd)} · Offer: ${formatPrice(d.pricePerShare)} · Premium: ${formatPct(d.premiumPct)} · ${considerationLabel(d.consideration)}`,
       `${d.sector} · ${d.status} · Announced ${formatDateLong(d.announcedDate)}`,
-      `Advisors: ${d.acquirerAdvisors.join(", ") || "n/a"} / ${d.targetAdvisors.join(", ") || "n/a"}`,
+      `Advisors: ${d.acquirerAdvisors.join(", ") || "—"} / ${d.targetAdvisors.join(", ") || "—"}`,
       source,
     ].join("\n");
   }
@@ -30,7 +30,7 @@ export function summaryText(kind: RecordKind, r: Deal | Ipo, isSample: boolean):
     `${i.company.name}${i.company.ticker ? ` (${i.company.ticker})` : ""}`,
     `${i.sector} · ${i.stage} · Filed ${formatDateLong(i.filedDate)}`,
     `Expected raise: ${formatRaise(i.expectedRaiseUsd)}${i.offerPrice != null ? ` · Priced at ${formatPrice(i.offerPrice)}` : ""}`,
-    `Underwriters: ${i.underwriters.join(", ") || "n/a"}`,
+    `Underwriters: ${i.underwriters.join(", ") || "—"}`,
     source,
   ].join("\n");
 }
@@ -129,14 +129,14 @@ function CompareBody({ deals, isSample }: { deals: Deal[]; isSample: boolean }) 
     ["Deal value", (d) => formatUsd(d.valueUsd)],
     ["Offer price", (d) => formatPrice(d.pricePerShare)],
     ["Premium", (d) => formatPct(d.premiumPct)],
-    ["EV / EBITDA", (d) => (d.evEbitda == null ? "n/a" : `${d.evEbitda.toFixed(1)}x`)],
-    ["EV / Revenue", (d) => (d.evRevenue == null ? "n/a" : `${d.evRevenue.toFixed(1)}x`)],
+    ["EV / EBITDA", (d) => (d.evEbitda == null ? "—" : `${d.evEbitda.toFixed(1)}x`)],
+    ["EV / Revenue", (d) => (d.evRevenue == null ? "—" : `${d.evRevenue.toFixed(1)}x`)],
     ["Sector", (d) => d.sector],
     ["Status", (d) => d.status],
     ["Announced", (d) => formatDateLong(d.announcedDate)],
     ["Consideration", (d) => considerationLabel(d.consideration)],
-    ["Acquirer advisor", (d) => d.acquirerAdvisors.join(", ") || "n/a"],
-    ["Target advisor", (d) => d.targetAdvisors.join(", ") || "n/a"],
+    ["Acquirer advisor", (d) => d.acquirerAdvisors.join(", ") || "—"],
+    ["Target advisor", (d) => d.targetAdvisors.join(", ") || "—"],
   ];
   return (
     <>

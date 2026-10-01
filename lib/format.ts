@@ -5,7 +5,7 @@ const M = 1e6;
 
 /** $8.40B, $980M, $1.62T. Used for deal values and aggregates. */
 export function formatUsd(value: number | null): string {
-  if (value == null) return "Undisclosed";
+  if (value == null) return "—";
   if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
   if (value >= B) return `$${(value / B).toFixed(2)}B`;
   return `$${Math.round(value / M).toLocaleString("en-US")}M`;
@@ -16,19 +16,19 @@ export const formatUsdB1 = (value: number) => `$${(value / B).toFixed(1)}B`;
 
 /** $850M, $1.10B. IPO raises. */
 export function formatRaise(value: number | null): string {
-  if (value == null) return "TBD";
+  if (value == null) return "—";
   if (value >= B) return `$${(value / B).toFixed(2)}B`;
   return `$${Math.round(value / M).toLocaleString("en-US")}M`;
 }
 
 export const formatPct = (value: number | null, digits = 1) =>
-  value == null ? "n/a" : `${value.toFixed(digits)}%`;
+  value == null ? "—" : `${value.toFixed(digits)}%`;
 
 export const formatSignedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 
-export const formatMultiple = (value: number | null) => (value == null ? "n/a" : `${value.toFixed(1)}x`);
+export const formatMultiple = (value: number | null) => (value == null ? "—" : `${value.toFixed(1)}x`);
 
-export const formatPrice = (value: number | null) => (value == null ? "n/a" : `$${value.toFixed(2)}`);
+export const formatPrice = (value: number | null) => (value == null ? "—" : `$${value.toFixed(2)}`);
 
 const utc = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso);
 

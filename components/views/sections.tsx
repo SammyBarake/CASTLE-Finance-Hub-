@@ -5,7 +5,7 @@ import { LineChart } from "@/components/charts/LineChart";
 import { Icon } from "@/components/ui/Icon";
 import { VolumeExplorer } from "./VolumeExplorer";
 import { useHubData } from "@/components/data/HubDataProvider";
-import { DOWN, PageLink, SectorDot, Segment, Select, Sparkline, UP } from "@/components/ui/primitives";
+import { DOWN, PageLink, SectorDot, Segment, Sparkline, UP } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { formatMonth, formatQuarter, formatSignedPct } from "@/lib/format";
 import { sectorMomentum, valuationCards, type ValuationMetric, type VolumeMetric } from "@/lib/metrics";
@@ -85,15 +85,35 @@ function periodGroups(months: string[], granularity: "month" | "quarter") {
   return [...groups].map(([label, idx]) => ({ label: idx.length < 3 ? `${label}*` : label, idx }));
 }
 
+type ChartStyle = "stacked" | "bars" | "lines";
+
 export function VolumePanel({ state, large = false }: { state: VolumeState; large?: boolean }) {
   const { matrix, data } = useHubData();
+  const { openMenu } = useUi();
   const { visible, toggle } = useSectorToggle();
   const { metric, range } = state;
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
+  const [chartStyle, setChartStyle] = useState<ChartStyle>("stacked");
   const [granularity, setGranularity] = useState<"month" | "quarter">("month");
   const [grid, setGrid] = useState(true);
   const [exploring, setExploring] = useState(false);
   const closeExplorer = useCallback(() => setExploring(false), []);
+  const tick = (on: boolean) => (on ? "✓" : "  ");
+  const openOptions = (anchor: HTMLElement) =>
+    openMenu(
+      [
+        { kind: "title", label: "Chart" },
+        { kind: "action", label: `${tick(chartStyle === "stacked")} Stacked bars`, onSelect: () => setChartStyle("stacked") },
+        { kind: "action", label: `${tick(chartStyle === "bars")} Side-by-side bars`, onSelect: () => setChartStyle("bars") },
+        { kind: "action", label: `${tick(chartStyle === "lines")} Lines`, onSelect: () => setChartStyle("lines") },
+        { kind: "rule" },
+        { kind: "title", label: "Period" },
+        { kind: "action", label: `${tick(granularity === "month")} Monthly`, onSelect: () => setGranularity("month") },
+        { kind: "action", label: `${tick(granularity === "quarter")} Quarterly`, onSelect: () => setGranularity("quarter") },
+        { kind: "rule" },
+        { kind: "check", label: "Gridlines", checked: grid, onToggle: setGrid },
+      ],
+      { anchor },
+    );
 
   const months = matrix.months.slice(-range);
   const groups = useMemo(() => periodGroups(matrix.months.slice(-range), granularity), [matrix, range, granularity]);
@@ -114,7 +134,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
       }),
     [matrix, metric, range, visible, groups],
   );
-  const momentum = sectorMomentum(matrix, metric);
+  const momentum = new Map(sectorMomentum(matrix, metric).map((m) => [m.sector, m.changePct]));
   const latest = matrix.months.at(-1);
   const prev = matrix.months.at(-2);
   const periodLabel = months.length ? `${formatMonth(months[0])} – ${formatMonth(months.at(-1)!)}` : "";
@@ -125,7 +145,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
       <div className="panel-head">
         <div className="panel-heading">
           <h2>{large ? "Monthly activity" : "M&A volume"}</h2>
-          {!data.isSample && <small>Announced deals tracked by Castle: U.S.-listed targets and private companies bought by listed acquirers</small>}
+          <small>Announced U.S. M&A by target sector · {periodLabel}</small>
         </div>
         <div className="panel-controls">
           <Segment
@@ -138,6 +158,9 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
             ]}
           />
           <Segment label="Chart time range" value={range} onChange={state.setRange} options={rangesFor(matrix.months.length)} />
+          <button type="button" className="tool-icon" aria-label="Chart options" title="Chart options" onClick={(e) => openOptions(e.currentTarget)}>
+            <Icon name="settings" />
+          </button>
           <button type="button" className="button explorer-open" onClick={() => setExploring(true)} title="Open the full-screen explorer">
             <Icon name="expand" />
             Expand
@@ -146,80 +169,52 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
         </div>
       </div>
       {exploring && <VolumeExplorer seed={{ metric, range, sectors: SECTORS.filter((s) => visible.has(s)) }} onClose={closeExplorer} />}
-      <div className="chart-options">
-        <Select
-          id={`chart-type-${large ? "l" : "s"}`}
-          label="Chart type"
-          value={chartType}
-          onChange={setChartType}
-          options={[
-            { value: "line", label: "Line chart" },
-            { value: "bar", label: "Bar chart" },
-          ]}
-        />
-        <Select
-          id={`chart-granularity-${large ? "l" : "s"}`}
-          label="Aggregation"
-          value={granularity}
-          onChange={setGranularity}
-          options={[
-            { value: "month", label: "Monthly" },
-            { value: "quarter", label: "Quarterly" },
-          ]}
-        />
-        <label className="check-label">
-          <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
-          Grid
-        </label>
-      </div>
-      <div className="chart-layout">
-        <div className="chart-main">
-          <div className="chart-meta">
-            <Legend visible={visible} onToggle={toggle} label="Visible sectors" />
-            <span className="chart-unit">{metric === "value" ? "USD billions" : "Transactions"}</span>
+      <div className="chart-main">
+        <div className="chart-meta">
+          {/* Legend doubles as the month-on-month scoreboard: click a sector to hide or show it. */}
+          <div className="legend" role="group" aria-label="Visible sectors">
+            {SECTORS.map((s) => {
+              const change = momentum.get(s);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={visible.has(s)}
+                  aria-label={`Toggle ${s}`}
+                  title={change == null ? s : `${s}: ${formatSignedPct(change)} in ${shortMonth(latest)} vs. ${shortMonth(prev)}`}
+                  onClick={() => toggle(s)}
+                >
+                  <SectorDot sector={s} />
+                  {s}
+                  {change != null && <span className={`legend-change mono ${change >= 0 ? "up" : "down"}`}>{formatSignedPct(change)}</span>}
+                </button>
+              );
+            })}
           </div>
-          <LineChart
-            className={`chart-wrap ${large ? "large" : ""}`}
-            type={chartType}
-            grid={grid}
-            labels={labels}
-            series={series}
-            format={(v) => (metric === "value" ? `$${v}B` : `${v} deals`)}
-            formatTick={(v) => (metric === "value" ? `$${v}B` : String(v))}
-            ariaLabel={`${metric === "value" ? "M&A value in USD billions" : "M&A deal count"}, ${labels[0]} to ${labels.at(-1)}. Visible sectors: ${[...visible].join(", ")}.`}
-          />
+          <span className="chart-unit">
+            {metric === "value" ? "USD billions" : "Transactions"} · change {shortMonth(latest)} vs. {shortMonth(prev)}
+          </span>
         </div>
-        <aside className="momentum" aria-label="Sector momentum">
-          <div className="momentum-label">
-            <span>
-              {shortMonth(latest)} vs. {shortMonth(prev)}
-            </span>
-            <span>MoM</span>
-          </div>
-          {momentum.map(({ sector, changePct }) => {
-            const up = changePct >= 0;
-            return (
-              <div key={sector} className="momentum-row">
-                <div>
-                  <div className="momentum-sector">
-                    <SectorDot sector={sector} />
-                    {sector}
-                  </div>
-                  <div className="momentum-state">{up ? "Heating up" : "Cooling down"}</div>
-                </div>
-                <span className={`momentum-change mono ${up ? "up" : "down"}`}>{formatSignedPct(changePct)}</span>
-              </div>
-            );
-          })}
-        </aside>
+        <LineChart
+          className={`chart-wrap ${large ? "large" : ""}`}
+          type={chartStyle === "lines" ? "line" : "bar"}
+          stacked={chartStyle === "stacked"}
+          grid={grid}
+          labels={labels}
+          series={series}
+          showTotal
+          format={(v) => (metric === "value" ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 1 })}B` : `${v} deals`)}
+          formatTick={(v) => (metric === "value" ? `$${v}B` : String(v))}
+          ariaLabel={`${metric === "value" ? "M&A value in USD billions" : "M&A deal count"}, ${labels[0]} to ${labels.at(-1)}. Visible sectors: ${[...visible].join(", ")}.`}
+        />
       </div>
       <div className="panel-foot volume-foot">
         <span>
-          {periodLabel}
+          {granularity === "month" ? "Monthly" : "Quarterly"} totals
           {granularity === "quarter" && labels.some((l) => l.endsWith("*")) ? " · * Partial quarter" : ""}
         </span>
         <span className="secondary-note">
-          Announced transactions · {granularity === "month" ? "Monthly" : "Quarterly"} totals{data.isSample ? "" : " · SEC EDGAR"}
+          U.S.-listed targets and private companies bought by listed acquirers{data.isSample ? "" : " · SEC EDGAR"}
         </span>
       </div>
     </section>
@@ -250,7 +245,7 @@ export function ValuationMetricToggle({ value, onChange }: { value: ValuationMet
 export function ValuationCards({ metric, expanded = false }: { metric: ValuationMetric; expanded?: boolean }) {
   const { data } = useHubData();
   const m = VALUATION_METRICS[metric];
-  const { latestQuarter, cards } = valuationCards(data.valuations, metric);
+  const { cards } = valuationCards(data.valuations, metric);
   const quarters = [...new Set(data.valuations.map((v) => v.quarter))].sort();
   const priorQuarter = quarters.at(-2);
 

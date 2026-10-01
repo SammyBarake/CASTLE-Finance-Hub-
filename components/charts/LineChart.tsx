@@ -78,6 +78,7 @@ export function LineChart({
   highlight = null,
   onPointClick,
   maxTicks = 8,
+  showTotal = false,
 }: {
   labels: string[];
   series: ChartSeries[];
@@ -93,6 +94,8 @@ export function LineChart({
   highlight?: number | null;
   onPointClick?: (index: number, series: string | null) => void;
   maxTicks?: number;
+  /** Add a total row to the tooltip (additive series such as deal value or count). */
+  showTotal?: boolean;
 }) {
   const clickRef = useRef(onPointClick);
   const { prefs } = useWorkspace();
@@ -140,7 +143,8 @@ export function LineChart({
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: reduceMotion ? false : { duration: 300 },
+        // First draw grows in from the baseline; later updates ease between values.
+        animation: reduceMotion ? false : { duration: 750, easing: "easeOutQuart" },
         interaction: { mode: "index", intersect: false },
         onClick(event, elements, chart) {
           if (!clickRef.current || !elements.length) return;
@@ -187,7 +191,7 @@ export function LineChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 300 } : false;
+    chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 450, easing: "easeOutCubic" } : false;
     if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.display = grid;
     const scales = chart.options.scales as { x: { stacked?: boolean; ticks: { maxTicksLimit?: number } }; y: { stacked?: boolean } };
     scales.x.stacked = scales.y.stacked = type === "bar" && stacked;
@@ -238,9 +242,15 @@ export function LineChart({
           <div key={r.label} className="tooltip-line">
             <span className="dot" style={{ "--color": r.color } as React.CSSProperties} />
             {r.label}
-            <b>{r.value == null ? "n/a" : format(r.value)}</b>
+            <b>{r.value == null ? "—" : format(r.value)}</b>
           </div>
         ))}
+        {showTotal && tip.rows.length > 1 && (
+          <div className="tooltip-line tooltip-total">
+            Total
+            <b>{format(Math.round(tip.rows.reduce((a, r) => a + (r.value ?? 0), 0) * 10) / 10)}</b>
+          </div>
+        )}
       </div>
     </div>
   );

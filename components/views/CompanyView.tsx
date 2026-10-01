@@ -5,12 +5,12 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { Icon } from "@/components/ui/Icon";
-import { CompanyMark, Kpi, Kpis, PageHeading, PageLink, PanelHead, StatusTag } from "@/components/ui/primitives";
+import { AboutData, CompanyMark, Kpi, Kpis, PageHeading, PageLink, PanelHead, StatusTag } from "@/components/ui/primitives";
 import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { edgarCompanyUrl, findCompany, type CompanyBank } from "@/lib/companies";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDate, formatDateFull, formatDateLong, formatPct, formatRaise, formatUsd } from "@/lib/format";
+import { formatDate, formatDateLong, formatPct, formatRaise, formatUsd } from "@/lib/format";
 
 const bankRoles = (b: CompanyBank) =>
   [b.buySide && `Buy side ×${b.buySide}`, b.sellSide && `Sell side ×${b.sellSide}`, b.ipo && `IPO ×${b.ipo}`].filter(Boolean).join(" · ");
@@ -24,10 +24,10 @@ export function CompanyView({ id }: { id: string }) {
   if (!profile) {
     return (
       <>
-        <PageHeading title="Company not found" subtitle="No deal or IPO in Castle's feed involves this company." date={formatDateFull(data.asOf)} />
+        <PageHeading title="Company not found" subtitle="No deal or IPO in Castle's feed involves this company." />
         <section className="panel">
           <div className="empty-small">
-            It may be outside the current two-year window. <PageLink href="/deal-flow">Browse deal flow</PageLink>
+            Castle covers deals since 2021, IPO filings from the past year and activist stakes since late 2024. <PageLink href="/deal-flow">Browse deal flow</PageLink>
           </div>
         </section>
       </>
@@ -53,7 +53,7 @@ export function CompanyView({ id }: { id: string }) {
 
   return (
     <>
-      <PageHeading title={company.name} subtitle={subtitle} date={formatDateFull(data.asOf)} onExport={deals.length ? exportRows : undefined} exportLabel="Export this company's deals as CSV" />
+      <PageHeading title={company.name} subtitle={subtitle} onExport={deals.length ? exportRows : undefined} exportLabel="Export this company's deals as CSV" />
 
       <Kpis label="Company summary">
         <Kpi label="Acquisitions" value={bought.length} note={bought.length ? `${formatUsd(profile.acquiredValueUsd)} disclosed value` : "None in Castle's feed"} />
@@ -183,7 +183,7 @@ export function CompanyView({ id }: { id: string }) {
                 </span>
               </span>
               <span className="preview-value">
-                {s.percent != null ? `${s.percent.toFixed(1)}%` : "n/a"}
+                {s.percent != null ? `${s.percent.toFixed(1)}%` : "—"}
                 <small>stake</small>
               </span>
             </a>
@@ -191,11 +191,13 @@ export function CompanyView({ id }: { id: string }) {
         </section>
       )}
 
-      <p className="note">
-        {data.isSample
-          ? "Sample data · fictional company."
-          : "Built from the deals and IPOs Castle has detected in SEC filings over the last two years. Check the source documents before relying on any figure."}
-      </p>
+      <AboutData>
+        <p>
+          {data.isSample
+            ? "Sample data · fictional company."
+            : "Built from the deals, IPOs and activist stakes Castle has detected in SEC filings since 2021. Check the source documents before relying on any figure."}
+        </p>
+      </AboutData>
     </>
   );
 }

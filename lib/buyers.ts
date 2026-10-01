@@ -23,6 +23,8 @@ export function buyerType(deal: Deal): BuyerType {
   return "Strategic";
 }
 
+const usd = (v: number) => (v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${Math.round(v / 1e6)}M`);
+
 function median(xs: number[]): number | null {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
@@ -72,18 +74,16 @@ export function buyerInsights(groups: BuyerGroup[]): string[] {
   const [st, pe] = groups;
   const out: string[] = [];
   if (!st.count || !pe.count) return out;
-  out.push(`${pe.sharePct}% of deals had a private-equity buyer; the other ${st.sharePct}% were strategic: companies buying a competitor, supplier or new market.`);
   if (st.medianPremium != null && pe.medianPremium != null) {
-    const why =
-      "In theory strategics can justify paying more because they expect synergies (cost savings and extra sales from combining two businesses); a fund has no business to combine with, so it relies on borrowed money, operational improvements and selling later at a profit.";
     const gap = st.medianPremium - pe.medianPremium;
     out.push(
       Math.abs(gap) < 3
-        ? `Both paid about the same median premium (${Math.round(st.medianPremium)}%). ${why} Competition for good companies keeps the two close in practice.`
-        : `${gap > 0 ? "Strategic" : "Private-equity"} buyers paid the higher median premium (${Math.round(st.medianPremium)}% strategic vs ${Math.round(pe.medianPremium)}% private equity). ${why}`,
+        ? `Premiums are close: ${Math.round(st.medianPremium)}% strategic vs ${Math.round(pe.medianPremium)}% private equity (median).`
+        : `${gap > 0 ? "Strategic" : "Private-equity"} buyers paid the higher median premium (${Math.round(st.medianPremium)}% strategic vs ${Math.round(pe.medianPremium)}% private equity).`,
     );
   }
-  if (st.cashPct != null && pe.cashPct != null)
-    out.push(`Private equity pays in cash (${pe.cashPct}% of its deals) because a fund has no shares of its own to offer; strategics used all-cash in ${st.cashPct}% of theirs and often pay partly in their own stock.`);
+  if (st.cashPct != null && pe.cashPct != null) out.push(`All-cash: ${pe.cashPct}% of private-equity deals vs ${st.cashPct}% of strategic deals.`);
+  if (st.medianValueUsd != null && pe.medianValueUsd != null)
+    out.push(`${pe.sharePct}% of deals had a private-equity buyer, at a median size of ${usd(pe.medianValueUsd)} vs ${usd(st.medianValueUsd)} for strategics.`);
   return out;
 }

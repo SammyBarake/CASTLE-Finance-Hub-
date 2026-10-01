@@ -31,7 +31,7 @@ function GroupCard({ g, blurb }: { g: BuyerGroup; blurb: string }) {
         </div>
         <div>
           <dt>Paid all in cash</dt>
-          <dd>{g.cashPct != null ? `${g.cashPct}%` : "n/a"}</dd>
+          <dd>{g.cashPct != null ? `${g.cashPct}%` : "—"}</dd>
         </div>
       </dl>
       {!!g.topBuyers.length && (
@@ -62,13 +62,13 @@ export function BuyerTypes() {
     <section className="panel buyer-panel" aria-label="Strategic vs private-equity buyers">
       <div className="panel-head">
         <div className="panel-heading">
-          <h2>Who pays more: companies or private equity?</h2>
-          <small>Every deal by buyer type · terminated deals excluded</small>
+          <h2>Strategic vs. private equity</h2>
+          <small>What each buyer type pays · all deals, terminated excluded</small>
         </div>
       </div>
       <div className="buyer-grid">
-        <GroupCard g={groups[0]} blurb="An operating company buying a competitor, supplier or a way into a new market." />
-        <GroupCard g={groups[1]} blurb="A fund (KKR, Blackstone, Thoma Bravo…) buying with investors' money and debt, planning to sell again in a few years." />
+        <GroupCard g={groups[0]} blurb="Operating companies buying competitors, suppliers or new markets; can pay for synergies." />
+        <GroupCard g={groups[1]} blurb="Financial sponsors (KKR, Blackstone, Thoma Bravo…) buying with fund equity and debt." />
       </div>
       {!!notes.length && (
         <ul className="buyer-notes">

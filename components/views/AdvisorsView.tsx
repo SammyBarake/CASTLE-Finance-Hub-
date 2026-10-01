@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
-import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, Select } from "@/components/ui/primitives";
+import { AboutData, CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, Select } from "@/components/ui/primitives";
 import { AdvisorFees } from "./AdvisorFees";
 import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDate, formatDateFull, formatUsd, formatUsdB1 } from "@/lib/format";
+import { formatDate, formatUsd, formatUsdB1 } from "@/lib/format";
 import { sum } from "@/lib/metrics";
 import { matchAdvisor } from "@/lib/search";
 
@@ -50,7 +50,7 @@ export function AdvisorsView() {
       <PageHeading
         title="Advisors"
         subtitle={view === "deals" ? `U.S. M&A league table · ${data.leagueTable.period}` : "Advisory fees disclosed in merger proxies"}
-        date={formatDateFull(data.asOf)}
+       
         onExport={view === "deals" ? exportRows : undefined}
       />
       <div className="advisor-view-toggle">
@@ -163,7 +163,12 @@ export function AdvisorsView() {
           <span>Rank change vs. prior quarter · value ranking only</span>
         </div>
       </section>
-      <p className="note">A transaction may be credited to multiple advisors. Gross totals include shared mandates and do not represent unique market volume.</p>
+      <AboutData>
+        <p>
+          A transaction is credited to every named financial advisor, so gross totals include shared mandates and do not represent unique market volume. Rank
+          change compares with the end of the prior quarter.
+        </p>
+      </AboutData>
         </>
       )}
     </>

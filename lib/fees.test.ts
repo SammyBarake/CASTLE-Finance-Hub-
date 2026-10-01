@@ -67,7 +67,8 @@ describe("fees", () => {
     expect(formatBps(200)).toBe("2.0%");
     expect(formatBps(25)).toBe("0.25%");
     const text = feeInsights(records, feeLeague(records), bands).join(" ");
-    expect(text).toContain("Goldman Sachs earned the most");
+    expect(text).toContain("Goldman Sachs took");
+    expect(text).toContain("Largest single fee");
     expect(text).toContain("Small deals pay a much bigger share");
   });
 });

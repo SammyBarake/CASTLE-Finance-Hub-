@@ -31,6 +31,18 @@ export function RowLink({ label, onOpen, onMenu, className = "", children }: { l
   );
 }
 
+/** Rows a long table shows at first; "Show more" adds the same again. */
+export const TABLE_PAGE = 25;
+
+export function ShowMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
+  if (total <= shown) return null;
+  return (
+    <button type="button" className="show-more" onClick={onMore}>
+      Show more <span className="dim">· {(total - shown).toLocaleString("en-US")} remaining</span>
+    </button>
+  );
+}
+
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <tr>

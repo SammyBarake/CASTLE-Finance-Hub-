@@ -76,7 +76,7 @@ function OpinionFacts({ o }: { o: FairnessOpinion }) {
       </div>
       <DetailGrid>
         <DetailItem label="Advisory fee">{o.feeUsd != null ? formatUsd(o.feeUsd) : "Not stated"}</DetailItem>
-        <DetailItem label="DCF discount rate">{pctRange(o.discountRatePct, "%") ?? "n/a"}</DetailItem>
+        <DetailItem label="DCF discount rate">{pctRange(o.discountRatePct, "%") ?? "—"}</DetailItem>
         {o.perpetuityGrowthPct && <DetailItem label="Perpetuity growth">{pctRange(o.perpetuityGrowthPct, "%")}</DetailItem>}
         {o.terminalMultiple && <DetailItem label="Terminal multiple">{pctRange(o.terminalMultiple, "x")}</DetailItem>}
       </DetailGrid>

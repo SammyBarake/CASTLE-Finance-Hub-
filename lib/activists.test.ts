@@ -57,8 +57,8 @@ describe("activists", () => {
     expect(s.investors[0]).toMatchObject({ name: "Starboard Value LP", count: 2, companies: ["Widget Corp", "Gadget Inc"] });
     expect(s.sold).toHaveLength(2);
     const text = activistInsights(s).join(" ");
-    expect(text).toContain("within 5 business days");
-    expect(text).toContain('"board seats" (2 of 3 stakes)');
-    expect(text).toContain("2 of these companies later agreed to be acquired");
+    expect(text).toContain("Most common demand: board seats (2 of 3 stakes)");
+    expect(text).toContain("Most active: Starboard Value LP (2 stakes)");
+    expect(text).toContain("2 targeted companies later agreed to be acquired");
   });
 });

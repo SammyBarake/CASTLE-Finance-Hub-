@@ -71,7 +71,7 @@ describe("timelineStats", () => {
 
   it("explains the patterns", () => {
     const text = timelineInsights(s).join(" ");
-    expect(text).toContain("Tender offers closed in 1.5 months vs 5.0 months");
+    expect(text).toContain("Tender offers closed in 1.5 months vs 5.0 months with a shareholder vote");
     expect(text).toContain("Deals paid in stock took longer");
     expect(months(20)).toBe("20 days");
   });

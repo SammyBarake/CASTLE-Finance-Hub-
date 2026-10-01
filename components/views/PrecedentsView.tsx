@@ -6,11 +6,11 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { Icon } from "@/components/ui/Icon";
-import { FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } from "@/components/ui/primitives";
-import { EmptyRow, RowLink } from "@/components/ui/table";
+import { AboutData, FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } from "@/components/ui/primitives";
+import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { considerationLabel, formatDate, formatDateFull, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import {
   dealSize,
   DEFAULT_PRECEDENTS,
@@ -42,7 +42,8 @@ function Precedents({ dealId }: { dealId: string | null }) {
   // Seeded once from ?deal=; the user's edits take over after that.
   const [screen, setScreen] = useState<PrecedentScreen>(() => (subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS));
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
-  const edit = (patch: Partial<PrecedentScreen>) => setScreen((s) => ({ ...s, ...patch }));
+  const [shown, setShown] = useState(TABLE_PAGE);
+  const edit = (patch: Partial<PrecedentScreen>) => (setScreen((s) => ({ ...s, ...patch })), setShown(TABLE_PAGE));
 
   const rows = useMemo(() => screenPrecedents(data.deals, screen, data.asOf).filter((d) => d.id !== subject?.id), [data.deals, data.asOf, screen, subject]);
   const included = rows.filter((d) => !excluded.has(d.id));
@@ -78,7 +79,6 @@ function Precedents({ dealId }: { dealId: string | null }) {
       <PageHeading
         title="Precedent Transactions"
         subtitle={subject ? `Comparables for ${subject.acquirer.name} → ${subject.target.name}` : "Comparable U.S. M&A · Transaction multiples"}
-        date={formatDateFull(data.asOf)}
         onExport={included.length ? exportRows : undefined}
         exportLabel="Export the comps table as CSV"
       />
@@ -100,7 +100,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
 
       <section className="panel">
         <PanelHead title="Screen" subtitle="Pick comparable deals, then untick outliers">
-          <button type="button" className="small-link" onClick={() => (setScreen(subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS), setExcluded(new Set()))}>
+          <button type="button" className="small-link" onClick={() => (setScreen(subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS), setExcluded(new Set()), setShown(TABLE_PAGE))}>
             Reset
           </button>
         </PanelHead>
@@ -176,7 +176,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
                   <td className="dim">Subject deal</td>
                 </RowLink>
               )}
-              {rows.map((d) => {
+              {rows.slice(0, shown).map((d) => {
                 const out = excluded.has(d.id);
                 return (
                   <RowLink key={d.id} label={`${d.acquirer.name} to acquire ${d.target.name}`} onOpen={() => openDeal(d)} className={out ? "comps-excluded" : ""}>
@@ -199,6 +199,13 @@ function Precedents({ dealId }: { dealId: string | null }) {
                 );
               })}
               {!rows.length && <EmptyRow colSpan={9}>No deals match this screen. Widen the size range or the date window.</EmptyRow>}
+              {rows.length > shown && (
+                <tr className="show-more-row">
+                  <td colSpan={9}>
+                    <ShowMore shown={shown} total={rows.length} onMore={() => setShown((n) => n + TABLE_PAGE)} />
+                  </td>
+                </tr>
+              )}
             </tbody>
             {!!included.length && (
               <tfoot className="comps-summary">
@@ -226,10 +233,12 @@ function Precedents({ dealId }: { dealId: string | null }) {
           <span>Deal size = enterprise value, else headline value</span>
         </div>
       </section>
-      <p className="note">
-        Multiples use the target&apos;s last-twelve-month revenue and EBITDA from its XBRL filings. EV is the stated enterprise value, or equity value plus debt minus cash. Blank means not
-        disclosed; blanks are left out of the statistics, never counted as zero.
-      </p>
+      <AboutData>
+        <p>
+          Multiples use the target&apos;s last-twelve-month revenue and EBITDA from its XBRL filings. EV is the stated enterprise value, or equity value plus debt
+          minus cash. A dash means not disclosed; blanks are left out of the statistics, never counted as zero.
+        </p>
+      </AboutData>
     </>
   );
 }

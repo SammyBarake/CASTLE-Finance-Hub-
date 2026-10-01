@@ -65,35 +65,8 @@ export function cleanPartyName(raw: string): string {
   return s;
 }
 
-const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|RF|TV|CW|[A-Z]{1,3}|[A-Z]+\d+\w*)$/;
-const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: "Corp", "CORP.": "Corp.", LTD: "Ltd", "LTD.": "Ltd.", CO: "Co", "CO.": "Co.", HOLDINGS: "Holdings", GROUP: "Group" };
-
-/**
- * "TETON FINANCIAL SERVICES" -> "Teton Financial Services"; "WTG MIDSTREAM" -> "WTG Midstream". Only names written
- * entirely in capitals with two or more words; short tokens (acronyms, "LLC") stay as they are. "IBM" and
- * "KKR" are untouched.
- */
-// Short English words that are words, not acronyms, in an all-capitals name.
-const MINOR = new Set(["OF", "AND", "FOR", "AT", "IN", "ON", "BY", "TO", "THE", "A", "AN"]);
-const SHORT_WORDS = new Set(["AIR", "OIL", "GAS", "SEA", "SUN", "BAY", "CAR", "NEW", "ONE", "TWO", "BIG", "RED", "TOP", "WAY", "FOX", "KEY", "ART", "LAW", "PRO", "BIO", "ITS", "OLD", "ICE", "SKY", "BAR", "WAR", "LAB", "EYE", "DOG", "CAT", "BOX", "HUB"]);
-
-export function titleCaseCaps(name: string): string {
-  if (/[a-z]/.test(name) || name.trim().split(/\s+/).length < 2) return name;
-  let first = true;
-  return name
-    .split(/(\s+)/)
-    .map((w) => {
-      if (/^\s+$/.test(w)) return w;
-      const isFirst = first;
-      first = false;
-      if (MINOR.has(w)) return isFirst ? w[0] + w.slice(1).toLowerCase() : w.toLowerCase();
-      if (SHORT_WORDS.has(w)) return w[0] + w.slice(1).toLowerCase();
-      if (SUFFIX_CASE[w]) return SUFFIX_CASE[w];
-      if (KEEP_CAPS.test(w.replace(/[,.]$/, "")) || /&|\d|\.[A-Z]/.test(w)) return w;
-      return w.replace(/[A-Z][A-Z'’&-]*/g, (t) => t[0] + t.slice(1).toLowerCase());
-    })
-    .join("");
-}
+// Shared with the site, which applies the same rules to records stored before they existed.
+export { titleCaseCaps } from "../../lib/names";
 
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
 export const isPlaceholderBuyer = (name: string) =>

@@ -142,7 +142,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
               {formatMultiple(deal.evEbitda)} · {formatMultiple(deal.evRevenue)}
             </DetailItem>
             <DetailItem label="Sector">{deal.sector}</DetailItem>
-            <DetailItem label="Industry">{deal.industry ?? "n/a"}</DetailItem>
+            <DetailItem label="Industry">{deal.industry ?? "—"}</DetailItem>
             <DetailItem label="Buyer type">{buyerType(deal)}</DetailItem>
           </DetailGrid>
           <div className="related-title">Related {deal.sector.toLowerCase()} transactions</div>
@@ -223,7 +223,7 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
             {ipo.pricedDate && <DetailItem label="Priced">{formatDateLong(ipo.pricedDate)}</DetailItem>}
             {ipo.offerPrice != null && <DetailItem label="Offer price">{formatPrice(ipo.offerPrice)}</DetailItem>}
             <DetailItem label="Sector">{ipo.sector}</DetailItem>
-            <DetailItem label="Industry">{ipo.industry ?? "n/a"}</DetailItem>
+            <DetailItem label="Industry">{ipo.industry ?? "—"}</DetailItem>
           </DetailGrid>
         </>
       )}

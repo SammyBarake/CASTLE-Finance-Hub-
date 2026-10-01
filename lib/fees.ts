@@ -82,7 +82,7 @@ export function feesBySize(records: FeeRecord[]): { label: string; medianBps: nu
   });
 }
 
-export const formatBps = (bps: number | null) => (bps == null ? "n/a" : bps >= 100 ? `${(bps / 100).toFixed(1)}%` : `${(bps / 100).toFixed(2)}%`);
+export const formatBps = (bps: number | null) => (bps == null ? "—" : bps >= 100 ? `${(bps / 100).toFixed(1)}%` : `${(bps / 100).toFixed(2)}%`);
 
 export function feeInsights(records: FeeRecord[], league: BankFees[], bySize: ReturnType<typeof feesBySize>): string[] {
   const out: string[] = [];
@@ -90,14 +90,13 @@ export function feeInsights(records: FeeRecord[], league: BankFees[], bySize: Re
   const total = records.reduce((s, r) => s + r.feeUsd, 0);
   const top = league[0];
   const usd = (v: number) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(v < 1e7 ? 1 : 0)}M`);
-  out.push(`${records.length} disclosed fees add up to ${usd(total)}. ${top.bank} earned the most: ${usd(top.totalUsd)} across ${top.deals} deal${top.deals === 1 ? "" : "s"}.`);
+  // The KPIs already show the total and the top earner; add its share of the pool.
+  if (league.length > 1) out.push(`${top.bank} took ${Math.round((top.totalUsd / total) * 100)}% of all disclosed fees; the top five took ${Math.round((league.slice(0, 5).reduce((s, b) => s + b.totalUsd, 0) / total) * 100)}%.`);
   const small = bySize[0];
   const mega = bySize.at(-1)!;
   if (small.medianBps != null && mega.medianBps != null && small.n >= 3 && mega.n >= 3)
-    out.push(
-      `Small deals pay a much bigger share: a median ${formatBps(small.medianBps)} of the deal under $500M vs ${formatBps(mega.medianBps)} over $10B. The work (diligence, the fairness opinion, running a sale) doesn't shrink with the deal, so fees don't scale down proportionally.`,
-    );
+    out.push(`Small deals pay a much bigger share: ${formatBps(small.medianBps)} of value under $500M vs ${formatBps(mega.medianBps)} over $10B (median).`);
   const biggest = [...records].sort((a, b) => b.feeUsd - a.feeUsd)[0];
-  out.push(`The biggest single fee was ${usd(biggest.feeUsd)} to ${biggest.bank} for ${biggest.deal.target.name.replace(/\.$/, "")}. Most of a fee is usually paid only if the deal closes (a "success fee"); a small part is due when the bank delivers its fairness opinion.`);
+  out.push(`Largest single fee: ${usd(biggest.feeUsd)} to ${biggest.bank} on ${biggest.deal.target.name.replace(/\.$/, "")}.`);
   return out;
 }

@@ -58,12 +58,12 @@ export function activistStats(stakes: ActivistStake[], deals: Deal[]): ActivistS
 export function activistInsights(s: ActivistStats): string[] {
   const out: string[] = [];
   if (!s.count) return out;
-  out.push(
-    `Anyone who buys more than 5% of a U.S.-listed company and may try to influence it must file a Schedule 13D within 5 business days, saying who they are, how much they own and what they want. Passive investors file the shorter 13G instead.`,
-  );
-  const top = s.aims[0];
-  if (top) out.push(`The most common ask was "${top.aim.toLowerCase()}" (${top.count} of ${s.count} stakes). Many activists ask for several things at once.`);
-  if (s.medianPercent != null) out.push(`The median stake was ${s.medianPercent.toFixed(1)}%: activists rarely need control, just enough shares to be taken seriously and win votes from other investors.`);
-  if (s.sold.length) out.push(`${s.sold.length} of these companies later agreed to be acquired. Pushing for a sale is one of the fastest ways for an activist to cash in.`);
+  const [top, next, third] = s.aims;
+  if (top) out.push(`Most common demand: ${top.aim.toLowerCase()} (${top.count} of ${s.count} stakes).`);
+  if (next) out.push(`Then ${next.aim.toLowerCase()} (${next.count})${third ? ` and ${third.aim.toLowerCase()} (${third.count})` : ""}.`);
+  if (s.medianPercent != null) out.push(`Median stake ${s.medianPercent.toFixed(1)}% of shares: enough to sway votes, far from control.`);
+  const lead = s.investors[0];
+  if (lead && lead.count > 1) out.push(`Most active: ${lead.name} (${lead.count} stakes).`);
+  if (s.sold.length) out.push(`${s.sold.length} targeted ${s.sold.length === 1 ? "company" : "companies"} later agreed to be acquired.`);
   return out;
 }

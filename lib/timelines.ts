@@ -116,22 +116,24 @@ export function timelineStats(deals: Deal[], asOf: string): TimelineStats {
   };
 }
 
-export const months = (days: number | null) => (days == null ? "n/a" : days < 45 ? `${days} days` : `${(days / 30.44).toFixed(1)} months`);
+export const months = (days: number | null) => (days == null ? "—" : days < 45 ? `${days} days` : `${(days / 30.44).toFixed(1)} months`);
 
 /** Plain-English takeaways for someone learning how deals get done. */
+/** Short, number-led findings for the takeaways strip (the KPIs already carry the headline median and break rate). */
 export function timelineInsights(s: TimelineStats): string[] {
   const out: string[] = [];
-  if (s.medianDaysToClose != null) out.push(`A typical deal took ${months(s.medianDaysToClose)} from announcement to closing (${s.closed.length} closed deals).`);
   const { tender, vote } = s.byPath;
   if (tender.median != null && vote.median != null && tender.n >= 3 && vote.n >= 3)
-    out.push(
-      `Tender offers closed in ${months(tender.median)} vs ${months(vote.median)} for deals needing a shareholder vote. A tender offer goes straight to shareholders; a vote needs a proxy statement, SEC review and a meeting.`,
-    );
+    out.push(`Tender offers closed in ${months(tender.median)} vs ${months(vote.median)} with a shareholder vote.`);
   const { cash, stock } = s.byConsideration;
-  if (cash.median != null && stock.median != null && cash.n >= 3 && stock.n >= 3 && stock.median > cash.median)
-    out.push(`Deals paid in stock took longer (${months(stock.median)} vs ${months(cash.median)} for cash): the buyer must register its new shares with the SEC, and often needs its own shareholders' vote.`);
+  if (cash.median != null && stock.median != null && cash.n >= 3 && stock.n >= 3)
+    out.push(
+      stock.median > cash.median
+        ? `Deals paid in stock took longer: ${months(stock.median)} vs ${months(cash.median)} for cash.`
+        : `Stock and cash deals closed at a similar pace (${months(stock.median)} vs ${months(cash.median)}).`,
+    );
   const ranked = s.bySector.filter((x) => x.median != null && x.n >= 3).sort((a, b) => a.median! - b.median!);
-  if (ranked.length >= 2) out.push(`${ranked[0].sector} deals closed fastest (${months(ranked[0].median)}); ${ranked.at(-1)!.sector} slowest (${months(ranked.at(-1)!.median)}), often because of regulatory reviews.`);
-  if (s.terminationPct != null && s.terminated.length) out.push(`${s.terminationPct}% of deals that reached an outcome fell apart (${s.terminated.length} terminated): topped by a rival bid, blocked by regulators, or voted down.`);
+  if (ranked.length >= 2) out.push(`Fastest sector: ${ranked[0].sector} (${months(ranked[0].median)}). Slowest: ${ranked.at(-1)!.sector} (${months(ranked.at(-1)!.median)}).`);
+  if (s.medianDaysToFirstFiling != null) out.push(`The first proxy or tender document followed the announcement after ${months(s.medianDaysToFirstFiling)} (median).`);
   return out;
 }

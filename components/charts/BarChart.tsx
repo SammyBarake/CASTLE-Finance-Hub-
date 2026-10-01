@@ -44,7 +44,7 @@ export function BarChart({ labels, series, ariaLabel, legend = false }: { labels
             bodyColor: "#bbb",
             padding: 11,
             cornerRadius: 4,
-            callbacks: { label: (c) => `${c.dataset.label}: ${c.raw == null ? "n/a" : `${(c.raw as number).toFixed(2).replace(/0$/, "")}%`}` },
+            callbacks: { label: (c) => `${c.dataset.label}: ${c.raw == null ? "—" : `${(c.raw as number).toFixed(2).replace(/0$/, "")}%`}` },
           },
         },
         scales: {

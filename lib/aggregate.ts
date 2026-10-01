@@ -4,6 +4,7 @@
  */
 import { feeRows } from "./fees";
 import { median } from "./metrics";
+import { displayCompanyName } from "./names";
 import { SECTORS, type ActivistStake, type Deal, type HubData, type Ipo, type LeagueTableEntry, type Macro, type MonthlySectorVolume, type SectorValuation } from "./types";
 
 const MONTHS = 24;
@@ -127,8 +128,8 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
   return {
     id: d.id,
     announcedDate: d.announcedDate,
-    acquirer: d.acquirer,
-    target: d.target,
+    acquirer: { ...d.acquirer, name: displayCompanyName(d.acquirer.name) },
+    target: { ...d.target, name: displayCompanyName(d.target.name) },
     valueUsd: d.valueUsd,
     pricePerShare: d.pricePerShare,
     premiumPct: d.premiumPct,
@@ -152,7 +153,7 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
 export function toPublicIpo(i: Ipo): Ipo {
   return {
     id: i.id,
-    company: i.company,
+    company: { ...i.company, name: displayCompanyName(i.company.name) },
     sector: i.sector,
     industry: i.industry,
     stage: i.stage,

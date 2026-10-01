@@ -4,7 +4,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Kpi, Kpis, PageHeading, SectorLabel } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDateFull, formatMonth, formatRaise, formatUsd } from "@/lib/format";
+import { formatMonth, formatRaise, formatUsd } from "@/lib/format";
 import { rangeSummary, sectorBreakdown } from "@/lib/metrics";
 import { SECTORS } from "@/lib/sectors";
 import { useVolumeState, VolumePanel } from "./sections";
@@ -28,7 +28,7 @@ export function DealVolumeView() {
 
   return (
     <>
-      <PageHeading title="Deal Volume" subtitle={`Monthly announced U.S. M&A · ${period}`} date={formatDateFull(data.asOf)} onExport={exportRows} />
+      <PageHeading title="Deal Volume" subtitle={`Monthly announced U.S. M&A · ${period}`} onExport={exportRows} />
 
       <Kpis label="Deal volume summary">
         <Kpi label="Announced value" value={formatUsd(s.value)} note={period} />

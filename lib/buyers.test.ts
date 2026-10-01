@@ -61,7 +61,7 @@ describe("buyerGroups / insights", () => {
 
   it("explains the difference", () => {
     const text = buyerInsights([st, pe]).join(" ");
-    expect(text).toContain("25% of deals had a private-equity buyer");
+    expect(text).toContain("All-cash:");
     expect(text).toContain("Strategic buyers paid the higher median premium (50% strategic vs 30% private equity)");
   });
 });

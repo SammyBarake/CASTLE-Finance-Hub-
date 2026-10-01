@@ -11,7 +11,7 @@ import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions, useWorkspaceDialogs, WatchButton } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
-import { considerationLabel, formatDate, formatDateFull, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { median, sum } from "@/lib/metrics";
 import {
   activeFilters,
@@ -172,7 +172,7 @@ export function DealFlowView() {
 
   return (
     <>
-      <PageHeading title="Deal Flow" subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`} date={formatDateFull(data.asOf)} onExport={() => exportRows(rows)} />
+      <PageHeading title="Deal Flow" subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`} onExport={() => exportRows(rows)} />
 
       <Kpis label="Filtered transaction summary">
         <Kpi label="Transactions" value={rows.length} note="Current selection" />

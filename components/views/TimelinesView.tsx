@@ -5,9 +5,9 @@ import { LineChart } from "@/components/charts/LineChart";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { Kpi, Kpis, PageHeading, PanelHead, SectorDot, Segment } from "@/components/ui/primitives";
-import { EmptyRow, RowLink } from "@/components/ui/table";
-import { formatDate, formatDateFull } from "@/lib/format";
+import { AboutData, Kpi, Kpis, PageHeading, PanelHead, SectorDot, Segment, Takeaways } from "@/components/ui/primitives";
+import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 import { SECTOR_COLORS } from "@/lib/sectors";
 import { MIN_CLOSE_DAYS, months, STALE_OPEN_DAYS, timelineInsights, timelineStats, type DealTimeline } from "@/lib/timelines";
 
@@ -37,7 +37,7 @@ export function TimelinesView() {
 
   return (
     <>
-      <PageHeading title="Deal Timelines" subtitle="How long takeovers take, from handshake to closing" date={formatDateFull(data.asOf)} />
+      <PageHeading title="Deal Timelines" subtitle="How long takeovers take, from handshake to closing" />
 
       {!hasData ? (
         <section className="panel">
@@ -49,19 +49,10 @@ export function TimelinesView() {
             <Kpi label="Typical time to close" value={months(s.medianDaysToClose)} note={`Median of ${s.closed.length} closed deals`} text />
             <Kpi label="Tender offer vs. vote" value={`${months(s.byPath.tender.median)} · ${months(s.byPath.vote.median)}`} note="Median time to close for each path" text />
             <Kpi label="Still waiting" value={s.open.length} note="Announced, not yet closed" />
-            <Kpi label="Fell apart" value={s.terminationPct != null ? `${s.terminationPct}%` : "n/a"} note={`${s.terminated.length} terminated deals`} />
+            <Kpi label="Fell apart" value={s.terminationPct != null ? `${s.terminationPct}%` : "—"} note={`${s.terminated.length} terminated deals`} />
           </Kpis>
 
-          {!!notes.length && (
-            <section className="panel timeline-notes">
-              <PanelHead title="What the data says" subtitle="Patterns across every deal Castle has tracked" />
-              <ul>
-                {notes.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <Takeaways items={notes} />
 
           <div className="two-col timeline-grid">
             <section className="panel">
@@ -159,7 +150,7 @@ export function TimelinesView() {
                             <span className={`timeline-progress ${(open.progressPct ?? 0) > 150 ? "late" : ""}`}>
                               <i style={{ width: `${Math.min(open.progressPct ?? 0, 100)}%` }} />
                             </span>
-                            <small>{open.progressPct != null ? `${(open.progressPct / 100).toFixed(1)}×` : "n/a"}</small>
+                            <small>{open.progressPct != null ? `${(open.progressPct / 100).toFixed(1)}×` : "—"}</small>
                           </td>
                         )}
                       </RowLink>
@@ -169,23 +160,22 @@ export function TimelinesView() {
                 </tbody>
               </table>
             </div>
-            {rows.length > shown && (
-              <div className="panel-foot">
-                <span>
-                  Showing {shown} of {rows.length}
-                </span>
-                <button type="button" className="small-link" onClick={() => setShown((n) => n + PAGE * 2)}>
-                  Show more
-                </button>
-              </div>
-            )}
+            <ShowMore shown={shown} total={rows.length} onMore={() => setShown((n) => n + PAGE * 2)} />
           </section>
 
-          <p className="note">
-            Dates come from the target&apos;s SEC filings: announcement, first proxy or tender-offer document, definitive proxy, and the delisting or change-of-control filing at closing.
-            {s.excluded.seenAtCompletion ? ` ${s.excluded.seenAtCompletion} deals first seen at completion (closed within ${MIN_CLOSE_DAYS} days of the first filing Castle found) are left out of the timings.` : ""}
-            {s.excluded.stale ? ` ${s.excluded.stale} deals open more than ${Math.round(STALE_OPEN_DAYS / 30)} months with no closing filing are left out as likely data gaps.` : ""}
-          </p>
+          <AboutData>
+            <p>
+              <strong>Why paths differ.</strong> A tender offer goes straight to shareholders; a merger vote needs a proxy statement, SEC review and a
+              shareholder meeting. Stock deals also need the buyer to register its new shares and often its own shareholders&apos; vote. Terminations
+              usually come from a rival bid, a regulator or a failed vote.
+            </p>
+            <p>
+              <strong>Sources.</strong> Dates come from the target&apos;s SEC filings: announcement, first proxy or tender-offer document, definitive proxy,
+              and the delisting or change-of-control filing at closing.
+              {s.excluded.seenAtCompletion ? ` ${s.excluded.seenAtCompletion} deals first seen at completion (closed within ${MIN_CLOSE_DAYS} days of the first filing Castle found) are left out of the timings.` : ""}
+              {s.excluded.stale ? ` ${s.excluded.stale} deals open more than ${Math.round(STALE_OPEN_DAYS / 30)} months with no closing filing are left out as likely data gaps.` : ""}
+            </p>
+          </AboutData>
         </>
       )}
     </>
