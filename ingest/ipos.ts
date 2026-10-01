@@ -1,9 +1,11 @@
 /**
  * Feature 3: the IPO pipeline.
  *
- * Filed   â†’ a first-time registrant has a public S-1 / F-1 on file
- * Priced  â†’ a 424B4 final prospectus has been filed
- * Trading â†’ the company now appears in the SEC's listed-company file
+ * Filed   → a first-time registrant has a public S-1 / F-1 on file
+ * Priced  → priced in the last 7 days (a 424B4 final prospectus is on file), the "priced this week" list
+ *           IPO calendars show. The 424B4 lands a day or two after pricing, when the stock already trades,
+ *           so "priced but not yet trading" is never visible in EDGAR.
+ * Trading → priced more than 7 days ago (kept for 120 days)
  *
  * Excluded: SPACs, funds/ETFs/trusts, companies already filing 10-K/10-Q/20-F
  * (follow-ons and resale registrations), withdrawn registrations, and tiny
@@ -35,6 +37,10 @@ const EXCLUDED_SIC = new Set(["6770", "6221", "6189", "6798"]); // SPACs, commod
 const FUNDLIKE =
   /\b(ETF|Fund|Trust|Bitcoin|Ether(?:eum)?|Staked|Solana|XRP|Crypto(?:currency)?|Portfolio|Income Shares)\b|\bAcquisition (?:Corp|Company|Co)\b|\b(?:Holdings|Capital|Acquisition) (?:Corp\.?,? |Inc\.?,? )?[IVX]{1,4}\b/i;
 const MIN_RAISE = 20e6;
+/** How long a new pricing shows as "Priced" before moving to "Trading". */
+const PRICED_DAYS = 7;
+/** Tracked companies are re-checked when their last check is older than this (the ingest runs every 3 hours). */
+const RECHECK_MS = 2 * 3_600_000;
 const DAY = 86_400_000;
 
 async function discoverRegistrants(from: string, to: string, log: (s: string) => void) {
@@ -47,7 +53,7 @@ async function discoverRegistrants(from: string, to: string, log: (s: string) =>
       const cik = trimCik(h.ciks[0]);
       if ((ciks.get(cik) ?? "") < h.fileDate) ciks.set(cik, h.fileDate);
     }
-    log(`  searched ${start} â†’ ${end}: ${ciks.size} registrants so far`);
+    log(`  searched ${start} → ${end}: ${ciks.size} registrants so far`);
   }
   return ciks;
 }
@@ -96,7 +102,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   const listed = dir.byCik.get(sub.cik.replace(/^0+/, ""));
   // Already quoted over the counter: an uplisting, not an IPO.
   if (!priced && listed?.exchange === "OTC") return null;
-  const stage: IpoStage = priced ? (listed?.exchange ? "Trading" : "Priced") : "Filed";
+  const stage: IpoStage = !priced ? "Filed" : (Date.parse(today) - Date.parse(priced.date)) / DAY <= PRICED_DAYS ? "Priced" : "Trading";
 
   // Pipeline window: live registrations from the past year, and recent pricings.
   const ageDays = (d: string) => (Date.parse(today) - Date.parse(d)) / DAY;
@@ -114,7 +120,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     if (!priced && terms.expectedRaiseUsd == null && doc.adsh !== initial.adsh) {
       terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };
     }
-    // Final prospectus may omit a clean priceÃ—shares; fall back to the registration estimate.
+    // Final prospectus may omit a clean price×shares; fall back to the registration estimate.
     if (priced && terms.expectedRaiseUsd == null) terms.expectedRaiseUsd = existing?.expectedRaiseUsd ?? null;
   }
 
@@ -145,7 +151,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     filedDate: initial.date,
     pricedDate: priced?.date ?? null,
     lastActivity,
-    checkedAt: today,
+    checkedAt: new Date().toISOString(),
     filings: [initial, latestReg !== initial ? latestReg : null, priced ?? null].filter((f): f is NonNullable<typeof f> => !!f).map((f) => filing(sub, f)),
   };
   if (terms) {
@@ -176,7 +182,7 @@ export async function ingestIpos(
   let n = 0;
   for (const cik of toCheck) {
     const existing = byCik.get(cik);
-    if (existing?.checkedAt === opts.today && !found.has(cik)) continue;
+    if (existing?.checkedAt && Date.now() - Date.parse(existing.checkedAt) < RECHECK_MS && !found.has(cik)) continue;
     try {
       const ipo = await evaluate(cik, existing, opts.directory, opts.today);
       if (ipo) byCik.set(cik, ipo);

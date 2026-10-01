@@ -59,11 +59,14 @@ describe("leagueTable", () => {
 });
 
 describe("sectorValuations", () => {
-  it("takes medians per sector-quarter over 8 quarters", () => {
-    const deals = [deal({ announcedDate: "2026-07-05", evEbitda: 10 }), deal({ announcedDate: "2026-08-05", evEbitda: 14 }), deal({ announcedDate: "2026-09-01", evEbitda: 30 })];
+  it("takes trailing-twelve-month medians per sector over 8 quarters", () => {
+    const deals = [deal({ announcedDate: "2025-11-05", evEbitda: 10 }), deal({ announcedDate: "2026-08-05", evEbitda: 14 }), deal({ announcedDate: "2026-09-01", evEbitda: 30 })];
     const rows = sectorValuations(deals, "2026-09-25");
     expect(new Set(rows.map((r) => r.quarter)).size).toBe(8);
-    expect(rows.find((r) => r.quarter === "2026-Q3" && r.sector === "Tech")).toMatchObject({ medianEvEbitda: 14, dealCount: 3 });
+    // Q3 2026 LTM covers Q4 2025 – Q3 2026: all three deals; only two of them were announced in Q3 itself.
+    expect(rows.find((r) => r.quarter === "2026-Q3" && r.sector === "Tech")).toMatchObject({ medianEvEbitda: 14, dealCount: 2, sample: { evEbitda: 3 } });
+    // Q2 2026 LTM sees only the November deal: too few to show.
+    expect(rows.find((r) => r.quarter === "2026-Q2" && r.sector === "Tech")?.medianEvEbitda).toBeNull();
     expect(rows.find((r) => r.quarter === "2026-Q3" && r.sector === "Energy")?.medianEvEbitda).toBeNull();
   });
 });

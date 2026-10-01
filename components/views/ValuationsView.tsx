@@ -41,7 +41,8 @@ export function ValuationsView() {
   );
 
   const { cards } = valuationCards(data.valuations, metric);
-  const dealsInQ = (s: string) => data.valuations.find((v) => v.sector === s && v.quarter === latestQ)?.dealCount ?? 0;
+  const SAMPLE_KEY = { evEbitda: "evEbitda", evRevenue: "evRevenue", premium: "premium" } as const;
+  const sampleLtm = (s: string) => data.valuations.find((v) => v.sector === s && v.quarter === latestQ)?.sample?.[SAMPLE_KEY[metric]] ?? 0;
   const tableRows = [...cards].sort((a, b) =>
     sort === "latest" ? (b.latest ?? -1) - (a.latest ?? -1) : sort === "change" ? (b.latest ?? 0) - (b.previous ?? 0) - ((a.latest ?? 0) - (a.previous ?? 0)) : SECTORS.indexOf(a.sector) - SECTORS.indexOf(b.sector),
   );
@@ -54,7 +55,7 @@ export function ValuationsView() {
 
   return (
     <>
-      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · ${latestQ ? formatQuarter(latestQ) : ""} to date`} date={formatDateFull(data.asOf)} onExport={exportRows} />
+      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · LTM to ${latestQ ? formatQuarter(latestQ) : ""}`} date={formatDateFull(data.asOf)} onExport={exportRows} />
 
       <div className="section-heading">
         <h2>
@@ -68,7 +69,7 @@ export function ValuationsView() {
         <div className="panel-head">
           <h2>Transaction multiples</h2>
           <span className="dim" style={{ fontSize: 10 }}>
-            Quarterly {m.title.replace(/^Median/, "median")}
+            LTM {m.title.replace(/^Median/, "median")} · trailing four quarters
           </span>
         </div>
         <div className="chart-main">
@@ -90,7 +91,7 @@ export function ValuationsView() {
           <span>
             {quarters[0] && formatQuarter(quarters[0])} – {latestQ && formatQuarter(latestQ)}
           </span>
-          <span>{latestQ && formatQuarter(latestQ)} to date · gaps mean no priced deals</span>
+          <span>Shown when 3+ deals disclose the figure · {latestQ && formatQuarter(latestQ)} to date</span>
         </div>
       </section>
 
@@ -120,7 +121,7 @@ export function ValuationsView() {
                 <th scope="col" className="right">{priorQ ? formatQuarter(priorQ).toUpperCase() : "PRIOR"}</th>
                 <th scope="col" className="right">CHANGE</th>
                 <th scope="col" className="right">8-QUARTER RANGE</th>
-                <th scope="col" className="right">DEALS THIS QUARTER</th>
+                <th scope="col" className="right">DEALS IN MEDIAN (LTM)</th>
               </tr>
             </thead>
             <tbody>
@@ -135,7 +136,7 @@ export function ValuationsView() {
                     <td className="right mono">{fmt(c.previous)}</td>
                     <td className={`right mono ${change == null ? "" : change >= 0 ? "up" : "down"}`}>{change == null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}${m.deltaUnit}`}</td>
                     <td className="right mono">{c.series.length ? `${fmt(Math.min(...c.series))} – ${fmt(Math.max(...c.series))}` : "—"}</td>
-                    <td className="right mono">{dealsInQ(c.sector)}</td>
+                    <td className="right mono">{sampleLtm(c.sector)}</td>
                   </tr>
                 );
               })}

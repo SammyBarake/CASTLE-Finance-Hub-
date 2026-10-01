@@ -373,6 +373,7 @@ const valuations: SectorValuation[] = Object.entries(valuationSeries).flatMap(([
     medianEvRevenue: s.evRevenue[i],
     medianPremiumPct: s.premium[i],
     dealCount: s.deals[i],
+    sample: { evEbitda: s.deals[i], evRevenue: s.deals[i], premium: s.deals[i] },
   })),
 );
 

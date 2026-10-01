@@ -50,13 +50,49 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/^(?:an?\s+)?(?:[A-Z][a-z]+\s){1,2}(?:corporation|limited liability company|limited partnership|company),\s+(?=[A-Z])/, "");
   // "Investor Group Led by Chairman and CEO Thomas Priore" -> "Investor Group Led by Thomas Priore"
   s = s.replace(/\b(?:its |the Company's )?(?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President)(?:,? and (?:(?:Co-)?Chairman|Chief Executive Officer|CEO|Founder|President))*\s+(?=[A-Z])/g, "");
-  // "Mantle Therapeutics and Announces Multiple New Strategic …" -> "Mantle Therapeutics"
+  // A headline verb ends the name: "Mantle Therapeutics and Announces Multiple …", "Abiomed Broadens MedTech",
+  // "Wavedash Leading Online Ticket Marketplace …", "Community Bancorporation Company Release".
   s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
+  s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances)\b.*$/, "");
+  s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
+  s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
+  // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
+  s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based)\s+(?=\S)/i, "");
   s = s.replace(/['’]s$/, "");
   s = s.replace(/[\s,;:\-–]+$/g, "").replace(/^["'\s]+|["'\s]+$/g, "");
   // Keep "Inc." / "Co." periods, drop a stray trailing sentence period otherwise.
   if (/\.$/.test(s) && !/\b(?:Inc|Corp|Co|Ltd|L\.P|N\.V|S\.A|[A-Z])\.$/.test(s)) s = s.slice(0, -1);
   return s;
+}
+
+const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|RF|TV|CW|[A-Z]{1,3}|[A-Z]+\d+\w*)$/;
+const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: "Corp", "CORP.": "Corp.", LTD: "Ltd", "LTD.": "Ltd.", CO: "Co", "CO.": "Co.", HOLDINGS: "Holdings", GROUP: "Group" };
+
+/**
+ * "TETON FINANCIAL SERVICES" -> "Teton Financial Services"; "WTG MIDSTREAM" -> "WTG Midstream". Only names written
+ * entirely in capitals with two or more words; short tokens (acronyms, "LLC") stay as they are. "IBM" and
+ * "KKR" are untouched.
+ */
+// Short English words that are words, not acronyms, in an all-capitals name.
+const MINOR = new Set(["OF", "AND", "FOR", "AT", "IN", "ON", "BY", "TO", "THE", "A", "AN"]);
+const SHORT_WORDS = new Set(["AIR", "OIL", "GAS", "SEA", "SUN", "BAY", "CAR", "NEW", "ONE", "TWO", "BIG", "RED", "TOP", "WAY", "FOX", "KEY", "ART", "LAW", "PRO", "BIO", "ITS", "OLD", "ICE", "SKY", "BAR", "WAR", "LAB", "EYE", "DOG", "CAT", "BOX", "HUB"]);
+
+export function titleCaseCaps(name: string): string {
+  if (/[a-z]/.test(name) || name.trim().split(/\s+/).length < 2) return name;
+  let first = true;
+  return name
+    .split(/(\s+)/)
+    .map((w) => {
+      if (/^\s+$/.test(w)) return w;
+      const isFirst = first;
+      first = false;
+      if (MINOR.has(w)) return isFirst ? w[0] + w.slice(1).toLowerCase() : w.toLowerCase();
+      if (SHORT_WORDS.has(w)) return w[0] + w.slice(1).toLowerCase();
+      if (SUFFIX_CASE[w]) return SUFFIX_CASE[w];
+      if (KEEP_CAPS.test(w.replace(/[,.]$/, "")) || /&|\d|\.[A-Z]/.test(w)) return w;
+      return w.replace(/[A-Z][A-Z'’&-]*/g, (t) => t[0] + t.slice(1).toLowerCase());
+    })
+    .join("");
 }
 
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */

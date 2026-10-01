@@ -60,7 +60,7 @@ export function IpoView() {
       <Kpis label="IPO summary">
         <Kpi label="Filed companies" value={filed.length} note="Awaiting pricing" />
         <Kpi label="Expected raise" value={formatRaise(sum(filed.map((i) => i.expectedRaiseUsd ?? 0)))} note="Filed companies with a disclosed size" />
-        <Kpi label="Priced" value={count("Priced")} note="Awaiting first trade" />
+        <Kpi label="Priced" value={count("Priced")} note="Priced in the last 7 days" />
         <Kpi label="Trading" value={count("Trading")} note="Recent listings" />
       </Kpis>
 

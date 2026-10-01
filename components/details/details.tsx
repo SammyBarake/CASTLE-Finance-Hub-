@@ -299,7 +299,7 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["Status", "Announced: agreement signed. Pending: merger proxy or tender offer on file. Closed: target delisted or change of control reported. Terminated: agreement ended."],
     ["Deal value & premium", "Disclosed transaction value. Premium compares the offer price with the target's unaffected share price, as stated in the announcement."],
     ["Deal volume", "Monthly totals of announced deals by sector, through the last complete month. YTD comparisons use the same months of the prior year."],
-    ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: final 424B4 prospectus filed. Trading: now listed. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
+    ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: priced in the last 7 days (final 424B4 prospectus filed). Trading: priced more than 7 days ago. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
     ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
     [

@@ -280,10 +280,10 @@ export function ValuationCards({ metric, expanded = false }: { metric: Valuation
             </div>
             <div className="valuation-label">
               {c.latest == null
-                ? `No priced deals in ${latestQuarter ? formatQuarter(latestQuarter) : "this quarter"}`
+                ? "Too few priced deals (LTM)"
                 : delta == null
-                  ? "No prior-quarter data"
-                  : `vs. ${priorQuarter ? formatQuarter(priorQuarter) : "prior quarter"}`}
+                  ? "LTM · no prior-quarter figure"
+                  : `LTM · vs. ${priorQuarter ? formatQuarter(priorQuarter) : "prior quarter"}`}
             </div>
             <Sparkline values={c.series} stroke={up ? UP : DOWN} label={`${c.sector}: ${m.title} over ${c.series.length} quarters`} />
           </div>

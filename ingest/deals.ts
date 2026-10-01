@@ -27,7 +27,7 @@ import { parseMergerItem } from "./parse/eightk";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { sameCompany, normalizeName, isPlaceholderBuyer } from "./parse/names";
+import { sameCompany, normalizeName, isPlaceholderBuyer, titleCaseCaps } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
@@ -237,14 +237,46 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
-  if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|properties|facility|facilities|plant|mine|fleet|vessels?|patents?|product line|division|business line|stake|interest)\b/i.test(n)) return false;
+  if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|propert(?:y|ies)|facility|facilities|plant|mine|refinery|project|fleet|vessels?|patents?|product line|division|business line|stake|interest|ownership)\b/i.test(n)) return false;
   // A drug or programme, not a company: "ST-920 Fabry Disease Gene Therapy", "ABC-123".
-  if (/^[A-Z]{1,5}-?\d{2,}\b/.test(n) || /\b(?:therapy|therapies|program|programme|candidate|vaccine|compound|molecule|antibody|asset)$/i.test(n)) return false;
-  // A description, not a name: "Next-Gen AI Drug Discovery Company", "a Leading Software Provider" (a real
-  // name with a legal suffix, "Acme Company, Inc.", is fine).
-  if (/\b(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|specialist)$/i.test(n) && !/\b(?:Inc|LLC|Ltd|Corp|L\.?P)\.?$/i.test(n)) return false;
-  // A single generic word ("Land", "Software", "Assets").
-  return !/^(?:land|software|technology|data|energy|media|health|capital|properties|solutions|services|products|systems|brands?)$/i.test(n);
+  if (/^[A-Z]{1,5}-?\d{2,}\b/.test(n) || /\b(?:therapy|therapies|program|programme|candidate|vaccine|compound|molecule|antibody|asset|operations)$/i.test(n)) return false;
+  // A description, not a name: "Next-Gen AI Drug Discovery Company", "a Leading Software Provider". A plain name
+  // ending in "Company" ("Madison National Life Insurance Company") is fine; marketing adjectives give it away.
+  if (
+    /\b(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|specialist)$/i.test(n) &&
+    !/\b(?:Inc|LLC|Ltd|Corp|L\.?P)\.?$/i.test(n) &&
+    (/\b\w+-\w+\b/.test(n) || /\b(?:leading|innovative|premier|global|independent|specialty|next|emerging|fast-growing|privately)\b/i.test(n))
+  )
+    return false;
+  // A count of things, not a company: "Two Toyota and Two Lexus Dealerships", "FOUR DOMINANT ENCLOSED REGIONAL MALLS",
+  // "A GEORGIA COMMUNITY", "Sixth Real Estate Brokerage" ("First …" and "Second Street" are real names).
+  if (/^(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|dozen|several)\s/i.test(n)) return false;
+  if (/^(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:real estate|franchise|location|store|acquisition|brokerage|office|branch|practice|clinic|restaurant)/i.test(n)) return false;
+  // Real estate and sites: "MONTICELLO LAND", "Inchcape U.K. Dealerships", "ITS FUTURE HEADQUARTERS".
+  if (/\b(?:land|parcels?|acres?|malls?|dealerships?|apartment (?:complex|communit\w*)|headquarters|manufactured home)\b/i.test(n)) return false;
+  // A division of a named company: "RF Business of Wolfspeed", "Microlab RF Business Unit of …", "Alliance Healthcare Businesses".
+  if (/\b(?:business(?:es)?|business unit|division|unit|segment|operations|portfolio)\s+of\b/i.test(n) || /\bbusinesses$/i.test(n)) return false;
+  // A single generic word ("Land", "Software", "Manufacturing") or a job title ("CFO").
+  return !/^(?:land|software|technology|data|energy|media|health|capital|properties|solutions|services|products|systems|brands?|manufacturing|logistics|construction|consulting|insurance|ceo|cfo|coo|president)$/i.test(n);
+}
+
+/**
+ * Tidy a private target's name: drop a glued-on dateline, cut the acquirer's brand when the headline ran into it
+ * ("Ginop Sales Alta CE" bought by Alta Equipment -> "Ginop Sales"), and title-case an all-capitals name.
+ */
+export function tidyTargetName(name: string, acquirerName: string): string {
+  let n = stripDateline(name);
+  // Nothing follows a legal suffix: "Murray Wise Associates LLC Iconic Farmland Investor …" -> "… LLC".
+  n = n.replace(/^(.+?\b(?:Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Limited|Corp\.|Corporation|plc|GmbH|S\.A\.|B\.V\.|N\.V\.))\s+(?!Partnership|Liability|Company|Group|Holdings)[A-Z].*$/, "$1");
+  // "Second Street January 20" -> "Second Street"
+  n = n.replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,?\s*\d{4})?$/, "");
+  const brand = normalizeName(acquirerName).split(" ")[0];
+  const generic = /^(?:energy|health|healthcare|capital|global|american|america|national|first|united|general|financial|pacific|southern|northern|western|eastern|community|industrial|digital|medical|power|water|advanced|applied|premier|summit|pioneer|liberty|eagle)$/;
+  if (brand && brand.length >= 4 && !generic.test(brand)) {
+    const at = n.toLowerCase().search(new RegExp(`\\s${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`));
+    if (at > 2) n = n.slice(0, at);
+  }
+  return titleCaseCaps(n.trim());
 }
 
 const NAME_SUFFIX = /^(?:INC|CORP|LLC|LTD|LP|LLP|PLC|CO|USA|US|AG|SA|NV|SE|GMBH|BV|AB|AS|ASA|OY|SPA|SRL|AI|IT|HR|II|III|IV)[.,]?$/;
@@ -552,8 +584,13 @@ export async function ingestDeals(
         ? directory.byTicker.get(tn)
         : undefined;
     if (asTicker) parsed = { ...parsed, target: { ...parsed.target, name: asTicker.name, ticker: asTicker.ticker } };
-    // "Elon Musk SAN FRANCISCO" -> "Elon Musk"
-    parsed = { ...parsed, acquirer: { ...parsed.acquirer, name: stripDateline(parsed.acquirer.name) } };
+    // "Elon Musk SAN FRANCISCO" -> "Elon Musk"; "CANADIAN PACIFIC" -> "Canadian Pacific"
+    const rawTarget = parsed.target.name;
+    parsed = {
+      ...parsed,
+      acquirer: { ...parsed.acquirer, name: titleCaseCaps(stripDateline(parsed.acquirer.name)) },
+      target: { ...parsed.target, name: titleCaseCaps(rawTarget) },
+    };
     const target = resolveParty(parsed.target, hit, directory);
     const acquirer = resolveParty(parsed.acquirer, hit, directory);
     if (target.cik && target.listedInUs) {
@@ -563,9 +600,18 @@ export async function ingestDeals(
     }
     // A private company bought by a US-listed acquirer: the target resolves to no SEC registrant and has no
     // ticker, and isn't the target of a public deal we already track (a delisted public company, e.g. after closing).
-    const name = stripDateline(parsed.target.name);
+    // Checked before and after tidying: "TWO … COMMUNITIES FREEHOLD" must fail on its raw form.
+    const name = tidyTargetName(rawTarget, parsed.acquirer.name);
     const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, name));
-    if (!target.cik && !target.ticker && acquirer.cik && acquirer.listedInUs && isPrivateTargetName(name, parsed.acquirer.name) && !knownPublic()) {
+    if (
+      !target.cik &&
+      !target.ticker &&
+      acquirer.cik &&
+      acquirer.listedInUs &&
+      isPrivateTargetName(stripDateline(rawTarget), parsed.acquirer.name) &&
+      isPrivateTargetName(name, parsed.acquirer.name) &&
+      !knownPublic()
+    ) {
       stats.parsed++;
       stats.privateDeals++;
       const valueUsd = parsed.valueUsd != null && parsed.valueUsd > MAX_PRIVATE_DEAL_VALUE ? null : parsed.valueUsd;

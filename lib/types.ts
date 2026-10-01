@@ -171,14 +171,20 @@ export interface LeagueTable {
   entries: LeagueTableEntry[];
 }
 
-/** Feature 5: median transaction multiples for one sector in one quarter. */
+/**
+ * Feature 5: median transaction multiples for one sector, trailing twelve months to the end of `quarter`
+ * (that quarter plus the three before). A median needs 3+ deals disclosing the figure, otherwise null.
+ */
 export interface SectorValuation {
   quarter: string;
   sector: Sector;
   medianEvEbitda: number | null;
   medianEvRevenue: number | null;
   medianPremiumPct: number | null;
+  /** Deals announced in `quarter` itself. */
   dealCount: number;
+  /** Deals behind each LTM median. */
+  sample: { evEbitda: number; evRevenue: number; premium: number };
 }
 
 export type Region = "Americas" | "Europe" | "Asia-Pacific";

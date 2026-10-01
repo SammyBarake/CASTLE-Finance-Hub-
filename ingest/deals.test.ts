@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { dropPrivateDuplicates, isPrivateTargetName, stripDateline } from "./deals";
+import { dropPrivateDuplicates, isPrivateTargetName, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -43,6 +43,33 @@ describe("dropPrivateDuplicates", () => {
     dropPrivateDuplicates(deals);
     expect(deals.map((d) => d.id)).toEqual(["a", "c", "d"]);
     expect(deals[0].acquirer.name).toBe("Soundhound Ai, Inc.");
+  });
+});
+
+describe("isPrivateTargetName rejects counts, sites and divisions", () => {
+  it.each([
+    "Two Toyota and Two Lexus Dealerships",
+    "Sixth Real Estate Brokerage",
+    "FOUR DOMINANT ENCLOSED REGIONAL MALLS",
+    "A GEORGIA COMMUNITY",
+    "MONTICELLO LAND",
+    "RF Business of Wolfspeed",
+    "Microlab RF Business Unit of Wireless Telecom Group",
+    "ALLIANCE HEALTHCARE BUSINESSES",
+  ])("%s", (name) => expect(isPrivateTargetName(name, "Buyer Inc")).toBe(false));
+  it("keeps real names", () => {
+    for (const n of ["First Watch Partners", "Rosewood Communities", "Kodiak Building Partners", "Teton Financial Services"]) expect(isPrivateTargetName(n, "Buyer Inc")).toBe(true);
+  });
+});
+
+describe("tidyTargetName", () => {
+  it("cuts the acquirer's brand, title-cases capitals, strips datelines", () => {
+    expect(tidyTargetName("Ginop Sales Alta CE", "Alta Equipment Group Inc.")).toBe("Ginop Sales");
+    expect(tidyTargetName("Crestwood Energy Partners", "Energy Transfer LP")).toBe("Crestwood Energy Partners");
+    expect(tidyTargetName("TETON FINANCIAL SERVICES", "First Western Financial")).toBe("Teton Financial Services");
+    expect(tidyTargetName("WTG MIDSTREAM", "Energy Transfer LP")).toBe("WTG Midstream");
+    expect(tidyTargetName("COMPUTERSHARE MORTGAGE SERVICES INC", "Rithm Capital")).toBe("Computershare Mortgage Services Inc");
+    expect(tidyTargetName("Sirius Computer Solutions LINCOLNSHIRE", "CDW")).toBe("Sirius Computer Solutions");
   });
 });
 

@@ -81,22 +81,37 @@ export function leagueTable(deals: Deal[], asOf: string, shortName: (name: strin
 }
 
 /** Median multiples per sector per quarter, last 8 quarters including the current one. */
+/** Fewest deals behind a median before it is shown: with one or two, a single deal would swing the line. */
+export const MIN_VALUATION_SAMPLE = 3;
+/** Each point is a trailing-twelve-month median: the quarter plus the three before it. */
+const LTM_QUARTERS = 4;
+
 export function sectorValuations(deals: Deal[], asOf: string): SectorValuation[] {
   const now = new Date(asOf);
-  const quarters = Array.from({ length: QUARTERS }, (_, i) => quarterOf(monthKey(now.getUTCFullYear(), now.getUTCMonth() - 3 * (QUARTERS - 1 - i))));
+  const span = QUARTERS + LTM_QUARTERS - 1;
+  const all = Array.from({ length: span }, (_, i) => quarterOf(monthKey(now.getUTCFullYear(), now.getUTCMonth() - 3 * (span - 1 - i))));
+  const round1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+  const med = (v: number[]) => (v.length >= MIN_VALUATION_SAMPLE ? round1(median(v)) : null);
+  const live = deals.filter((d) => d.status !== "Terminated");
   const out: SectorValuation[] = [];
-  for (const quarter of quarters) {
+  for (let qi = LTM_QUARTERS - 1; qi < all.length; qi++) {
+    const quarter = all[qi];
+    const window = new Set(all.slice(qi - LTM_QUARTERS + 1, qi + 1));
     for (const sector of SECTORS) {
-      const inQ = deals.filter((d) => d.sector === sector && quarterOf(d.announcedDate) === quarter && d.status !== "Terminated");
-      const vals = (f: (d: Deal) => number | null) => inQ.map(f).filter((v): v is number => v != null);
-      const round1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+      const inSector = live.filter((d) => d.sector === sector);
+      const ltm = inSector.filter((d) => window.has(quarterOf(d.announcedDate)));
+      const vals = (f: (d: Deal) => number | null) => ltm.map(f).filter((v): v is number => v != null);
+      const ebitda = vals((d) => d.evEbitda);
+      const revenue = vals((d) => d.evRevenue);
+      const premium = vals((d) => d.premiumPct);
       out.push({
         quarter,
         sector,
-        medianEvEbitda: round1(median(vals((d) => d.evEbitda))),
-        medianEvRevenue: round1(median(vals((d) => d.evRevenue))),
-        medianPremiumPct: round1(median(vals((d) => d.premiumPct))),
-        dealCount: inQ.length,
+        medianEvEbitda: med(ebitda),
+        medianEvRevenue: med(revenue),
+        medianPremiumPct: med(premium),
+        dealCount: inSector.filter((d) => quarterOf(d.announcedDate) === quarter).length,
+        sample: { evEbitda: ebitda.length, evRevenue: revenue.length, premium: premium.length },
       });
     }
   }
