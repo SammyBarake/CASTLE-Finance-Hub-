@@ -14,7 +14,7 @@ import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRIC
 const monthYear = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 
 export function HubView() {
-  const { data, ytd, medianPremiumPct, ipoSummary } = useHubData();
+  const { data, ytd, medianPremiumPct, ipoSummary, freshness } = useHubData();
   const { openDeal, openIpo, openAdvisor } = useDetails();
   const { toast } = useUi();
   const { openRowMenu } = useRecordActions();
@@ -63,7 +63,7 @@ export function HubView() {
             <button
               key={d.id}
               type="button"
-              className="preview-row"
+              className={`preview-row ${freshness.freshIds.has(d.id) ? "row-fresh" : ""}`}
               onClick={() => openDeal(d)}
               title="Open details"
               onContextMenu={(e) => {
@@ -98,7 +98,7 @@ export function HubView() {
             <button
               key={i.id}
               type="button"
-              className="preview-row"
+              className={`preview-row ${freshness.freshIds.has(i.id) ? "row-fresh" : ""}`}
               onClick={() => openIpo(i)}
               title="Open details"
               onContextMenu={(e) => {

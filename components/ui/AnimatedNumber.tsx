@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isLiveUpdate } from "@/components/data/HubDataProvider";
 
 /** "$2.92T" -> { prefix "$", number 2.92, decimals 2, suffix "T" }; null when the text holds no single number. */
 function split(text: string) {
@@ -22,7 +23,8 @@ let hydrated = false;
 
 /**
  * Shows a formatted figure; when it changes (a page opening, a filter, new data arriving in the background) it
- * counts from the old value to the new one instead of jumping. Unit changes ("$950B" -> "$1.02T") and reduced
+ * counts from the old value to the new one instead of jumping. When the change came from a live data update the
+ * figure also tints green (up) or red (down) while it moves. Unit changes ("$950B" -> "$1.02T") and reduced
  * motion show the new text directly.
  */
 export function AnimatedNumber({ text }: { text: string }) {
@@ -31,6 +33,7 @@ export function AnimatedNumber({ text }: { text: string }) {
     return p ? render(p, 0) : text;
   });
   const [shown, setShown] = useState(initial);
+  const [tick, setTick] = useState<"up" | "down" | null>(null);
   // What is on screen right now, so an interrupted count continues from there.
   const onScreen = useRef(initial);
 
@@ -49,8 +52,10 @@ export function AnimatedNumber({ text }: { text: string }) {
       show(text);
       return;
     }
+    const live = a.value !== 0 && isLiveUpdate();
+    if (live) setTick(b.value > a.value ? "up" : "down");
     const start = performance.now();
-    const duration = a.value === 0 ? 800 : 900;
+    const duration = live ? 1200 : a.value === 0 ? 800 : 900;
     let frame = 0;
     const step = (now: number) => {
       // A frame's timestamp can precede `start`: clamp, or the first frame would move the wrong way.
@@ -65,11 +70,13 @@ export function AnimatedNumber({ text }: { text: string }) {
       cancelAnimationFrame(frame);
       show(text);
     }, duration + 150);
+    const untint = live ? setTimeout(() => setTick(null), duration + 900) : undefined;
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settle);
+      clearTimeout(untint);
     };
   }, [text]);
 
-  return <>{shown}</>;
+  return tick ? <span className={`num-tick ${tick}`}>{shown}</span> : <>{shown}</>;
 }

@@ -90,7 +90,7 @@ async function loadHubData(): Promise<HubData> {
 /*
  * Shared data cache. Every page used to read all ~2,000 deals from Supabase itself (about 8 seconds each), so
  * eleven pages regenerating together took up to a minute. Now one read is cached and shared by every page:
- *  - meta (asOf, macro, activists): re-checked every 5 minutes;
+ *  - meta (asOf, macro, activists): re-checked every minute;
  *  - deals and IPOs: cached per `asOf`, so all chunks come from the same ingest snapshot and a new ingest
  *    simply starts new cache entries. Deals are cached in chunks of 500 (Next's data cache stores at most
  *    2 MB per entry).
@@ -130,7 +130,7 @@ const cachedMeta = unstable_cache(
     return data ?? [];
   },
   ["castle-meta-v1"],
-  { revalidate: 300, tags: ["hub"] },
+  { revalidate: 60, tags: ["hub"] },
 );
 
 const cachedDealChunk = unstable_cache(

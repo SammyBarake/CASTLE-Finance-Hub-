@@ -83,7 +83,8 @@ function Cell({ d, col }: { d: Deal; col: DealColumn }) {
 }
 
 export function DealFlowView() {
-  const { data } = useHubData();
+  const { data, freshness } = useHubData();
+  const freshIds = freshness.freshIds;
   const { openDeal } = useDetails();
   const { toast, openMenu } = useUi();
   const ws = useWorkspace();
@@ -354,7 +355,7 @@ export function DealFlowView() {
                 return (
                   <tr
                     key={d.id}
-                    className={`row-link ${isSel ? "selected-row" : ""}`}
+                    className={`row-link ${isSel ? "selected-row" : ""} ${freshIds.has(d.id) ? "row-fresh" : ""}`}
                     tabIndex={0}
                     aria-label={`${d.acquirer.name} acquires ${d.target.name}`}
                     onClick={() => openDeal(d)}

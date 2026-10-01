@@ -16,7 +16,7 @@ import { IPO_STAGES, SECTORS, type IpoStage, type Sector } from "@/lib/types";
 const monthYear = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 
 export function IpoView() {
-  const { data } = useHubData();
+  const { data, freshness } = useHubData();
   const { openIpo } = useDetails();
   const { toast } = useUi();
   const { openRowMenu } = useRecordActions();
@@ -129,7 +129,7 @@ export function IpoView() {
             </thead>
             <tbody>
               {rows.slice(0, shown).map((i) => (
-                <RowLink key={i.id} label={`${i.company.name} IPO`} onOpen={() => openIpo(i)} onMenu={(at) => openRowMenu("ipo", i, at)}>
+                <RowLink key={i.id} label={`${i.company.name} IPO`} onOpen={() => openIpo(i)} onMenu={(at) => openRowMenu("ipo", i, at)} className={freshness.freshIds.has(i.id) ? "row-fresh" : ""}>
                   <td className="cell-end" onClick={(e) => e.stopPropagation()}>
                     <WatchButton kind="ipo" id={i.id} label={i.company.name} />
                   </td>

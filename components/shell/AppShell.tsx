@@ -10,9 +10,9 @@ import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
 import { useWorkspaceDialogs } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
-import { formatTimestampET } from "@/lib/format";
 import { GlobalSearch } from "./GlobalSearch";
 import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
+import { LiveStatus } from "./LiveStatus";
 import { NavigationProgress } from "./NavigationProgress";
 import { PageSkeleton } from "./PageSkeleton";
 import { SectionTabs } from "./SectionTabs";
@@ -136,12 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="top-tools">
             <GlobalSearch />
-            {!data.dataError && !data.isSample && (
-              <div className="live-status" title={`SEC EDGAR data, last refreshed ${formatTimestampET(data.asOf)}. Open pages update on their own.`}>
-                <i aria-hidden="true" />
-                Live<span>{formatTimestampET(data.asOf)}</span>
-              </div>
-            )}
+            {!data.dataError && !data.isSample && <LiveStatus />}
             {data.isSample && <span className="sample-label sample-tag">Sample data</span>}
             <button type="button" className="tool-icon wide" aria-label={`Open watchlist (${ws.prefs.watch.length})`} title="Watchlist" onClick={openWatchlist}>
               <Icon name="star" className={ws.prefs.watch.length ? "star-fill" : ""} />

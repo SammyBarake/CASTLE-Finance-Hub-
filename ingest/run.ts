@@ -5,6 +5,7 @@
  *   npm run ingest -- --from 2024-09-01    backfill from a date
  *   npm run ingest -- --local              force the local JSON store (.data/castle.json)
  *   npm run ingest -- --only deals|ipos|activists|macro    run one pipeline
+ *   npm run ingest -- --skip macro,activists               leave pipelines out (quick hourly runs)
  *   npm run ingest -- --only activists --from 2025-01-01   backfill activist 13Ds
  *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
  */
@@ -29,6 +30,9 @@ async function main() {
   const to = arg("to") ?? today;
   const from = arg("from") ?? isoDay(new Date(Date.now() - 5 * 86_400_000));
   const only = arg("only");
+  // --skip macro,activists: leave pipelines out (quick hourly runs skip the slow, slow-changing ones).
+  const skip = new Set((arg("skip") ?? "").split(",").filter(Boolean));
+  const runs = (step: string) => (!only || only === step) && !skip.has(step);
   const log = (s: string) => console.log(`[${((Date.now() - started) / 1000).toFixed(0).padStart(4)}s] ${s}`);
 
   const store = storeFromEnv({ local: flag("local") });
@@ -71,7 +75,7 @@ async function main() {
   // A rebuild only deletes stale deals when every search worked; a skipped month would otherwise lose its deals.
   let complete = true;
   try {
-    if (!only || only === "deals") {
+    if (runs("deals")) {
       log("deals: discovering announcements");
       const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint });
       log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched`);
@@ -80,12 +84,12 @@ async function main() {
         log(`deals: ${s.searchGaps.length} searches failed after retries; stale deals are kept this run (run again later to fill the gaps)`);
       }
     }
-    if (!only || only === "ipos") {
+    if (runs("ipos")) {
       log("ipos: discovering registrations");
       const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
       log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
     }
-    if (!only || only === "activists") {
+    if (runs("activists")) {
       // Non-critical: a failure keeps the stored stakes.
       try {
         log("activists: reading Schedule 13D filings");
@@ -95,7 +99,7 @@ async function main() {
         log(`activists: skipped (${(err as Error).message})`);
       }
     }
-    if (!only || only === "macro") {
+    if (runs("macro")) {
       // Non-critical: on failure keep the last good snapshot and carry on.
       try {
         state.macro = await fetchMacro();

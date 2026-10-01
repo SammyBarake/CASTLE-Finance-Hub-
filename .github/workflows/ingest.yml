@@ -1,11 +1,15 @@
 name: Ingest SEC data
 
-# Pulls new EDGAR filings into Supabase every 3 hours.
+# Pulls new EDGAR filings into Supabase: a full run every 6 hours, plus quick hourly runs through the US business day.
 # Run it by hand from the Actions tab ("Run workflow"); set "from" (YYYY-MM-DD) for a backfill.
 on:
   schedule:
-    # Every 3 hours (UTC). A normal run takes a few minutes, well inside the free Actions allowance.
-    - cron: "20 */3 * * *"
+    # Full run every 6 hours (UTC): new filings, status / enrichment, IPOs, activists, macro. A few minutes each.
+    - cron: "20 */6 * * *"
+    # Quick run hourly on weekdays 11:50-23:50 UTC (about 7:50am-7:50pm New York), when EDGAR publishes most
+    # filings: only the last two days, no macro. About 2 minutes each. Together roughly 1,200-1,400 of the
+    # 2,000 free Actions minutes a month for a private repository (unlimited if the repository is public).
+    - cron: "50 11-23 * * 1-5"
   workflow_dispatch:
     inputs:
       from:
@@ -53,6 +57,8 @@ jobs:
             npm run ingest -- --only activists --from 2024-12-18
           elif [ -n "${{ inputs.from }}" ]; then
             npm run ingest -- --from "${{ inputs.from }}"
+          elif [ "${{ github.event.schedule }}" = "50 11-23 * * 1-5" ]; then
+            npm run ingest -- --from "$(date -u -d '2 days ago' +%F)" --skip macro
           else
             npm run ingest
           fi

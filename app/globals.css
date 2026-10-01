@@ -162,6 +162,18 @@
   .live-status i { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--color-up); }
   .live-status i::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid var(--color-up); opacity: 0; animation: live-pulse 2.4s ease-out infinite; }
   .live-status span { color: #7d7d7d; margin-left: 2px; }
+  .live-status { transition: border-color 0.4s, background 0.4s, color 0.4s; }
+  /* Each check sends a quicker ripple from the dot. */
+  .live-status.checking i::after { animation-duration: 0.9s; }
+  /* An update just landed: the pill glows green for a few seconds. */
+  .live-status.updated { border-color: #2f5a46; background: #0c1712; color: #bfe3cf; }
+  .live-status.updated span { color: #7fae96; }
+  /* Figures moving because of a live update tint while they count. */
+  .num-tick { transition: color 0.6s; }
+  .num-tick.up { color: #8fd6b2; }
+  .num-tick.down { color: #e39aa0; }
+  /* Rows that arrived in the latest update glow, then settle. */
+  .table-scroll tbody tr.row-fresh, .preview-row.row-fresh { animation: row-fresh 12s var(--ease-out) both; }
   .sample-label { font-size: 9px; color: #888; white-space: nowrap; }
   .tool-icon { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 29px; height: 29px; border: 1px solid #292929; border-radius: 5px; color: #999; transition: background 0.15s, color 0.15s, border-color 0.15s; }
   .tool-icon:hover { background: #181818; color: #eee; }
@@ -839,6 +851,7 @@
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bar-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes row-fresh { 0% { background: #12241b; box-shadow: inset 2px 0 0 #6fba98; } 60% { background: #0d1813; box-shadow: inset 2px 0 0 #6fba98aa; } 100% { background: transparent; box-shadow: inset 2px 0 0 transparent; } }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
 
