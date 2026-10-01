@@ -159,7 +159,7 @@ export function PageLink({ href, children = "View all" }: { href: string; childr
 }
 
 /** Page title block with date and export button. */
-export function PageHeading({ title, subtitle, onExport, exportLabel }: { title: string; subtitle: string; onExport?: () => void; exportLabel?: string }) {
+export function PageHeading({ title, subtitle, onExport, exportLabel, extra }: { title: string; subtitle: string; onExport?: () => void; exportLabel?: string; extra?: ReactNode }) {
   return (
     <div className="page-heading">
       <div>
@@ -169,6 +169,7 @@ export function PageHeading({ title, subtitle, onExport, exportLabel }: { title:
         <p>{subtitle}</p>
       </div>
       <div className="head-tools">
+        {extra}
         {onExport && (
           <button type="button" className="button" onClick={onExport} aria-label={exportLabel ?? `Export ${title} data as CSV`}>
             <Icon name="download" />

@@ -53,7 +53,18 @@ export function CompanyView({ id }: { id: string }) {
 
   return (
     <>
-      <PageHeading title={company.name} subtitle={subtitle} onExport={deals.length ? exportRows : undefined} exportLabel="Export this company's deals as CSV" />
+      <PageHeading
+        title={company.name}
+        subtitle={subtitle}
+        onExport={deals.length ? exportRows : undefined}
+        exportLabel="Export this company's deals as CSV"
+        extra={
+          <a className="button" href={`/tearsheet/company/${encodeURIComponent(id)}`} target="_blank" rel="noopener" title="Printable one-page profile (opens in a new tab)">
+            <Icon name="print" />
+            Tear sheet
+          </a>
+        }
+      />
 
       <Kpis label="Company summary">
         <Kpi label="Acquisitions" value={bought.length} note={bought.length ? `${formatUsd(profile.acquiredValueUsd)} disclosed value` : "None in Castle's feed"} />

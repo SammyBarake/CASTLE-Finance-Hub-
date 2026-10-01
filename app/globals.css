@@ -566,6 +566,88 @@
   .active-row { background: #151515; }
   .stake-purpose { margin: 0 0 14px; padding: 12px 14px; border-left: 2px solid #444; background: #0c0c0c; font-size: 11px; line-height: 1.6; color: #cfcfcf; }
 
+  /* ---------- tear sheets (printable one-pagers, light paper on a dark stage) ---------- */
+  .sheet-stage { min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #161616, #050505 62%); padding: 0 24px 72px; }
+  .sheet-toolbar { position: sticky; top: 0; z-index: 5; max-width: 816px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; animation: fade-in 0.4s ease both; }
+  .sheet-back { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #a5a5a5; transition: color 0.15s; }
+  .sheet-back:hover { color: #fff; }
+  .sheet-back .icon { width: 12px; height: 12px; transform: rotate(180deg); }
+  .sheet-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+  .sheet-hint { font-size: 10px; color: #6f6f6f; margin-right: 6px; }
+  .sheet-print { background: #ececec; color: #0b0b0b; border-color: #ececec; }
+  .sheet-print:hover { background: #fff; border-color: #fff; }
+  .sheet { width: 816px; max-width: 100%; min-height: 1056px; margin: 0 auto; background: #fff; color: #141414; padding: 44px 52px 32px; border-radius: 4px; box-shadow: 0 34px 90px #000c, 0 0 0 1px #ffffff12; display: flex; flex-direction: column; gap: 18px; font-size: 10.5px; line-height: 1.45; animation: sheet-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .sheet > * { animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .sheet > :nth-child(1) { animation-delay: 0.15s; }
+  .sheet > :nth-child(2) { animation-delay: 0.21s; }
+  .sheet > :nth-child(3) { animation-delay: 0.27s; }
+  .sheet > :nth-child(4) { animation-delay: 0.33s; }
+  .sheet > :nth-child(5) { animation-delay: 0.39s; }
+  .sheet > :nth-child(6) { animation-delay: 0.45s; }
+  .sheet > :nth-child(n + 7) { animation-delay: 0.51s; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #141414; }
+  /* The logo is cream on transparent; brightness(0) draws the same artwork in ink. */
+  .sheet-logo { width: 56px; height: auto; filter: brightness(0); }
+  .sheet-head-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 9.5px; color: #6b6b6b; }
+  .sheet-kind { font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #141414; }
+  .sheet-eyebrow { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #7a7a7a; }
+  .sheet-title h1 { font-size: 22px; font-weight: 600; line-height: 1.25; letter-spacing: -0.4px; margin: 5px 0 4px; color: #0f0f0f; }
+  .sheet-title h1 span { font-weight: 400; color: #8a8a8a; }
+  .sheet-title p { font-size: 10.5px; color: #5b5b5b; }
+  .sheet-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #e3e3e3; border-radius: 4px; background: #fafaf8; }
+  .sheet-figures > div { padding: 11px 14px 12px; border-left: 1px solid #e3e3e3; min-width: 0; }
+  .sheet-figures > div:first-child { border-left: 0; }
+  .sheet-figures span { font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6f6f6f; }
+  .sheet-figures b { display: block; margin-top: 4px; font-size: 19px; font-weight: 600; letter-spacing: -0.3px; color: #0f0f0f; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-figures small { display: block; margin-top: 2px; font-size: 9px; color: #7a7a7a; }
+  .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .sheet-section h2 { font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #141414; padding-bottom: 6px; border-bottom: 1px solid #d6d6d6; margin-bottom: 2px; }
+  .sheet-rows { margin: 0; }
+  .sheet-rows > div { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; border-bottom: 1px solid #efefef; }
+  .sheet-rows dt { color: #6a6a6a; white-space: nowrap; }
+  .sheet-rows dd { margin: 0; text-align: right; color: #141414; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .sheet-empty { color: #8a8a8a; padding: 7px 0; }
+  .sheet-note { color: #7a7a7a; font-size: 9px; margin-top: 7px; }
+  .sheet-timeline { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .sheet-timeline li { position: relative; padding: 16px 8px 0 0; font-size: 9.5px; }
+  .sheet-timeline li::before { content: ""; position: absolute; top: 4px; left: 0; right: 0; height: 2px; background: #e6e6e6; }
+  .sheet-timeline li.done::before { background: #141414; }
+  .sheet-timeline li:last-child::before { right: auto; width: 10px; }
+  .sheet-timeline i { position: absolute; top: 0; left: 0; z-index: 1; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #cfcfcf; }
+  .sheet-timeline li.done i { background: #141414; border-color: #141414; }
+  .sheet-timeline li.bad i { background: #b4474f; border-color: #b4474f; }
+  .sheet-timeline span { display: block; font-weight: 500; color: #141414; }
+  .sheet-timeline b { display: block; font-weight: 400; color: #6a6a6a; }
+  .sheet-ff { display: grid; gap: 3px; margin-top: 8px; }
+  .sheet-ff-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 44px; min-height: 22px; }
+  .sheet-ff-label { font-size: 9.5px; color: #333; line-height: 1.25; }
+  .sheet-ff-label small { display: block; font-size: 8.5px; color: #8a8a8a; }
+  .sheet-ff-track { position: relative; height: 20px; margin-right: 44px; }
+  .sheet-ff-track i { position: absolute; top: 5px; height: 10px; background: #d9d9d9; border: 1px solid #9c9c9c; border-radius: 2px; animation: fade-in 0.6s ease 0.55s both; }
+  .sheet-ff-track em { position: absolute; top: -2px; font-style: normal; font-size: 8.5px; color: #555; white-space: nowrap; }
+  .sheet-ff-track em.lo { right: calc(100% + 4px); }
+  .sheet-ff-track em.hi { left: calc(100% + 4px); }
+  .sheet-ff-offer { position: absolute; top: -3px; bottom: -3px; border-left: 1.5px dashed #141414; }
+  .sheet-ff-axis { min-height: 18px; }
+  .sheet-ff-offer-label { position: absolute; top: 0; transform: translateX(-50%); font-size: 9px; background: #141414; color: #fff; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .sheet-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  .sheet-table th { text-align: left; font-weight: 500; font-size: 8.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #6a6a6a; padding: 6px 6px 5px; border-bottom: 1px solid #d6d6d6; }
+  .sheet-table td { padding: 5px 6px; border-bottom: 1px solid #efefef; color: #1a1a1a; }
+  .sheet-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .sheet-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid #d6d6d6; display: grid; gap: 6px; font-size: 8.5px; color: #7a7a7a; }
+  .sheet-sources { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .sheet-sources ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 3px 14px; color: #555; }
+  .sheet-label { font-size: 8.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #141414; }
+  @media screen and (max-width: 860px) {
+    .sheet { padding: 28px 22px; min-height: 0; }
+    .sheet-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sheet-figures > div:nth-child(3) { border-left: 0; }
+    .sheet-figures > div:nth-child(n + 3) { border-top: 1px solid #e3e3e3; }
+    .sheet-grid { grid-template-columns: 1fr; }
+    .sheet-hint { display: none; }
+    .sheet-ff-row { grid-template-columns: 96px minmax(0, 1fr); gap: 36px; }
+  }
+
   /* ---------- deal terms ---------- */
   .terms-legend { display: flex; gap: 18px; padding: 0 19px 6px; font-size: 10px; color: #9a9a9a; }
   .terms-legend span { display: inline-flex; align-items: center; gap: 7px; }
@@ -718,6 +800,20 @@
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bar-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* Printing a tear sheet: only the paper, no stage, toolbar or animation. */
+@media print {
+  @page { size: letter; margin: 0.4in; }
+  :root { color-scheme: light; }
+  html, body { background: #fff !important; }
+  .sheet-stage { background: none; padding: 0; min-height: 0; }
+  .sheet-toolbar { display: none; }
+  .sheet { width: auto; min-height: 0; padding: 0; border-radius: 0; box-shadow: none; }
+  .sheet, .sheet * { animation: none !important; }
+  .sheet-figures, .sheet-section, .sheet-grid { break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 
 /* ---------- responsive (mirrors the design file) ---------- */
 @media (min-width: 1650px) {

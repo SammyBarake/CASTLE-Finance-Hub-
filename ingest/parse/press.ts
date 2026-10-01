@@ -461,7 +461,9 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   if (/\b(?:notes?|offering|debentures|credit facility|dividend|earnings|results|guidance|tender offer for .*notes)\b/i.test(headline) && !dealWords.test(headline) && !dealIntro) return null;
 
   let kind: PressKind = "announcement";
-  if (/\bterminat/.test(hl.slice(0, 160))) kind = "termination";
+  // "Early termination of the HSR waiting period" is an antitrust clearance, the opposite of a deal ending.
+  if (/\bterminat/.test(hl.slice(0, 160)) && !/\b(?:early\s+)?terminat\w*\s+of\s+(?:the\s+)?(?:applicable\s+)?(?:Hart-Scott-Rodino|HSR|waiting period)|waiting period[^.]{0,40}terminat/.test(hl.slice(0, 200)))
+    kind = "termination";
   // Completion only when the headline's main verb says so ("X Completes Acquisition of Y"),
   // not when a sub-clause mentions closing or completion.
   else if (

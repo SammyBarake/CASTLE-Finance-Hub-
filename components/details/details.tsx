@@ -61,9 +61,15 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
         {watched ? "Watching" : "Watch"}
       </button>
       {kind === "deal" && (
+        <a className="button" href={`/tearsheet/deal/${encodeURIComponent(record.id)}`} target="_blank" rel="noopener" title="Printable one-page summary (opens in a new tab)">
+          <Icon name="print" />
+          Tear sheet
+        </a>
+      )}
+      {kind === "deal" && (
         <Link className="button" href={`/precedents?deal=${encodeURIComponent(record.id)}`} onClick={closeDialog}>
           <Icon name="comps" />
-          Find precedents
+          Precedents
         </Link>
       )}
       <span className="drawer-actions-spacer" />

@@ -268,3 +268,21 @@ describe("term extractors", () => {
     expect(extractAdvisors(text, "Parent", "Target Co", "target", "TGT")).toEqual({ acquirerAdvisors: ["Moelis"], targetAdvisors: ["Barclays"] });
   });
 });
+
+describe("termination headlines", () => {
+  const ctx = { filerName: "Integer Holdings Corp", filerTickers: ["ITGR"] };
+  it("does not read early HSR termination as the deal ending", () => {
+    const p = parsePressRelease(
+      "Integer Receives Early Termination of Hart-Scott-Rodino Waiting Period for Pending Acquisition by KKR\nPLANO, Texas, September 30, 2026 -- Integer Holdings Corporation (NYSE: ITGR) today announced that it has received early termination of the waiting period under the HSR Act in connection with the previously announced acquisition of Integer by an affiliate of investment funds managed by KKR for $127 per share in cash.",
+      ctx,
+    );
+    expect(p?.kind).not.toBe("termination");
+  });
+  it("still reads a terminated merger agreement", () => {
+    const p = parsePressRelease(
+      "Integer and KKR Mutually Agree to Terminate Merger Agreement\nPLANO, Texas, October 30, 2026 -- Integer Holdings Corporation (NYSE: ITGR) and KKR today announced that they have mutually agreed to terminate the merger agreement under which KKR would have acquired Integer.",
+      ctx,
+    );
+    expect(p?.kind).toBe("termination");
+  });
+});
