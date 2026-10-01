@@ -75,6 +75,8 @@ export interface Deal {
   /** The page feed's stand-in for `fairness`: true when the full record has opinions. */
   hasFairness?: boolean;
   milestones?: DealMilestones;
+  /** Deal protections and financing from the merger agreement summary (public targets only). */
+  terms?: DealTerms;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
   /** EV / last-twelve-months EBITDA of the target. */
@@ -85,6 +87,25 @@ export interface Deal {
   acquirerAdvisors: string[];
   targetAdvisors: string[];
   filings: Filing[];
+}
+
+/**
+ * Deal protections from the merger agreement (the target's 8-K Item 1.01, else its merger proxy).
+ * Every field is null / empty when the filing doesn't state it clearly.
+ */
+export interface DealTerms {
+  /** Termination ("break") fee the target pays, e.g. if its board takes a superior proposal. */
+  targetFeeUsd: number | null;
+  /** Reverse termination fee the buyer pays, e.g. if financing or regulatory approval fails. */
+  reverseFeeUsd: number | null;
+  /** true: a go-shop lets the target seek better offers after signing; false: a no-shop; null: not stated. */
+  goShop: boolean | null;
+  /** Go-shop length in days, when stated. */
+  goShopDays: number | null;
+  /** false: "not subject to a financing condition"; true: conditioned on financing; null: not stated. */
+  financingCondition: boolean | null;
+  /** Banks that committed debt financing to the buyer (canonical names, lead first). */
+  financingBanks: string[];
 }
 
 /** Feature 2: one row per sector per month of announced M&A. */

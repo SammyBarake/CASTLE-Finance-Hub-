@@ -23,7 +23,8 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
-import { parseMergerItem } from "./parse/eightk";
+import { item101, parseMergerItem } from "./parse/eightk";
+import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
@@ -32,7 +33,7 @@ import { displayName, parsePressRelease, type ParsedPress, type PartyMention } f
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
 import { htmlToText } from "./text";
-import type { Company, DealStatus, Filing } from "../lib/types";
+import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
 const QUERIES = [
   '"represents a premium"',
@@ -469,6 +470,53 @@ export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | n
   deal.fairnessParser = FAIRNESS_PARSER_VERSION;
 }
 
+/**
+ * Deal protections from the target's merger 8-K (Item 1.01 summary of the merger agreement), with gaps filled
+ * from its merger proxy: fees from the proxy's summary only (its background section quotes rejected proposals),
+ * financing banks from anywhere in it ("Financing of the Merger"). `settled` once both documents have been read.
+ */
+export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise<{ terms: DealTerms | null; settled: boolean }> {
+  const DAY = 86_400_000;
+  const lo = new Date(Date.parse(deal.announcedDate) - 7 * DAY).toISOString().slice(0, 10);
+  const hi = new Date(Date.parse(deal.announcedDate) + 20 * DAY).toISOString().slice(0, 10);
+  const names = { target: deal.target.name, acquirer: deal.acquirer.name };
+  const filings = recentFilings(sub);
+
+  let fromEightK: DealTerms | null = null;
+  const eightKs = filings.filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= hi).sort((a, b) => a.date.localeCompare(b.date));
+  for (const f of eightKs.slice(0, 3)) {
+    const section = item101(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))));
+    if (!section) continue; // an unrelated agreement (a credit facility, an employment contract)
+    fromEightK = parseDealTerms(section, names);
+    break;
+  }
+
+  let fromProxy: DealTerms | null = null;
+  const proxy = filings
+    .filter((f) => f.date >= deal.announcedDate && PROXY_FORMS.test(f.form))
+    .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+  if (proxy) {
+    const text = htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 1_200_000));
+    const summary = parseDealTerms(text.slice(0, 150_000), names);
+    const whole = parseDealTerms(text, names);
+    fromProxy = { ...summary, financingBanks: whole.financingBanks, financingCondition: summary.financingCondition ?? whole.financingCondition };
+  }
+
+  if (!fromEightK && !fromProxy) return { terms: null, settled: false };
+  const a = fromEightK ?? fromProxy!;
+  const b = fromProxy ?? fromEightK!;
+  const terms: DealTerms = {
+    targetFeeUsd: saneFee(a.targetFeeUsd ?? b.targetFeeUsd, deal.valueUsd),
+    reverseFeeUsd: saneFee(a.reverseFeeUsd ?? b.reverseFeeUsd, deal.valueUsd),
+    goShop: a.goShop ?? b.goShop,
+    goShopDays: a.goShopDays ?? b.goShopDays,
+    financingCondition: a.financingCondition ?? b.financingCondition,
+    financingBanks: [...new Set([...a.financingBanks, ...b.financingBanks])].slice(0, 8),
+  };
+  const empty = terms.targetFeeUsd == null && terms.reverseFeeUsd == null && terms.goShop == null && terms.financingCondition == null && !terms.financingBanks.length;
+  return { terms: empty ? null : terms, settled: !!fromEightK && !!fromProxy };
+}
+
 export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory) {
   // Official SEC registrant names beat names parsed from prose.
   if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
@@ -547,6 +595,21 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     }
     const final = proxy && proxy.form !== "PREM14A" && proxy.adsh === deal.fairnessAdsh;
     if (final || deal.status === "Closed" || deal.status === "Terminated") deal.fairnessCheckedAt = today;
+  }
+
+  // Deal protections (break fees, go-shop, financing). Re-read when the parser changes.
+  if (sub && deal.termsParser !== TERMS_PARSER_VERSION) {
+    deal.termsCheckedAt = null;
+    deal.termsParser = TERMS_PARSER_VERSION;
+  }
+  if (sub && !deal.termsCheckedAt) {
+    try {
+      const { terms, settled } = await readDealTerms(deal, sub);
+      if (terms) deal.terms = terms;
+      if (settled || deal.status === "Closed" || deal.status === "Terminated") deal.termsCheckedAt = today;
+    } catch {
+      // Try again on the next run.
+    }
   }
 
   if (!deal.financialsCheckedAt && deal.target.cik) {
@@ -757,6 +820,9 @@ export async function ingestDeals(
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
       !d.fairnessCheckedAt ||
       d.fairnessParser !== FAIRNESS_PARSER_VERSION ||
+      d.termsParser !== TERMS_PARSER_VERSION ||
+      // Unsettled terms (no proxy yet) are looked for once a day, not every run.
+      (!d.termsCheckedAt && d.statusCheckedAt !== opts.today) ||
       !d.milestones ||
       d.milestones.voteHeld === undefined,
   );

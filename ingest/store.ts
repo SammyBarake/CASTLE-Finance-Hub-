@@ -26,6 +26,10 @@ export interface StoredDeal extends Deal {
   fairnessCheckedAt?: string | null;
   /** FAIRNESS_PARSER_VERSION the opinions were read with; a newer parser triggers a re-read. */
   fairnessParser?: number;
+  /** Deal protections read (8-K + proxy) on this date; null = look again on the next run. */
+  termsCheckedAt?: string | null;
+  /** TERMS_PARSER_VERSION the terms were read with. */
+  termsParser?: number;
 }
 
 export interface StoredIpo extends Ipo {

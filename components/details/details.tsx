@@ -6,6 +6,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { buyerType } from "@/lib/buyers";
+import { feeLabel, financingLabel, goShopLabel } from "@/lib/terms";
 import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
@@ -16,6 +17,7 @@ import { useRecordActions } from "@/components/workspace/actions";
 import { useWorkspace, type RecordKind } from "@/components/workspace/WorkspaceProvider";
 
 const withTicker = (c: { name: string; ticker: string | null }) => (c.ticker ? `${c.name} (${c.ticker})` : c.name);
+const feePct = (fee: number | null, value: number | null) => (fee != null && value ? (fee / value) * 100 : null);
 
 function SourceNote({ isSample }: { isSample: boolean }) {
   return (
@@ -154,6 +156,17 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / Revenue">{formatMultiple(deal.evRevenue)}</DetailItem>
           </DetailGrid>
+          {deal.terms && (
+            <>
+              <h3 className="detail-section">Deal protections</h3>
+              <DetailGrid>
+                <DetailItem label="Break fee (target pays)">{feeLabel(deal.terms.targetFeeUsd, feePct(deal.terms.targetFeeUsd, deal.valueUsd), formatUsd)}</DetailItem>
+                <DetailItem label="Reverse fee (buyer pays)">{feeLabel(deal.terms.reverseFeeUsd, feePct(deal.terms.reverseFeeUsd, deal.valueUsd), formatUsd)}</DetailItem>
+                <DetailItem label="Go-shop">{goShopLabel(deal.terms)}</DetailItem>
+                <DetailItem label="Financing">{financingLabel(deal.terms)}</DetailItem>
+              </DetailGrid>
+            </>
+          )}
           <h3 className="detail-section">Parties</h3>
           <DetailGrid>
             <DetailItem label="Acquirer">

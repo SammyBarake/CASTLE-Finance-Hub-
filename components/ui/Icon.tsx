@@ -29,6 +29,19 @@ const PATHS = {
       <path d="M12 7v5l3 2" />
     </>
   ),
+  shield: (
+    <>
+      <path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
+  print: (
+    <>
+      <path d="M7 9V3h10v6" />
+      <rect x="3" y="9" width="18" height="8" rx="2" />
+      <path d="M7 14h10v7H7z" />
+    </>
+  ),
   comps:<path d="M4 5h16M4 10h16M4 15h16M4 20h10M9 5v15" />,
   globe: (
     <>

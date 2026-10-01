@@ -566,6 +566,39 @@
   .active-row { background: #151515; }
   .stake-purpose { margin: 0 0 14px; padding: 12px 14px; border-left: 2px solid #444; background: #0c0c0c; font-size: 11px; line-height: 1.6; color: #cfcfcf; }
 
+  /* ---------- deal terms ---------- */
+  .terms-legend { display: flex; gap: 18px; padding: 0 19px 6px; font-size: 10px; color: #9a9a9a; }
+  .terms-legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .terms-key { width: 10px; height: 4px; border-radius: 2px; display: inline-block; }
+  .terms-key.target, .terms-bar.target i { background: #d9d9d9; }
+  .terms-key.reverse, .terms-bar.reverse i { background: #6f9b86; }
+  .terms-bands { padding: 8px 19px 18px; display: grid; gap: 14px; }
+  .terms-band { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: center; }
+  .terms-band-label { font-size: 11px; color: #d6d6d6; }
+  .terms-band-label small { display: block; font-size: 9.5px; color: #777; margin-top: 2px; }
+  .terms-band-bars { display: grid; gap: 5px; }
+  .terms-bar { display: grid; grid-template-columns: minmax(0, 1fr) 46px; align-items: center; gap: 10px; }
+  .terms-bar::before { content: ""; grid-area: 1 / 1; height: 7px; border-radius: 4px; background: #191919; }
+  .terms-bar i { grid-area: 1 / 1; height: 7px; border-radius: 4px; transform-origin: left center; animation: bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 120ms); }
+  .terms-bar.reverse i { animation-delay: calc(var(--i, 0) * 80ms + 200ms); }
+  .terms-bar b { font: 10.5px var(--font-mono); font-weight: 400; color: #e2e2e2; text-align: right; }
+  .terms-bar.reverse b { color: #a9cbbb; }
+  .terms-sectors { border-top: 1px solid var(--color-line); padding: 12px 19px 14px; }
+  .terms-sectors-head, .terms-sector-row { display: grid; grid-template-columns: minmax(0, 1fr) 54px 64px 64px; align-items: center; gap: 8px; }
+  .terms-sectors-head { font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #737373; padding-bottom: 6px; }
+  .terms-sectors-head span:not(:first-child), .terms-sector-row .mono { text-align: right; }
+  .terms-sector-row { padding: 7px 0; border-top: 1px solid var(--color-soft); font-size: 11px; color: #cfcfcf; }
+  .terms-sector-row .mono { font-size: 10.5px; color: #dedede; }
+  .terms-sector-row .mono.reverse { color: #a9cbbb; }
+  .lender-row { min-height: 54px; }
+  .lender-meter { display: flex; align-items: center; gap: 14px; }
+  .lender-bar { width: 90px; height: 4px; border-radius: 2px; background: #1b1b1b; overflow: hidden; }
+  .lender-bar i { display: block; height: 100%; background: #9a9a9a; border-radius: 2px; transform-origin: left center; animation: bar-grow 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; transition: background 0.2s; }
+  .lender-row:hover .lender-bar i, .lender-row.active-row .lender-bar i { background: #e0e0e0; }
+  .lender-meter .preview-value { min-width: 70px; }
+  .terms-financing { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .terms-table td.company { max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
+
   /* ---------- advisor fees ---------- */
   .advisor-view-toggle { margin: -6px 0 18px; }
   .advisor-view-toggle .segmented { display: inline-flex; }
@@ -684,6 +717,7 @@
 @keyframes live-pulse { 0% { opacity: 0.7; transform: scale(0.6); } 70%, 100% { opacity: 0; transform: scale(1.8); } }
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: none; } }
 
 /* ---------- responsive (mirrors the design file) ---------- */
 @media (min-width: 1650px) {

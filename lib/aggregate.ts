@@ -146,6 +146,7 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     filings: d.filings,
     ...(d.fairness?.length ? (opts.withFairness ? { fairness: d.fairness, hasFairness: true } : { hasFairness: true }) : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
+    ...(d.terms ? { terms: d.terms } : {}),
     ...(d.privateTarget ? { privateTarget: true } : {}),
   };
 }
