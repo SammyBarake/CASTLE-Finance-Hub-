@@ -89,3 +89,15 @@ Item 9.01 Exhibits.`;
     expect(extractMergerPrice("par value $0.00001 per share, shall be converted into the right to receive $4.50 in cash")).toBe(4.5);
   });
 });
+
+describe("parseMergerItem: defined securities are not parties", () => {
+  const BUYER_SIDE = `Item 1.01 Entry into a Material Definitive Agreement.
+On September 28, 2025, RYVYL Inc., a Nevada corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with RTB Merger Sub, Inc., a Delaware corporation and wholly owned subsidiary of the Company ("Merger Sub"), and RTB Digital, Inc., a Delaware corporation ("RTB").
+Merger and Merger Consideration. The Merger Agreement provides that Merger Sub will merge with and into RTB (the "Merger"), with RTB surviving the merger as a wholly owned subsidiary of the Company. Prior to the effective time, the holders of RTB's preferred stock (the "RTB Preferred Stock") shall exchange or convert all of their shares of RTB Preferred Stock for shares of RTB's common stock.
+Item 9.01 Financial Statements and Exhibits.`;
+  it("takes the filer as buyer, not the target's preferred stock", () => {
+    const p = parseMergerItem(BUYER_SIDE, { filerName: "RYVYL Inc.", filerTickers: ["RVYL"] })!;
+    expect(p.target.name).toBe("RTB Digital, Inc.");
+    expect(p.acquirer.name).toBe("RYVYL Inc.");
+  });
+});

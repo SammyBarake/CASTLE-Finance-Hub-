@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className={`menu-backdrop ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? "open" : ""}`} id="sidebar" aria-label="Primary navigation">
         <Link className="brand" href="/" aria-label="Castle home">
-          <Image src="/castle-logo.webp" alt="Castle" width={400} height={400} priority />
+          <Image src="/castle-logo.png" alt="Castle" width={640} height={629} priority />
         </Link>
         <nav className="nav">
           {ROUTES.map((r, i) => {

@@ -7,6 +7,11 @@ describe("run-on names and stock-price fragments", () => {
     expect(cleanPartyName("Johnson and Johnson")).toBe("Johnson and Johnson");
     expect(isPlausibleName("SoundHound Closing Stock Price")).toBe(false);
   });
+  it("rejects securities and bare transaction words; trims deal-type tails", () => {
+    expect(isPlausibleName("RTB's preferred stock")).toBe(false);
+    expect(isPlausibleName("Merger")).toBe(false);
+    expect(cleanPartyName("Blackstone Real Estate Income Trust All-Cash Transaction")).toBe("Blackstone Real Estate Income Trust");
+  });
   it("cuts headline verbs and leading descriptors", () => {
     expect(cleanPartyName("Abiomed Broadens MedTech")).toBe("Abiomed");
     expect(cleanPartyName("Wavedash Leading Online Ticket Marketplace Expands Global")).toBe("Wavedash");

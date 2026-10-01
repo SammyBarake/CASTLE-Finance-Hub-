@@ -27,7 +27,7 @@ import { parseMergerItem } from "./parse/eightk";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { sameCompany, normalizeName, isPlaceholderBuyer, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
@@ -256,8 +256,10 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (/\b(?:land|parcels?|acres?|malls?|dealerships?|apartment (?:complex|communit\w*)|headquarters|manufactured home)\b/i.test(n)) return false;
   // A division of a named company: "RF Business of Wolfspeed", "Microlab RF Business Unit of …", "Alliance Healthcare Businesses".
   if (/\b(?:business(?:es)?|business unit|division|unit|segment|operations|portfolio)\s+of\b/i.test(n) || /\bbusinesses$/i.test(n)) return false;
-  // A single generic word ("Land", "Software", "Manufacturing") or a job title ("CFO").
-  return !/^(?:land|software|technology|data|energy|media|health|capital|properties|solutions|services|products|systems|brands?|manufacturing|logistics|construction|consulting|insurance|ceo|cfo|coo|president)$/i.test(n);
+  // A region or division of a named company: "LEHIGH HANSON'S WEST REGION BUSINESS …".
+  if (/['’]s\b.*\b(?:business|businesses|division|unit|segment|operations|region|assets|portfolio)\b/i.test(n)) return false;
+  // A single generic word ("Land", "Software", "Operating") or a job title ("CFO").
+  return !/^(?:land|software|technology|data|energy|media|health|capital|properties|solutions|services|products|systems|brands?|manufacturing|logistics|construction|consulting|insurance|operating|operations|ceo|cfo|coo|president)$/i.test(n);
 }
 
 /**
@@ -314,6 +316,19 @@ export function dropPrivateDuplicates(deals: StoredDeal[]): void {
     deals.splice(i, 1);
   }
 }
+
+/** The full name a document gives an abbreviation: `Medical Manufacturing Technologies, LLC ("MMT")` -> that name. */
+export function expandAbbreviation(abbr: string, text: string): string | null {
+  const m = new RegExp(`([A-Z][A-Za-z0-9&.,'’\\- ]{3,90}?)\\s*\\(\\s*(?:the\\s+|together,?\\s+)?["“]${abbr}["”]\\s*\\)`).exec(text);
+  if (!m) return null;
+  // Keep the trailing capitalised run: "to acquire Medical Manufacturing Technologies, LLC" -> "Medical Manufacturing Technologies, LLC".
+  const run = /((?:[A-Z][\w&.'’\-]*,?\s+)*(?:[A-Z][\w&.'’\-]*|LLC|Inc\.?|Corp\.?|Ltd\.?))\s*$/.exec(m[1].trim());
+  const name = run ? cleanPartyName(run[1].replace(/,$/, "")) : null;
+  return name && isPlausibleName(name) && name.length >= abbr.length + 3 ? name : null;
+}
+
+/** Investment funds (closed-end funds, ETFs, municipal funds) are out of scope as targets; REITs ("… Trust") are in. */
+export const FUND_TARGET = /\b(?:Fund|Funds|ETF|Municipal)\b/i;
 
 /** Largest value believable for a private company: anything above is almost certainly a misread number. */
 export const MAX_PRIVATE_DEAL_VALUE = 40e9;
@@ -573,17 +588,29 @@ export async function ingestDeals(
   const touched = new Set<StoredDeal>();
 
   /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
-  const accept = (parsed: ParsedPress, hit: FtsHit): StoredDeal | null => {
-    // SPAC business combinations aren't the M&A this terminal tracks.
+  const accept = (parsed: ParsedPress, hit: FtsHit, text = ""): StoredDeal | null => {
+    // SPAC business combinations aren't the M&A this terminal tracks; nor are fund mergers (closed-end funds, ETFs).
     if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
-    // A target written as its ticker ("Paramount … to acquire WBD") is that public company, unless the release gives
-    // it a different ticker ("ACV (NASDAQ: ACVA)" is ACV Auctions, not the fund trading as ACV).
+    if (FUND_TARGET.test(parsed.target.name)) return null;
+    // A target written as its ticker ("Paramount … to acquire WBD") is that public company, but only when the document
+    // lists that ticker on an exchange ("(NASDAQ: WBD)"). Abbreviations aren't tickers: "Medical Manufacturing
+    // Technologies ("MMT")" is not the Aberdeen fund trading as MMT, and "acquire AI … IP" is not C3.ai.
     const tn = parsed.target.name;
+    const listedInText = (t: string) => new RegExp(`\\b(?:NYSE(?: American)?|Nasdaq|NASDAQ|Cboe|CBOE)(?:\\s?[A-Z]{1,3})?\\s?:\\s?${t}\\b`).test(text);
     const asTicker =
-      /^[A-Z]{1,5}$/.test(tn) && (!parsed.target.ticker || parsed.target.ticker.toUpperCase() === tn) && !directory.byName.has(normalizeName(tn))
+      /^[A-Z]{2,5}$/.test(tn) &&
+      (!parsed.target.ticker || parsed.target.ticker.toUpperCase() === tn) &&
+      !directory.byName.has(normalizeName(tn)) &&
+      listedInText(tn) &&
+      !FUND_TARGET.test(directory.byTicker.get(tn)?.name ?? "")
         ? directory.byTicker.get(tn)
         : undefined;
     if (asTicker) parsed = { ...parsed, target: { ...parsed.target, name: asTicker.name, ticker: asTicker.ticker } };
+    // An abbreviation the release defines: "Medical Manufacturing Technologies, LLC ("MMT")" -> the full name.
+    else if (/^[A-Z]{2,6}$/.test(tn) && text) {
+      const full = expandAbbreviation(tn, text);
+      if (full) parsed = { ...parsed, target: { ...parsed.target, name: full } };
+    }
     // "Elon Musk SAN FRANCISCO" -> "Elon Musk"; "CANADIAN PACIFIC" -> "Canadian Pacific"
     const rawTarget = parsed.target.name;
     parsed = {
@@ -636,7 +663,7 @@ export async function ingestDeals(
       const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : parsePressRelease(text, ctx);
       state.seen.add(hit.id);
       if (!parsed) continue;
-      const deal = accept(parsed, hit);
+      const deal = accept(parsed, hit, text);
       if (deal) touched.add(deal);
     } catch (err) {
       if (err instanceof NotFoundError) {

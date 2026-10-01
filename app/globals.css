@@ -129,9 +129,10 @@
 
   /* ---------- sidebar ---------- */
   .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 50; width: 210px; border-right: 1px solid var(--color-line); background: var(--color-sidebar); display: flex; flex-direction: column; padding: 0 15px; }
-  .brand { height: 132px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; margin: 0 -8px; }
-  .brand img { width: 150px; height: 150px; max-width: none; object-fit: contain; flex-shrink: 0; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .brand:hover img { transform: scale(1.03); }
+  .brand { height: 132px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 -8px; }
+  /* Transparent PNG trimmed to the artwork: it sits directly on the sidebar, no visible box. */
+  .brand img { width: 104px; height: auto; max-width: none; flex-shrink: 0; opacity: 0.94; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s; }
+  .brand:hover img { transform: scale(1.03); opacity: 1; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav-group { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #5c5c5c; padding: 16px 12px 6px; }
   .nav-group:first-child { padding-top: 4px; }
@@ -697,7 +698,7 @@
   .sidebar { width: 190px; padding: 0 12px; }
   .shell { margin-left: 190px; }
   .brand { height: 124px; }
-  .brand img { width: 140px; height: 140px; }
+  .brand img { width: 98px; }
   .nav-link { font-size: 11px; gap: 10px; padding-left: 10px; }
   .topbar { padding: 0 24px; }
   .top-tools { gap: 13px; }
@@ -730,7 +731,7 @@
   .sidebar { width: 175px; }
   .shell { margin-left: 175px; }
   .brand { height: 116px; }
-  .brand img { width: 132px; height: 132px; }
+  .brand img { width: 92px; }
   .nav-link { font-size: 10px; gap: 8px; }
   .nav-link .icon { width: 15px; }
   .main { padding: 24px 19px 0; }
@@ -770,7 +771,7 @@
   .shell { margin-left: 0; }
   .menu-backdrop.open { display: block; position: fixed; inset: 0; background: #000a; z-index: 45; }
   .brand { height: 132px; }
-  .brand img { width: 150px; height: 150px; }
+  .brand img { width: 104px; }
   .nav-link { font-size: 12px; gap: 12px; }
   .nav-link .icon { width: 16px; }
   .menu-toggle { display: inline-flex; }

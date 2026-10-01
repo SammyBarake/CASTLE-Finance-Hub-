@@ -56,6 +56,8 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances)\b.*$/, "");
   s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
+  // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
+  s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
   s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based)\s+(?=\S)/i, "");
   s = s.replace(/['’]s$/, "");
@@ -80,7 +82,9 @@ export const isPlausibleName = (s: string | null | undefined): s is string =>
   s.length >= 2 &&
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
-  !/^(it|we|the company|company|shareholders|stockholders)$/i.test(s) &&
+  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction)$/i.test(s) &&
+  // Securities, not companies: "RTB's preferred stock", "the Common Stock".
+  !/\b(?:preferred|common|capital) stock\b|\b(?:preferred|common) shares\b|\bwarrants\b|\bconvertible notes\b/i.test(s) &&
   // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".
   !/\b(?:board of directors|that certain|special committee|net to the|without interest|per share|Exchange Commission|(?:closing )?stock price|closing price)\b/i.test(s) &&
   !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s);

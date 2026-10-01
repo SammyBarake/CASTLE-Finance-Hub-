@@ -50,6 +50,13 @@ export function definedEntities(s: string): Entity[] {
     name = cleanPartyName(name.replace(/,$/, ""));
     if (!isPlausibleName(name) || name.length > 70 || CLAUSE.test(name)) continue;
     if (/^(?:the )?(?:Company|Parent|Merger Sub|Purchaser|Board|Effective Time|Offer|Merger|Share|Delaware)$/i.test(name)) continue;
+    // "RTB's certificate of incorporation", "the Company's common stock": a possessive then lowercase words is a
+    // document or security, never a company.
+    if (/['’]s\s+[a-z]/.test(name)) continue;
+    // Defined securities are not parties: holders of RTB's preferred stock (the "RTB Preferred Stock").
+    if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price)$/i.test(m[2].trim())) continue;
+    // Nor are defined terms for the deal itself: ... merge with and into RTB (the "Merger").
+    if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger )?Agreement|Surviving Corporation)$/i.test(m[2].trim())) continue;
     out.push({ name, nick: m[2].trim(), alias: m[3]?.trim(), index: m.index! });
   }
   return out;

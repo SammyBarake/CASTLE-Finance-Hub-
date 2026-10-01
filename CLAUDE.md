@@ -18,7 +18,7 @@ The founder is a finance student building toward IB/PE. Design is set; the job i
 ## Hard constraints
 
 - **$0 to run.** Free tiers only: Next.js on Vercel, Supabase free Postgres, GitHub Actions, free SEC EDGAR data. No paid APIs or data vendors.
-- **Serious, modern finance aesthetic.** Monochrome, dense, calm. The castle appears **only** as the logo (`public/castle-logo.webp`, shown in `components/shell/AppShell.tsx`).
+- **Serious, modern finance aesthetic.** Monochrome, dense, calm. The castle appears **only** as the logo (`public/castle-logo.png`, a transparent PNG trimmed to the artwork, shown in `components/shell/AppShell.tsx`; never use a logo file with a baked-in background).
 - **Never commit secrets.** Real values go in `.env.local` (git-ignored). Document every variable in `.env.example` with no values. Supabase service-role keys stay server-side / in GitHub Actions secrets, never `NEXT_PUBLIC_`.
 - SEC EDGAR requires a descriptive `User-Agent` with contact info and has a rate limit of 10 requests/second.
 
@@ -158,12 +158,16 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 
 - **$0:** extraction is regex/heuristics over filing text. No paid APIs, no LLM calls.
 - **Never guess:** if a term isn't clearly stated, leave it `null`. Blank is better than wrong.
-- **Deal scope:** (1) targets that are SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe), and (2) **private companies bought by a US-listed acquirer** (`Deal.privateTarget`, id `p-<name>-<date>`). SPAC combinations, OTC / foreign-listed targets, minority stakes, carve-outs of a named company's business ("acquires Honeywell's valve unit") and asset / product-rights purchases are skipped.
+- **Deal scope:** (1) targets that are SEC registrants listed on a US exchange (NYSE / Nasdaq / NYSE American / Cboe), and (2) **private companies bought by a US-listed acquirer** (`Deal.privateTarget`, id `p-<name>-<date>`). SPAC combinations, investment funds (closed-end funds, ETFs; `FUND_TARGET`), OTC / foreign-listed targets, minority stakes, carve-outs of a named company's business ("acquires Honeywell's valve unit") and asset / product-rights purchases are skipped.
 - **Private targets:** found by extra full-text searches ("has acquired", "completed the acquisition of", "definitive agreement to acquire", …; `PRIVATE_QUERIES`). A target counts as private when it resolves to no SEC registrant, has no ticker, passes `isPrivateTargetName`, and no public deal already tracks it (catches delisted public targets). They are often signed and closed at once, so a completion release can create one (status Closed). Enrichment (`enrichPrivateDeal`) takes sector / industry from the acquirer and marks Closed on the acquirer's 8-K Item 2.01; no premium, multiples, proxy, fairness or milestones. Premium and valuation medians therefore cover public targets only. The Deal Flow screener has a Public / Private target filter.
 - **Three discovery channels** (all in `ingest/deals.ts`):
   1. Press releases (EX-99) found by full-text search → `parse/press.ts`.
   2. Merger 8-Ks with Item 1.01 ("merge with and into the Company", tender offers) → `parse/eightk.ts`, which reads defined terms ("Parent", "Merger Sub", "Ultimate Parent") and names the sponsor behind a shell buyer.
   3. Backstop: every PREM14A / DEFM14A / SC 14D9 / SC 13E3 filer without a deal gets its Item 1.01 8-Ks from the prior 210 days re-parsed (press exhibit first, then the 8-K body).
+- **Tickers:**
+  - A ticker in a release resolves only if the company names agree, because tickers get reused after delistings.
+  - A bare all-caps target name ("WBD") counts as a ticker only when the same document lists it on an exchange ("(NASDAQ: WBD)").
+  - Otherwise it is treated as an abbreviation and expanded from its definition ("Medical Manufacturing Technologies, LLC ("MMT")", `expandAbbreviation`).
 - **Merging:** documents about the same target (by CIK) merge into one deal. Two announcements for the same target within 14 days are the same deal. A placeholder or shell buyer name ("Parent", "… Merger Sub", "… BidCo") is replaced by a real name from a later document. Only an announcement can create a deal; updates, completions and terminations modify existing deals.
 - **Recall benchmark:** `.scratch/recall.mts <from> <to>` (git-ignored) compares deals against merger-proxy filers. It was 32% before the 8-K channels and about 64% after. Many misses are acquirer-side votes, SPACs and BDC mergers, which the benchmark counts even though they are out of scope.
 - **Proxy enrichment:** a deal missing its premium or target advisors gets them from the target's DEFM14A / SC 14D9 / PREM14A (`parse/proxy.ts`), read once (`proxyCheckedAt`). It fills blanks only; it never overwrites a press-release value.

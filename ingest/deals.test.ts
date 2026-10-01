@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { dropPrivateDuplicates, isPrivateTargetName, stripDateline, tidyTargetName } from "./deals";
+import { dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -73,9 +73,29 @@ describe("tidyTargetName", () => {
   });
 });
 
+describe("out-of-scope targets", () => {
+  it("treats investment funds as out of scope, REITs as in", () => {
+    expect(FUND_TARGET.test("Aberdeen Multi-Market Income Fund")).toBe(true);
+    expect(FUND_TARGET.test("National Storage Affiliates Trust")).toBe(false);
+    expect(FUND_TARGET.test("Fundamental Research Corp")).toBe(false);
+  });
+  it("rejects divisions named with a possessive and bare generic words", () => {
+    expect(isPrivateTargetName("LEHIGH HANSON'S WEST REGION BUSINESS Upstream Materials-Led Geographic", "Martin Marietta")).toBe(false);
+    expect(isPrivateTargetName("Operating", "Peakstone Realty Trust")).toBe(false);
+    expect(isPrivateTargetName("Ruth's Hospitality Group", "Darden")).toBe(true);
+  });
+});
+
 describe("isPrivateTargetName rejects drugs", () => {
   it("drops programme names", () => {
     expect(isPrivateTargetName("ST-920 Fabry Disease Gene Therapy", "PTC Therapeutics")).toBe(false);
     expect(isPrivateTargetName("Actio Biosciences", "Jazz")).toBe(true);
+  });
+});
+
+describe("expandAbbreviation", () => {
+  it("finds the full name a release defines", () => {
+    expect(expandAbbreviation("MMT", 'Perimeter Solutions has agreed to acquire Medical Manufacturing Technologies, LLC ("MMT") for $685 million.')).toBe("Medical Manufacturing Technologies, LLC");
+    expect(expandAbbreviation("WBD", "Paramount to acquire WBD (NASDAQ: WBD).")).toBeNull();
   });
 });
