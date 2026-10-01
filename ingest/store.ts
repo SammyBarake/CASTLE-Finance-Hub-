@@ -30,6 +30,8 @@ export interface StoredDeal extends Deal {
   termsCheckedAt?: string | null;
   /** TERMS_PARSER_VERSION the terms were read with. */
   termsParser?: number;
+  /** Private targets: when EDGAR was searched for a listed registrant of that name (and the roles checked). */
+  registrantCheckedAt?: string | null;
 }
 
 export interface StoredIpo extends Ipo {
@@ -50,6 +52,8 @@ export interface State {
   macro: Macro | null;
   /** Schedule 13D activist stakes, newest first; stored in `meta` like macro. */
   activists: ActivistStake[];
+  /** Deals removed this run (junk records, duplicates merged into another deal): deleted from the store on save. */
+  dropped?: Set<string>;
 }
 
 export interface Store {
@@ -150,6 +154,12 @@ export class SupabaseStore implements Store {
       "deals",
       state.deals.map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d })),
     );
+    const live = new Set(state.deals.map((d) => d.id));
+    const dropped = [...(state.dropped ?? [])].filter((id) => !live.has(id));
+    for (let i = 0; i < dropped.length; i += 200) {
+      await withRetry("delete deals", () => this.db.from("deals").delete().in("id", dropped.slice(i, i + 200)));
+    }
+    state.dropped?.clear();
     // After a full rebuild (final save only), drop deals and seen documents the new run no longer has.
     if (opts.prune) {
       const keepDeals = new Set(state.deals.map((d) => d.id));

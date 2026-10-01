@@ -1,6 +1,6 @@
 /** Company-name display rules shared by the ingest (when storing) and the site (when serving older records). */
 
-const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|RF|TV|CW|[A-Z]{1,3}|[A-Z]+\d+\w*)$/;
+const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|RF|TV|CW|[A-Z]{1,3}|[A-Z]+\d+\w*|[IVX]+-[IVX]+)$/;
 const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: "Corp", "CORP.": "Corp.", LTD: "Ltd", "LTD.": "Ltd.", CO: "Co", "CO.": "Co.", HOLDINGS: "Holdings", GROUP: "Group" };
 // Short English words that are words, not acronyms, in an all-capitals name.
 const MINOR = new Set(["OF", "AND", "FOR", "AT", "IN", "ON", "BY", "TO", "THE", "A", "AN"]);
@@ -38,7 +38,7 @@ export function titleCaseCaps(name: string): string {
  * A single capitalised brand ("NVIDIA Corp", "BIO-TECHNE Corp") is left alone.
  */
 export function displayCompanyName(raw: string): string {
-  let s = raw.replace(/\s*[\\/][A-Za-z]{2,4}[\\/]?\s*$/, "").replace(/\s*[\\/]\s*$/, "").trim();
+  let s = raw.replace(/\s*[\\/]\s*[A-Za-z]{2,4}\s*[\\/]?\s*$/, "").replace(/\s*[\\/]\s*$/, "").trim();
   if (!/[a-z]/.test(s)) return titleCaseCaps(s);
   s = s.replace(/\b(INC|CORP|LTD|CO)\b(\.?)/g, (_, w: string, dot: string) => (SUFFIX_CASE[w] ?? w) + dot);
   const caps = s.match(/\b[A-Z]{4,}\b/g) ?? [];

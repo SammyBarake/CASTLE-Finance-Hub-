@@ -88,6 +88,11 @@ Item 9.01 Exhibits.`;
   it("does not read par values as the price", () => {
     expect(extractMergerPrice("par value $0.00001 per share, shall be converted into the right to receive $4.50 in cash")).toBe(4.5);
   });
+
+  it("reads the cash price, not the CVR's contingent payment", () => {
+    const s = `Purchaser will commence a tender offer to acquire all of the outstanding shares of common stock of the Company, par value $0.0001 per share (the "Shares"), for (i) $8.50 per Share, net to the seller in cash, without interest (the "Closing Amount"), plus (ii) one contingent value right per Share (a "CVR") which represents the right to receive up to $3.50 per Share upon the satisfaction of specified milestones, net to the seller in cash.`;
+    expect(extractMergerPrice(s)).toBe(8.5);
+  });
 });
 
 describe("parseMergerItem: defined securities are not parties", () => {

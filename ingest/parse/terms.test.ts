@@ -46,11 +46,25 @@ describe("parseDealTerms", () => {
   });
 });
 
+describe("full-dollar fee amounts", () => {
+  it("doesn't multiply an amount already in dollars by a unit word that follows it", () => {
+    const t = parseDealTerms(
+      `The Company will be required to pay Parent a termination fee of $5,560,000 million in the event the Company terminates the Merger Agreement to accept a Superior Proposal.`,
+      names,
+    );
+    expect(t.targetFeeUsd).toBe(5_560_000);
+    // "$1,250 million" is a real way to write $1.25 billion.
+    expect(parseDealTerms(`Parent will be required to pay the Company a termination fee of $1,250 million.`, names).reverseFeeUsd).toBe(1.25e9);
+  });
+});
+
 describe("saneFee", () => {
-  it("drops fees outside 0.3%–15% of the deal value", () => {
+  it("drops fees outside 0.3%–10% of the deal value (12% for reverse fees)", () => {
     expect(saneFee(30e6, 1e9)).toBe(30e6);
     expect(saneFee(1e6, 1e9)).toBeNull();
-    expect(saneFee(300e6, 1e9)).toBeNull();
+    expect(saneFee(110e6, 1e9)).toBeNull();
+    expect(saneFee(110e6, 1e9, "reverse")).toBe(110e6);
+    expect(saneFee(130e6, 1e9, "reverse")).toBeNull();
     expect(saneFee(30e6, null)).toBe(30e6);
   });
 });

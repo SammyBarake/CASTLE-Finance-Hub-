@@ -3,16 +3,42 @@
 const SUFFIXES =
   /\b(the|inc|incorporated|corp|corporation|company|co|ltd|limited|plc|llc|l\.?l\.?c|lp|l\.?p|n\.?v|s\.?a|ag|se|holdings?|group|trust|bancorp|bancshares|technologies|international|enterprises?)\b\.?/gi;
 
+/** Short forms sponsors go by in releases, mapped to the full name so "H&F" and "Hellman & Friedman" match. */
+const SHORT_FORMS: Record<string, string> = {
+  "h and f": "hellman and friedman",
+  "cd and r": "clayton dubilier and rice",
+  "kohlberg kravis roberts": "kkr",
+  "tpg capital": "tpg",
+  "thoma bravo l p": "thoma bravo",
+  "bain": "bain capital",
+  "h i g": "h i g capital",
+};
+
 /** "Copart, Inc." -> "copart"; "The Baldwin Group, Inc." -> "baldwin" */
 export function normalizeName(name: string): string {
-  return name
+  const n = name
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/['’]s\b/g, "")
     .replace(SUFFIXES, " ")
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    // "KKR & Co. Inc." -> "kkr" (the "& Co." suffix leaves a dangling "and")
+    .replace(/\s+and$/, "");
+  return SHORT_FORMS[n] ?? n;
+}
+
+/**
+ * Stricter than `sameCompany` (no shared-first-word match, so "Global Payments" is not "Global Blue"): the same name,
+ * or one name extending the other ("Lucid Group" / "Lucid Motors" share "lucid" but "Teledyne" / "Teledyne FLIR" too).
+ */
+export function identicalNames(a: string, b: string): boolean {
+  const x = normalizeName(a);
+  const y = normalizeName(b);
+  if (x.length < 3 || y.length < 3) return false;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  return s === l || l.startsWith(s + " ");
 }
 
 /** Loose match between two company names (handles short forms like "ACV" vs "ACV Auctions Inc."). */
@@ -53,7 +79,16 @@ export function cleanPartyName(raw: string): string {
   // A headline verb ends the name: "Mantle Therapeutics and Announces Multiple …", "Abiomed Broadens MedTech",
   // "Wavedash Leading Online Ticket Marketplace …", "Community Bancorporation Company Release".
   s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
-  s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances)\b.*$/, "");
+  s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances|Executes|Executed|Signs|Signed)\b.*$/, "");
+  // "BioLife Solutions Exhibit 99.2" -> "BioLife Solutions"
+  s = s.replace(/\s+Exhibit\s+\d+(?:\.\d+)?\b.*$/i, "");
+  // "Media & Investor Release Roche" -> "Roche"; "Press Release: Acme" -> "Acme"
+  s = s.replace(/^(?:Joint\s+)?(?:Media\s*(?:&|and)\s*Investor|Media|Investor|Press|News)\s+Release:?\s+(?=[A-Z])/i, "");
+  // "Ceautamed Worldwide the Owner of Greens First" -> "Ceautamed Worldwide"; "Sculptor Capital Management Together" -> "Sculptor Capital Management"
+  s = s.replace(/,?\s+the\s+(?:owner|parent|operator|maker|developer)\s+of\b.*$/i, "").replace(/\s+Together$/i, "");
+  // "A Joint Venture Between Affiliates Of Highgate And Cerberus …" -> "Highgate and Cerberus …"
+  const jv = /^(?:an?\s+)?joint venture (?:between|of|formed by)\s+(?:affiliates of\s+)?/i;
+  if (jv.test(s)) s = s.replace(jv, "").replace(/\s+And\s+(?:Affiliates Of\s+)?(?=[A-Z])/gi, " and ");
   s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
@@ -73,16 +108,31 @@ export { titleCaseCaps } from "../../lib/names";
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
 export const isPlaceholderBuyer = (name: string) =>
   /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
-  /\b(?:Merger Sub|MergeCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
+  /\b(?:Merger Sub|MergeCo|MergerCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
   /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
   /^Acquiror\b/.test(name);
 
-export const isPlausibleName = (s: string | null | undefined): s is string =>
+/**
+ * A deal's acquisition vehicle, never a real private target ("Zamboni MergerCo", "Balmoral Swan Merger Sub",
+ * "TPG Growth Iceman Parent"): the release was read backwards. Holdco / Topco names are real legal entities
+ * ("RSC Topco" is Accession), and a registrant's SEC name is always real ("Frontier Communications Parent").
+ */
+export const isMergerVehicle = (name: string) =>
+  /\b(?:Merger Sub(?:sidiary)?|MergerCo|MergeCo|Bidco|BidCo|Purchaser)\b/i.test(name) || /^(?:[A-Z][\w&.'-]* )+Parent(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name);
+
+export const isPlausibleName =(s: string | null | undefined): s is string =>
   !!s &&
   s.length >= 2 &&
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
-  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction)$/i.test(s) &&
+  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco)$/i.test(s) &&
+  // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
+  // "During the five-year period following the Closing".
+  !/^(?:Item|Exhibit)\s+\d/i.test(s) &&
+  !/^(?:During|Pursuant to|Following the|Upon|Prior to|In connection with)\b|\bGeneral Corporation Law\b|\bfollowing the Closing\b/i.test(s) &&
+  // Deal paperwork and structure, not parties: "Definitive Agreement", "Entry into a Material Definitive Agreement",
+  // "Company through a reverse triangular merger …", "Members of Company Management".
+  !/\b(?:definitive agreement|material definitive|reverse triangular|similar structure|members of (?:the )?company management)\b/i.test(s) &&
   // Securities, not companies: "RTB's preferred stock", "the Common Stock".
   !/\b(?:preferred|common|capital) stock\b|\b(?:preferred|common) shares\b|\bwarrants\b|\bconvertible notes\b/i.test(s) &&
   // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".

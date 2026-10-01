@@ -207,6 +207,8 @@ export interface Submissions {
   tickers: string[];
   exchanges: string[];
   stateOfIncorporation: string;
+  /** Names the registrant used before (EDGAR dates as ISO timestamps). */
+  formerNames?: { name: string; from?: string; to?: string }[];
   addresses?: { business?: { stateOrCountry?: string | null; stateOrCountryDescription?: string | null } };
   filings: {
     recent: {
@@ -220,6 +222,30 @@ export interface Submissions {
 }
 
 export const getSubmissions = (cik: string) => getJson<Submissions>(`https://data.sec.gov/submissions/CIK${padCik(cik)}.json`);
+
+/**
+ * The registrant's name on `date` (ISO). A target is often renamed after it is bought ("FLIR Systems" became
+ * "Teledyne FLIR", "Beacon Roofing Supply" became "QXO Building Products"); a deal should show the name it had then.
+ */
+export function nameOn(sub: Pick<Submissions, "name" | "formerNames">, date: string): string {
+  const then = (sub.formerNames ?? [])
+    .filter((f) => f.to && f.to.slice(0, 10) > date && (!f.from || f.from.slice(0, 10) <= date))
+    .sort((a, b) => a.to!.localeCompare(b.to!));
+  return then[0]?.name ?? sub.name;
+}
+
+/**
+ * EDGAR's company-name lookup (the entity box of full-text search), best match first. Unlike the listed-company
+ * file it also knows companies delisted since, such as targets of completed takeovers.
+ */
+export async function lookupCompanies(name: string): Promise<{ cik: string; name: string }[]> {
+  const res = await getJson<{ hits?: { hits?: { _id: string; _source?: { entity?: string } }[] } }>(
+    `https://efts.sec.gov/LATEST/search-index?keysTyped=${encodeURIComponent(name)}`,
+  );
+  return (res.hits?.hits ?? [])
+    .filter((h) => h._source?.entity)
+    .map((h) => ({ cik: trimCik(h._id), name: h._source!.entity!.replace(/\s*\([^)]*\)\s*$/, "") }));
+}
 
 /** Recent filings flattened into rows, newest first. */
 export function recentFilings(sub: Submissions) {

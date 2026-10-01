@@ -55,6 +55,15 @@ describe("displayName", () => {
     expect(displayName("AMETEK INC/")).toBe("Ametek Inc");
     expect(displayName("Sealed Air Corp/De")).toBe("Sealed Air Corp");
     expect(displayName("Copart, Inc.")).toBe("Copart, Inc.");
+    expect(displayName("California BanCorp \\ CA")).toBe("California BanCorp");
+    expect(displayName("Novo Nordisk A/S")).toBe("Novo Nordisk A/S");
+  });
+});
+
+describe("extractPrice skips contingent value rights", () => {
+  it("takes the cash price, not the CVR", () => {
+    const t = `Under the terms of the agreement, Acme will commence a tender offer to acquire all outstanding shares of Widget for $2.02 per share in cash, plus one non-transferable contingent value right (CVR) entitling the holder to receive up to $0.17 per share in cash upon achievement of a milestone.`;
+    expect(extractPrice(t)).toBe(2.02);
   });
 });
 

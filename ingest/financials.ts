@@ -127,11 +127,29 @@ export interface Multiples {
  * - otherwise equity value (offer price × shares, or the stated equity value) + debt − cash
  * - a bare "transaction value" with nothing better is treated as EV
  */
+/**
+ * Banks, lenders, brokers and insurers (SIC 6000-6499), and mortgage REITs: deposits, policy reserves and repo
+ * funding look like debt, so EV and EV multiples mean nothing for them (they are valued on book value and earnings).
+ */
+export function isBalanceSheetBusiness(sic: string | null | undefined, name = ""): boolean {
+  const n = Number(sic);
+  if (n >= 6000 && n < 6500) return true;
+  return n === 6798 && /\b(?:mortgage|finance|financial|lending|credit|investment corp|capital (?:corp|trust))\b/i.test(name);
+}
+
 export function computeMultiples(
   deal: { valueUsd: number | null; valueKind: "enterprise" | "equity" | "transaction" | null; pricePerShare: number | null },
   fin: TargetFinancials | null,
+  target?: { sic?: string | null; name?: string },
 ): Multiples {
-  const impliedEquityUsd = deal.pricePerShare != null && fin?.sharesOutstanding ? deal.pricePerShare * fin.sharesOutstanding : null;
+  // A listed company has at least ~500k shares; fewer means the cover-page figure is in thousands or another class.
+  const shares = fin?.sharesOutstanding && fin.sharesOutstanding >= 500_000 ? fin.sharesOutstanding : null;
+  let impliedEquityUsd = deal.pricePerShare != null && shares ? deal.pricePerShare * shares : null;
+  // A share count that doesn't fit the stated deal value is stale (a reverse split since the last filing) or the
+  // wrong class: trust the stated value instead.
+  if (impliedEquityUsd != null && deal.valueUsd && deal.valueKind !== "enterprise" && (impliedEquityUsd / deal.valueUsd > 2 || impliedEquityUsd / deal.valueUsd < 0.5))
+    impliedEquityUsd = null;
+  if (isBalanceSheetBusiness(target?.sic, target?.name)) return { enterpriseValueUsd: null, impliedEquityUsd, evEbitda: null, evRevenue: null };
   const netDebt = fin && (fin.debt != null || fin.cash != null) ? (fin.debt ?? 0) - (fin.cash ?? 0) : null;
 
   let ev: number | null = null;

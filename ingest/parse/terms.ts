@@ -9,13 +9,16 @@ import { findBanks } from "../../lib/banks";
 import type { DealTerms } from "../../lib/types";
 
 /** Bump after changing this parser: stored terms are then re-read on the next ingest. */
-export const TERMS_PARSER_VERSION = 1;
+export const TERMS_PARSER_VERSION = 2;
 
 const flatten = (t: string) => t.replace(/\s+/g, " ").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 
 const AMOUNT = /\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(billion|million|thousand)?\b/gi;
 const toUsd = (num: string, unit?: string) => {
   const v = Number(num.replace(/,/g, ""));
+  // A full-dollar figure ("$5,560,000") is already in dollars: a unit word after it belongs to the next phrase.
+  // ("$1,250 million" is a real style, so only amounts of a million or more lose the unit.)
+  if (v >= 1e6) return v;
   const mult = !unit ? 1 : /^b/i.test(unit) ? 1e9 : /^m/i.test(unit) ? 1e6 : 1e3;
   return v * mult;
 };
@@ -140,10 +143,13 @@ export function parseDealTerms(text: string, names: { target: string; acquirer: 
   return { targetFeeUsd: targetFee, reverseFeeUsd: reverseFee, ...goShopTerms(t), ...financingTerms(t) };
 }
 
-/** A fee outside 0.3%–15% of the deal value is a misread (a different amount in the sentence); drop it. */
-export function saneFee(fee: number | null, dealValue: number | null): number | null {
+/**
+ * A fee outside 0.3%–10% of the deal value (12% for a reverse fee, which runs higher) is a misread: a different
+ * amount in the sentence, or a deal value that is itself wrong. Drop it rather than show an absurd percentage.
+ */
+export function saneFee(fee: number | null, dealValue: number | null, side: "target" | "reverse" = "target"): number | null {
   if (fee == null) return null;
   if (dealValue == null) return fee;
   const pct = (fee / dealValue) * 100;
-  return pct >= 0.3 && pct <= 15 ? fee : null;
+  return pct >= 0.3 && pct <= (side === "reverse" ? 12 : 10) ? fee : null;
 }

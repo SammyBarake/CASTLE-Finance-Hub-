@@ -67,13 +67,26 @@ const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger Corp|Bidco|BidCo|Topco|Midco|
 const BUYER_NICKS = ["Ultimate Parent", "Guarantor", "Parent", "Buyer", "Acquiror", "Acquirer", "Holdings", "Topco"];
 
 /** Price per target share: "right to receive $42.15 in cash", "for $10.50 per share, net to the seller in cash". */
+/** A contingent value right or milestone payment ("one CVR, which represents the right to receive up to $3.50"), not the price. */
+export const CONTINGENT = /contingent value right|\bCVRs?\b|milestones?|earn-?out|\bup to\s*$/i;
+
 export function extractMergerPrice(s: string): number | null {
-  const m =
-    /right to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/i.exec(s) ??
-    /(?:for|at a price of|offer price of)\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/i.exec(s);
-  if (!m) return null;
-  const v = Number(m[1]);
-  return v >= 0.05 && v < 10_000 ? v : null;
+  const found: { v: number; at: number }[] = [];
+  const patterns = [
+    /right to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/gi,
+    // "for (i) $8.50 per Share, net to the seller in cash"
+    /(?:for|at a price of|offer price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
+  ];
+  for (const re of patterns) {
+    for (const m of s.matchAll(re)) {
+      const dollar = m.index! + m[0].indexOf("$");
+      if (CONTINGENT.test(s.slice(Math.max(0, dollar - 120), dollar))) continue;
+      const v = Number(m[1]);
+      if (v >= 0.05 && v < 10_000) found.push({ v, at: m.index! });
+    }
+  }
+  // The first price stated is the headline price; later ones describe options, RSUs or CVR instalments.
+  return found.sort((a, b) => a.at - b.at)[0]?.v ?? null;
 }
 
 /**

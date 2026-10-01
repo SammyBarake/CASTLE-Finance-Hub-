@@ -1,5 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
+
+describe("headline and press-release debris", () => {
+  it("cuts signing verbs, release labels, owner-of tails and joint-venture wording", () => {
+    expect(cleanPartyName("Smart for Life Executes Definitive Agreement")).toBe("Smart for Life");
+    expect(cleanPartyName("Motiv Electric Trucks Executed Definitive Agreement")).toBe("Motiv Electric Trucks");
+    expect(cleanPartyName("Media & Investor Release Roche")).toBe("Roche");
+    expect(cleanPartyName("Joint News Release Mechanics Bank")).toBe("Mechanics Bank");
+    expect(cleanPartyName("Ceautamed Worldwide the Owner of Greens First")).toBe("Ceautamed Worldwide");
+    expect(cleanPartyName("Sculptor Capital Management Together")).toBe("Sculptor Capital Management");
+    expect(cleanPartyName("A Joint Venture Between Affiliates Of Highgate And Cerberus Capital Management")).toBe("Highgate and Cerberus Capital Management");
+    expect(cleanPartyName("Procter And Gamble")).toBe("Procter And Gamble");
+  });
+
+  it("rejects deal paperwork as a party", () => {
+    expect(cleanPartyName("BioLife Solutions Exhibit 99.2")).toBe("BioLife Solutions");
+    for (const n of ["Definitive Agreement", "Entry into a Material Definitive Agreement", "Company through a reverse triangular merger or other similar structure", "Members of Company Management", "Item 1.01", "HoldCo", "Controlling", "Delaware General Corporation Law", "During the five-year period following the Closing"]) {
+      expect(isPlausibleName(n), n).toBe(false);
+    }
+  });
+});
+
+describe("name matching", () => {
+  it("matches a sponsor's short form", () => {
+    expect(sameCompany("H&F", "Hellman & Friedman")).toBe(true);
+    expect(normalizeName("KKR & Co. Inc.")).toBe("kkr");
+  });
+
+  it("identicalNames is stricter than sameCompany", () => {
+    // A target renamed after its buyer looks identical until the old name is restored.
+    expect(identicalNames("Teledyne Technologies Inc", "Teledyne FLIR, LLC")).toBe(true);
+    expect(identicalNames("Teledyne Technologies Inc", "FLIR Systems Inc")).toBe(false);
+    expect(identicalNames("Lucid Group, Inc.", "Lucid Motors")).toBe(true);
+    expect(identicalNames("Dianthus Therapeutics, Inc.", "Dianthus Therapeutics")).toBe(true);
+    // Real deals between companies sharing a first word.
+    expect(identicalNames("Global Payments Inc.", "Global Blue Group")).toBe(false);
+    expect(sameCompany("Global Payments Inc.", "Global Blue Group")).toBe(true);
+  });
+});
 
 describe("run-on names and stock-price fragments", () => {
   it("cuts a second headline verb and rejects price phrases", () => {

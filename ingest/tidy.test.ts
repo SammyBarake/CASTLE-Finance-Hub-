@@ -1,0 +1,166 @@
+import { describe, expect, it } from "vitest";
+import { listedOn, registrantMatches } from "./deals";
+import { nameOn } from "./edgar";
+import { junkReason, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
+import type { StoredDeal } from "./store";
+
+let n = 0;
+function deal(over: Partial<StoredDeal> = {}): StoredDeal {
+  n++;
+  return {
+    id: `d${n}`,
+    announcedDate: "2024-01-10",
+    acquirer: { name: "Acme Corp", ticker: "ACME", cik: "100" },
+    target: { name: "Widget Inc.", ticker: "WDGT", cik: "200" },
+    valueUsd: 1e9,
+    valueKind: "equity",
+    pricePerShare: 20,
+    premiumPct: 30,
+    consideration: "Cash",
+    sector: "Tech",
+    industry: null,
+    status: "Pending",
+    statusDate: "2024-02-01",
+    enterpriseValueUsd: null,
+    evEbitda: null,
+    evRevenue: null,
+    acquirerAdvisors: [],
+    targetAdvisors: [],
+    filings: [],
+    sources: [],
+    statusCheckedAt: null,
+    financialsCheckedAt: null,
+    ...over,
+  };
+}
+
+describe("nameOn", () => {
+  const sub = {
+    name: "Teledyne FLIR, LLC",
+    formerNames: [
+      { name: "FLIR SYSTEMS INC", from: "1994-01-01T00:00:00.000Z", to: "2021-05-14T00:00:00.000Z" },
+      { name: "FLIR SYSTEMS HOLDINGS", from: "1990-01-01T00:00:00.000Z", to: "1994-01-01T00:00:00.000Z" },
+    ],
+  };
+  it("returns the name in use on the date", () => {
+    expect(nameOn(sub, "2021-01-04")).toBe("FLIR SYSTEMS INC");
+    expect(nameOn(sub, "1992-06-01")).toBe("FLIR SYSTEMS HOLDINGS");
+    expect(nameOn(sub, "2022-01-01")).toBe("Teledyne FLIR, LLC");
+    expect(nameOn({ name: "Acme" }, "2021-01-01")).toBe("Acme");
+  });
+});
+
+describe("junkReason", () => {
+  it("rejects paperwork names and self-deals", () => {
+    expect(junkReason(deal({ target: { name: "Entry into a Material Definitive Agreement", ticker: null, cik: null } }))).toMatch(/implausible/);
+    expect(junkReason(deal({ acquirer: { name: "Widget", ticker: null, cik: "200" } }))).toMatch(/same registrant/);
+    expect(junkReason(deal({ target: { name: "Zamboni MergerCo Inc.", ticker: null, cik: null } }))).toMatch(/merger vehicle/);
+    // Real entities: an SEC registrant's own name, and a private group's legal parent.
+    expect(junkReason(deal({ target: { name: "Frontier Communications Parent, Inc.", ticker: "FYBR", cik: "20520" } }))).toBeNull();
+    expect(junkReason(deal({ privateTarget: true, premiumPct: null, pricePerShare: null, target: { name: "RSC Topco", ticker: null, cik: null } }))).toBeNull();
+    // Private banks quote per-share prices: resolved against EDGAR during enrichment, not dropped here.
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Comunibanc Corp.", ticker: null, cik: null }, premiumPct: null, pricePerShare: 31.5 }))).toBeNull();
+    // A placeholder buyer is kept until a filing names the sponsor.
+    expect(junkReason(deal({ acquirer: { name: "Parent", ticker: null, cik: null } }))).toBeNull();
+  });
+});
+
+describe("sanitizeDeal", () => {
+  it("clears impossible values and keeps each bank on one side", () => {
+    const d = deal({ premiumPct: 367, valueUsd: 5020, terms: { targetFeeUsd: 4e6, reverseFeeUsd: 6e6, goShop: false, goShopDays: null, financingCondition: null, financingBanks: [] }, acquirerAdvisors: ["Centerview", "Goldman Sachs"], targetAdvisors: ["Centerview"] });
+    expect(sanitizeDeal(d)).toBe(true);
+    expect(d.premiumPct).toBeNull();
+    expect(d.valueUsd).toBeNull();
+    // No value to compare against: the fee stays.
+    expect(d.terms!.targetFeeUsd).toBe(4e6);
+    expect(d.acquirerAdvisors).toEqual(["Goldman Sachs"]);
+  });
+
+  it("re-cleans names that have no CIK, leaving SEC names alone", () => {
+    const d = deal({ acquirer: { name: "Rithm Capital Corp.", ticker: "RITM", cik: "1556593" }, target: { name: "Sculptor Capital Management Together", ticker: null, cik: null } });
+    sanitizeDeal(d);
+    expect(d.target.name).toBe("Sculptor Capital Management");
+    expect(d.acquirer.name).toBe("Rithm Capital Corp.");
+  });
+
+  it("drops a fee that is an absurd share of the deal", () => {
+    const d = deal({ valueUsd: 170e6, terms: { targetFeeUsd: 5.56e12, reverseFeeUsd: 11e6, goShop: false, goShopDays: null, financingCondition: null, financingBanks: [] } });
+    sanitizeDeal(d);
+    expect(d.terms!.targetFeeUsd).toBeNull();
+    expect(d.terms!.reverseFeeUsd).toBe(11e6);
+    expect(sanitizeDeal(d)).toBe(false);
+  });
+});
+
+describe("tidyDeals", () => {
+  it("merges the same buyer's second record (H&F / Hellman & Friedman)", () => {
+    const a = deal({ acquirer: { name: "Hellman & Friedman", ticker: null, cik: null }, announcedDate: "2021-05-06", premiumPct: null });
+    const b = deal({ acquirer: { name: "H&F", ticker: null, cik: null }, announcedDate: "2021-06-16", premiumPct: 25, status: "Closed", statusDate: "2021-07-23" });
+    const deals = [a, b];
+    const r = tidyDeals(deals);
+    expect(deals).toEqual([a]);
+    expect(r.merged).toBe(1);
+    expect(a.premiumPct).toBe(25);
+    expect(a.status).toBe("Closed");
+  });
+
+  it("marks an agreement topped by a rival buyer as terminated", () => {
+    const first = deal({ acquirer: { name: "Option Care Health", ticker: "OPCH", cik: "300" }, announcedDate: "2023-05-03", status: "Closed", statusDate: "2024-08-01" });
+    const second = deal({ acquirer: { name: "Optum", ticker: null, cik: null }, announcedDate: "2023-06-26", status: "Closed", statusDate: "2024-08-01" });
+    const deals = [first, second];
+    const r = tidyDeals(deals);
+    expect(r.topped).toBe(1);
+    expect(first.status).toBe("Terminated");
+    expect(first.statusDate).toBe("2023-06-26");
+    expect(second.status).toBe("Closed");
+  });
+
+  it("leaves deals for the same target years apart alone", () => {
+    const deals = [deal({ announcedDate: "2021-01-01", status: "Terminated" }), deal({ acquirer: { name: "Other Co", ticker: null, cik: null }, announcedDate: "2024-01-01" })];
+    const r = tidyDeals(deals);
+    expect(r.topped + r.merged + r.dropped.length).toBe(0);
+  });
+
+  it("removes junk records", () => {
+    const deals = [deal({ acquirer: { name: "Company through a reverse triangular merger or other similar structure", ticker: null, cik: null } }), deal()];
+    expect(tidyDeals(deals).dropped).toHaveLength(1);
+    expect(deals).toHaveLength(1);
+  });
+});
+
+describe("listing and role checks", () => {
+  const filings = (rows: [string, string][]) => ({
+    recent: { accessionNumber: rows.map((_, i) => `a${i}`), filingDate: rows.map((r) => r[1]), form: rows.map((r) => r[0]), primaryDocument: rows.map(() => "x.htm"), items: rows.map(() => "") },
+  });
+
+  it("listedOn: a reporting company still listed, or delisted after the deal", () => {
+    const abiomed = { exchanges: [], filings: filings([["25-NSE", "2022-12-23"], ["SC 14D9", "2022-11-15"], ["10-Q", "2022-11-01"]]) };
+    expect(listedOn(abiomed, "2022-11-01")).toBe(true);
+    const pending = { exchanges: ["Nasdaq"], filings: filings([["10-Q", "2026-08-05"]]) };
+    expect(listedOn(pending, "2026-09-01")).toBe(true);
+    // Deregistered long ago: its old Form 25 and 10-Ks don't count.
+    const bremer = { exchanges: [], filings: filings([["15-12G", "2004-03-01"], ["25-NSE", "2004-02-01"], ["10-K", "2003-03-01"]]) };
+    expect(listedOn(bremer, "2025-01-27")).toBe(false);
+  });
+
+  it("registrantMatches: one-word names only gain descriptors", () => {
+    expect(registrantMatches("Aerie Pharmaceuticals Inc", "Aerie")).toBe(true);
+    expect(registrantMatches("Arcadium Lithium plc", "Arcadium")).toBe(true);
+    expect(registrantMatches("Ruths Hospitality Group, Inc.", "Ruth's Hospitality Group, Inc.")).toBe(true);
+    expect(registrantMatches("Urstadt Biddle Properties Inc", "Urstadt Biddle")).toBe(true);
+    expect(registrantMatches("Fortune Brands Home & Security, Inc.", "Fortune")).toBe(false);
+    expect(registrantMatches("Beacon Financial Corp", "Beacon")).toBe(false);
+    expect(registrantMatches("Aeries Technology, Inc.", "Aerie")).toBe(false);
+  });
+});
+
+describe("SPAC_NAME", () => {
+  it("recognises blank-check buyers", () => {
+    expect(SPAC_NAME.test("Churchill Capital Corp IV")).toBe(true);
+    expect(SPAC_NAME.test("Swiftmerge Acquisition Corp")).toBe(true);
+    expect(SPAC_NAME.test("Dragoneer Growth Opportunities Corp.")).toBe(true);
+    expect(SPAC_NAME.test("Goldenstone Acquisition Ltd.")).toBe(true);
+    expect(SPAC_NAME.test("Ares Capital Corp")).toBe(false);
+    expect(SPAC_NAME.test("Main Street Capital Corp")).toBe(false);
+  });
+});

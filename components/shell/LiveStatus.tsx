@@ -15,7 +15,7 @@ function ago(ms: number): string {
 
 /**
  * The top bar's live indicator: when the data was last refreshed (ticking forward), a pulse each time the tab
- * checks for new filings, and a brief "New data" flash when an update lands.
+ * checks for new filings, and a brief flash saying what arrived ("2 new deals") when an update lands.
  */
 export function LiveStatus() {
   const { data, freshness } = useHubData();
@@ -28,6 +28,11 @@ export function LiveStatus() {
   useEffect(() => setNow(Date.now()), [freshness.checkedAt, data.asOf]); // eslint-disable-line react-hooks/set-state-in-effect -- refresh the label on news
 
   const justUpdated = freshness.updatedAt != null && now - freshness.updatedAt < 8_000;
+  // Say what arrived: "2 new deals", "1 new IPO", or just "Updated" (statuses and figures changed).
+  const plural = (n: number, w: string) => `${n} new ${w}${n === 1 ? "" : "s"}`;
+  const newDeals = freshness.freshIds.size ? data.deals.filter((d) => freshness.freshIds.has(d.id)).length : 0;
+  const newIpos = freshness.freshIds.size ? data.ipos.filter((i) => freshness.freshIds.has(i.id)).length : 0;
+  const news = newDeals ? plural(newDeals, "deal") : newIpos ? plural(newIpos, "IPO") : "Updated";
   const checked = freshness.checkedAt ? `Checked for new filings ${ago(now - freshness.checkedAt)} · every 30 seconds while this tab is open.` : "Checks for new filings every 30 seconds while this tab is open.";
   return (
     <div
@@ -36,7 +41,7 @@ export function LiveStatus() {
       aria-live="polite"
     >
       <i aria-hidden="true" />
-      {justUpdated ? "New data" : "Live"}
+      {justUpdated ? news : "Live"}
       <span>updated {ago(now - Date.parse(data.asOf))}</span>
     </div>
   );

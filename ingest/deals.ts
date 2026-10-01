@@ -15,6 +15,8 @@ import {
   getSubmissions,
   getText,
   getTextHead,
+  lookupCompanies,
+  nameOn,
   NotFoundError,
   recentFilings,
   trimCik,
@@ -28,10 +30,11 @@ import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
+import { SPAC_NAME, tidyDeals } from "./tidy";
 import { htmlToText } from "./text";
 import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
@@ -211,8 +214,43 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     };
   }
   const byName = dir.byName.get(normalizeName(p.name));
-  if (byName) return { cik: byName.cik, ticker: ticker ?? byName.ticker, listedInUs: pressUs || US_LISTED.test(byName.exchange ?? "") };
+  // A short name can belong to another company: Emerson's "NI (NASDAQ: NATI)" is National Instruments, not NI Holdings.
+  if (byName && (!ticker || !pressUs || byName.ticker.toUpperCase() === ticker))
+    return { cik: byName.cik, ticker: ticker ?? byName.ticker, listedInUs: pressUs || US_LISTED.test(byName.exchange ?? "") };
   return { cik: null, ticker, listedInUs: pressUs };
+}
+
+const shiftDate = (date: string, days: number) => new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
+const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
+
+/**
+ * Was this registrant an exchange-listed reporting company when the deal was announced? It filed periodic reports
+ * in the year before, and is still on a US exchange or was delisted (Form 25) afterwards. An OTC company or one that
+ * deregistered long ago (Bremer Financial) is not.
+ */
+export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: string): boolean {
+  const filings = recentFilings(sub as Submissions);
+  const reporting = filings.some((f) => PERIODIC.test(f.form) && f.date >= shiftDate(date, -450) && f.date <= shiftDate(date, 30));
+  const listed = (sub.exchanges ?? []).some((e) => US_LISTED.test(e ?? "")) || filings.some((f) => /^25(?:-NSE)?$/.test(f.form) && f.date >= shiftDate(date, -30));
+  return reporting && listed;
+}
+
+/** Words a registrant's name may add to a one-word target name: "Aerie" is "Aerie Pharmaceuticals", not "Aeries Technology". */
+const DESCRIPTOR = /^(?:pharmaceuticals?|pharma|therapeutics|biosciences?|biotherapeutics|biopharma(?:ceuticals)?|bio|oncology|medical|medtech|lithium|energy|resources|minerals|mining|realty|properties|software|networks|communications)$/;
+const nameKey = (s: string) => normalizeName(s.replace(/['’]/g, "")); // "Ruth's" = "Ruths"
+
+/**
+ * Is `registrant` (its name on the deal date) the company a release called `target`? The same name, or the target's
+ * name plus more words; a one-word target only gains descriptors, so "Fortune" (a bank) is not "Fortune Brands" and
+ * "Beacon" is not "Beacon Financial".
+ */
+export function registrantMatches(registrant: string, target: string): boolean {
+  const r = nameKey(registrant);
+  const t = nameKey(target);
+  if (r.length < 3 || t.length < 3) return false;
+  if (r === t) return true;
+  if (!r.startsWith(t + " ")) return false;
+  return t.includes(" ") || r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w));
 }
 
 // ---------------------------------------------------------------------------
@@ -506,8 +544,8 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
   const a = fromEightK ?? fromProxy!;
   const b = fromProxy ?? fromEightK!;
   const terms: DealTerms = {
-    targetFeeUsd: saneFee(a.targetFeeUsd ?? b.targetFeeUsd, deal.valueUsd),
-    reverseFeeUsd: saneFee(a.reverseFeeUsd ?? b.reverseFeeUsd, deal.valueUsd),
+    targetFeeUsd: saneFee(a.targetFeeUsd ?? b.targetFeeUsd, deal.valueUsd, "target"),
+    reverseFeeUsd: saneFee(a.reverseFeeUsd ?? b.reverseFeeUsd, deal.valueUsd, "reverse"),
     goShop: a.goShop ?? b.goShop,
     goShopDays: a.goShopDays ?? b.goShopDays,
     financingCondition: a.financingCondition ?? b.financingCondition,
@@ -521,7 +559,8 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
   // Official SEC registrant names beat names parsed from prose.
   if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
   if (sub) {
-    deal.target.name = displayName(sub.name);
+    // The name it had when the deal was announced, not the one it took after being bought.
+    deal.target.name = displayName(nameOn(sub, deal.announcedDate));
     deal.target.ticker ??= sub.tickers?.[0] ?? null;
     deal.sector = sectorForSic(sub.sic, sub.name);
     deal.industry = sub.sicDescription || null;
@@ -614,11 +653,11 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
 
   if (!deal.financialsCheckedAt && deal.target.cik) {
     const fin = await getTargetFinancials(deal.target.cik, deal.announcedDate);
-    const m = computeMultiples(deal, fin);
+    const m = computeMultiples(deal, fin, { sic: sub?.sic, name: deal.target.name });
     deal.enterpriseValueUsd = m.enterpriseValueUsd;
     deal.evEbitda = m.evEbitda;
     deal.evRevenue = m.evRevenue;
-    if (deal.valueUsd == null && m.impliedEquityUsd != null) {
+    if (deal.valueUsd == null && m.impliedEquityUsd != null && m.impliedEquityUsd >= 1e6) {
       deal.valueUsd = Math.round(m.impliedEquityUsd);
       deal.valueKind = "equity";
     }
@@ -649,9 +688,55 @@ export async function ingestDeals(
   const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [] };
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
+  // Removed records are deleted from the store on save (an upsert alone would keep them).
+  const dropped = (state.dropped ??= new Set());
+  const drop = (deal: StoredDeal) => {
+    state.deals = state.deals.filter((d) => d !== deal);
+    dropped.add(deal.id);
+  };
+
+  const subs = new Map<string, Submissions | null>();
+  const submissions = async (cik: string) => {
+    if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
+    return subs.get(cik)!;
+  };
+
+  /**
+   * A target the listed-company file doesn't know (delisted since the deal closed: Abiomed, Ruth's, Weingarten),
+   * found by EDGAR's company-name lookup and accepted only if it was an exchange-listed reporting company then.
+   */
+  const lookups = new Map<string, Resolved | null>();
+  const resolveRegistrant = async (name: string, date: string): Promise<Resolved | null> => {
+    const key = `${normalizeName(name)}|${date}`;
+    if (lookups.has(key)) return lookups.get(key)!;
+    const q = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim();
+    const words = q.split(" ");
+    let found: Resolved | null = null;
+    try {
+      search: for (const query of words.length > 2 ? [q, words.slice(0, 2).join(" ")] : [q]) {
+        const candidates = (await lookupCompanies(query))
+          .filter((c) => registrantMatches(c.name, name) || sameCompany(c.name, name))
+          .sort((a, b) => Number(registrantMatches(b.name, name)) - Number(registrantMatches(a.name, name)))
+          .slice(0, 3);
+        for (const c of candidates) {
+          const sub = await submissions(c.cik);
+          // Checked against the name it had then: "Beacon" in 2025 was not Berkshire Hills Bancorp.
+          if (sub && sub.sic !== "6770" && registrantMatches(nameOn(sub, date), name) && listedOn(sub, date)) {
+            found = { cik: c.cik, ticker: sub.tickers?.[0] ?? null, listedInUs: true };
+            break search;
+          }
+        }
+      }
+    } catch (err) {
+      log(`  ! company lookup "${name}": ${(err as Error).message}`);
+      return null; // not cached: try again next time
+    }
+    lookups.set(key, found);
+    return found;
+  };
 
   /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
-  const accept = (parsed: ParsedPress, hit: FtsHit, text = ""): StoredDeal | null => {
+  const accept = async (parsed: ParsedPress, hit: FtsHit, text = ""): Promise<StoredDeal | null> => {
     // SPAC business combinations aren't the M&A this terminal tracks; nor are fund mergers (closed-end funds, ETFs).
     if (/\bAcquisition Corp/i.test(parsed.acquirer.name + " " + parsed.target.name)) return null;
     if (FUND_TARGET.test(parsed.target.name)) return null;
@@ -681,6 +766,8 @@ export async function ingestDeals(
       acquirer: { ...parsed.acquirer, name: titleCaseCaps(stripDateline(parsed.acquirer.name)) },
       target: { ...parsed.target, name: titleCaseCaps(rawTarget) },
     };
+    // Headline fragments and deal paperwork are not parties ("Entry into a Material Definitive Agreement").
+    if (!isPlausibleName(parsed.target.name) || !isPlausibleName(parsed.acquirer.name)) return null;
     const target = resolveParty(parsed.target, hit, directory);
     const acquirer = resolveParty(parsed.acquirer, hit, directory);
     if (target.cik && target.listedInUs) {
@@ -700,12 +787,29 @@ export async function ingestDeals(
       acquirer.listedInUs &&
       isPrivateTargetName(stripDateline(rawTarget), parsed.acquirer.name) &&
       isPrivateTargetName(name, parsed.acquirer.name) &&
+      // A merger vehicle is never the target: "Zamboni MergerCo" means the roles were read backwards.
+      !isMergerVehicle(name) &&
       !knownPublic()
     ) {
+      // A share price or a premium hints at a listed company the directory no longer has (delisted since).
+      if (parsed.premiumPct != null || parsed.pricePerShare != null) {
+        const listed = await resolveRegistrant(name, hit.fileDate);
+        if (listed) {
+          if (listed.cik === acquirer.cik) return null;
+          stats.parsed++;
+          return applyParsed(state, { ...parsed, target: { ...parsed.target, name } }, hit, listed, acquirer, false);
+        }
+        // A premium means a traded stock: an OTC or foreign-listed company, out of scope. (A per-share price
+        // alone is common for private banks and stays.)
+        // This also catches releases read backwards ("GenMark acquires Roche": the premium is GenMark's).
+        if (parsed.premiumPct != null) return null;
+      }
       stats.parsed++;
       stats.privateDeals++;
       const valueUsd = parsed.valueUsd != null && parsed.valueUsd > MAX_PRIVATE_DEAL_VALUE ? null : parsed.valueUsd;
-      return applyParsed(state, { ...parsed, target: { ...parsed.target, name }, valueUsd }, hit, target, acquirer, true);
+      const deal = applyParsed(state, { ...parsed, target: { ...parsed.target, name }, valueUsd }, hit, target, acquirer, true);
+      if (deal) deal.registrantCheckedAt ??= opts.today;
+      return deal;
     }
     return null;
   };
@@ -726,7 +830,7 @@ export async function ingestDeals(
       const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : parsePressRelease(text, ctx);
       state.seen.add(hit.id);
       if (!parsed) continue;
-      const deal = accept(parsed, hit, text);
+      const deal = await accept(parsed, hit, text);
       if (deal) touched.add(deal);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -739,11 +843,6 @@ export async function ingestDeals(
 
   // Backstop: companies that filed a merger proxy / tender response but have no deal yet.
   // Find their announcement 8-K (Item 1.01, within ~7 months before) and parse it.
-  const subs = new Map<string, Submissions | null>();
-  const submissions = async (cik: string) => {
-    if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
-    return subs.get(cik)!;
-  };
   const filers = await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log);
   const knownTargets = new Set(state.deals.map((d) => d.target.cik));
   const todo = [...filers].filter(([cik]) => !knownTargets.has(cik) && !state.seen.has(`backstop:${cik}`));
@@ -795,7 +894,7 @@ export async function ingestDeals(
             sics: proxyHit.sics,
             items: f.items.split(","),
           };
-          deal = accept(parsed, synthetic);
+          deal = await accept(parsed, synthetic);
           if (deal) break;
         }
         if (deal) {
@@ -813,7 +912,11 @@ export async function ingestDeals(
   // Enrich new/changed deals, plus open deals whose status may have moved.
   const toEnrich = state.deals.filter((d) =>
     d.privateTarget
-      ? touched.has(d) || (d.status === "Announced" && d.statusCheckedAt !== opts.today) || !d.statusCheckedAt
+      ? touched.has(d) ||
+        (d.status === "Announced" && d.statusCheckedAt !== opts.today) ||
+        !d.statusCheckedAt ||
+        !d.registrantCheckedAt ||
+        (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)
       : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       !d.financialsCheckedAt ||
@@ -824,23 +927,69 @@ export async function ingestDeals(
       // Unsettled terms (no proxy yet) are looked for once a day, not every run.
       (!d.termsCheckedAt && d.statusCheckedAt !== opts.today) ||
       !d.milestones ||
-      d.milestones.voteHeld === undefined,
+      d.milestones.voteHeld === undefined ||
+      // Looks like a company buying itself: a target renamed after its buyer (re-read the name it had then).
+      (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today),
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {
     try {
+      // Private records stored before this check: the target may be a delisted listed company.
+      if (deal.privateTarget && !deal.registrantCheckedAt) {
+        if (deal.premiumPct != null || deal.pricePerShare != null) {
+          // With today's name rules ("Sculptor Capital Management Together" -> "Sculptor Capital Management").
+          const listed = await resolveRegistrant(cleanPartyName(deal.target.name), deal.announcedDate);
+          if (listed && listed.cik !== deal.acquirer.cik) {
+            const near = (d: StoredDeal) => Math.abs(Date.parse(d.announcedDate) - Date.parse(deal.announcedDate)) < 400 * 86_400_000;
+            if (state.deals.some((d) => d !== deal && d.target.cik === listed.cik && near(d))) {
+              drop(deal); // the public record of the same deal already exists
+              continue;
+            }
+            // Becomes a public-target deal, enriched from the target's own filings below.
+            dropped.add(deal.id);
+            deal.id = `${listed.cik}-${deal.announcedDate}`;
+            delete deal.privateTarget;
+            deal.target = { ...deal.target, cik: listed.cik, ticker: deal.target.ticker ?? listed.ticker };
+            deal.statusCheckedAt = deal.financialsCheckedAt = deal.proxyCheckedAt = deal.fairnessCheckedAt = deal.termsCheckedAt = null;
+            deal.fairnessParser = undefined;
+            deal.termsParser = undefined;
+          } else if (deal.premiumPct != null) {
+            drop(deal); // traded but not on a US exchange (out of scope), or read backwards
+            continue;
+          }
+        }
+        deal.registrantCheckedAt = opts.today;
+      }
       if (deal.privateTarget) {
         enrichPrivateDeal(deal, deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null, opts.today, directory);
-        stats.enriched++;
+      } else {
+        const sub = await submissions(deal.target.cik!);
+        if (sub && sub.sic === "6770") {
+          // Blank-check shell as target: drop.
+          drop(deal);
+          continue;
+        }
+        await enrichDeal(deal, sub, opts.today, directory);
+      }
+      // Acquirer and target still look identical: the buyer took the target's name afterwards (a reverse merger,
+      // a de-SPAC, "California BanCorp" for Southern California Bancorp). Use the buyer's name at announcement.
+      if (identicalNames(deal.acquirer.name, deal.target.name) && deal.acquirer.cik) {
+        const acq = await submissions(deal.acquirer.cik);
+        const then = acq ? displayName(nameOn(acq, deal.announcedDate)) : deal.acquirer.name;
+        // The buyer was a blank-check company then ("Churchill Capital Corp IV" for Lucid): a de-SPAC, out of scope.
+        if (SPAC_NAME.test(then) || acq?.sic === "6770") {
+          drop(deal);
+          continue;
+        }
+        deal.acquirer.name = then;
+      }
+      // The very same name on both sides is no deal. (A parent buying in its listed subsidiary, "Brookfield" /
+      // "Brookfield Property REIT", only shares a prefix and stays.) A target that was a SPAC when the deal was
+      // announced ("Dragoneer Growth Opportunities Corp." for CCC) is a de-SPAC, out of scope.
+      if (normalizeName(deal.acquirer.name) === normalizeName(deal.target.name) || SPAC_NAME.test(deal.target.name)) {
+        drop(deal);
         continue;
       }
-      const sub = await submissions(deal.target.cik!);
-      if (sub && sub.sic === "6770") {
-        // Blank-check shell as target: drop.
-        state.deals = state.deals.filter((d) => d !== deal);
-        continue;
-      }
-      await enrichDeal(deal, sub, opts.today, directory);
       stats.enriched++;
     } catch (err) {
       log(`  ! enrich ${deal.id}: ${(err as Error).message}`);
@@ -851,7 +1000,16 @@ export async function ingestDeals(
     }
   }
 
+  const beforeDedupe = state.deals.map((d) => d.id);
   dropPrivateDuplicates(state.deals);
+  const kept = new Set(state.deals.map((d) => d.id));
+  for (const id of beforeDedupe) if (!kept.has(id)) dropped.add(id);
+  const tidy = tidyDeals(state.deals);
+  for (const d of tidy.dropped) dropped.add(d.id);
+  log(
+    `  tidy: ${tidy.dropped.length} junk / duplicate records removed, ${tidy.merged} merged, ${tidy.topped} topped bids marked terminated, ${tidy.sanitized} values corrected`,
+  );
+  for (const d of tidy.dropped.slice(0, 20)) log(`    - ${d.id}: ${d.reason}`);
   stats.newDeals = state.deals.filter((d) => !before.has(d.id)).length;
   return stats;
 }

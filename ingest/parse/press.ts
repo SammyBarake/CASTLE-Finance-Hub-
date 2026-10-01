@@ -269,6 +269,8 @@ export function extractPrice(t: string): number | null {
     // Exclusions only look within the same clause as the amount.
     const clause = before.split(/[.;]\s+(?=[A-Z])/).pop() ?? before;
     if (/par value|dividend|distribution|exercise price|conversion price|strike|warrants?|earnings|EPS|FFO|AFFO|net (?:income|loss)|book value|NAV\b|per share data|guidance|outlook/i.test(clause.slice(-70) + after.slice(0, 20))) continue;
+    // A CVR or milestone payment ("plus one CVR worth up to $3.50 per share") is not the offer price.
+    if (/contingent value right|\bCVRs?\b|milestones?|earn-?out|\bup to\s*$/i.test(clause.slice(-120))) continue;
     let score = 0;
     if (/receive|for each|in exchange for|purchase price|offer price|offer of|consideration|acquire[^.]{0,80}\bfor\b|valued at|implies|implied|equal to|equivalent to|price of|at a price/i.test(before)) score += 2;
     if (/^\s*(?:,\s*)?(?:in cash|net to the seller|payable in cash)/i.test(after)) score += 2;
@@ -400,7 +402,7 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
  * without EDGAR's state-of-incorporation tags ("DIODES INC /DEL/", "AMETEK INC/", "SEALED AIR CORP/DE").
  */
 export function displayName(raw: string): string {
-  const name = raw.replace(/\s*\/[A-Za-z]{2,4}\/?\s*$/, "").replace(/\s*\/\s*$/, "").trim();
+  const name = raw.replace(/\s*[\\/]\s*[A-Za-z]{2,4}\s*[\\/]?\s*$/, "").replace(/\s*[\\/]\s*$/, "").trim();
   if (name !== name.toUpperCase()) return name;
   return name
     .toLowerCase()

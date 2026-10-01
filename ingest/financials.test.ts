@@ -42,4 +42,24 @@ describe("computeMultiples", () => {
   it("drops meaningless multiples (negative EBITDA)", () => {
     expect(computeMultiples({ valueUsd: 1e9, valueKind: "enterprise", pricePerShare: null }, { ...fin, ebitdaLtm: -5e6 }).evEbitda).toBeNull();
   });
+
+  it("gives banks, insurers and mortgage REITs no EV (deposits and repo funding aren't debt)", () => {
+    const deal = { valueUsd: 450e6, valueKind: "equity" as const, pricePerShare: 20 };
+    expect(computeMultiples(deal, { ...fin, debt: 4e9 }, { sic: "6022", name: "Blue Ridge Bankshares" }).enterpriseValueUsd).toBeNull();
+    expect(computeMultiples(deal, fin, { sic: "6311", name: "American National Group" }).evRevenue).toBeNull();
+    expect(computeMultiples(deal, fin, { sic: "6798", name: "Two Harbors Investment Corp." }).enterpriseValueUsd).toBeNull();
+    // An equity REIT keeps its EV: its debt is real.
+    expect(computeMultiples(deal, fin, { sic: "6798", name: "Sotherly Hotels Inc." }).enterpriseValueUsd).not.toBeNull();
+  });
+
+  it("ignores a share count that doesn't fit the stated value (reverse split since the last filing)", () => {
+    // $5.50 x 330M pre-split shares = $1.8B, against a stated $180M equity value.
+    const m = computeMultiples({ valueUsd: 180e6, valueKind: "equity", pricePerShare: 5.5 }, { ...fin, sharesOutstanding: 330e6, debt: 100e6, cash: 50e6 });
+    expect(m.impliedEquityUsd).toBeNull();
+    expect(m.enterpriseValueUsd).toBe(230e6);
+  });
+
+  it("ignores an implausibly small share count", () => {
+    expect(computeMultiples({ valueUsd: null, valueKind: null, pricePerShare: 5.02 }, { ...fin, sharesOutstanding: 1000 }).impliedEquityUsd).toBeNull();
+  });
 });
