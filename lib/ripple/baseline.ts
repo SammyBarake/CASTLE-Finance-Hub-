@@ -35,6 +35,14 @@ export function sectorBaselines(rows: SectorMonthRow[], quarters = 4): Record<Se
   ) as Record<Sector, SectorBaseline>;
 }
 
+/**
+ * Has the IPO backfill filled sector_monthly? The monthly job adds the last two months of IPOs on its own, so
+ * recent counts prove nothing: the backfill shows in IPOs before 2021 (at least a year's worth of months with any).
+ */
+export function ipoHistoryReady(rows: Pick<SectorMonthRow, "month" | "ipoCount">[]): boolean {
+  return new Set(rows.filter((r) => r.month < "2021-01" && r.ipoCount > 0).map((r) => r.month)).size >= 12;
+}
+
 /** A % response in quarter k as a level change against the baseline (ETF price change for valuation). */
 export function levelChange(result: RippleResult, baselines: Record<Sector, SectorBaseline>, sector: Sector, feature: Feature, quarter: number) {
   const b = baselines[sector];

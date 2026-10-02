@@ -1,6 +1,6 @@
 import type { IconName } from "@/components/ui/Icon";
 
-export type RouteId = "hub" | "deal-flow" | "deal-volume" | "ipo-pipeline" | "advisors" | "valuations" | "precedents" | "deal-terms" | "timelines" | "activists" | "world-economies";
+export type RouteId = "hub" | "deal-flow" | "deal-volume" | "ipo-pipeline" | "advisors" | "valuations" | "precedents" | "what-if" | "deal-terms" | "timelines" | "activists" | "world-economies";
 export type SectionId = "hub" | "ma" | "valuation" | "advisors" | "ipos" | "macro";
 
 export interface RouteDef {
@@ -30,6 +30,7 @@ export const ROUTES: RouteDef[] = [
   { id: "activists", href: "/activists", title: "Activists", tab: "Activism", section: "ma" },
   { id: "valuations", href: "/valuations", title: "Valuations", tab: "Multiples", section: "valuation" },
   { id: "precedents", href: "/precedents", title: "Precedents", tab: "Precedents", section: "valuation" },
+  { id: "what-if", href: "/what-if", title: "What-if", tab: "What-if", section: "valuation" },
   { id: "advisors", href: "/advisors", title: "Advisors", tab: "Advisors", section: "advisors" },
   { id: "ipo-pipeline", href: "/ipo-pipeline", title: "IPO Pipeline", tab: "IPO Pipeline", section: "ipos" },
   { id: "world-economies", href: "/world-economies", title: "World Economies", tab: "World Economies", section: "macro" },

@@ -16,6 +16,17 @@
 import type { Sector } from "../types";
 
 export const ASSUMPTION = "assumption — not yet estimated from data" as const;
+/** Status of a link estimated from data (later): its `value` and `range` replace the strength scale and the ±band. */
+export const ESTIMATED = "estimated from data" as const;
+export type LinkStatus = typeof ASSUMPTION | typeof ESTIMATED;
+
+/** Optional fields an estimated link carries; hand-set links leave them out. */
+interface Estimate {
+  /** Signed coefficient in the link's units (overrides direction × strength). */
+  value?: number;
+  /** Confidence range for `value` (e.g. a bootstrapped 90% interval), low to high. */
+  range?: [number, number];
+}
 
 export const FEATURES = ["valuation", "dealCount", "dealValue", "ipoCount"] as const;
 export type Feature = (typeof FEATURES)[number];
@@ -47,17 +58,17 @@ export const MACRO_UNITS: Record<Macro, { size: number; label: string }> = {
   vix: { size: 10, label: "+10 VIX points" },
 };
 
-export interface FeatureLink {
+export interface FeatureLink extends Estimate {
   from: Feature;
   to: Feature;
   direction: Direction;
   strength: Strength;
   lag: Lag;
   why: string;
-  status: typeof ASSUMPTION;
+  status: LinkStatus;
 }
 
-export interface SectorLink {
+export interface SectorLink extends Estimate {
   from: Sector;
   to: Sector;
   direction: Direction;
@@ -65,10 +76,10 @@ export interface SectorLink {
   /** Spillovers travel at the lag of the feature link they ride on. */
   lag: "inherits the feature link's lag";
   why: string;
-  status: typeof ASSUMPTION;
+  status: LinkStatus;
 }
 
-export interface MacroLink {
+export interface MacroLink extends Estimate {
   from: Macro;
   to: Feature;
   sectors: readonly Sector[] | "all";
@@ -76,7 +87,7 @@ export interface MacroLink {
   strength: Strength;
   lag: Lag;
   why: string;
-  status: typeof ASSUMPTION;
+  status: LinkStatus;
 }
 
 const ALL = "all" as const;

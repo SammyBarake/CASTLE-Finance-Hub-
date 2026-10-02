@@ -119,6 +119,9 @@ const PATHS = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   pulse: <path d="M2 12h5l3-7 4 14 3-7h5" />,
   file: <path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8m-8 4h5" />,
+  play: <path d="M7 5v14l11-7L7 5Z" />,
+  pause: <path d="M8 5v14M16 5v14" />,
+  replay: <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;
