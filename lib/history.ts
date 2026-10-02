@@ -169,6 +169,85 @@ export function buildSectorMonthly(input: {
   return [...rows.values()].sort((a, b) => a.month.localeCompare(b.month) || SECTORS.indexOf(a.sector) - SECTORS.indexOf(b.sector));
 }
 
+/** Coverage check for one year: merger-proxy / tender filers (PREM14A, DEFM14A, SC 14D9, SC 13E3) and how many have a deal. */
+export interface YearCoverage {
+  filers: number;
+  matched: number;
+  /** The same by the filer's sector (from its SIC code). */
+  sectors?: Partial<Record<Sector, { filers: number; matched: number }>>;
+}
+
+export interface CoverageFlag {
+  year: string;
+  /** Recall against merger-proxy filers, whole % (null when not checked or too few filers). */
+  recall: number | null;
+  publicDeals: number;
+  weak: boolean;
+  reason: string | null;
+}
+
+/** Fewer filers than this in a sector-year and its recall says too little; the deal-count test is used instead. */
+const MIN_SECTOR_FILERS = 5;
+
+/**
+ * Weak years and sector-years of the deal history. The live data (2021 to last year) is the reference; only earlier
+ * years can be weak. A year is weak when its public-target deals fall under 70% of the reference median or its recall
+ * under 80% of the reference recall. A sector-year is weak when its year is, when its own recall falls under 80% of
+ * the sector's reference recall, or (with too few filers to judge recall) when its public-target deals fall under 50%
+ * of the sector's reference median.
+ */
+export function coverageFlags(input: {
+  coverage: Record<string, YearCoverage>;
+  /** Public-target deals (terminated excluded) per year and sector. */
+  publicDeals: Record<string, Partial<Record<Sector, number>>>;
+  years: string[];
+  currentYear: string;
+}): { years: CoverageFlag[]; sectorYears: (CoverageFlag & { sector: Sector })[] } {
+  const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
+  const pct = (c: { filers: number; matched: number } | undefined, min = 1) => (c && c.filers >= min ? Math.round((c.matched / c.filers) * 100) : null);
+  const total = (y: string) => SECTORS.reduce((t, s) => t + (input.publicDeals[y]?.[s] ?? 0), 0);
+  const refYears = input.years.filter((y) => y >= "2021" && y < input.currentYear);
+  const ref = { pub: median(refYears.map(total)), recall: median(refYears.map((y) => pct(input.coverage[y])).filter((r): r is number => r != null)) };
+  const checked = (y: string) => y < "2021" && y !== input.currentYear;
+
+  const years = input.years.map((year): CoverageFlag => {
+    const recall = pct(input.coverage[year]);
+    const publicDeals = total(year);
+    const reason = !checked(year)
+      ? null
+      : publicDeals < 0.7 * ref.pub
+        ? `${publicDeals} public-target deals vs a reference of ${ref.pub}`
+        : recall != null && ref.recall && recall < 0.8 * ref.recall
+          ? `recall ${recall}% vs a reference of ${ref.recall}%`
+          : null;
+    return { year, recall, publicDeals, weak: reason != null, reason };
+  });
+
+  const sectorYears = SECTORS.flatMap((sector) => {
+    const sref = {
+      pub: median(refYears.map((y) => input.publicDeals[y]?.[sector] ?? 0)),
+      recall: median(refYears.map((y) => pct(input.coverage[y]?.sectors?.[sector], MIN_SECTOR_FILERS)).filter((r): r is number => r != null)),
+    };
+    return years.map((y) => {
+      const recall = pct(input.coverage[y.year]?.sectors?.[sector], MIN_SECTOR_FILERS);
+      const publicDeals = input.publicDeals[y.year]?.[sector] ?? 0;
+      const reason = !checked(y.year)
+        ? null
+        : y.weak
+          ? `the whole year is weak (${y.reason})`
+          : recall != null && sref.recall
+            ? recall < 0.8 * sref.recall
+              ? `recall ${recall}% vs a sector reference of ${sref.recall}%`
+              : null
+            : publicDeals < 0.5 * sref.pub
+              ? `${publicDeals} public-target deals vs a sector reference of ${sref.pub}`
+              : null;
+      return { year: y.year, sector, recall, publicDeals, weak: reason != null, reason };
+    });
+  });
+  return { years, sectorYears };
+}
+
 export function buildMacroMonthly(fred: Partial<Record<"fedFunds" | "treasury10y" | "hySpread" | "baaSpread" | "vix" | "cpi", Record<string, number>>>, from: string, before: string): MacroMonthRow[] {
   const get = (k: keyof typeof fred, m: string) => fred[k]?.[m] ?? null;
   return monthsBetween(from, before).map((month) => ({

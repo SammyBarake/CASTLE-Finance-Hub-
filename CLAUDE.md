@@ -58,6 +58,7 @@ npm run ingest -- --only deals --rebuild-deals --from 2024-09-01   # re-read all
 npm run audit                          # data-quality audit of the live database (read-only); -- --local, -- --all
 npm run history -- report              # history foundation (what-if engine): see "History foundation" below
 npm run ripple -- --shock Tech.valuation=10 --shock vix=10   # what-if ripple engine (read-only), see "Ripple engine" below
+npm run estimate                       # re-estimate the ripple links from the history (Python), see "Link estimation" below
 ```
 
 With Supabase keys in `.env.local`, the local site reads the live database. Set `CASTLE_DATA_SOURCE=local` (in the shell or `.env.local`) to make it read `.data/castle.json` instead, e.g. to try ingest changes without touching production.
@@ -132,9 +133,12 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   ipoHistory.ts       Priced IPOs since 2015 from 424B4 final prospectuses (same IPO tests as ipos.ts)
   markets.ts          Sector ETF monthly prices (Yahoo chart API) and FRED series (public CSV), no keys
 lib/history.ts        Pure builders for sector_monthly / macro_monthly (inflation adjustment, one value type) + tests
-lib/ripple/           What-if ripple engine (pure): links.ts (hand-set links config), engine.ts (A = C ⊗ L, M, λ),
-                      settings.ts (THE engine settings + presets + slider ranges), advisers.ts (bank outlook),
-                      baseline.ts (levels from sector_monthly), insights.ts (takeaways) + tests; CLI ingest/ripple.ts
+lib/ripple/           What-if ripple engine (pure): links.ts (hand-set links = the priors), estimated.ts + estimated.json
+                      (estimated link set, generated), engine.ts (A = C ⊗ L, M, λ), settings.ts (THE engine settings:
+                      link set, presets, slider ranges), advisers.ts (bank outlook), baseline.ts (levels from
+                      sector_monthly), insights.ts (takeaways) + tests; CLI ingest/ripple.ts
+research/             estimate_links.py (statsmodels link estimator, `npm run estimate`), link-estimates.md (its
+                      generated hand-set vs estimated report), requirements.txt
 lib/whatIfData.ts     What-if screen data (server-only): sector_monthly → baselines + "IPO history ready"; /api/what-if
 components/whatif/    What-if screen parts: ScenarioPanel, RippleGrid, RangeChart, WhyPanel, AdviserPanel, AssumptionBadge
 supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon); 0002_history.sql = history tables
@@ -226,26 +230,41 @@ Separate from the live features: its own tables (`supabase/migrations/0002_histo
 - **`macro_monthly`**: FRED monthly averages (public CSV, no key): FEDFUNDS, GS10, VIXCLS, CPIAUCSL, and two credit spreads. ICE BofA HY OAS (BAMLH0A0HYM2) is limited on FRED to ~3 years by ICE's licence, so Moody's Baa − 10-year (BAA10Y) is kept as the full-history spread.
 - **`snapshots`**: on the 2nd of each month `.github/workflows/history.yml` runs `npm run history -- monthly`. It refreshes markets, adds the last two months' IPOs and rebuilds both monthly tables. It also saves the IPO pipeline as shown and the YTD league table at month end (`kind` = `ipo_pipeline` / `league_table`, `period` = the month just ended), plus the raw market series (`markets` / `latest`) as a fallback when a source fails.
 - **`valueKind`** stays in stored records and the server-side read (`DEAL_FIELDS` in `lib/data.ts`, optional `Deal.valueKind`); `toPublicDeal` still leaves it out of the browser feed (tested).
-- **Order of work for a fresh history:** `deals` (hours) → `ipos` → `markets` → `recall` (per-year coverage against merger-proxy filers) → `report` (builds the tables locally) → `push` (after the migration). Never run two EDGAR-heavy commands at once: each process throttles itself to ~8 requests a second, and SEC's limit is 10.
+- **Coverage check:** `recall` counts, per year and per sector (filer SIC), the merger-proxy / tender filers and how many have a deal. `report` turns that into weak years and sector-years with `coverageFlags` (`lib/history.ts`, tested) and writes `.data/history/coverage_flags.json` for the estimator. 2021 to last year is the reference and never weak. A year is weak under 70% of the reference's public-target deals or 80% of its recall. A sector-year is weak when its year is, or its recall falls under 80% of the sector's reference (needs 5+ filers; else under 50% of the sector's deals). Every calendar year is listed, so a year with no deals shows up as weak.
+- **Order of work for a fresh history:** `deals` (hours) → `ipos` → `markets` → `recall` (per-year coverage against merger-proxy filers) → `report` (builds the tables locally) → `push` (after the migration) → `npm run estimate`. Never run two EDGAR-heavy commands at once: each process throttles itself to ~8 requests a second, and SEC's limit is 10.
 
-## Ripple engine (what-if, v1)
+## Ripple engine (what-if)
 
-Pure functions in `lib/ripple/`, separate from the existing features; only the what-if screen uses them. Try it with `npm run ripple -- --shock …`.
+Pure functions in `lib/ripple/`, separate from the existing features; only the what-if screen uses them. Try it with `npm run ripple -- --shock …` (`--links hand-set` to compare).
 
 - **Variables:** 20 = 4 features (valuation = sector ETF, deal count, deal value, IPO count) × 5 sectors, each a % deviation from what would have happened without the shock. Macro inputs (Fed funds, 10-year, Baa spread, VIX) can be shocked in natural units (pp; VIX points) but get no feedback.
-- **Links** (`lib/ripple/links.ts`, the only place numbers live):
-  - **Feature links C** (lags 0, 1, 2 → C0, C1, C2): elasticities. Strong 1.0, moderate 0.5, weak 0.2.
-  - **Sector links L:** each sector reaches itself with 1; the share reaching another sector is strong 0.5, moderate 0.25, weak 0.1.
-  - **Macro links M:** % per unit (+1 pp, or +10 VIX points): strong 10, moderate 5, weak 2.
-  - Every entry has a direction, strength, lag, one-sentence reason and `status: "assumption — not yet estimated from data"` (a test enforces this).
+- **Two link sets**, picked by `LINK_SET` in `settings.ts` (default `"estimated"`):
+  - **Hand-set** (`links.ts`): 12 feature, 11 sector and 15 macro links, each with a direction, strength, lag, one-sentence reason and `status: "assumption — not yet estimated from data"` (a test enforces this). They are also the priors of the estimation.
+    - Feature links C (lags 0, 1, 2 → C0, C1, C2) are elasticities: strong 1.0, moderate 0.5, weak 0.2.
+    - Sector links L: each sector reaches itself with 1; the share reaching another sector is strong 0.5, moderate 0.25, weak 0.1.
+    - Macro links M are % per unit (+1 pp, or +10 VIX points): strong 10, moderate 5, weak 2.
+  - **Estimated** (`estimated.ts` from `estimated.json`, see "Link estimation"): the same links and reasons with an estimated `value`, 90% `range`, `n`, data `weight` and `prior`. Direction and strength follow the estimate. `status` becomes `"estimated from data"` only at data weight ≥ 0.5; a link still mostly prior stays an assumption. A macro effect found sector-specific becomes one link per sector. A hand-set macro link the data puts at zero (no separate sector effect) is left out.
 - **Engine** (`engine.ts`): `A_lag = C_lag ⊗ L` (feature-major index = feature·5 + sector) with self-links zeroed, so a variable's own shock just fades. Shocks hit in quarter 1 and fade by λ = 0.7 a quarter. A lag-ℓ link fires ℓ quarters later and fades from then on: `y_k = λ^(k−1)·s + Σ_ℓ<k λ^(k−1−ℓ)·(A_ℓ·s + M_ℓ·m)`.
   - One link deep in v1 (`rounds: 1`), so hand-set numbers don't compound. `rounds: 2` (or 3, `MAX_ROUNDS`) adds effects of effects; `explain()` then shows the variables a chain passed through (`via`).
   - From quarter 3 every response shrinks by exactly λ.
-  - Range: each link's contribution at ±50% (positive and negative contributions bounded separately). A link with an estimated `value` and `range` (status `"estimated from data"`) uses those instead of the strength scale and ±band; once no link is hand-set, `RippleResult.handSet` is false and the screen drops its "assumption" badges.
-  - `explain()` lists a result's contributions with the link entries behind each hop.
-- **Settings** (`settings.ts`, the single place): fade, range, horizon, rounds, link set, adviser window, presets and slider ranges. Switching on second-round effects or estimated links is a change there only; the screen reads everything from it.
+  - Range: a link with an estimated `value` and `range` uses those; otherwise its contribution is taken at ±50% (positive and negative contributions bounded separately).
+  - `QuarterResult.assumed[sector][feature]`: the share of each result's knock-on effect that travels through at least one assumption link. The screen badges a result above `ASSUMED_ABOVE` (0.5). `RippleResult.handSet` = any link in use is an assumption.
+  - `explain()` lists a result's contributions with the link entries behind each hop (and `assumed`).
+- **Settings** (`settings.ts`, the single place): link set, fade, range, horizon, rounds, adviser window, presets and slider ranges. Second-round effects stay off (`rounds: 1`) until a backtest tests them; the screen reads everything from here.
 - **Advisers** (`advisers.ts`): each bank's share of sector deal value over the last 3 years (league-table credit, both sides) × the sector's average quarterly deal value × the predicted % change, summed over the quarters. Banks are ranked by predicted change, with range, % of baseline and driving sector.
 - **Levels** (`baseline.ts`): turns % responses into quarterly levels using the last four complete quarters of `sector_monthly`.
+
+## Link estimation (`npm run estimate`)
+
+`research/estimate_links.py` (Python 3, statsmodels; `python -m pip install -r research/requirements.txt`) estimates every link from the local history and writes `lib/ripple/estimated.json` (committed) and `research/link-estimates.md` (the hand-set vs estimated report, regenerated each run). `npm run estimate` first exports the hand-set links (`npm run ripple -- --export-handset`). Inputs: `.data/history/` (`npm run history -- report`) and BEA's `AllTablesIO.zip`, unzipped into `.data/bea/io/` (git-ignored, from apps.bea.gov/industry/iTables Static Files/).
+
+- **Panel:** quarterly, 5 sectors. Valuation = sector ETF log total return. Counts and values enter as log changes of log(x + c) (c = 1 for counts, $100M for values), winsorised at 2.5 / 97.5%. Weak sector-years (coverage check) are blanked: left out where a deal figure is the target, and counted as "no change" plus a missing-data flag where it is an input, so those quarters' ETF and macro data still count. IPO links stay at their prior until the IPO history is in (the same 12-month test as `ipoHistoryReady`).
+- **C and M:** one statsmodels OLS per target feature with sector fixed effects. Regressors: the other features at lags 0–2, the target's own lags 1–2 (controls) and the four macro changes at lags 0–2 (VIX per 10 points). A macro effect gets sector-specific coefficients only when an F-test rejects a common one (p < 0.05). Lag-0 links are same-quarter associations, not causal.
+- **L:** half BEA input-output (share of sector i's output driven by sector j's final demand; Leontief total requirements on the 71-industry use tables 2015–2023, mapped like `sectorForSic`, with pharma split out of chemicals and medical devices out of misc. manufacturing by 2017 detail shares). Half the ETFs' co-movement: the slope of i's residual on j's, after the other three sectors' average return (an ex-pair market; SPY would put Tech, ~30% of it, in its own benchmark and fake negative spillovers) and the four macro changes.
+- **Shrinkage:** a normal prior on every coefficient, centred on its hand-set value (0 without a link), sd half its size (floors 0.1 / 0.05 / 1 for feature / sector / macro; 0.2 / 0.1 / 1 around zero). Posterior mean = ridge toward the prior. Data weight = 1 − posterior variance / prior variance.
+- **Ranges:** 1,000 bootstrap runs resampling whole quarters (and an IO year), each adding the prior's remaining uncertainty, (1 − weight) × prior sd; 90% = 5th–95th percentile.
+- **Report verdicts:** agreed (hand-set inside the range), stronger / weaker, flipped (opposite sign, range excludes 0), too weak to matter (under a quarter of the weakest strength, range includes 0), plus links still mostly prior. It also lists links the data suggests that the engine doesn't have (not added: each needs a reason first).
+- Not estimable: valuation → valuation (lag 0) is cross-sector co-movement and stays hand-set. Deal growth is noisy (quarterly swings of ±100%+), so most links into deal counts and values stay mostly prior.
 
 ## What-if screen (`/what-if`, Valuation tab)
 
@@ -255,9 +274,9 @@ Pure functions in `lib/ripple/`, separate from the existing features; only the w
 - **Outputs:**
   - `RippleGrid`: sectors × features, green / red with strength relative to the largest knock-on effect, Q1–Q4 segment and play / pause / replay (1.1 s a quarter).
   - `RangeChart`: the selected cell over the quarters, range shaded (a small SVG, not Chart.js), with a level note from the baselines.
-  - `WhyPanel`: the selected cell's contributions and each link's direction, strength, lag and reason.
+  - `WhyPanel`: the selected cell's contributions. Each link shows its direction, strength, lag and reason, plus its estimate, 90% range, sample size and data weight ("The data points the other way from this reasoning" when the sign flipped).
   - `AdviserPanel`: top 5 banks positioned to rise and to fall, with the driving sector; a click selects that sector's deal value and shows why.
-- **Honesty rules:** every result carries an "assumption" badge while any link is hand-set, and the page states "Shows direction and strength of likely effects, not price predictions." IPO cells show "IPO history loading" until `ipoHistoryReady` (12+ months of priced IPOs before 2021 in `sector_monthly`, i.e. after the IPO backfill is pushed).
+- **Honesty rules:** a result carries an "assumption" badge when more than half its knock-on effect runs through links still mostly prior (`assumed`); an adviser row when its driving sector's deal value does. The note says how many links are estimated, and the page states "Shows direction and strength of likely effects, not price predictions." IPO cells show "IPO history loading" until `ipoHistoryReady` (12+ months of priced IPOs before 2021 in `sector_monthly`, i.e. after the IPO backfill is pushed).
 - **Data:** `/api/what-if` (cached an hour) returns baselines from `sector_monthly`. Without the 0002 migration it returns no baselines and the screen still works, minus the level notes.
 - Phone: one column, short column headers, ranges hidden in cells.
 
@@ -266,7 +285,7 @@ Pure functions in `lib/ripple/`, separate from the existing features; only the w
 - **Task 1 (done):** scaffold, CLAUDE.md, hub rebuilt as components on sample data.
 - **Task 2 (done):** SEC data engine (EDGAR → parsers → Supabase via GitHub Actions; site reads Supabase with 15-minute ISR). History goes back to 2021 (run the workflow with "rebuild").
 - **Company pages (done):** every acquirer, target and IPO issuer links to `/company/[id]`. Use `CompanyLink` for company names; generic buyer names ("The Investor Group") get no page.
-- **What-if (screen done, links hand-set):** history foundation → ripple engine → `/what-if`. Next: estimate link values and ranges from `sector_monthly` / `macro_monthly`, then switch them in through `settings.ts`.
+- **What-if (done):** history foundation → ripple engine → `/what-if` → links estimated from the history (`npm run estimate`, `LINK_SET = "estimated"`). Next: a backtest (do the estimated links forecast held-out quarters better than the hand-set ones, and do second-round effects help?), then re-estimate once the IPO history is in.
 - **Precedent transactions (done):** `/precedents` (`lib/precedents.ts` + `PrecedentsView`). Screen by sector / industry / size / window, untick outliers, summary rows (high, 75th, mean, median, 25th, low), CSV export. A deal drawer's "Precedents" button opens `/precedents?deal=<id>` seeded from that deal (same sector, ⅓×–3× its size).
 - **Fairness-opinion valuation (done):** `ingest/parse/fairness.ts` reads each "Opinion of <Bank>" section of the target's DEFM14A / SC 14D9 / PREM14A: implied per-share ranges by analysis, DCF discount rate / perpetuity growth / terminal multiple, and the bank's fee. Stored as `Deal.fairness`; shown as a football field in the deal drawer's Valuation tab (`components/details/Valuation.tsx`). Ranges are only read inside a bank's section (bids in the background story and termination fees are ignored); a section ends at the next "Opinion of" line, another bank's analysis heading, or a major heading such as the projections. A preliminary proxy is re-read when the definitive one arrives (`fairnessAdsh` / `fairnessCheckedAt`). About 270 of 377 deals have one.
 - **Volume explorer (done):** the volume chart's "Expand" button opens a full-screen view (`components/views/VolumeExplorer.tsx`, helpers in `lib/explorer.ts`). Two views: "Trend over time" (the same monthly totals as the panel, from `matrix`; click a month to focus it) and "Every deal" (`components/charts/DealScatter.tsx`: each deal a dot by date × value on a log scale, sized by value, coloured by sector, largest labelled by name; click opens the deal). A side panel explains the selection in plain English (`insights()`), with biggest deals, sector mix and top buyers; the full deal list sits below. Balance: the founder rejected both a many-filter version ("too complicated") and a chart-only version ("just the same chart bigger"). Aim for few controls with a lot to look at. It is a fixed overlay portalled to `<body>` (not a `<dialog>`), so deal drawers open on top; Esc closes a drawer first, then the explorer. `LineChart` supports `onPointClick`, `highlight`, `stacked`, `maxTicks`.

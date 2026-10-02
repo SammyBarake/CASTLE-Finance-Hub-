@@ -4,7 +4,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PanelHead, SectorDot, Segment } from "@/components/ui/primitives";
 import type { Band, RippleResult } from "@/lib/ripple/engine";
 import { FEATURES, type Feature } from "@/lib/ripple/links";
-import { FEATURE_LABELS } from "@/lib/ripple/settings";
+import { ASSUMED_ABOVE, FEATURE_LABELS } from "@/lib/ripple/settings";
 import { SECTORS, type Sector } from "@/lib/types";
 import { AssumptionBadge } from "./AssumptionBadge";
 
@@ -116,7 +116,7 @@ export function RippleGrid({
                             <span className="ripple-range mono">{b.low === b.high ? " " : `${pct(b.low)} to ${pct(b.high)}`}</span>
                           </>
                         )}
-                        {isShock ? <span className="ripple-shock-tag">shock</span> : !loading && b.mid !== 0 && <AssumptionBadge show={result.handSet} />}
+                        {isShock ? <span className="ripple-shock-tag">shock</span> : !loading && b.mid !== 0 && <AssumptionBadge show={q.assumed[s][f] > ASSUMED_ABOVE} />}
                       </button>
                     </td>
                   );

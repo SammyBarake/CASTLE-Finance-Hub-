@@ -16,7 +16,7 @@
  * from supabase/migrations/0002_history.sql.
  */
 import { createClient } from "@supabase/supabase-js";
-import { buildDirectory, discoverMergerFilers, ingestDeals } from "./deals";
+import { buildDirectory, discoverMergerFilers, ingestDeals, parseDisplayName } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { historyDb, LOCAL, loadFromSupabase, push, readJson, writeJson, type Snapshot } from "./historyStore";
 import { backfillIpoHistory, type IpoHistoryState } from "./ipoHistory";
@@ -24,8 +24,9 @@ import { fetchMarkets, SECTOR_ETFS, type Markets } from "./markets";
 import { JsonStore, LOCAL_DATA_PATH, type StoredDeal } from "./store";
 import { leagueTable, toPublicIpo } from "../lib/aggregate";
 import { bankShortName } from "../lib/banks";
-import { buildMacroMonthly, buildSectorMonthly, previousMonth, type MacroMonthRow, type SectorMonthRow, type ValueKind } from "../lib/history";
-import { SECTORS, type Ipo } from "../lib/types";
+import { buildMacroMonthly, buildSectorMonthly, coverageFlags, previousMonth, type MacroMonthRow, type SectorMonthRow, type ValueKind, type YearCoverage } from "../lib/history";
+import { SECTORS, type Ipo, type Sector } from "../lib/types";
+import { sectorForSic } from "./sectors";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -152,19 +153,29 @@ function snapshots(liveDeals: StoredDeal[], liveIpos: Ipo[], period: string): Sn
 // Coverage
 // ---------------------------------------------------------------------------
 
-type Coverage = Record<string, { filers: number; matched: number }>;
+type Coverage = Record<string, YearCoverage>;
 
-/** Per year: merger-proxy / tender filers (PREM14A, DEFM14A, SC 14D9, SC 13E3) and how many have a deal. */
+/** Per year and sector: merger-proxy / tender filers (PREM14A, DEFM14A, SC 14D9, SC 13E3) and how many have a deal. */
 async function recall(deals: StoredDeal[], from: number, to: number, log: Log): Promise<Coverage> {
   const out: Coverage = readJson(LOCAL.coverage, {});
   const targets = new Map<string, string[]>();
   for (const d of deals) if (d.target.cik) targets.set(d.target.cik, [...(targets.get(d.target.cik) ?? []), d.announcedDate]);
   for (let y = from; y <= to; y++) {
     const filers = await discoverMergerFilers(`${y}-01-01`, `${y}-12-31`, [], log);
-    // A deal for that company announced up to ~8 months before its first proxy / 14D-9 that year.
-    const matched = [...filers].filter(([cik, f]) => (targets.get(cik) ?? []).some((d) => d <= f.firstDate && Date.parse(f.firstDate) - Date.parse(d) <= 250 * 86_400_000)).length;
-    out[y] = { filers: filers.size, matched };
-    log(`  ${y}: ${filers.size} merger-proxy filers, ${matched} with a deal (${filers.size ? Math.round((matched / filers.size) * 100) : 0}%)`);
+    const year: Required<YearCoverage> = { filers: filers.size, matched: 0, sectors: {} };
+    for (const [cik, f] of filers) {
+      // A deal for that company announced up to ~8 months before its first proxy / 14D-9 that year.
+      const hit = (targets.get(cik) ?? []).some((d) => d <= f.firstDate && Date.parse(f.firstDate) - Date.parse(d) <= 250 * 86_400_000);
+      const sector = sectorForSic(f.hit.sics[0], parseDisplayName(f.hit.displayNames[0]).name);
+      const s = (year.sectors[sector] ??= { filers: 0, matched: 0 });
+      s.filers++;
+      if (hit) {
+        s.matched++;
+        year.matched++;
+      }
+    }
+    out[y] = year;
+    log(`  ${y}: ${filers.size} merger-proxy filers, ${year.matched} with a deal (${filers.size ? Math.round((year.matched / filers.size) * 100) : 0}%)`);
     writeJson(LOCAL.coverage, out);
   }
   return out;
@@ -172,27 +183,25 @@ async function recall(deals: StoredDeal[], from: number, to: number, log: Log): 
 
 function report(deals: StoredDeal[], ipos: IpoHistoryState, rows: SectorMonthRow[], macro: MacroMonthRow[], log: Log) {
   const live = deals.filter((d) => d.status !== "Terminated");
-  const years = [...new Set(live.map((d) => d.announcedDate.slice(0, 4)))].filter((y) => y >= HISTORY_FROM.slice(0, 4)).sort();
+  // Every calendar year, so a year with no deals at all still shows (and is flagged).
+  const years = Array.from({ length: Number(thisMonth().slice(0, 4)) - Number(HISTORY_FROM.slice(0, 4)) + 1 }, (_, i) => String(Number(HISTORY_FROM.slice(0, 4)) + i));
   const coverage: Coverage = readJson(LOCAL.coverage, {});
-  const perYear = years.map((y) => {
-    const ds = live.filter((d) => d.announcedDate.startsWith(y));
-    const pub = ds.filter((d) => !d.privateTarget).length;
-    const valued = ds.filter((d) => d.valueUsd != null).length;
-    const ipoN = ipos.records.filter((i) => i.pricedDate.startsWith(y)).length;
-    const cov = coverage[y];
-    return { y, n: ds.length, pub, priv: ds.length - pub, valued, ipoN, recall: cov && cov.filers ? Math.round((cov.matched / cov.filers) * 100) : null };
-  });
-  const full = perYear.filter((r) => r.y >= "2021" && r.y < thisMonth().slice(0, 4));
-  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
-  const ref = { pub: median(full.map((r) => r.pub)), recall: median(full.map((r) => r.recall ?? 0)) };
+  const currentYear = thisMonth().slice(0, 4);
+  const publicDeals: Record<string, Partial<Record<Sector, number>>> = {};
+  for (const d of live) if (!d.privateTarget) (publicDeals[d.announcedDate.slice(0, 4)] ??= {})[d.sector] = (publicDeals[d.announcedDate.slice(0, 4)]?.[d.sector] ?? 0) + 1;
+  const flags = coverageFlags({ coverage, publicDeals, years, currentYear });
+  writeJson(LOCAL.coverageFlags, { builtAt: new Date().toISOString(), ...flags });
   log("\nDeals per year (terminated excluded) and IPOs priced:");
   log("  year   deals  public  private  with value   IPOs   recall   flag");
-  for (const r of perYear) {
-    const partial = r.y === thisMonth().slice(0, 4) ? "partial year" : "";
-    const weak = !partial && r.y < "2021" && (r.pub < 0.7 * ref.pub || (r.recall != null && r.recall < 0.8 * ref.recall)) ? "WEAK" : "";
-    log(`  ${r.y}   ${String(r.n).padStart(5)}  ${String(r.pub).padStart(6)}  ${String(r.priv).padStart(7)}  ${`${Math.round((r.valued / Math.max(1, r.n)) * 100)}%`.padStart(10)}  ${String(r.ipoN).padStart(5)}  ${(r.recall != null ? `${r.recall}%` : "—").padStart(7)}   ${weak || partial}`);
+  for (const f of flags.years) {
+    const ds = live.filter((d) => d.announcedDate.startsWith(f.year));
+    const valued = ds.filter((d) => d.valueUsd != null).length;
+    const ipoN = ipos.records.filter((i) => i.pricedDate.startsWith(f.year)).length;
+    const flag = f.year === currentYear ? "partial year" : f.weak ? `WEAK (${f.reason})` : "";
+    log(`  ${f.year}   ${String(ds.length).padStart(5)}  ${String(f.publicDeals).padStart(6)}  ${String(ds.length - f.publicDeals).padStart(7)}  ${`${Math.round((valued / Math.max(1, ds.length)) * 100)}%`.padStart(10)}  ${String(ipoN).padStart(5)}  ${(f.recall != null ? `${f.recall}%` : "—").padStart(7)}   ${flag}`);
   }
-  log(`  (reference 2021–${Number(thisMonth().slice(0, 4)) - 1}: median ${ref.pub} public-target deals a year${ref.recall ? `, ${ref.recall}% recall` : ""})`);
+  const weakSectorYears = flags.sectorYears.filter((f) => f.weak && !flags.years.find((y) => y.year === f.year)?.weak);
+  log(`  weak sector-years (in otherwise sound years): ${weakSectorYears.length ? weakSectorYears.map((f) => `${f.sector} ${f.year} (${f.reason})`).join("; ") : "none"}`);
 
   log("\nMonths of data per sector (" + `${rows[0]?.month} to ${rows.at(-1)?.month}` + "):");
   for (const s of SECTORS) {

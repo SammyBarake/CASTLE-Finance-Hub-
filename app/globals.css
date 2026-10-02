@@ -948,6 +948,9 @@
   .why-tag.up { color: var(--color-up); border-color: #24402f; }
   .why-tag.down { color: var(--color-down); border-color: #45292c; }
   .why-reason { margin-top: 5px; font-size: 10.5px; line-height: 1.5; color: #a9a9a9; }
+  .why-evidence { margin-top: 4px; font-size: 9.5px; line-height: 1.5; color: #7e7e7e; }
+  .why-evidence .mono { color: #b4b4b4; }
+  .why-evidence strong { font-weight: 500; color: #d9a3a7; }
 
   .adviser-split { display: grid; grid-template-columns: 1fr 1fr; }
   .adviser-split > div + div { border-left: 1px solid var(--color-soft); }

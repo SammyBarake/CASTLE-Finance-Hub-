@@ -19,11 +19,13 @@
  * With `rounds: 2` the impulses those links create drive their own links once more (effects of effects).
  *
  * Range: each link step scales its contribution by ±band (hand-set links) or by the link's own estimated range;
- * positive and negative contributions are bounded separately.
+ * positive and negative contributions are bounded separately. Each result also reports how much of its knock-on
+ * effect runs through links that are still assumptions (`assumed`), so the screen can badge results one by one.
  */
 import { SECTORS, type Sector } from "../types";
 import {
   ASSUMPTION,
+  ESTIMATED,
   FEATURE_LINKS,
   FEATURES,
   MACRO_LINKS,
@@ -120,6 +122,11 @@ export interface Band {
 export interface QuarterResult {
   quarter: number;
   sectors: Record<Sector, Record<Feature, Band>>;
+  /**
+   * Share of each variable's knock-on effect (the shock itself left out) that travels through at least one link
+   * still marked as an assumption, 0–1. The screen badges a result as an assumption above one half.
+   */
+  assumed: Record<Sector, Record<Feature, number>>;
   /** The macro shock's own path (it fades by λ too). */
   macro: Record<Macro, number>;
 }
@@ -129,9 +136,9 @@ export interface RippleResult {
   band: number;
   rounds: number;
   quarters: QuarterResult[];
-  /** True while any link in use is hand-set ("assumption — not yet estimated from data"). */
+  /** True while any link in use is an assumption ("assumption — not yet estimated from data"). */
   handSet: boolean;
-  status: typeof ASSUMPTION | "estimated from data";
+  status: typeof ASSUMPTION | typeof ESTIMATED;
 }
 
 export interface RippleOptions {
@@ -158,6 +165,8 @@ interface Impulse {
   origin: number | Macro;
   /** Multipliers giving the low and high end of this contribution. */
   factor: [number, number];
+  /** Some link on the way is still an assumption. */
+  assumed: boolean;
 }
 
 /** The config entries behind one step. */
@@ -171,19 +180,23 @@ export function linksFor(step: Step, links: Links = DEFAULT_LINKS): (FeatureLink
   ];
 }
 
-/** Low and high multipliers for a step: the links' estimated ranges when all have one, else ±band. */
-function stepFactor(step: Step, links: Links, band: number): [number, number] {
+/**
+ * A step's low and high multipliers (the links' estimated ranges when all have one, else ±band), and whether any
+ * of its links is still an assumption.
+ */
+function stepInfo(step: Step, links: Links, band: number): { factor: [number, number]; assumed: boolean } {
   const ls = linksFor(step, links);
-  if (!ls.length || ls.some((l) => l.range == null || l.value == null || l.value === 0)) return [1 - band, 1 + band];
+  const assumed = ls.some((l) => l.status === ASSUMPTION);
+  if (!ls.length || ls.some((l) => l.range == null || l.value == null || l.value === 0)) return { factor: [1 - band, 1 + band], assumed };
   if (step.kind === "macro") {
     const total = ls.reduce((t, l) => t + l.value!, 0);
     const lo = ls.reduce((t, l) => t + l.range![0], 0) / total;
     const hi = ls.reduce((t, l) => t + l.range![1], 0) / total;
-    return [Math.min(lo, hi), Math.max(lo, hi)];
+    return { factor: [Math.min(lo, hi), Math.max(lo, hi)], assumed };
   }
   // A feature step multiplies a feature link by a sector link: multiply their ranges.
   const fs = ls.map((l) => [l.range![0] / l.value!, l.range![1] / l.value!].sort((a, b) => a - b));
-  return [fs.reduce((t, f) => t * f[0], 1), fs.reduce((t, f) => t * f[1], 1)];
+  return { factor: [fs.reduce((t, f) => t * f[0], 1), fs.reduce((t, f) => t * f[1], 1)], assumed };
 }
 
 function shockVector(shock: RippleShock): number[] {
@@ -200,7 +213,7 @@ function propagate(shock: RippleShock, quarters: number, rounds: number, links: 
   const s = shockVector(shock);
   const m = MACROS.map((k) => shock.macro?.[k] ?? 0);
   const all: Impulse[] = [];
-  let frontier: Impulse[] = s.flatMap((v, j) => (v ? [{ quarter: 1, i: j, value: v, round: 0, path: [], origin: j, factor: [1, 1] as [number, number] }] : []));
+  let frontier: Impulse[] = s.flatMap((v, j) => (v ? [{ quarter: 1, i: j, value: v, round: 0, path: [], origin: j, factor: [1, 1] as [number, number], assumed: false }] : []));
   all.push(...frontier);
   const macroImpulses: Impulse[] = [];
   MACROS.forEach((macro, u) => {
@@ -211,7 +224,8 @@ function propagate(shock: RippleShock, quarters: number, rounds: number, links: 
         const v = M[lag][i][u] * m[u];
         if (!v) continue;
         const step: Step = { kind: "macro", macro, to: i, lag };
-        macroImpulses.push({ quarter: 1 + lag, i, value: v, round: 1, path: [step], origin: macro, factor: stepFactor(step, links, band) });
+        const info = stepInfo(step, links, band);
+        macroImpulses.push({ quarter: 1 + lag, i, value: v, round: 1, path: [step], origin: macro, factor: info.factor, assumed: info.assumed });
       }
     }
   });
@@ -225,8 +239,8 @@ function propagate(shock: RippleShock, quarters: number, rounds: number, links: 
           const v = A[lag][i][imp.i] * imp.value;
           if (Math.abs(v) < 1e-9) continue;
           const step: Step = { kind: "feature", from: imp.i, to: i, lag };
-          const f = stepFactor(step, links, band);
-          next.push({ quarter, i, value: v, round, path: [...imp.path, step], origin: imp.origin, factor: [imp.factor[0] * f[0], imp.factor[1] * f[1]] });
+          const { factor: f, assumed } = stepInfo(step, links, band);
+          next.push({ quarter, i, value: v, round, path: [...imp.path, step], origin: imp.origin, factor: [imp.factor[0] * f[0], imp.factor[1] * f[1]], assumed: imp.assumed || assumed });
         }
       }
     }
@@ -252,6 +266,8 @@ export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleR
     const own = new Array<number>(N).fill(0);
     const lo = new Array<number>(N).fill(0);
     const hi = new Array<number>(N).fill(0);
+    const knockOn = new Array<number>(N).fill(0);
+    const viaAssumption = new Array<number>(N).fill(0);
     for (const imp of impulses) {
       if (imp.quarter > k) continue;
       const v = lambda ** (k - imp.quarter) * imp.value;
@@ -262,21 +278,25 @@ export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleR
       }
       lo[imp.i] += v > 0 ? v * imp.factor[0] : v * imp.factor[1];
       hi[imp.i] += v > 0 ? v * imp.factor[1] : v * imp.factor[0];
+      knockOn[imp.i] += Math.abs(v);
+      if (imp.assumed) viaAssumption[imp.i] += Math.abs(v);
     }
     const mids = impulses.reduce((acc, imp) => {
       if (imp.quarter <= k) acc[imp.i] += lambda ** (k - imp.quarter) * imp.value;
       return acc;
     }, new Array<number>(N).fill(0));
     const sectors = Object.fromEntries(SECTORS.map((sec) => [sec, {} as Record<Feature, Band>])) as Record<Sector, Record<Feature, Band>>;
+    const assumed = Object.fromEntries(SECTORS.map((sec) => [sec, {} as Record<Feature, number>])) as Record<Sector, Record<Feature, number>>;
     for (let i = 0; i < N; i++) {
       const { feature, sector } = variableAt(i);
       sectors[sector][feature] = { mid: round2(mids[i]), low: round2(own[i] + lo[i]), high: round2(own[i] + hi[i]) };
+      assumed[sector][feature] = knockOn[i] ? round2(viaAssumption[i] / knockOn[i]) : 0;
     }
     const m = MACROS.map((key) => shock.macro?.[key] ?? 0);
-    result.push({ quarter: k, sectors, macro: Object.fromEntries(MACROS.map((key, u) => [key, round2(lambda ** (k - 1) * m[u])])) as Record<Macro, number> });
+    result.push({ quarter: k, sectors, assumed, macro: Object.fromEntries(MACROS.map((key, u) => [key, round2(lambda ** (k - 1) * m[u])])) as Record<Macro, number> });
   }
   const handSet = [...links.features, ...links.sectors, ...links.macro].some((l) => l.status === ASSUMPTION);
-  return { lambda, band, rounds, quarters: result, handSet, status: handSet ? ASSUMPTION : "estimated from data" };
+  return { lambda, band, rounds, quarters: result, handSet, status: handSet ? ASSUMPTION : ESTIMATED };
 }
 
 /** One contribution to a variable's response, with the links that carried it. */
@@ -291,6 +311,8 @@ export interface Contribution {
   /** Intermediate variables for effects of effects ("Tech deal value"). */
   via: string[];
   value: number;
+  /** Some link on the way is still an assumption. */
+  assumed: boolean;
   /** The config entries behind each hop, first hop first. */
   steps: { step: Step; links: (FeatureLink | SectorLink | MacroLink)[] }[];
 }
@@ -316,6 +338,7 @@ export function explain(shock: RippleShock, sector: Sector, feature: Feature, qu
         round: imp.round,
         via: imp.path.slice(0, -1).map((s) => label(s.to)),
         value: round2(lambda ** (quarter - imp.quarter) * imp.value),
+        assumed: imp.assumed,
         steps: imp.path.map((step) => ({ step, links: linksFor(step, links) })),
       };
     })

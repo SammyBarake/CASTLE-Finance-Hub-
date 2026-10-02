@@ -17,7 +17,27 @@ const sourceLabel = (source: string) => {
   return feature in FEATURE_NOUNS ? `${sector} ${FEATURE_NOUNS[feature as keyof typeof FEATURE_NOUNS]}` : source;
 };
 
-function LinkCard({ link }: { link: FeatureLink | SectorLink | MacroLink }) {
+type AnyLink = FeatureLink | SectorLink | MacroLink;
+const num = (v: number, d: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}`;
+
+/** "Estimated +0.42 (90% range +0.18 to +0.66) from 153 sector-quarters; 71% data, the rest the hand-set +1.00." */
+function Evidence({ link }: { link: AnyLink }) {
+  if (link.value == null || link.prior == null || !link.range) return null;
+  const kind = "sectors" in link ? "macro" : typeof link.lag === "string" ? "sector" : "feature";
+  const d = kind === "macro" ? 1 : 2;
+  const u = kind === "macro" ? "%" : "";
+  const flipped = link.prior !== 0 && Math.sign(link.value) !== Math.sign(link.prior);
+  if (!link.n) return <p className="why-evidence">No data behind this link yet: it is the hand-set {num(link.prior, d)}{u}.</p>;
+  const basis = kind === "sector" ? `${link.n} months of sector ETF returns and BEA input-output tables` : `${link.n} sector-quarters`;
+  return (
+    <p className="why-evidence">
+      Estimated <span className="mono">{num(link.value, d)}{u}</span> (90% range <span className="mono">{num(link.range[0], d)}</span> to <span className="mono">{num(link.range[1], d)}{u}</span>) from {basis};{" "}
+      {Math.round((link.weight ?? 0) * 100)}% data, the rest the hand-set {num(link.prior, d)}{u}.{flipped && <strong> The data points the other way from this reasoning.</strong>}
+    </p>
+  );
+}
+
+function LinkCard({ link }: { link: AnyLink }) {
   const isSector = typeof link.lag === "string";
   const from = "sectors" in link ? MACRO_LABELS[link.from] : isSector ? link.from : FEATURE_LABELS[link.from as keyof typeof FEATURE_LABELS];
   const to = "sectors" in link ? `${FEATURE_LABELS[link.to]}${link.sectors === "all" ? "" : ` (${link.sectors.join(", ")})`}` : isSector ? link.to : FEATURE_LABELS[link.to as keyof typeof FEATURE_LABELS];
@@ -33,16 +53,17 @@ function LinkCard({ link }: { link: FeatureLink | SectorLink | MacroLink }) {
         <AssumptionBadge show={link.status === ASSUMPTION} />
       </div>
       <p className="why-reason">{link.why}</p>
+      <Evidence link={link} />
     </li>
   );
 }
 
-export function WhyPanel({ selection, quarter, contributions, ipoLoading, handSet, lambda }: { selection: Selection; quarter: number; contributions: Contribution[]; ipoLoading: boolean; handSet: boolean; lambda: number }) {
+export function WhyPanel({ selection, quarter, contributions, ipoLoading, assumed, lambda }: { selection: Selection; quarter: number; contributions: Contribution[]; ipoLoading: boolean; assumed: boolean; lambda: number }) {
   const title = `${selection.sector} ${FEATURE_NOUNS[selection.feature]}`;
   return (
     <section className="panel why-panel" id="whatif-why" aria-live="polite">
       <PanelHead title="Why it moves" subtitle={`${title} in Q${quarter} · the links behind it, largest first`}>
-        <AssumptionBadge show={handSet} />
+        <AssumptionBadge show={assumed} />
       </PanelHead>
       {ipoLoading && <p className="why-note">IPO history loading: the values appear once the IPO backfill fills the history. The links below are what will drive them.</p>}
       {contributions.length ? (

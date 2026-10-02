@@ -1,18 +1,27 @@
 /**
  * The ripple engine's settings, in one place. The what-if screen reads everything from here, so the engine can change
  * without touching the UI:
+ * - pick the links: `LINK_SET = "estimated"` (numbers estimated from the 2015–today history, each with its 90% range;
+ *   research/estimate_links.py) or `"hand-set"` (lib/ripple/links.ts, ±band ranges);
  * - switch on second-round effects: `rounds: 2` (effects of effects; 3 is the most supported);
- * - swap in estimated links: set `links` to a link set whose entries carry `value`, `range` and
- *   `status: ESTIMATED` (the ±band then gives way to each link's own range, and the "assumption" badges go away);
- * - change how fast effects fade (`lambda`), the horizon (`quarters`) or the placeholder range (`band`).
+ * - change how fast effects fade (`lambda`), the horizon (`quarters`) or the placeholder range for hand-set links (`band`).
  */
 import type { Sector } from "../types";
 import { DEFAULT_LINKS, type Links, type RippleShock } from "./engine";
-import { ASSUMPTION, type Feature, type Macro } from "./links";
+import { ESTIMATED_LINKS, ESTIMATES } from "./estimated";
+import { ASSUMPTION, ESTIMATED, type Feature, type Macro } from "./links";
+
+export type LinkSetName = "estimated" | "hand-set";
+
+/** Which links the engine runs on. */
+export const LINK_SET: LinkSetName = "estimated";
+
+export const LINK_SETS: Record<LinkSetName, Links> = { estimated: ESTIMATED_LINKS, "hand-set": DEFAULT_LINKS };
 
 export interface RippleSettings {
   /** Shown on the screen so a reader knows which engine produced the numbers. */
   version: string;
+  linkSet: LinkSetName;
   /** Fade per quarter. */
   lambda: number;
   /** Placeholder range on each hand-set link's contribution (0.5 = ±50%). */
@@ -26,17 +35,31 @@ export interface RippleSettings {
 }
 
 export const RIPPLE_SETTINGS: RippleSettings = {
-  version: "v1 · hand-set links",
+  version:
+    LINK_SET === "estimated"
+      ? `v2 · links estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history (${ESTIMATES.meta.generatedAt.slice(0, 10)})`
+      : "v1 · hand-set links",
+  linkSet: LINK_SET,
   lambda: 0.7,
   band: 0.5,
   quarters: 4,
+  // Effects of effects stay off until the backtest has tested them.
   rounds: 1,
-  links: DEFAULT_LINKS,
+  links: LINK_SETS[LINK_SET],
   adviserWindowYears: 3,
 };
 
-/** True while any link in use is hand-set (the screen shows "assumption" badges). */
+/** True while any link in use is an assumption. */
 export const linksAreHandSet = (links: Links) => [...links.features, ...links.sectors, ...links.macro].some((l) => l.status === ASSUMPTION);
+
+/** How many links in a set rest on data (status ESTIMATED) out of all of them. */
+export function linkCounts(links: Links): { total: number; estimated: number } {
+  const all = [...links.features, ...links.sectors, ...links.macro];
+  return { total: all.length, estimated: all.filter((l) => l.status === ESTIMATED).length };
+}
+
+/** A result counts as an assumption when more than half of its knock-on effect travels through assumption links. */
+export const ASSUMED_ABOVE = 0.5;
 
 export type ShockTarget = { kind: "feature"; feature: Feature; sector: Sector } | { kind: "macro"; macro: Macro };
 

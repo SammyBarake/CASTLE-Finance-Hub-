@@ -4,7 +4,7 @@ import { ipoHistoryReady } from "./baseline";
 import { DEFAULT_LINKS, explain, MAX_ROUNDS, runRipple, type Links } from "./engine";
 import { rippleInsights } from "./insights";
 import { ESTIMATED, MACRO_LINKS, STRENGTH_SCALE } from "./links";
-import { formatShock, linksAreHandSet, PRESETS, RIPPLE_SETTINGS, SHOCK_RANGES, toRippleShock, rangeFor } from "./settings";
+import { formatShock, LINK_SETS, linksAreHandSet, PRESETS, RIPPLE_SETTINGS, SHOCK_RANGES, toRippleShock, rangeFor } from "./settings";
 
 const signed = (d: "+" | "-", v: number) => (d === "-" ? -v : v);
 
@@ -89,8 +89,10 @@ describe("screen settings", () => {
     for (const r of Object.values(SHOCK_RANGES)) expect(r.min).toBe(-r.max);
   });
 
-  it("starts as v1: direct effects only, hand-set links, ±50%, four quarters", () => {
-    expect(RIPPLE_SETTINGS).toMatchObject({ lambda: 0.7, band: 0.5, quarters: 4, rounds: 1 });
+  it("runs on the estimated links, direct effects only (second rounds wait for the backtest)", () => {
+    expect(RIPPLE_SETTINGS).toMatchObject({ linkSet: "estimated", lambda: 0.7, band: 0.5, quarters: 4, rounds: 1 });
+    expect(RIPPLE_SETTINGS.links).toBe(LINK_SETS.estimated);
+    expect(LINK_SETS["hand-set"]).toBe(DEFAULT_LINKS);
     expect(RIPPLE_SETTINGS.rounds).toBeLessThanOrEqual(MAX_ROUNDS);
   });
 
@@ -125,9 +127,10 @@ describe("ipoHistoryReady", () => {
 });
 
 describe("rippleInsights", () => {
+  // The wording is under test, so pin the numbers to the hand-set links.
   const run = (id: string) => {
     const shock = toRippleShock(PRESETS.find((p) => p.id === id)!.shocks);
-    return { shock, result: runRipple(shock, RIPPLE_SETTINGS) };
+    return { shock, result: runRipple(shock, { ...RIPPLE_SETTINGS, links: DEFAULT_LINKS }) };
   };
 
   it("names the biggest knock-on move and the strongest spillover, leaving the shocked cell out", () => {

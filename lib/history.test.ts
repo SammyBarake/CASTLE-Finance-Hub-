@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroMonthly, buildSectorMonthly, inflationFactor, monthsBetween, previousMonth } from "./history";
+import { buildMacroMonthly, buildSectorMonthly, coverageFlags, inflationFactor, monthsBetween, previousMonth } from "./history";
 import type { Sector } from "./types";
 
 const tickers: Record<Sector, string> = { Tech: "XLK", Healthcare: "XLV", Energy: "XLE", Financials: "XLF", Industrials: "XLI" };
@@ -76,5 +76,40 @@ describe("buildMacroMonthly", () => {
       { month: "2015-01", fedFundsPct: 0.11, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 19.1, cpi: null },
       { month: "2015-02", fedFundsPct: null, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 15.9, cpi: null },
     ]);
+  });
+});
+
+describe("coverageFlags", () => {
+  const sectors = (n: number, matched: number) => Object.fromEntries((["Tech", "Healthcare", "Energy", "Financials", "Industrials"] as Sector[]).map((s) => [s, { filers: n, matched }]));
+  const deals = (n: number) => ({ Tech: n, Healthcare: n, Energy: n, Financials: n, Industrials: n });
+  const base = {
+    years: ["2019", "2020", "2021", "2022", "2023", "2024"],
+    currentYear: "2024",
+    publicDeals: { "2019": deals(20), "2020": deals(8), "2021": deals(20), "2022": deals(20), "2023": deals(20), "2024": deals(5) },
+    coverage: {
+      "2019": { filers: 100, matched: 60, sectors: { ...sectors(20, 12), Energy: { filers: 20, matched: 4 } } },
+      "2020": { filers: 100, matched: 60, sectors: sectors(20, 12) },
+      "2021": { filers: 100, matched: 64, sectors: sectors(20, 13) },
+      "2022": { filers: 100, matched: 64, sectors: sectors(20, 13) },
+      "2023": { filers: 100, matched: 64, sectors: sectors(20, 13) },
+    },
+  };
+
+  it("flags a year with too few deals, and every sector in it", () => {
+    const { years, sectorYears } = coverageFlags(base);
+    expect(years.find((y) => y.year === "2020")).toMatchObject({ weak: true, publicDeals: 40 });
+    expect(sectorYears.filter((f) => f.year === "2020").every((f) => f.weak)).toBe(true);
+  });
+
+  it("flags a sector-year whose own recall is low inside a sound year", () => {
+    const { years, sectorYears } = coverageFlags(base);
+    expect(years.find((y) => y.year === "2019")!.weak).toBe(false);
+    expect(sectorYears.filter((f) => f.year === "2019" && f.weak).map((f) => f.sector)).toEqual(["Energy"]);
+  });
+
+  it("never flags the reference years or the current, partial year", () => {
+    const { years, sectorYears } = coverageFlags(base);
+    expect(years.filter((y) => y.year >= "2021").every((y) => !y.weak)).toBe(true);
+    expect(sectorYears.filter((f) => f.year >= "2021").every((f) => !f.weak)).toBe(true);
   });
 });

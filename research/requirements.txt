@@ -1,0 +1,5 @@
+# research/estimate_links.py (npm run estimate). Install: python -m pip install -r research/requirements.txt
+numpy>=2.3
+pandas>=2.2
+statsmodels>=0.14
+openpyxl>=3.1

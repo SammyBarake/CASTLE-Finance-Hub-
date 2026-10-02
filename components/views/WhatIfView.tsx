@@ -15,8 +15,11 @@ import type { SectorBaseline } from "@/lib/ripple/baseline";
 import { explain, runRipple } from "@/lib/ripple/engine";
 import { rippleInsights } from "@/lib/ripple/insights";
 import { MACRO_UNITS, STRENGTH_SCALE } from "@/lib/ripple/links";
-import { FEATURE_NOUNS, PRESETS, RIPPLE_SETTINGS as S, toRippleShock, type ShockInput } from "@/lib/ripple/settings";
-import type { Sector } from "@/lib/types";
+import { ESTIMATES } from "@/lib/ripple/estimated";
+import { ASSUMED_ABOVE, FEATURE_NOUNS, linkCounts, PRESETS, RIPPLE_SETTINGS as S, toRippleShock, type ShockInput } from "@/lib/ripple/settings";
+import { SECTORS, type Sector } from "@/lib/types";
+
+const COUNTS = linkCounts(S.links);
 
 interface WhatIfData {
   baselines: Record<Sector, SectorBaseline> | null;
@@ -79,6 +82,16 @@ export function WhatIfView() {
   const shares = useMemo(() => adviserShares(data.deals, span.from, span.to), [data.deals, span]);
   const outlook = useMemo(() => adviserOutlook(result, shares), [result, shares]);
   const why = useMemo(() => explain(shock, selected.sector, selected.feature, quarter, S), [shock, selected, quarter]);
+  // An adviser's figure leans on assumptions when its driving sector's deal value does (weighted over the quarters).
+  const dealValueAssumed = useMemo(() => {
+    const out = {} as Record<Sector, boolean>;
+    for (const s of SECTORS) {
+      const size = result.quarters.reduce((t, q) => t + Math.abs(q.sectors[s].dealValue.mid), 0);
+      const assumed = result.quarters.reduce((t, q) => t + Math.abs(q.sectors[s].dealValue.mid) * q.assumed[s].dealValue, 0);
+      out[s] = size > 0 && assumed / size > ASSUMED_ABOVE;
+    }
+    return out;
+  }, [result]);
 
   // Play: hold each quarter for a beat, step to the next, and stop after the last one.
   useEffect(() => {
@@ -99,6 +112,7 @@ export function WhatIfView() {
   };
 
   const points = result.quarters.map((q) => q.sectors[selected.sector][selected.feature]);
+  const selectedAssumed = result.quarters[quarter - 1].assumed[selected.sector][selected.feature] > ASSUMED_ABOVE;
   const ipoLoading = selected.feature === "ipoCount" && !ipoReady;
   const cellTitle = `${selected.sector} ${FEATURE_NOUNS[selected.feature]}`;
   const note = levelNote(selected, points[quarter - 1].mid, history?.baselines?.[selected.sector], ipoReady);
@@ -111,7 +125,10 @@ export function WhatIfView() {
       <p className="whatif-note">
         <AssumptionBadge show={result.handSet} />
         <span>
-          <strong>Shows direction and strength of likely effects, not price predictions.</strong> {result.handSet ? "Every link is hand-set from economic reasoning and not yet estimated from data; ranges are ±50% placeholders." : "Links are estimated from data, with their confidence ranges."}
+          <strong>Shows direction and strength of likely effects, not price predictions.</strong>{" "}
+          {S.linkSet === "hand-set"
+            ? "Every link is hand-set from economic reasoning and not yet estimated from data; ranges are ±50% placeholders."
+            : `${COUNTS.estimated} of ${COUNTS.total} links are estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history, with 90% ranges; the other ${COUNTS.total - COUNTS.estimated} still rest mostly on hand-set reasoning, and results that depend on them carry an "assumption" badge.`}
         </span>
       </p>
 
@@ -133,8 +150,8 @@ export function WhatIfView() {
         />
         <div className="whatif-side">
           <section className="panel">
-            <PanelHead title={cellTitle} subtitle={`% change versus no shock, Q1–Q${S.quarters} · shaded: range`}>
-              <AssumptionBadge show={result.handSet} />
+            <PanelHead title={cellTitle} subtitle={`% change versus no shock, Q1–Q${S.quarters} · shaded: ${S.linkSet === "estimated" ? "90% range" : "range"}`}>
+              <AssumptionBadge show={selectedAssumed} />
             </PanelHead>
             {ipoLoading ? (
               <div className="empty-small">IPO history loading. IPO results appear once the IPO backfill fills the history.</div>
@@ -145,11 +162,11 @@ export function WhatIfView() {
               </div>
             )}
           </section>
-          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} handSet={result.handSet} lambda={S.lambda} />
+          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} assumed={selectedAssumed} lambda={S.lambda} />
         </div>
       </div>
 
-      <AdviserPanel outlook={outlook} window={windowLabel} quarters={S.quarters} onOpen={openSector} handSet={result.handSet} />
+      <AdviserPanel outlook={outlook} window={windowLabel} quarters={S.quarters} onOpen={openSector} assumed={(o) => (o.driver ? dealValueAssumed[o.driver] : false)} />
 
       <AboutData title="How the what-if engine works">
         <p>
@@ -163,21 +180,34 @@ export function WhatIfView() {
           matrix A = C ⊗ L; macro links say how each macro input hits each feature in each sector. A shock lands in Q1 and fades {Math.round((1 - S.lambda) * 100)}% a
           quarter; each link fires after its lag and fades from then on. {S.rounds > 1 ? `Effects of effects are included (${S.rounds} rounds).` : "Only direct effects are counted (one round): with hand-set links, effects of effects would stack one guess on another."}
         </p>
-        <p>
-          <strong>Strengths.</strong> Feature links: strong {STRENGTH_SCALE.feature.strong}, moderate {STRENGTH_SCALE.feature.moderate}, weak {STRENGTH_SCALE.feature.weak}{" "}
-          (% change per 1% move). Sector links: strong {STRENGTH_SCALE.sector.strong}, moderate {STRENGTH_SCALE.sector.moderate}, weak {STRENGTH_SCALE.sector.weak} (share of a
-          move that reaches the other sector). Macro links: strong {STRENGTH_SCALE.macro.strong}%, moderate {STRENGTH_SCALE.macro.moderate}%, weak {STRENGTH_SCALE.macro.weak}%
-          per {MACRO_UNITS.fedFunds.label} (per {MACRO_UNITS.vix.label} for the VIX). The range on every result takes each link at ±{S.band * 100}% until confidence
-          ranges are estimated from the history.
-        </p>
+        {S.linkSet === "estimated" ? (
+          <p>
+            <strong>Where the numbers come from.</strong> Each link is estimated from {ESTIMATES.meta.window.quarters} quarters of history ({ESTIMATES.meta.window.from}–
+            {ESTIMATES.meta.window.to}) and pulled toward its hand-set value, harder where the data is noisy. Feature and macro links come from panel regressions of
+            each sector&apos;s quarterly changes on the others, with sector fixed effects and lags of 0–2 quarters. Sector links blend BEA input-output tables (how
+            much of one sector&apos;s output another sector&apos;s demand drives) with how sector ETFs move together beyond the market. Ranges are 90% intervals
+            from {ESTIMATES.meta.bootstrapRuns.toLocaleString("en-US")} bootstrap runs. A link counts as estimated when the data outweighs its hand-set value;
+            the rest, and every result leaning mostly on them, keep the &quot;assumption&quot; badge.
+            {!ESTIMATES.meta.ipoHistory && " IPO links stay hand-set until the IPO history is in."} Units: feature links are % per 1% move, sector links the share
+            of a move that reaches the other sector, macro links % per {MACRO_UNITS.fedFunds.label} (per {MACRO_UNITS.vix.label} for the VIX).
+          </p>
+        ) : (
+          <p>
+            <strong>Strengths.</strong> Feature links: strong {STRENGTH_SCALE.feature.strong}, moderate {STRENGTH_SCALE.feature.moderate}, weak {STRENGTH_SCALE.feature.weak}{" "}
+            (% change per 1% move). Sector links: strong {STRENGTH_SCALE.sector.strong}, moderate {STRENGTH_SCALE.sector.moderate}, weak {STRENGTH_SCALE.sector.weak} (share of a
+            move that reaches the other sector). Macro links: strong {STRENGTH_SCALE.macro.strong}%, moderate {STRENGTH_SCALE.macro.moderate}%, weak {STRENGTH_SCALE.macro.weak}%
+            per {MACRO_UNITS.fedFunds.label} (per {MACRO_UNITS.vix.label} for the VIX). The range on every result takes each link at ±{S.band * 100}%.
+          </p>
+        )}
         <p>
           <strong>Advisers.</strong> Each bank&apos;s share of every sector&apos;s deal value over the last {S.adviserWindowYears} years (league-table credit: every adviser on a
           deal counts its full value), times the sector&apos;s average quarterly deal value and its predicted % change, added up over {S.quarters} quarters. Levels
           (&quot;≈ +1.1 deals a quarter&quot;) use the last four complete quarters of the monthly history{history?.throughMonth ? ` (through ${history.throughMonth})` : ""}.
         </p>
         <p>
-          <strong>Engine.</strong> {S.version}. Links, strengths and reasons live in <code>lib/ripple/links.ts</code>; fade, range, rounds and horizon in{" "}
-          <code>lib/ripple/settings.ts</code>.
+          <strong>Engine.</strong> {S.version}. Hand-set links and their reasons live in <code>lib/ripple/links.ts</code>, the estimates in{" "}
+          <code>lib/ripple/estimated.json</code> (compared link by link in <code>research/link-estimates.md</code>); the link set, fade, range, rounds and
+          horizon in <code>lib/ripple/settings.ts</code>.
         </p>
       </AboutData>
     </>

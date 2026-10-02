@@ -1,6 +1,7 @@
 /**
- * Ripple engine links, set by hand from standard economic reasoning. NONE of these numbers has been estimated from
- * data yet: every entry is marked as an assumption, and results carry a ±50% band until bootstrapped ranges exist.
+ * Ripple engine links, set by hand from standard economic reasoning. Every entry here is an assumption. They are
+ * the "hand-set" link set, and the priors that research/estimate_links.py shrinks its estimates toward; the
+ * estimated set (lib/ripple/estimated.ts) reuses their reasons. settings.ts picks which set the engine uses.
  *
  * Three kinds of link:
  * - FEATURE_LINKS (C): how a move in one feature changes another feature, at a lag of 0, 1 or 2 quarters.
@@ -20,12 +21,18 @@ export const ASSUMPTION = "assumption — not yet estimated from data" as const;
 export const ESTIMATED = "estimated from data" as const;
 export type LinkStatus = typeof ASSUMPTION | typeof ESTIMATED;
 
-/** Optional fields an estimated link carries; hand-set links leave them out. */
+/** Optional fields an estimated link carries (lib/ripple/estimated.ts); hand-set links leave them out. */
 interface Estimate {
   /** Signed coefficient in the link's units (overrides direction × strength). */
   value?: number;
   /** Confidence range for `value` (e.g. a bootstrapped 90% interval), low to high. */
   range?: [number, number];
+  /** Observations behind the estimate (sector-quarters; months of ETF returns for sector links). */
+  n?: number;
+  /** How much of the estimate comes from the data rather than the hand-set prior, 0–1. */
+  weight?: number;
+  /** The hand-set value the estimate was shrunk toward. */
+  prior?: number;
 }
 
 export const FEATURES = ["valuation", "dealCount", "dealValue", "ipoCount"] as const;
@@ -92,6 +99,19 @@ export interface MacroLink extends Estimate {
 
 const ALL = "all" as const;
 const inherit = "inherits the feature link's lag" as const;
+
+/** A link's hand-set number: direction × the strength scale (macro links per MACRO_UNITS unit). */
+export function handSetValue(link: FeatureLink | SectorLink | MacroLink): number {
+  const kind = "sectors" in link ? "macro" : typeof link.lag === "string" ? "sector" : "feature";
+  const v = STRENGTH_SCALE[kind][link.strength];
+  return link.direction === "-" ? -v : v;
+}
+
+/** Stable id for a link: "C:valuation>ipoCount@1", "L:Energy>Industrials", "M:vix>ipoCount@0:all". */
+export function linkKey(link: FeatureLink | SectorLink | MacroLink): string {
+  if ("sectors" in link) return `M:${link.from}>${link.to}@${link.lag}:${link.sectors === "all" ? "all" : link.sectors.join("+")}`;
+  return typeof link.lag === "string" ? `L:${link.from}>${link.to}` : `C:${link.from}>${link.to}@${link.lag}`;
+}
 
 /** C: feature → feature. Matrix C_lag[to][from]. A feature never links to itself in its own sector (its shock fades by λ instead). */
 export const FEATURE_LINKS: FeatureLink[] = [

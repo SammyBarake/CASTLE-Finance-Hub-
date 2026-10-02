@@ -19,6 +19,8 @@ export const LOCAL = {
   macroMonthly: `${HISTORY_DIR}/macro_monthly.json`,
   snapshots: `${HISTORY_DIR}/snapshots.json`,
   coverage: `${HISTORY_DIR}/coverage.json`,
+  /** Weak years and sector-years (written by `report`; read by the link estimator in research/). */
+  coverageFlags: `${HISTORY_DIR}/coverage_flags.json`,
 };
 
 export function readJson<T>(path: string, fallback: T): T {

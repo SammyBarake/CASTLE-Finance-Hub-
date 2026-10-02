@@ -12,7 +12,7 @@ const usd = (v: number) => {
   return `${v > 0 ? "+" : v < 0 ? "−" : ""}${s}`;
 };
 
-function Row({ o, rank, onOpen, handSet }: { o: AdviserOutlook; rank: number; onOpen: (s: Sector) => void; handSet: boolean }) {
+function Row({ o, rank, onOpen, assumed }: { o: AdviserOutlook; rank: number; onOpen: (s: Sector) => void; assumed: boolean }) {
   return (
     <button type="button" className="preview-row adviser-outlook-row" onClick={() => o.driver && onOpen(o.driver)} aria-label={`${o.bank}: ${usd(o.changeUsd.mid)} predicted deal value${o.driver ? `, mostly ${o.driver}` : ""}. Show why.`}>
       <span className="preview-company">
@@ -29,28 +29,28 @@ function Row({ o, rank, onOpen, handSet }: { o: AdviserOutlook; rank: number; on
           {usd(o.changeUsd.low)} to {usd(o.changeUsd.high)} · {o.changePct.mid > 0 ? "+" : o.changePct.mid < 0 ? "−" : ""}
           {Math.abs(o.changePct.mid)}%
         </small>
-        <AssumptionBadge show={handSet} />
+        <AssumptionBadge show={assumed} />
       </span>
     </button>
   );
 }
 
-export function AdviserPanel({ outlook, window, quarters, onOpen, handSet }: { outlook: AdviserOutlook[]; window: string; quarters: number; onOpen: (s: Sector) => void; handSet: boolean }) {
+export function AdviserPanel({ outlook, window, quarters, onOpen, assumed }: { outlook: AdviserOutlook[]; window: string; quarters: number; onOpen: (s: Sector) => void; assumed: (o: AdviserOutlook) => boolean }) {
   const rise = outlook.filter((o) => o.changeUsd.mid > 0).slice(0, 5);
   const fall = outlook.filter((o) => o.changeUsd.mid < 0).reverse().slice(0, 5);
   return (
     <section className="panel">
       <PanelHead title="Advisers" subtitle={`Each bank's share of sector deal value (${window}) × the predicted change in deal value over ${quarters} quarters · click for why`}>
-        <AssumptionBadge show={handSet} />
+        <AssumptionBadge show={[...rise, ...fall].some(assumed)} />
       </PanelHead>
       <div className="adviser-split">
         <div>
           <h3 className="adviser-split-head">Positioned to rise</h3>
-          {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} handSet={handSet} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
+          {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
         </div>
         <div>
           <h3 className="adviser-split-head">Positioned to fall</h3>
-          {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} handSet={handSet} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
+          {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
         </div>
       </div>
     </section>
