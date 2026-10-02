@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SECTORS } from "../types";
 import { ipoHistoryReady } from "./baseline";
-import { DEFAULT_LINKS, explain, MAX_ROUNDS, runRipple, type Links } from "./engine";
+import { DEFAULT_LINKS, explain, fadeOf, MAX_ROUNDS, runRipple, type Links } from "./engine";
 import { rippleInsights } from "./insights";
-import { ESTIMATED, MACRO_LINKS, STRENGTH_SCALE } from "./links";
-import { formatShock, LINK_SETS, linksAreHandSet, PRESETS, RIPPLE_SETTINGS, SHOCK_RANGES, toRippleShock, rangeFor } from "./settings";
+import { ESTIMATED, FEATURES, MACRO_LINKS, STRENGTH_SCALE } from "./links";
+import { fadeSummary, formatShock, LINK_SETS, linksAreHandSet, PRESETS, RIPPLE_SETTINGS, SHOCK_RANGES, toRippleShock, rangeFor, TUNED } from "./settings";
 
 const signed = (d: "+" | "-", v: number) => (d === "-" ? -v : v);
 
@@ -89,11 +89,20 @@ describe("screen settings", () => {
     for (const r of Object.values(SHOCK_RANGES)) expect(r.min).toBe(-r.max);
   });
 
-  it("runs on the estimated links, direct effects only (second rounds wait for the backtest)", () => {
-    expect(RIPPLE_SETTINGS).toMatchObject({ linkSet: "estimated", lambda: 0.7, band: 0.5, quarters: 4, rounds: 1 });
+  it("runs on the estimated links with the fades and rounds that won the backtest", () => {
+    expect(RIPPLE_SETTINGS).toMatchObject({ linkSet: "estimated", band: 0.5, quarters: 4 });
     expect(RIPPLE_SETTINGS.links).toBe(LINK_SETS.estimated);
     expect(LINK_SETS["hand-set"]).toBe(DEFAULT_LINKS);
+    expect(TUNED.linkSet).toBe("estimated");
+    expect(RIPPLE_SETTINGS.rounds).toBe(TUNED.rounds);
+    expect(RIPPLE_SETTINGS.lambda).toEqual(fadeOf(TUNED.lambda));
     expect(RIPPLE_SETTINGS.rounds).toBeLessThanOrEqual(MAX_ROUNDS);
+    for (const f of FEATURES) expect(RIPPLE_SETTINGS.lambda[f]).toBeGreaterThan(0);
+  });
+
+  it("describes the fades in words", () => {
+    expect(fadeSummary(fadeOf(0.7))).toBe("effects fade 30% a quarter");
+    expect(fadeSummary({ valuation: 1, dealCount: 0.85, dealValue: 0.85, ipoCount: 0.55 })).toBe("valuations persist, deal counts and deal values fade 15% a quarter and IPO counts fade 45% a quarter");
   });
 
   it("turns the screen's shock list into an engine shock, adding shocks on the same target", () => {
@@ -127,10 +136,10 @@ describe("ipoHistoryReady", () => {
 });
 
 describe("rippleInsights", () => {
-  // The wording is under test, so pin the numbers to the hand-set links.
+  // The wording is under test, so pin the numbers to the v1 setup (hand-set links, one fade, direct effects).
   const run = (id: string) => {
     const shock = toRippleShock(PRESETS.find((p) => p.id === id)!.shocks);
-    return { shock, result: runRipple(shock, { ...RIPPLE_SETTINGS, links: DEFAULT_LINKS }) };
+    return { shock, result: runRipple(shock, { links: DEFAULT_LINKS, lambda: 0.7, rounds: 1 }) };
   };
 
   it("names the biggest knock-on move and the strongest spillover, leaving the shocked cell out", () => {
@@ -151,7 +160,7 @@ describe("rippleInsights", () => {
     const { shock, result } = run("credit");
     const lines = rippleInsights(result, shock, false);
     expect(lines[0]).toBe("Biggest knock-on fall: deal value −20.0% in every sector in Q1.");
-    expect(lines[1]).toMatch(/^Effects fade 30% a quarter/);
+    expect(lines[1]).toMatch(/^Once their links fire, effects fade 30% a quarter/);
   });
 
   it("says nothing for a zero shock", () => {

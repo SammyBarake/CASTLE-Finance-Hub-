@@ -2,7 +2,7 @@
 import { SECTORS, type Sector } from "../types";
 import type { RippleResult, RippleShock } from "./engine";
 import { FEATURES, type Feature } from "./links";
-import { FEATURE_NOUNS } from "./settings";
+import { fadeSummary, FEATURE_NOUNS } from "./settings";
 
 interface Cell {
   sector: Sector;
@@ -47,7 +47,13 @@ export function rippleInsights(result: RippleResult, shock: RippleShock, ipoRead
     const last = result.quarters.length;
     const peak = Math.max(...knockOn.map((c) => Math.abs(c.mid)));
     const end = Math.max(0, ...knockOn.filter((c) => c.quarter === last).map((c) => Math.abs(c.mid)));
-    out.push(`Effects fade ${Math.round((1 - result.lambda) * 100)}% a quarter once their links have fired: the largest move is ${peak.toFixed(1)}% at its peak and ${end.toFixed(1)}% by Q${last}.`);
+    // The fades themselves are in the grid's legend; one line here keeps the takeaway short.
+    const uniform = new Set(Object.values(result.lambda)).size === 1;
+    out.push(
+      uniform
+        ? `Once their links fire, ${fadeSummary(result.lambda)}: the largest move is ${peak.toFixed(1)}% at its peak and ${end.toFixed(1)}% by Q${last}.`
+        : `The largest move peaks at ${peak.toFixed(1)}% and is still ${end.toFixed(1)}% by Q${last}.`,
+    );
   }
   return out;
 }

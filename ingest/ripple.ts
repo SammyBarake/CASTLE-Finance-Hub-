@@ -34,7 +34,7 @@ import {
   type MacroLink,
   type SectorLink,
 } from "../lib/ripple/links";
-import { linkCounts, LINK_SETS, RIPPLE_SETTINGS, type LinkSetName } from "../lib/ripple/settings";
+import { fadeSummary, linkCounts, LINK_SETS, RIPPLE_SETTINGS, type LinkSetName } from "../lib/ripple/settings";
 import type { SectorMonthRow } from "../lib/history";
 import { SECTORS, type Sector } from "../lib/types";
 
@@ -101,7 +101,7 @@ async function main() {
     return;
   }
   const counts = linkCounts(LINK_SETS[linkSet]);
-  console.log(`Ripple engine, ${linkSet} links (${counts.estimated} of ${counts.total} estimated from data): λ = ${result.lambda}, rounds = ${result.rounds}.`);
+  console.log(`Ripple engine, ${linkSet} links (${counts.estimated} of ${counts.total} estimated from data), ${result.rounds} round(s); once links fire, ${fadeSummary(result.lambda)}.`);
   console.log(`Shock: ${JSON.stringify(shock)}\n`);
   const rows = readJson<SectorMonthRow[]>(LOCAL.sectorMonthly, []);
   const baselines = rows.length ? sectorBaselines(rows) : null;

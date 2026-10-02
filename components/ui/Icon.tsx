@@ -122,6 +122,7 @@ const PATHS = {
   play: <path d="M7 5v14l11-7L7 5Z" />,
   pause: <path d="M8 5v14M16 5v14" />,
   replay: <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" />,
+  ripple: <path d="M12 10.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6ZM8.1 8.1a5.5 5.5 0 0 0 0 7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

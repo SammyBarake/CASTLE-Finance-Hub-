@@ -9,7 +9,8 @@
  * A[(f, s), (g, t)] = C[f][g] · L[s][t]: how feature g in sector t moves feature f in sector s. A variable does not
  * link to itself (the diagonal of A is zeroed); its own shock simply fades. M_lag maps macro shocks onto the 20.
  *
- * Dynamics: every effect is an impulse that lands in some quarter and then fades by λ a quarter. The shock lands in
+ * Dynamics: every effect is an impulse that lands in some quarter and then fades by λ a quarter (λ can differ by the
+ * feature it lands on: prices persist, deal and IPO bursts die out; the backtest picks them). The shock lands in
  * quarter 1. An impulse on variable j landing in quarter q drives a lag-ℓ link to variable i: a new impulse of
  * A_ℓ[i][j] × its size, landing in quarter q + ℓ. Macro shocks land through M the same way. With one round
  * (the v1 default) only the shock's direct links fire:
@@ -127,12 +128,20 @@ export interface QuarterResult {
    * still marked as an assumption, 0–1. The screen badges a result as an assumption above one half.
    */
   assumed: Record<Sector, Record<Feature, number>>;
-  /** The macro shock's own path (it fades by λ too). */
+  /** The macro shock's own path (reported only; it fades by λ when λ is one number, else by DEFAULT_LAMBDA). */
   macro: Record<Macro, number>;
 }
 
+/** Fade per quarter for each feature's effects (1 = they persist). */
+export type Fade = Record<Feature, number>;
+
+/** One λ for every feature, or one per feature (features left out get DEFAULT_LAMBDA). */
+export function fadeOf(lambda: number | Partial<Fade> | undefined): Fade {
+  return Object.fromEntries(FEATURES.map((f) => [f, typeof lambda === "number" ? lambda : (lambda?.[f] ?? DEFAULT_LAMBDA)])) as Fade;
+}
+
 export interface RippleResult {
-  lambda: number;
+  lambda: Fade;
   band: number;
   rounds: number;
   quarters: QuarterResult[];
@@ -143,7 +152,8 @@ export interface RippleResult {
 
 export interface RippleOptions {
   quarters?: number;
-  lambda?: number;
+  /** Fade per quarter: one number, or per feature (the backtest picks them). */
+  lambda?: number | Partial<Fade>;
   /** Relative range on each hand-set link step (0.5 = ±50%). */
   band?: number;
   /** 1 = direct effects only; 2 = also effects of effects (at most MAX_ROUNDS). */
@@ -256,7 +266,10 @@ const round2 = (v: number) => Math.round(v * 100) / 100 + 0; // + 0 turns -0 int
 
 export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleResult {
   const quarters = opts.quarters ?? 4;
-  const lambda = opts.lambda ?? DEFAULT_LAMBDA;
+  const lambda = fadeOf(opts.lambda);
+  const fadeAt = (i: number) => lambda[variableAt(i).feature];
+  // The macro inputs' own path is only reported (nothing feeds back from it).
+  const macroFade = typeof opts.lambda === "number" ? opts.lambda : DEFAULT_LAMBDA;
   const band = opts.band ?? DEFAULT_BAND;
   const rounds = opts.rounds ?? 1;
   const links = opts.links ?? DEFAULT_LINKS;
@@ -270,7 +283,7 @@ export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleR
     const viaAssumption = new Array<number>(N).fill(0);
     for (const imp of impulses) {
       if (imp.quarter > k) continue;
-      const v = lambda ** (k - imp.quarter) * imp.value;
+      const v = fadeAt(imp.i) ** (k - imp.quarter) * imp.value;
       if (imp.round === 0) {
         // The shock itself is given, not estimated.
         own[imp.i] += v;
@@ -282,7 +295,7 @@ export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleR
       if (imp.assumed) viaAssumption[imp.i] += Math.abs(v);
     }
     const mids = impulses.reduce((acc, imp) => {
-      if (imp.quarter <= k) acc[imp.i] += lambda ** (k - imp.quarter) * imp.value;
+      if (imp.quarter <= k) acc[imp.i] += fadeAt(imp.i) ** (k - imp.quarter) * imp.value;
       return acc;
     }, new Array<number>(N).fill(0));
     const sectors = Object.fromEntries(SECTORS.map((sec) => [sec, {} as Record<Feature, Band>])) as Record<Sector, Record<Feature, Band>>;
@@ -293,7 +306,7 @@ export function runRipple(shock: RippleShock, opts: RippleOptions = {}): RippleR
       assumed[sector][feature] = knockOn[i] ? round2(viaAssumption[i] / knockOn[i]) : 0;
     }
     const m = MACROS.map((key) => shock.macro?.[key] ?? 0);
-    result.push({ quarter: k, sectors, assumed, macro: Object.fromEntries(MACROS.map((key, u) => [key, round2(lambda ** (k - 1) * m[u])])) as Record<Macro, number> });
+    result.push({ quarter: k, sectors, assumed, macro: Object.fromEntries(MACROS.map((key, u) => [key, round2(macroFade ** (k - 1) * m[u])])) as Record<Macro, number> });
   }
   const handSet = [...links.features, ...links.sectors, ...links.macro].some((l) => l.status === ASSUMPTION);
   return { lambda, band, rounds, quarters: result, handSet, status: handSet ? ASSUMPTION : ESTIMATED };
@@ -325,7 +338,7 @@ const label = (i: number) => {
 /** Why a variable moves in quarter k: its contributions, largest first. */
 export function explain(shock: RippleShock, sector: Sector, feature: Feature, quarter: number, opts: RippleOptions = {}): Contribution[] {
   const links = opts.links ?? DEFAULT_LINKS;
-  const lambda = opts.lambda ?? DEFAULT_LAMBDA;
+  const lambda = fadeOf(opts.lambda)[feature];
   const target = index(feature, sector);
   return propagate(shock, opts.quarters ?? Math.max(4, quarter), opts.rounds ?? 1, links, opts.band ?? DEFAULT_BAND)
     .filter((imp) => imp.i === target && imp.quarter <= quarter)

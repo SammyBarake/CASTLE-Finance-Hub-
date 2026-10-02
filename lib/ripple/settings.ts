@@ -3,13 +3,20 @@
  * without touching the UI:
  * - pick the links: `LINK_SET = "estimated"` (numbers estimated from the 2015–today history, each with its 90% range;
  *   research/estimate_links.py) or `"hand-set"` (lib/ripple/links.ts, ±band ranges);
- * - switch on second-round effects: `rounds: 2` (effects of effects; 3 is the most supported);
- * - change how fast effects fade (`lambda`), the horizon (`quarters`) or the placeholder range for hand-set links (`band`).
+ * - fade per feature (`lambda`) and effects of effects (`rounds`) come from the backtest (`npm run backtest` writes
+ *   tuned.json with the setup that forecast best out of sample; research/backtest.md). Re-running it re-tunes them;
+ *   for a link set the backtest didn't pick, the v1 defaults apply (fade 0.7, direct effects only);
+ * - the horizon (`quarters`) and the placeholder range for hand-set links (`band`).
  */
 import type { Sector } from "../types";
-import { DEFAULT_LINKS, type Links, type RippleShock } from "./engine";
+import type { TunedSettings } from "./backtest";
+import { DEFAULT_LINKS, fadeOf, type Fade, type Links, type RippleShock } from "./engine";
 import { ESTIMATED_LINKS, ESTIMATES } from "./estimated";
-import { ASSUMPTION, ESTIMATED, type Feature, type Macro } from "./links";
+import { ASSUMPTION, ESTIMATED, FEATURES, type Feature, type Macro } from "./links";
+import tunedFile from "./tuned.json";
+
+/** The setup that forecast best in the backtest. */
+export const TUNED = tunedFile as unknown as TunedSettings;
 
 export type LinkSetName = "estimated" | "hand-set";
 
@@ -22,8 +29,8 @@ export interface RippleSettings {
   /** Shown on the screen so a reader knows which engine produced the numbers. */
   version: string;
   linkSet: LinkSetName;
-  /** Fade per quarter. */
-  lambda: number;
+  /** Fade per quarter, per feature (1 = effects persist). */
+  lambda: Fade;
   /** Placeholder range on each hand-set link's contribution (0.5 = ±50%). */
   band: number;
   quarters: number;
@@ -34,17 +41,18 @@ export interface RippleSettings {
   adviserWindowYears: number;
 }
 
+const tuned = TUNED.linkSet === LINK_SET;
+
 export const RIPPLE_SETTINGS: RippleSettings = {
   version:
     LINK_SET === "estimated"
-      ? `v2 · links estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history (${ESTIMATES.meta.generatedAt.slice(0, 10)})`
+      ? `v2 · links estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history (${ESTIMATES.meta.generatedAt.slice(0, 10)}), tuned by backtest`
       : "v1 · hand-set links",
   linkSet: LINK_SET,
-  lambda: 0.7,
+  lambda: tuned ? fadeOf(TUNED.lambda) : fadeOf(0.7),
   band: 0.5,
   quarters: 4,
-  // Effects of effects stay off until the backtest has tested them.
-  rounds: 1,
+  rounds: tuned ? TUNED.rounds : 1,
   links: LINK_SETS[LINK_SET],
   adviserWindowYears: 3,
 };
@@ -84,6 +92,19 @@ export const SHOCK_RANGES: Record<Feature | Macro, ShockRange> = {
 };
 
 export const FEATURE_LABELS: Record<Feature, string> = { valuation: "Valuation", dealCount: "Deal count", dealValue: "Deal value", ipoCount: "IPO count" };
+const FEATURE_PLURALS: Record<Feature, string> = { valuation: "valuations", dealCount: "deal counts", dealValue: "deal values", ipoCount: "IPO counts" };
+
+/** "persist" or "fade 30% a quarter". */
+export const fadeWords = (lambda: number) => (lambda >= 0.995 ? "persist" : `fade ${Math.round((1 - lambda) * 100)}% a quarter`);
+
+/** "effects fade 30% a quarter", or per feature: "valuations persist, deal counts fade 15% a quarter and IPO counts fade 45% a quarter". */
+export function fadeSummary(fade: Fade): string {
+  const groups = new Map<string, Feature[]>();
+  for (const f of FEATURES) groups.set(fadeWords(fade[f]), [...(groups.get(fadeWords(fade[f])) ?? []), f]);
+  if (groups.size === 1) return `effects ${[...groups.keys()][0]}`;
+  const parts = [...groups].map(([words, fs]) => `${fs.map((f) => FEATURE_PLURALS[f]).join(" and ")} ${words}`);
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
 /** Mid-sentence form ("Tech IPO count", not "Tech ipo count"). */
 export const FEATURE_NOUNS: Record<Feature, string> = { valuation: "valuation", dealCount: "deal count", dealValue: "deal value", ipoCount: "IPO count" };
 export const MACRO_LABELS: Record<Macro, string> = { fedFunds: "Fed funds", treasury10y: "10-year yield", baaSpread: "Baa spread", vix: "VIX" };

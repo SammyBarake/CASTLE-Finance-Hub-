@@ -64,6 +64,19 @@ WINSOR = (2.5, 97.5)
 N_BOOT = 1000
 SEED = 20261001
 ENOUGH_DATA = 0.5  # data weight at which a link drops the "assumption" badge
+
+
+def chosen_prior_scale() -> float:
+    """Every prior sd is multiplied by this: the width that forecast best in the backtest (npm run backtest), else 1."""
+    p = ROOT / "lib" / "ripple" / "backtest.json"
+    if p.exists():
+        chosen = json.loads(p.read_text(encoding="utf-8")).get("chosen", {})
+        if chosen.get("linkSet") == "estimated" and chosen.get("priorScale"):
+            return float(chosen["priorScale"])
+    return 1.0
+
+
+PRIOR_SCALE = chosen_prior_scale()
 SECTOR_SPECIFIC_P = 0.05
 IO_YEARS = list(range(2015, 2024))
 
@@ -222,14 +235,19 @@ def ols_with_fe(df: pd.DataFrame, y: str, cols: list[str]):
 
 
 class Regressor:
-    def __init__(self, name: str, kind: str, source: str, lag: int, prior: float, sector: str | None = None):
+    def __init__(self, name: str, kind: str, source: str, lag: int, prior: float, sector: str | None = None, scale: float = 1.0):
         self.name, self.kind, self.source, self.lag, self.sector = name, kind, source, lag, sector
         self.prior = prior
-        self.tau = prior_sd("feature" if kind == "absent" else kind, prior)
+        self.tau = prior_sd("feature" if kind == "absent" else kind, prior) * (1.0 if kind == "control" else scale)
 
 
-def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.random.Generator):
-    """One target feature: features at lags 0-2, own lags, macro at lags 0-2 (pooled or sector-specific)."""
+def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale: float = None):
+    """
+    One target feature: features at lags 0-2, own lags, macro at lags 0-2 (pooled or sector-specific).
+    `prior_scale` widens (> 1, trust the data more) or tightens (< 1) every prior; `n_boot = 0` skips the ranges.
+    """
+    n_boot = N_BOOT if n_boot is None else n_boot
+    scale = PRIOR_SCALE if prior_scale is None else prior_scale
     hand_c = {(l["from"], l["to"], l["lag"]): l["value"] for l in handset["features"]}
     hand_m = {}  # (macro, lag, sector) -> hand-set total effect on `target`
     for l in handset["macro"]:
@@ -250,7 +268,7 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
                 feats.append(Regressor(f"{g_}_l{lag}", "own", g_, lag, 0.0))
             else:
                 prior = hand_c.get((g_, target, lag), 0.0)
-                feats.append(Regressor(f"{g_}_l{lag}", "feature" if prior else "absent", g_, lag, prior))
+                feats.append(Regressor(f"{g_}_l{lag}", "feature" if prior else "absent", g_, lag, prior, scale=scale))
     macro_cols = [f"{m}_l{lag}" for m in MACROS for lag in LAGS]
     # Deal and IPO inputs that are blank (weak sector-years, IPO gaps) count as "no change", with a flag per feature, so
     # the quarter's ETF and macro data still count. The target itself must be present.
@@ -278,9 +296,9 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
             for lag in LAGS:
                 priors = [hand_m.get((m, lag, s), 0.0) for s in SECTORS]
                 if (m, lag) in specific:
-                    out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s) for s, p in zip(SECTORS, priors)]
+                    out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s, scale=scale) for s, p in zip(SECTORS, priors)]
                 else:
-                    out.append(Regressor(f"{m}_l{lag}", "macro", m, lag, float(np.mean(priors))))
+                    out.append(Regressor(f"{m}_l{lag}", "macro", m, lag, float(np.mean(priors)), scale=scale))
         return out
 
     # Sector-specific macro effects only where an F-test rejects a common effect.
@@ -312,8 +330,8 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
     qis = df["qi"].to_numpy()
     by_q = {qq: np.flatnonzero(qis == qq) for qq in np.unique(qis)}
     keys = list(by_q)
-    draws = np.empty((N_BOOT, len(regs)))
-    for b in range(N_BOOT):
+    draws = np.empty((n_boot, len(regs))) if n_boot else mean[None, :].copy()
+    for b in range(n_boot):
         idx = np.concatenate([by_q[k] for k in rng.choice(keys, size=len(keys), replace=True)])
         gb = groups[idx]
         xb, yb = within(x[idx], gb), within(yv[idx][:, None], gb)[:, 0]
@@ -444,15 +462,35 @@ def market_slopes(rets: np.ndarray, macro: np.ndarray) -> np.ndarray:
     return out
 
 
-def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.Generator):
-    split = detail_shares()
-    io = io_elasticities(split)
-    io_mean = np.mean([io[y] for y in IO_YEARS], axis=0)
+_IO_CACHE: dict = {}
+
+
+def io_tables() -> tuple[dict, dict]:
+    """The BEA split shares and per-year IO elasticities, read once per run (the workbooks are slow to open)."""
+    if not _IO_CACHE:
+        split = detail_shares()
+        _IO_CACHE.update(split=split, io=io_elasticities(split))
+    return _IO_CACHE["split"], _IO_CACHE["io"]
+
+
+def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale: float = None, before_month: str | None = None):
+    """
+    Sector links from IO tables and ETF co-movement. `before_month` ("2019-01") limits both to what was known then
+    (ETF months before it, IO tables up to the year before), for the backtest.
+    """
+    n_boot = N_BOOT if n_boot is None else n_boot
+    scale = PRIOR_SCALE if prior_scale is None else prior_scale
+    split, io_all = io_tables()
+    years = [y for y in IO_YEARS if before_month is None or y < int(before_month[:4])] or IO_YEARS[:1]
+    io = {y: io_all[y] for y in years}
+    io_mean = np.mean([io[y] for y in years], axis=0)
     rets = sm_rows.pivot(index="month", columns="sector", values="etfReturnPct")[SECTORS]
     rets = 100 * np.log1p(rets / 100)
     macro = pd.DataFrame(load_json("macro_monthly.json")).set_index("month")[[MACRO_COLUMN[m] for m in MACROS]]
     macro = macro.diff() / np.array([MACRO_UNIT[m] for m in MACROS])
     rets = rets.join(macro, how="inner").dropna()
+    if before_month:
+        rets = rets[rets.index < before_month]
     months = rets.index.to_list()
     blocks = {}
     for m in months:
@@ -464,28 +502,28 @@ def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.G
     r, mkt = rets[SECTORS].to_numpy(), rets[[MACRO_COLUMN[m] for m in MACROS]].to_numpy()
     slopes = market_slopes(r, mkt)
     point = {}
-    boot = {p: np.empty(N_BOOT) for p in pairs}
+    boot = {p: np.empty(n_boot) for p in pairs}
     for (j, i) in pairs:
         e = io_mean[SECTORS.index(i), SECTORS.index(j)]
         b = slopes[SECTORS.index(i), SECTORS.index(j)]
         point[(j, i)] = (0.5 * e + 0.5 * b, e, b)
     pos = {m: k for k, m in enumerate(months)}
-    for k in range(N_BOOT):
+    for k in range(n_boot):
         idx = [pos[m] for q in rng.choice(keys, size=len(keys), replace=True) for m in blocks[q]]
         sb = market_slopes(r[idx], mkt[idx])
-        year = IO_YEARS[rng.integers(len(IO_YEARS))]
+        year = years[rng.integers(len(years))]
         for (j, i) in pairs:
             boot[(j, i)][k] = 0.5 * io[year][SECTORS.index(i), SECTORS.index(j)] + 0.5 * sb[SECTORS.index(i), SECTORS.index(j)]
 
     out = {}
     for p in pairs:
         prior = hand.get(p, 0.0)
-        tau = prior_sd("sector", prior)
+        tau = prior_sd("sector", prior) * scale
         d, e, b = point[p]
         s2 = float(np.var(boot[p], ddof=1))
         w = tau**2 / (tau**2 + s2)
         mean = (1 - w) * prior + w * d
-        draws = (1 - w) * prior + w * boot[p] + rng.normal(0, (1 - w) * tau, N_BOOT)
+        draws = (1 - w) * prior + w * boot[p] + rng.normal(0, (1 - w) * tau, n_boot)
         out[p] = {"value": mean, "draws": draws, "weight": w, "prior": prior, "io": e, "market": b, "data": d, "n": len(months)}
     return out, split
 
@@ -746,8 +784,8 @@ def write_report(handset: dict, links: dict, candidates: list, eqs: dict, sector
               "- **L**: half from BEA input-output tables (share of sector i's output driven by sector j's final demand, Leontief total requirements, 2015–2023, 71 industries mapped to the five sectors; "
               f"pharma is {split['325']:.0%} of chemicals and medical devices {split['339']:.0%} of misc. manufacturing, from the 2017 detail table), half from monthly sector ETF returns "
               "(slope of sector i's own move on sector j's, after taking out the market, measured as the other three sectors' average so neither is in its own benchmark, and the four macro inputs, which have links of their own).",
-              "- **Shrinkage**: normal prior on every coefficient centred on its hand-set value (0 where no link exists), sd half its size (floors: 0.1 feature, 0.05 sector, 1 macro; 0.2 / 0.1 / 1 around zero). "
-              "The posterior mean pulls toward the prior, harder where the data is noisy.",
+              "- **Shrinkage**: normal prior on every coefficient centred on its hand-set value (0 where no link exists), sd half its size (floors: 0.1 feature, 0.05 sector, 1 macro; 0.2 / 0.1 / 1 around zero), "
+              f"times {PRIOR_SCALE:g}: the prior width that forecast best out of sample (`npm run backtest`, research/backtest.md). The posterior mean pulls toward the prior, harder where the data is noisy.",
               f"- **Ranges**: {N_BOOT} bootstrap runs resampling whole quarters (and a random IO year for L); each adds the prior's remaining uncertainty, (1 − data weight) × prior sd. 90% range = 5th–95th percentile.",
               f"- **Badge**: a link drops \"assumption\" when its data weight is at least {ENOUGH_DATA:.0%}.", ""]
     OUT_REPORT.write_text("\n".join(lines), encoding="utf-8", newline="\n")  # LF on Windows too (.gitattributes)

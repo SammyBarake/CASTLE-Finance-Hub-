@@ -13,6 +13,7 @@
     "history": "tsx --env-file-if-exists=.env.local ingest/history.ts",
     "ripple": "tsx --env-file-if-exists=.env.local ingest/ripple.ts",
     "estimate": "tsx ingest/ripple.ts --export-handset && python research/estimate_links.py",
+    "backtest": "tsx ingest/ripple.ts --export-handset && python -W ignore research/backtest.py && tsx ingest/backtest.ts",
     "ingest:backfill": "tsx --env-file-if-exists=.env.local ingest/run.ts --from 2024-09-01"
   },
   "dependencies": {

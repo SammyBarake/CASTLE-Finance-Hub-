@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
+import { Icon } from "@/components/ui/Icon";
 import { AboutData, PageHeading, PanelHead, Takeaways } from "@/components/ui/primitives";
 import { AdviserPanel } from "@/components/whatif/AdviserPanel";
-import { AssumptionBadge } from "@/components/whatif/AssumptionBadge";
 import { RangeChart } from "@/components/whatif/RangeChart";
 import { RippleGrid, type Selection } from "@/components/whatif/RippleGrid";
 import { ScenarioPanel } from "@/components/whatif/ScenarioPanel";
@@ -16,7 +17,7 @@ import { explain, runRipple } from "@/lib/ripple/engine";
 import { rippleInsights } from "@/lib/ripple/insights";
 import { MACRO_UNITS, STRENGTH_SCALE } from "@/lib/ripple/links";
 import { ESTIMATES } from "@/lib/ripple/estimated";
-import { ASSUMED_ABOVE, FEATURE_NOUNS, linkCounts, PRESETS, RIPPLE_SETTINGS as S, toRippleShock, type ShockInput } from "@/lib/ripple/settings";
+import { ASSUMED_ABOVE, fadeSummary, FEATURE_NOUNS, linkCounts, PRESETS, RIPPLE_SETTINGS as S, targetLabel, toRippleShock, TUNED, type ShockInput } from "@/lib/ripple/settings";
 import { SECTORS, type Sector } from "@/lib/types";
 
 const COUNTS = linkCounts(S.links);
@@ -69,6 +70,15 @@ export function WhatIfView() {
   const [quarter, setQuarter] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<Selection>({ sector: "Tech", feature: "dealValue" });
+  // Bumped when the scenario changes shape (a preset, a new variable): replays the ripple wave across the grid.
+  // Dragging a slider only resizes the shock, so the numbers glide without the wave.
+  const [wave, setWave] = useState(0);
+  const changeShocks = (next: ShockInput[], kind: "preset" | "edit") => {
+    const shape = (xs: ShockInput[]) => xs.map((s) => targetLabel(s.target)).join("|");
+    if (kind === "preset" || shape(next) !== shape(shocks)) setWave((w) => w + 1);
+    setShocks(next);
+    setPlaying(false);
+  };
 
   const shock = useMemo(() => toRippleShock(shocks), [shocks]);
   const result = useMemo(() => runRipple(shock, S), [shock]);
@@ -120,21 +130,27 @@ export function WhatIfView() {
 
   return (
     <>
-      <PageHeading title="What-if" subtitle="How one shock ripples through valuations, deals, IPOs and advisers over the next four quarters" />
+      <PageHeading title="What-if" subtitle="Shock a sector or the economy and watch it ripple through valuations, deals, IPOs and advisers over four quarters" />
 
-      <p className="whatif-note">
-        <AssumptionBadge show={result.handSet} />
+      <div className="whatif-meta">
+        {TUNED.linkSet === S.linkSet && TUNED.hitRate != null && (
+          <Link href="/what-if/accuracy" className="whatif-meta-link">
+            <span className="whatif-meta-dot" aria-hidden="true" />
+            Backtested on {TUNED.quarters} quarters: right direction {Math.round(TUNED.hitRate * 100)}% of the time
+            <Icon name="right" />
+          </Link>
+        )}
         <span>
-          <strong>Shows direction and strength of likely effects, not price predictions.</strong>{" "}
           {S.linkSet === "hand-set"
-            ? "Every link is hand-set from economic reasoning and not yet estimated from data; ranges are ±50% placeholders."
-            : `${COUNTS.estimated} of ${COUNTS.total} links are estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history, with 90% ranges; the other ${COUNTS.total - COUNTS.estimated} still rest mostly on hand-set reasoning, and results that depend on them carry an "assumption" badge.`}
+            ? "Links hand-set from economic reasoning"
+            : `${COUNTS.estimated} of ${COUNTS.total} links estimated from ${ESTIMATES.meta.window.from}–${ESTIMATES.meta.window.to} history`}
         </span>
-      </p>
+        <span>Shows direction and strength of likely effects, not price predictions.</span>
+      </div>
+
+      <ScenarioPanel shocks={shocks} onChange={changeShocks} editing={editing} onEdit={setEditing} />
 
       <Takeaways items={insights} label="What this scenario does" />
-
-      <ScenarioPanel shocks={shocks} onChange={(s) => (setShocks(s), setPlaying(false))} editing={editing} onEdit={setEditing} />
 
       <div className="whatif-layout">
         <RippleGrid
@@ -143,26 +159,37 @@ export function WhatIfView() {
           onQuarter={(q) => (setPlaying(false), setQuarter(q))}
           playing={playing}
           onPlay={play}
+          stepMs={STEP_MS}
           selected={selected}
           onSelect={setSelected}
           shocked={shocked}
+          macroShock={shocks.some((s) => s.target.kind === "macro" && s.size !== 0)}
+          wave={wave}
           ipoReady={ipoReady}
         />
         <div className="whatif-side">
           <section className="panel">
             <PanelHead title={cellTitle} subtitle={`% change versus no shock, Q1–Q${S.quarters} · shaded: ${S.linkSet === "estimated" ? "90% range" : "range"}`}>
-              <AssumptionBadge show={selectedAssumed} />
+              {selectedAssumed && (
+                <span className="panel-legend" title="Most of this result runs through links that lean on hand-set reasoning">
+                  <span className="ripple-mark static" aria-hidden="true" /> assumption
+                </span>
+              )}
             </PanelHead>
             {ipoLoading ? (
               <div className="empty-small">IPO history loading. IPO results appear once the IPO backfill fills the history.</div>
             ) : (
               <div className="range-chart-wrap">
                 <RangeChart points={points} quarter={quarter} label={cellTitle} />
-                {note && <p className="range-chart-note">Q{quarter}: {note}</p>}
+                {note && (
+                  <p key={`${cellTitle}|${quarter}`} className="range-chart-note">
+                    Q{quarter}: {note}
+                  </p>
+                )}
               </div>
             )}
           </section>
-          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} assumed={selectedAssumed} lambda={S.lambda} />
+          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} assumed={selectedAssumed} lambda={S.lambda[selected.feature]} />
         </div>
       </div>
 
@@ -177,8 +204,8 @@ export function WhatIfView() {
         <p>
           <strong>How effects travel.</strong> Feature links say how one feature moves another (valuations lift IPOs a quarter later, for example), each with a lag of
           0, 1 or 2 quarters. Sector links say how much of a move reaches another sector (half of an Energy move reaches Industrials). Together they form the link
-          matrix A = C ⊗ L; macro links say how each macro input hits each feature in each sector. A shock lands in Q1 and fades {Math.round((1 - S.lambda) * 100)}% a
-          quarter; each link fires after its lag and fades from then on. {S.rounds > 1 ? `Effects of effects are included (${S.rounds} rounds).` : "Only direct effects are counted (one round): with hand-set links, effects of effects would stack one guess on another."}
+          matrix A = C ⊗ L; macro links say how each macro input hits each feature in each sector. A shock lands in Q1; each link fires after its lag, and from then on{" "}
+          {fadeSummary(S.lambda)} (the fades that predicted best in the backtest). {S.rounds > 1 ? `Effects of effects are included (${S.rounds} rounds).` : "Only direct effects are counted (one round): with hand-set links, effects of effects would stack one guess on another."}
         </p>
         {S.linkSet === "estimated" ? (
           <p>

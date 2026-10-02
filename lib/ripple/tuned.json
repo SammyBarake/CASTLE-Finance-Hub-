@@ -1,0 +1,20 @@
+{
+ "generatedAt": "2026-10-02T08:28:02Z",
+ "linkSet": "estimated",
+ "priorScale": 0.5,
+ "rounds": 2,
+ "lambda": {
+  "valuation": 0.85,
+  "dealCount": 1,
+  "dealValue": 0.85,
+  "ipoCount": 0.55
+ },
+ "score": 0.106,
+ "previousScore": 0.08,
+ "hitRate": 0.6,
+ "quarters": 31,
+ "window": {
+  "from": "2019Q1",
+  "to": "2026Q3"
+ }
+}

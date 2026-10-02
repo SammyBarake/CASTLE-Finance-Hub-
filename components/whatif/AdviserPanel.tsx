@@ -4,7 +4,6 @@ import { CompanyMark, PanelHead, SectorLabel } from "@/components/ui/primitives"
 import { bankShortName } from "@/lib/banks";
 import type { AdviserOutlook } from "@/lib/ripple/advisers";
 import type { Sector } from "@/lib/types";
-import { AssumptionBadge } from "./AssumptionBadge";
 
 const usd = (v: number) => {
   const a = Math.abs(v);
@@ -12,24 +11,36 @@ const usd = (v: number) => {
   return `${v > 0 ? "+" : v < 0 ? "−" : ""}${s}`;
 };
 
-function Row({ o, rank, onOpen, assumed }: { o: AdviserOutlook; rank: number; onOpen: (s: Sector) => void; assumed: boolean }) {
+function Row({ o, rank, largest, onOpen, assumed }: { o: AdviserOutlook; rank: number; largest: number; onOpen: (s: Sector) => void; assumed: boolean }) {
+  const up = o.changeUsd.mid >= 0;
   return (
-    <button type="button" className="preview-row adviser-outlook-row" onClick={() => o.driver && onOpen(o.driver)} aria-label={`${o.bank}: ${usd(o.changeUsd.mid)} predicted deal value${o.driver ? `, mostly ${o.driver}` : ""}. Show why.`}>
+    <button
+      type="button"
+      className="preview-row adviser-outlook-row"
+      style={{ "--i": rank } as React.CSSProperties}
+      onClick={() => o.driver && onOpen(o.driver)}
+      aria-label={`${o.bank}: ${usd(o.changeUsd.mid)} predicted deal value${o.driver ? `, mostly ${o.driver}` : ""}${assumed ? " (leans on hand-set assumptions)" : ""}. Show why.`}
+    >
       <span className="preview-company">
         <span className="preview-rank">{String(rank).padStart(2, "0")}</span>
         <CompanyMark name={o.bank} letters={bankShortName(o.bank)} />
         <span>
-          <strong>{o.bank}</strong>
+          <strong>
+            {o.bank}
+            {assumed && <span className="ripple-mark inline" title="Leans mostly on hand-set links (assumption)" aria-hidden="true" />}
+          </strong>
           <small>{o.driver ? <SectorLabel sector={o.driver} /> : "No sector exposure"}</small>
         </span>
       </span>
-      <span className="preview-value">
-        <span className={o.changeUsd.mid >= 0 ? "up" : "down"}>{usd(o.changeUsd.mid)}</span>
+      <span className="adviser-change">
+        <span className={`adviser-figure mono ${up ? "up" : "down"}`}>{usd(o.changeUsd.mid)}</span>
         <small>
           {usd(o.changeUsd.low)} to {usd(o.changeUsd.high)} · {o.changePct.mid > 0 ? "+" : o.changePct.mid < 0 ? "−" : ""}
           {Math.abs(o.changePct.mid)}%
         </small>
-        <AssumptionBadge show={assumed} />
+        <span className="adviser-bar" aria-hidden="true">
+          <i className={up ? "up" : "down"} style={{ transform: `scaleX(${largest ? Math.abs(o.changeUsd.mid) / largest : 0})` }} />
+        </span>
       </span>
     </button>
   );
@@ -38,19 +49,26 @@ function Row({ o, rank, onOpen, assumed }: { o: AdviserOutlook; rank: number; on
 export function AdviserPanel({ outlook, window, quarters, onOpen, assumed }: { outlook: AdviserOutlook[]; window: string; quarters: number; onOpen: (s: Sector) => void; assumed: (o: AdviserOutlook) => boolean }) {
   const rise = outlook.filter((o) => o.changeUsd.mid > 0).slice(0, 5);
   const fall = outlook.filter((o) => o.changeUsd.mid < 0).reverse().slice(0, 5);
+  // One scale for both columns, so a bar's length compares across them.
+  const largest = Math.max(0, ...[...rise, ...fall].map((o) => Math.abs(o.changeUsd.mid)));
+  const anyAssumed = [...rise, ...fall].some(assumed);
   return (
     <section className="panel">
       <PanelHead title="Advisers" subtitle={`Each bank's share of sector deal value (${window}) × the predicted change in deal value over ${quarters} quarters · click for why`}>
-        <AssumptionBadge show={[...rise, ...fall].some(assumed)} />
+        {anyAssumed && (
+          <span className="panel-legend">
+            <span className="ripple-mark static" aria-hidden="true" /> assumption
+          </span>
+        )}
       </PanelHead>
       <div className="adviser-split">
         <div>
           <h3 className="adviser-split-head">Positioned to rise</h3>
-          {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
+          {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
         </div>
         <div>
           <h3 className="adviser-split-head">Positioned to fall</h3>
-          {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
+          {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
         </div>
       </div>
     </section>
