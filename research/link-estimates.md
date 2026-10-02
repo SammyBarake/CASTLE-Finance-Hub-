@@ -1,6 +1,6 @@
 # Ripple links: hand-set vs estimated
 
-Generated 2026-10-02 08:07 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
+Generated 2026-10-02 09:55 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
 
 ## Summary
 
@@ -108,6 +108,6 @@ A macro input gets its own coefficient per sector only when an F-test rejects a 
 - **Panel**: quarterly, 5 sectors. Valuation = sector ETF log total return. Deal count, deal value and IPO count are log changes of log(x + c), c = 1 for counts and $100M for values. Deal and IPO growth winsorised at the 2.5th / 97.5th percentiles. Macro inputs are quarter-average changes (VIX per 10 points). Deal figures in weak sector-years are left out where they are the thing explained; as inputs they count as "no change" with a missing-data flag, so those quarters' ETF and macro data still count.
 - **C and M**: one OLS per target feature with sector fixed effects (statsmodels), on the other features at lags 0–2, its own lags 1–2 as controls, and the four macro changes at lags 0–2. Lag-0 links are same-quarter associations: the data can't tell which way they run.
 - **L**: half from BEA input-output tables (share of sector i's output driven by sector j's final demand, Leontief total requirements, 2015–2023, 71 industries mapped to the five sectors; pharma is 28% of chemicals and medical devices 58% of misc. manufacturing, from the 2017 detail table), half from monthly sector ETF returns (slope of sector i's own move on sector j's, after taking out the market, measured as the other three sectors' average so neither is in its own benchmark, and the four macro inputs, which have links of their own).
-- **Shrinkage**: normal prior on every coefficient centred on its hand-set value (0 where no link exists), sd half its size (floors: 0.1 feature, 0.05 sector, 1 macro; 0.2 / 0.1 / 1 around zero), times 0.5: the prior width that forecast best out of sample (`npm run backtest`, research/backtest.md). The posterior mean pulls toward the prior, harder where the data is noisy.
+- **Shrinkage**: normal prior on every coefficient centred on its hand-set value (0 where no link exists), sd half its size (floors: 0.1 feature, 0.05 sector, 1 macro; 0.2 / 0.1 / 1 around zero), times 0.5: the prior widths that forecast best out of sample (`npm run backtest`, research/backtest.md). The posterior mean pulls toward the prior, harder where the data is noisy.
 - **Ranges**: 1000 bootstrap runs resampling whole quarters (and a random IO year for L); each adds the prior's remaining uncertainty, (1 − data weight) × prior sd. 90% range = 5th–95th percentile.
 - **Badge**: a link drops "assumption" when its data weight is at least 50%.

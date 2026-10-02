@@ -38,6 +38,34 @@ export function baselines(panel: PanelRow[], before: number): Baselines {
   return out;
 }
 
+/** Per feature, the level a quarter of the year sits above or below the annual average (index = qi % 4; mean 0). */
+export type Seasonal = Record<Feature, number[]>;
+
+/**
+ * Calendar pattern of each feature from the quarters before `before`, pooled over sectors (more data than one
+ * sector's few years): deals dip in Q1, IPOs bunch in Q2. A predictable seasonal swing shouldn't count as a surprise.
+ */
+export function seasonality(panel: PanelRow[], before: number, base: Baselines): Seasonal {
+  const out = {} as Seasonal;
+  for (const f of FEATURES) {
+    const sums = [0, 0, 0, 0];
+    const counts = [0, 0, 0, 0];
+    for (const r of panel) {
+      if (r.qi >= before || r[f] == null) continue;
+      sums[r.qi % 4] += r[f]! - base[r.sector][f];
+      counts[r.qi % 4]++;
+    }
+    const m = sums.map((s, q) => (counts[q] ? s / counts[q] : 0));
+    const avg = m.reduce((a, b) => a + b, 0) / 4;
+    // Level steps from quarter to quarter are the seasonal changes less their average; then centre on zero.
+    const level = [0, 0, 0, 0];
+    for (let q = 1; q < 4; q++) level[q] = level[q - 1] + m[q] - avg;
+    const centre = level.reduce((a, b) => a + b, 0) / 4;
+    out[f] = level.map((v) => v - centre);
+  }
+  return out;
+}
+
 const key = (s: Sector, qi: number) => `${s}|${qi}`;
 export const indexPanel = (panel: PanelRow[]) => new Map(panel.map((r) => [key(r.sector, r.qi), r]));
 
@@ -60,7 +88,7 @@ export function scenarioAt(index: Map<string, PanelRow>, t: number, base: Baseli
  * so they're measured from the average of the four quarters before t (one odd quarter doesn't set the yardstick), with
  * the sector's trend carried forward from the middle of that window.
  */
-export function realizedPath(index: Map<string, PanelRow>, s: Sector, f: Feature, t: number, base: Baselines): (number | null)[] {
+export function realizedPath(index: Map<string, PanelRow>, s: Sector, f: Feature, t: number, base: Baselines, season?: Seasonal): (number | null)[] {
   const change = (q: number) => {
     const v = index.get(key(s, q))?.[f];
     return v == null ? null : v - base[s][f];
@@ -79,7 +107,9 @@ export function realizedPath(index: Map<string, PanelRow>, s: Sector, f: Feature
     const c = change(t + k);
     if (c == null) broken = true;
     else sum += c;
-    out.push(broken ? null : sum);
+    // Flows: take out the quarter's calendar level (the four-quarter baseline averages it out already).
+    const seasonal = season && f !== "valuation" ? season[f][(t + k) % 4] : 0;
+    out.push(broken ? null : sum - seasonal);
   }
   return out;
 }
@@ -133,6 +163,7 @@ export function backtest(panel: PanelRow[], origins: number[], links: (t: number
   const points: ForecastPoint[] = [];
   for (const t of origins) {
     const base = baselines(panel, t);
+    const season = seasonality(panel, t, base);
     const shock = scenarioAt(index, t, base);
     if (!shock) continue;
     const linkSet = links(t);
@@ -147,7 +178,7 @@ export function backtest(panel: PanelRow[], origins: number[], links: (t: number
       const rSum = new Array<number>(HORIZON).fill(0);
       const count = new Array<number>(HORIZON).fill(0);
       for (const s of SECTORS) {
-        const real = realizedPath(index, s, f, t, base);
+        const real = realizedPath(index, s, f, t, base, season);
         for (let k = 1; k <= HORIZON; k++) {
           const r = real[k - 1];
           if (r == null) continue;
@@ -197,11 +228,20 @@ export function pool(cells: CellScore[]): CellScore {
   });
 }
 
+/** "0.5" → "priors ×0.5"; "f0.25/s0.5/m1" → "priors ×0.25 links, ×0.5 spillovers, ×1 macro"; null → "hand-set". */
+export function priorWords(scale: string | null): string {
+  if (scale == null) return "hand-set";
+  if (!scale.includes("/")) return `priors ×${scale}`;
+  const p = Object.fromEntries(scale.split("/").map((x) => [x[0], x.slice(1)]));
+  return `priors ×${p.f} links, ×${p.s} spillovers, ×${p.m} macro`;
+}
+
 /** lib/ripple/tuned.json: the setup that forecast best (settings.ts reads it). */
 export interface TunedSettings {
   generatedAt: string;
   linkSet: "hand-set" | "estimated";
-  priorScale: number | null;
+  /** Prior width label for estimated links ("0.5" or "f0.25/s0.5/m1"); null for hand-set. */
+  priorScale: string | null;
   rounds: number;
   lambda: Fade;
   score: number;
@@ -229,7 +269,7 @@ export interface BacktestFile {
   };
   features: Record<Feature, (CellSummary & { k: number })[]>;
   halves: { from: string; to: string; chosen: number; previous: number; handSet: number }[];
-  candidates: { label: string; linkSet: "hand-set" | "estimated"; priorScale: number | null; rounds: number; lambda: Fade; score: number; perFeature: Record<Feature, number> }[];
+  candidates: { label: string; linkSet: "hand-set" | "estimated"; priorScale: string | null; rounds: number; lambda: Fade; score: number; perFeature: Record<Feature, number> }[];
   points: ForecastPoint[];
 }
 

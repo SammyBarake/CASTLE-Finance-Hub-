@@ -1,7 +1,7 @@
 /**
  * The What-if Accuracy page's numbers and sentences, from the backtest (lib/ripple/backtest.json). Pure.
  */
-import type { BacktestFile, CellSummary } from "./backtest";
+import { priorWords, type BacktestFile, type CellSummary } from "./backtest";
 import { FEATURES, type Feature } from "./links";
 
 export const FEATURE_NAMES: Record<Feature, string> = { valuation: "Valuations", dealCount: "Deal counts", dealValue: "Deal values", ipoCount: "IPO counts" };
@@ -58,7 +58,7 @@ export function tuningChanges(file: BacktestFile): { setting: string; before: st
   const fade = (l: number) => (l >= 0.995 ? "persist" : `${Math.round((1 - l) * 100)}%/qtr`);
   const ch = file.chosen;
   return [
-    { setting: "Links", before: "estimated, normal priors", after: ch.linkSet === "hand-set" ? "hand-set" : `estimated, priors ×${ch.priorScale}` },
+    { setting: "Links", before: "estimated, normal priors", after: ch.linkSet === "hand-set" ? "hand-set" : `estimated, ${priorWords(ch.priorScale)}` },
     { setting: "Effects of effects", before: "off", after: ch.rounds === 1 ? "off" : `${ch.rounds} rounds` },
     ...FEATURES.map((f) => ({ setting: `${FEATURE_NAMES[f]} fade`, before: "30%/qtr", after: fade(ch.lambda[f]) })),
     { setting: "Average skill", before: file.summary.previous.score.toFixed(3), after: file.summary.chosen.score.toFixed(3) },

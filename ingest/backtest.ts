@@ -13,14 +13,13 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { HISTORY_DIR } from "./historyStore";
-import { backtest, featureScore, HORIZON, pool, summarize, type ForecastPoint, type PanelRow, type Scores, type TunedSettings } from "../lib/ripple/backtest";
+import { backtest, featureScore, HORIZON, pool, priorWords, summarize, type ForecastPoint, type PanelRow, type Scores, type TunedSettings } from "../lib/ripple/backtest";
 import { DEFAULT_LINKS, type Fade, type Links } from "../lib/ripple/engine";
 import { applyEstimates, type EstimatesFile } from "../lib/ripple/estimated";
 import { FEATURES, type Feature } from "../lib/ripple/links";
 
 const LAMBDAS = [0.4, 0.55, 0.7, 0.85, 1];
-const ROUNDS = [1, 2, 3];
-const OUT_JSON = "lib/ripple/backtest.json";
+const ROUNDS = [1, 2, 3];const OUT_JSON = "lib/ripple/backtest.json";
 const OUT_TUNED = "lib/ripple/tuned.json";
 const OUT_REPORT = "research/backtest.md";
 
@@ -34,8 +33,8 @@ interface Input {
 type LinkSetName = "hand-set" | "estimated";
 interface Setup {
   linkSet: LinkSetName;
-  /** Prior width multiplier for estimated links (null for hand-set). */
-  priorScale: number | null;
+  /** Prior width label for estimated links ("0.5", or "f0.25/s0.5/m1" per link kind); null for hand-set. */
+  priorScale: string | null;
   rounds: number;
   lambda: Fade;
 }
@@ -45,27 +44,32 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
 const r3 = (v: number) => Math.round(v * 1000) / 1000 + 0;
 const uniform = (l: number) => Object.fromEntries(FEATURES.map((f) => [f, l])) as Fade;
 const label = (s: Setup) =>
-  `${s.linkSet === "hand-set" ? "hand-set" : `estimated (priors ×${s.priorScale})`}, ${s.rounds === 1 ? "direct effects" : `${s.rounds} rounds`}, fade ${FEATURES.map((f) => s.lambda[f]).join("/")}`;
+  `${s.linkSet === "hand-set" ? "hand-set" : `estimated (${priorWords(s.priorScale)})`}, ${s.rounds === 1 ? "direct effects" : `${s.rounds} rounds`}, fade ${FEATURES.map((f) => s.lambda[f]).join("/")}`;
+
+const arg = (name: string) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
 
 function main() {
-  const input = JSON.parse(readFileSync(`${HISTORY_DIR}/backtest_input.json`, "utf8")) as Input;
+  // --input another inputs file (an experiment from research/backtest.py --out); --dry prints without writing.
+  const dry = process.argv.includes("--dry");
+  const input = JSON.parse(readFileSync(arg("input") ?? `${HISTORY_DIR}/backtest_input.json`, "utf8")) as Input;
   const origins = input.origins.map(qiOf);
   const labelOf = new Map(input.origins.map((l) => [qiOf(l), l]));
-  // Python writes the prior scales as "0.5", "1.0", "2.0": match them by value.
-  const byScale = new Map(Object.entries(input.estimates).map(([k, v]) => [Number(k), v]));
   const cache = new Map<string, Links>();
-  const linksFor = (set: LinkSetName, scale: number | null) => (t: number): Links => {
+  const linksFor = (set: LinkSetName, scale: string | null) => (t: number): Links => {
     if (set === "hand-set") return DEFAULT_LINKS;
     const id = `${scale}|${t}`;
-    if (!cache.has(id)) cache.set(id, applyEstimates(DEFAULT_LINKS, byScale.get(scale!)![labelOf.get(t)!]));
+    if (!cache.has(id)) cache.set(id, applyEstimates(DEFAULT_LINKS, input.estimates[scale!][labelOf.get(t)!]));
     return cache.get(id)!;
   };
   const run = (s: Setup, subset = origins) => backtest(input.panel, subset, linksFor(s.linkSet, s.priorScale), { lambda: s.lambda, rounds: s.rounds });
   const score = (scores: Scores) => mean(FEATURES.map((f) => featureScore(scores, f)));
 
-  // Search. A feature's prediction depends only on its own fade, so each feature's fade is chosen on its own.
+  // Search. A feature's prediction depends only on its own fade, so each fade is chosen on its own.
   const candidates: { setup: Setup; score: number; perFeature: Record<Feature, number> }[] = [];
-  const sets: [LinkSetName, number | null][] = [["hand-set", null], ...Object.keys(input.estimates).map((s) => ["estimated", Number(s)] as [LinkSetName, number])];
+  const sets: [LinkSetName, string | null][] = [["hand-set", null], ...Object.keys(input.estimates).map((s) => ["estimated", s] as [LinkSetName, string])];
   for (const [linkSet, priorScale] of sets) {
     for (const rounds of ROUNDS) {
       const byLambda = LAMBDAS.map((l) => run({ linkSet, priorScale, rounds, lambda: uniform(l) }).scores);
@@ -80,8 +84,10 @@ function main() {
     }
   }
   candidates.sort((a, b) => b.score - a.score || a.setup.rounds - b.setup.rounds);
+  // Tried and rejected (October 2026): a per-feature magnitude calibration tuned with the fades. It raised the score on
+  // the full period but, tuned on one half, it made the other half worse in both directions (fitting noise).
   const chosen = candidates[0].setup;
-  const previous: Setup = { linkSet: "estimated", priorScale: 1, rounds: 1, lambda: uniform(0.7) };
+  const previous: Setup = { linkSet: "estimated", priorScale: "1", rounds: 1, lambda: uniform(0.7) };
   const handSet: Setup = { linkSet: "hand-set", priorScale: null, rounds: 1, lambda: uniform(0.7) };
   const noLinks = backtest(input.panel, origins, () => ({ features: [], sectors: [], macro: [] }), { lambda: chosen.lambda });
 
@@ -121,6 +127,12 @@ function main() {
     candidates: candidates.map((c) => ({ label: label(c.setup), ...c.setup, score: c.score, perFeature: c.perFeature })),
     points: final.points satisfies ForecastPoint[],
   };
+  console.log(`backtest: ${origins.length} quarters (${out.origins.from}–${out.origins.to}), ${candidates.length} setups`);
+  console.log(`  chosen:   ${out.chosen.label} → skill ${out.summary.chosen.score}, direction ${pct(out.summary.chosen.all.hitRate)}`);
+  console.log(`  per feature: ${FEATURES.map((f) => `${f} ${candidates[0].perFeature[f]}`).join(", ")}`);
+  console.log(`  previous: ${out.summary.previous.label} → skill ${out.summary.previous.score}, direction ${pct(out.summary.previous.all.hitRate)}`);
+  console.log(`  halves: ${halves.map((h) => `${h.from}–${h.to}: chosen ${h.chosen} vs previous ${h.previous}`).join("; ")}`);
+  if (dry) return;
   writeFileSync(OUT_JSON, JSON.stringify(out, null, 1) + "\n");
   // The engine reads only the chosen settings (a small file, so the scenario screen doesn't ship the whole backtest).
   const tunedOut: TunedSettings = {
@@ -134,10 +146,6 @@ function main() {
   };
   writeFileSync(OUT_TUNED, JSON.stringify(tunedOut, null, 1) + "\n");
   writeFileSync(OUT_REPORT, report(out));
-  console.log(`backtest: ${origins.length} quarters (${out.origins.from}–${out.origins.to}), ${candidates.length} setups`);
-  console.log(`  chosen:   ${out.chosen.label} → skill ${out.summary.chosen.score}, direction ${pct(out.summary.chosen.all.hitRate)}`);
-  console.log(`  previous: ${out.summary.previous.label} → skill ${out.summary.previous.score}, direction ${pct(out.summary.previous.all.hitRate)}`);
-  console.log(`  halves: ${halves.map((h) => `${h.from}–${h.to}: chosen ${h.chosen} vs previous ${h.previous}`).join("; ")}`);
   console.log(`wrote ${OUT_JSON}, ${OUT_TUNED} and ${OUT_REPORT}`);
 }
 
@@ -154,7 +162,7 @@ function report(o: any): string {
     "",
     "## How it works",
     "",
-    `At each of ${o.origins.count} quarters (${o.origins.from} to ${o.origins.to}) the links are re-estimated using only earlier data. The engine gets that quarter's real macro changes and sector ETF moves (less the part it already puts down to the macro changes) and predicts the next ${o.horizon} quarters. Deal and IPO outcomes are measured against the average of the four quarters before (plus trend), valuations against the quarter before.`,
+    `At each of ${o.origins.count} quarters (${o.origins.from} to ${o.origins.to}) the links are re-estimated using only earlier data. The engine gets that quarter's real macro changes and sector ETF moves (less the part it already puts down to the macro changes) and predicts the next ${o.horizon} quarters. Deal and IPO outcomes are measured against the average of the four quarters before (plus trend), with the calendar pattern taken out (deals dip in Q1, IPOs bunch in Q2; measured from earlier quarters only); valuations against the quarter before. Ideas tried to improve on this, kept or rejected, are in \`research/experiments.md\`.`,
     "",
     '- **Skill**: 1 − squared error ÷ squared error of predicting "no change from trend". Above 0 beats it; 1 would be perfect.',
     "- **Direction**: share of predicted moves (0.5 points or more) with the right sign. A coin flip scores 50%.",

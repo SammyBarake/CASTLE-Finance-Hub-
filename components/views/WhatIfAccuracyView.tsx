@@ -172,13 +172,20 @@ export function WhatIfAccuracyView() {
         </p>
         <p>
           <strong>Scoring.</strong> Deal and IPO counts are compared with the average of the four quarters before (plus trend), because a single quarter is
-          noisy; valuations with the quarter before. Direction is the share of predicted moves of at least 0.5 points that had the right sign. Skill is 1 minus
+          noisy, and the calendar pattern is taken out (deals dip in Q1, IPOs bunch in Q2), measured only from earlier quarters. Valuations are compared with
+          the quarter before. Direction is the share of predicted moves of at least 0.5 points that had the right sign. Skill is 1 minus
           the squared error divided by that of predicting no change from trend: above 0 beats it.
         </p>
         <p>
           <strong>Tuning.</strong> {B.candidates.length} setups were compared: hand-set or estimated links (with the priors at a quarter to double width),
           one to three rounds of effects, and a fade per feature. The best, {B.chosen.label}, now runs the Scenarios tab. Choosing settings on the same
           quarters they are scored on flatters them a little, so the two halves of the period are shown separately.
+        </p>
+        <p>
+          <strong>Tried and rejected.</strong> Magnitude calibration (it fitted the 2020 quarters and failed cross-validation), separate prior strengths per
+          link type, quarter-of-year controls, megadeal-capped deal values, stronger clipping, six extra sector spillovers the data suggested, end-of-quarter
+          macro changes and leaving out the pandemic quarters. None beat the settings above out of sample; the log is in{" "}
+          <code>research/experiments.md</code>.
         </p>
         <p>
           <strong>Limits.</strong> Deal figures in weak coverage years (2019–2020 and a few earlier sector-years) can&apos;t be scored, so deal results lean on 2021

@@ -36,6 +36,11 @@ export interface SectorMonthRow {
   dealValueKind: ValueKind;
   /** Sum of that value type, in `cpiBaseMonth` dollars. */
   dealValueUsd: number;
+  /**
+   * The same sum with each deal capped at DEAL_VALUE_CAP_USD, so one megadeal can't swing a sector's month. Local only
+   * (the link estimator can use it); not a Supabase column.
+   */
+  dealValueCappedUsd?: number;
   /** Deals in that sum. */
   dealValueN: number;
   /** Deals left out: no disclosed value. */
@@ -111,6 +116,9 @@ export function inflationFactor(cpi: Record<string, number>, month: string): { f
 
 const round = (v: number, dp: number) => Math.round(v * 10 ** dp) / 10 ** dp;
 
+/** Each deal counts at most this much (today's dollars) in `dealValueCappedUsd`: the top ~8% of deals carry 40% of value. */
+export const DEAL_VALUE_CAP_USD = 5e9;
+
 export function buildSectorMonthly(input: {
   deals: HistoryDealInput[];
   ipos: HistoryIpoInput[];
@@ -157,7 +165,9 @@ export function buildSectorMonthly(input: {
     if (d.valueUsd == null) row.dealValueNullN++;
     else if (d.valueKind !== kind) row.dealValueOtherKindN++;
     else {
-      row.dealValueUsd += d.valueUsd * inflationFactor(input.cpi, month).factor;
+      const real = d.valueUsd * inflationFactor(input.cpi, month).factor;
+      row.dealValueUsd += real;
+      row.dealValueCappedUsd = (row.dealValueCappedUsd ?? 0) + Math.min(real, DEAL_VALUE_CAP_USD);
       row.dealValueN++;
     }
   }
@@ -165,7 +175,10 @@ export function buildSectorMonthly(input: {
     const row = rows.get(key(i.sector, i.pricedDate.slice(0, 7)));
     if (row) row.ipoCount++;
   }
-  for (const row of rows.values()) row.dealValueUsd = Math.round(row.dealValueUsd);
+  for (const row of rows.values()) {
+    row.dealValueUsd = Math.round(row.dealValueUsd);
+    row.dealValueCappedUsd = Math.round(row.dealValueCappedUsd ?? 0);
+  }
   return [...rows.values()].sort((a, b) => a.month.localeCompare(b.month) || SECTORS.indexOf(a.sector) - SECTORS.indexOf(b.sector));
 }
 

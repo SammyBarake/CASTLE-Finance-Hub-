@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SECTORS, type Sector } from "../types";
-import { addForecast, backtest, baselines, emptyScores, featureScore, indexPanel, pool, realizedPath, scenarioAt, summarize, type PanelRow } from "./backtest";
+import { addForecast, backtest, baselines, emptyScores, featureScore, indexPanel, pool, priorWords, realizedPath, scenarioAt, seasonality, summarize, type PanelRow } from "./backtest";
 import { DEFAULT_LINKS, runRipple, type Links } from "./engine";
 import { FEATURES } from "./links";
 
@@ -39,6 +39,25 @@ describe("backtest scoring", () => {
     // A missing quarter breaks the path from there on.
     const gap = panel(12, 0, (r) => r.qi === 8 && (r.ipoCount = null));
     expect(realizedPath(indexPanel(gap), "Tech", "ipoCount", 6, baselines(gap, 6))).toEqual([0, 0, null, null]);
+  });
+
+  it("takes the calendar pattern out of deal and IPO outcomes, but not out of valuations", () => {
+    // IPOs jump 40 in every Q2 and give it back in Q3: a purely seasonal series with no surprises.
+    const p = panel(24, 0, (r) => {
+      if (r.qi % 4 === 1) r.ipoCount = 40;
+      if (r.qi % 4 === 2) r.ipoCount = -40;
+      if (r.qi % 4 === 1) r.valuation = 4;
+      if (r.qi % 4 === 2) r.valuation = -4;
+    });
+    const base = baselines(p, 16);
+    const season = seasonality(p, 16, base);
+    expect(season.ipoCount.reduce((a, b) => a + b, 0)).toBeCloseTo(0);
+    expect(season.ipoCount[1] - season.ipoCount[0]).toBeCloseTo(40); // Q2 sits 40 above Q1
+    const idx = indexPanel(p);
+    expect(realizedPath(idx, "Tech", "ipoCount", 16, base, season).map((v) => Math.round(v! * 100) / 100 + 0)).toEqual([0, 0, 0, 0]);
+    expect(realizedPath(idx, "Tech", "ipoCount", 16, base).some((v) => Math.abs(v!) > 1)).toBe(true);
+    // Valuations are measured from the quarter before and left as they are.
+    expect(realizedPath(idx, "Tech", "valuation", 16, base, season)).toEqual(realizedPath(idx, "Tech", "valuation", 16, base));
   });
 
   it("builds the engine's inputs from the macro changes and ETF moves versus trend", () => {
@@ -89,6 +108,12 @@ describe("backtest scoring", () => {
     const q1 = points.find((x) => x.feature === "valuation")!.predicted[0]!;
     const avg = SECTORS.reduce((t, s) => t + vixEffect[s].valuation.mid, 0) / SECTORS.length;
     expect(q1).toBeCloseTo(avg, 1);
+  });
+
+  it("puts prior widths into words", () => {
+    expect(priorWords("0.5")).toBe("priors ×0.5");
+    expect(priorWords("f0.25/s0.5/m1")).toBe("priors ×0.25 links, ×0.5 spillovers, ×1 macro");
+    expect(priorWords(null)).toBe("hand-set");
   });
 
   it("averages skill over the quarters ahead when choosing settings", () => {

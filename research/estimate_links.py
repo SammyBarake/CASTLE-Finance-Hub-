@@ -61,19 +61,41 @@ MACRO_UNIT = {"fedFunds": 1.0, "treasury10y": 1.0, "baaSpread": 1.0, "vix": 10.0
 COUNT_CONSTANT = 1.0
 VALUE_CONSTANT = 1e8
 WINSOR = (2.5, 97.5)
+DEAL_VALUE = "total"  # or "capped": estimate deal-value links on deals capped at $5B each (lib/history.ts DEAL_VALUE_CAP_USD)
+MACRO_TIMING = "average"  # or "end": macro changes between quarter-end months
+# Quarters left out of the estimation (as the quarter explained), e.g. the pandemic shutdown: ["2020Q1", "2020Q2", "2020Q3"].
+EXCLUDE_QUARTERS: list[str] = []
 N_BOOT = 1000
 SEED = 20261001
 ENOUGH_DATA = 0.5  # data weight at which a link drops the "assumption" badge
+SEASONAL = False  # quarter-of-year controls in every regression: tested in the backtest, no gain (0.106 vs 0.108), so off
 
 
-def chosen_prior_scale() -> float:
-    """Every prior sd is multiplied by this: the width that forecast best in the backtest (npm run backtest), else 1."""
+def parse_scale(label) -> dict:
+    """Prior width multipliers per link kind: "0.5" (all kinds) or "f0.25/s0.5/m1" (feature / sector / macro links)."""
+    text = str(label)
+    if "/" not in text:
+        v = float(text)
+        return {"feature": v, "sector": v, "macro": v}
+    parts = dict((p[0], float(p[1:])) for p in text.split("/"))
+    return {"feature": parts["f"], "sector": parts["s"], "macro": parts["m"]}
+
+
+def scale_words(scale: dict) -> str:
+    vals = {round(v, 4) for v in scale.values()}
+    if len(vals) == 1:
+        return f"{scale['feature']:g}"
+    return f"{scale['feature']:g} for feature links, {scale['sector']:g} for sector links and {scale['macro']:g} for macro links"
+
+
+def chosen_prior_scale() -> dict:
+    """Prior sd multipliers: the widths that forecast best in the backtest (npm run backtest), else 1 for every kind."""
     p = ROOT / "lib" / "ripple" / "backtest.json"
     if p.exists():
         chosen = json.loads(p.read_text(encoding="utf-8")).get("chosen", {})
         if chosen.get("linkSet") == "estimated" and chosen.get("priorScale"):
-            return float(chosen["priorScale"])
-    return 1.0
+            return parse_scale(chosen["priorScale"])
+    return parse_scale(1)
 
 
 PRIOR_SCALE = chosen_prior_scale()
@@ -95,6 +117,8 @@ def prior_sd(kind: str, prior: float) -> float:
         return 0.5
     if kind == "control":
         return 25.0  # missing-data flags: effectively unrestricted
+    if kind == "season":
+        return 100.0  # quarter-of-year effects (IPOs bunch in Q2, deals dip in Q1): unrestricted
     if kind == "macro":
         return max(0.5 * abs(prior), 1.0)
     if kind == "sector":
@@ -129,8 +153,20 @@ def quarter_label(qi: int) -> str:
     return f"{qi // 4}Q{qi % 4 + 1}"
 
 
-def build_panel():
+def build_panel(deal_value: str | None = None, winsor: tuple | None = None, macro_timing: str | None = None):
+    """
+    The quarterly panel. `deal_value` "total" or "capped" (each deal at most DEAL_VALUE_CAP_USD, so one megadeal can't
+    swing a sector's quarter); `winsor` the percentiles deal and IPO growth are clipped at; `macro_timing` "average"
+    (change in quarter averages) or "end" (change from one quarter's last month to the next's).
+    """
+    deal_value = deal_value or DEAL_VALUE
+    winsor = winsor or WINSOR
+    macro_timing = macro_timing or MACRO_TIMING
     sm_rows = pd.DataFrame(load_json("sector_monthly.json"))
+    if deal_value == "capped":
+        if "dealValueCappedUsd" not in sm_rows:
+            sys.exit("sector_monthly.json has no capped deal values: run `npm run history -- build`")
+        sm_rows["dealValueUsd"] = sm_rows["dealValueCappedUsd"]
     macro = pd.DataFrame(load_json("macro_monthly.json"))
     flags = load_json("coverage_flags.json", fallback={})
     weak = {(f["sector"], f["year"]) for f in flags.get("sectorYears", []) if f.get("weak")}
@@ -167,16 +203,17 @@ def build_panel():
     q["dealCount"] = 100 * (np.log(q["deals"] + COUNT_CONSTANT) - g["deals"].shift(1).pipe(lambda s: np.log(s + COUNT_CONSTANT)))
     q["dealValue"] = 100 * (np.log(q["value"] + VALUE_CONSTANT) - g["value"].shift(1).pipe(lambda s: np.log(s + VALUE_CONSTANT)))
     q["ipoCount"] = 100 * (np.log(q["ipos"] + COUNT_CONSTANT) - g["ipos"].shift(1).pipe(lambda s: np.log(s + COUNT_CONSTANT)))
-    winsor = {}
+    clips = {}
     for f in ["dealCount", "dealValue", "ipoCount"]:
         vals = q[f].dropna()
         if len(vals) > 20:
-            lo, hi = np.percentile(vals, WINSOR)
-            winsor[f] = (lo, hi)
+            lo, hi = np.percentile(vals, winsor)
+            clips[f] = (lo, hi)
             q[f] = q[f].clip(lo, hi)
 
     macro["qi"] = macro["month"].map(quarter_index)
-    mq = macro[macro["qi"].isin(quarters)].groupby("qi")[[MACRO_COLUMN[m] for m in MACROS]].mean()
+    grouped = macro[macro["qi"].isin(quarters)].sort_values("month").groupby("qi")[[MACRO_COLUMN[m] for m in MACROS]]
+    mq = grouped.last() if macro_timing == "end" else grouped.mean()
     for m in MACROS:
         mq[m] = mq[MACRO_COLUMN[m]].diff() / MACRO_UNIT[m]
     q = q.merge(mq[MACROS], left_on="qi", right_index=True, how="left")
@@ -193,7 +230,8 @@ def build_panel():
         "weak": sorted(weak, key=lambda w: (w[1], SECTORS.index(w[0]))),
         "ipoOk": ipo_ok,
         "ipoMonths": int(ipo_months),
-        "winsor": winsor,
+        "winsor": clips,
+        "dealValue": deal_value,
         "firstMonth": sm_rows["month"].min(),
         "lastMonth": sm_rows["month"].max(),
     }
@@ -238,16 +276,18 @@ class Regressor:
     def __init__(self, name: str, kind: str, source: str, lag: int, prior: float, sector: str | None = None, scale: float = 1.0):
         self.name, self.kind, self.source, self.lag, self.sector = name, kind, source, lag, sector
         self.prior = prior
-        self.tau = prior_sd("feature" if kind == "absent" else kind, prior) * (1.0 if kind == "control" else scale)
+        self.tau = prior_sd("feature" if kind == "absent" else kind, prior) * (1.0 if kind in ("control", "season") else scale)
 
 
-def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale: float = None):
+def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale=None, exclude: list[str] | None = None):
     """
     One target feature: features at lags 0-2, own lags, macro at lags 0-2 (pooled or sector-specific).
-    `prior_scale` widens (> 1, trust the data more) or tightens (< 1) every prior; `n_boot = 0` skips the ranges.
+    `prior_scale` widens (> 1, trust the data more) or tightens (< 1) the priors, per link kind ("0.5", "f0.25/s0.5/m1"
+    or a dict); `n_boot = 0` skips the ranges.
     """
     n_boot = N_BOOT if n_boot is None else n_boot
-    scale = PRIOR_SCALE if prior_scale is None else prior_scale
+    scales = PRIOR_SCALE if prior_scale is None else prior_scale if isinstance(prior_scale, dict) else parse_scale(prior_scale)
+    scale, macro_scale = scales["feature"], scales["macro"]
     hand_c = {(l["from"], l["to"], l["lag"]): l["value"] for l in handset["features"]}
     hand_m = {}  # (macro, lag, sector) -> hand-set total effect on `target`
     for l in handset["macro"]:
@@ -275,6 +315,9 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
     imputable = {"dealCount", "dealValue", "ipoCount"}
     required = [r.name for r in feats if r.source not in imputable] + macro_cols
     df = panel.dropna(subset=[f"{target}_l0"] + required).copy()
+    excluded = {quarter_index(f"{q[:4]}-{(int(q[5]) - 1) * 3 + 1:02d}") for q in (EXCLUDE_QUARTERS if exclude is None else exclude)}
+    if excluded:
+        df = df[~df["qi"].isin(excluded)]
     flags: list[pd.Series] = []
     for g_ in sorted(imputable & set(available)):
         cols = [r.name for r in feats if r.source == g_]
@@ -285,6 +328,11 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
                 flags.append(flag)
                 df[f"missing_{g_}"] = flag
                 feats.append(Regressor(f"missing_{g_}", "control", g_, 0, 0.0))
+    if SEASONAL:
+        # Quarter of the year (Q1 is the base): the calendar pattern shouldn't be read as a link.
+        for q in (1, 2, 3):
+            df[f"season_q{q + 1}"] = (df["qi"] % 4 == q).astype(float)
+            feats.append(Regressor(f"season_q{q + 1}", "season", "season", 0, 0.0))
     for s in SECTORS:
         for m in MACROS:
             for lag in LAGS:
@@ -296,9 +344,9 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
             for lag in LAGS:
                 priors = [hand_m.get((m, lag, s), 0.0) for s in SECTORS]
                 if (m, lag) in specific:
-                    out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s, scale=scale) for s, p in zip(SECTORS, priors)]
+                    out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s, scale=macro_scale) for s, p in zip(SECTORS, priors)]
                 else:
-                    out.append(Regressor(f"{m}_l{lag}", "macro", m, lag, float(np.mean(priors)), scale=scale))
+                    out.append(Regressor(f"{m}_l{lag}", "macro", m, lag, float(np.mean(priors)), scale=macro_scale))
         return out
 
     # Sector-specific macro effects only where an F-test rejects a common effect.
@@ -473,13 +521,14 @@ def io_tables() -> tuple[dict, dict]:
     return _IO_CACHE["split"], _IO_CACHE["io"]
 
 
-def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale: float = None, before_month: str | None = None):
+def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.Generator, n_boot: int = None, prior_scale=None, before_month: str | None = None):
     """
     Sector links from IO tables and ETF co-movement. `before_month` ("2019-01") limits both to what was known then
     (ETF months before it, IO tables up to the year before), for the backtest.
     """
     n_boot = N_BOOT if n_boot is None else n_boot
-    scale = PRIOR_SCALE if prior_scale is None else prior_scale
+    scales = PRIOR_SCALE if prior_scale is None else prior_scale if isinstance(prior_scale, dict) else parse_scale(prior_scale)
+    scale = scales["sector"]
     split, io_all = io_tables()
     years = [y for y in IO_YEARS if before_month is None or y < int(before_month[:4])] or IO_YEARS[:1]
     io = {y: io_all[y] for y in years}
@@ -785,7 +834,7 @@ def write_report(handset: dict, links: dict, candidates: list, eqs: dict, sector
               f"pharma is {split['325']:.0%} of chemicals and medical devices {split['339']:.0%} of misc. manufacturing, from the 2017 detail table), half from monthly sector ETF returns "
               "(slope of sector i's own move on sector j's, after taking out the market, measured as the other three sectors' average so neither is in its own benchmark, and the four macro inputs, which have links of their own).",
               "- **Shrinkage**: normal prior on every coefficient centred on its hand-set value (0 where no link exists), sd half its size (floors: 0.1 feature, 0.05 sector, 1 macro; 0.2 / 0.1 / 1 around zero), "
-              f"times {PRIOR_SCALE:g}: the prior width that forecast best out of sample (`npm run backtest`, research/backtest.md). The posterior mean pulls toward the prior, harder where the data is noisy.",
+              f"times {scale_words(PRIOR_SCALE)}: the prior widths that forecast best out of sample (`npm run backtest`, research/backtest.md). The posterior mean pulls toward the prior, harder where the data is noisy.",
               f"- **Ranges**: {N_BOOT} bootstrap runs resampling whole quarters (and a random IO year for L); each adds the prior's remaining uncertainty, (1 − data weight) × prior sd. 90% range = 5th–95th percentile.",
               f"- **Badge**: a link drops \"assumption\" when its data weight is at least {ENOUGH_DATA:.0%}.", ""]
     OUT_REPORT.write_text("\n".join(lines), encoding="utf-8", newline="\n")  # LF on Windows too (.gitattributes)
