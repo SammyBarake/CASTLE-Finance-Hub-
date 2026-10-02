@@ -11,6 +11,7 @@
     "ingest": "tsx --env-file-if-exists=.env.local ingest/run.ts",
     "audit": "tsx --env-file-if-exists=.env.local ingest/audit.ts",
     "history": "tsx --env-file-if-exists=.env.local ingest/history.ts",
+    "ripple": "tsx --env-file-if-exists=.env.local ingest/ripple.ts",
     "ingest:backfill": "tsx --env-file-if-exists=.env.local ingest/run.ts --from 2024-09-01"
   },
   "dependencies": {

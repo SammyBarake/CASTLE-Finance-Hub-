@@ -57,6 +57,7 @@ npm run ingest -- --only deals --rebuild-deals --from 2024-09-01   # re-read all
                                        # (also a "rebuild" checkbox on the GitHub Actions "Run workflow" form)
 npm run audit                          # data-quality audit of the live database (read-only); -- --local, -- --all
 npm run history -- report              # history foundation (what-if engine): see "History foundation" below
+npm run ripple -- --shock Tech.valuation=10 --shock vix=10   # what-if ripple engine (read-only), see "Ripple engine" below
 ```
 
 With Supabase keys in `.env.local`, the local site reads the live database. Set `CASTLE_DATA_SOURCE=local` (in the shell or `.env.local`) to make it read `.data/castle.json` instead, e.g. to try ingest changes without touching production.
@@ -131,6 +132,8 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   ipoHistory.ts       Priced IPOs since 2015 from 424B4 final prospectuses (same IPO tests as ipos.ts)
   markets.ts          Sector ETF monthly prices (Yahoo chart API) and FRED series (public CSV), no keys
 lib/history.ts        Pure builders for sector_monthly / macro_monthly (inflation adjustment, one value type) + tests
+lib/ripple/           What-if ripple engine (no UI): links.ts (hand-set links config), engine.ts (A = C ⊗ L, M, λ),
+                      advisers.ts (bank outlook), baseline.ts (levels from sector_monthly) + tests; CLI ingest/ripple.ts
 supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon); 0002_history.sql = history tables
 .github/workflows/    ingest.yml (full run every 6 hours + a quick 2-day run hourly on weekdays 11:50–23:50 UTC;
                       manual backfill / "rebuild" from 2021), history.yml (2nd of each month) and ci.yml (lint/test/build)
@@ -221,6 +224,24 @@ Separate from the live features: its own tables (`supabase/migrations/0002_histo
 - **`snapshots`**: on the 2nd of each month `.github/workflows/history.yml` runs `npm run history -- monthly`. It refreshes markets, adds the last two months' IPOs and rebuilds both monthly tables. It also saves the IPO pipeline as shown and the YTD league table at month end (`kind` = `ipo_pipeline` / `league_table`, `period` = the month just ended), plus the raw market series (`markets` / `latest`) as a fallback when a source fails.
 - **`valueKind`** stays in stored records and the server-side read (`DEAL_FIELDS` in `lib/data.ts`, optional `Deal.valueKind`); `toPublicDeal` still leaves it out of the browser feed (tested).
 - **Order of work for a fresh history:** `deals` (hours) → `ipos` → `markets` → `recall` (per-year coverage against merger-proxy filers) → `report` (builds the tables locally) → `push` (after the migration). Never run two EDGAR-heavy commands at once: each process throttles itself to ~8 requests a second, and SEC's limit is 10.
+
+## Ripple engine (what-if, v1)
+
+Pure functions in `lib/ripple/`, separate from the UI and the existing features (nothing imports them yet). Try it with `npm run ripple -- --shock …`.
+
+- **Variables:** 20 = 4 features (valuation = sector ETF, deal count, deal value, IPO count) × 5 sectors, each a % deviation from what would have happened without the shock. Macro inputs (Fed funds, 10-year, Baa spread, VIX) can be shocked in natural units (pp; VIX points) but get no feedback.
+- **Links** (`lib/ripple/links.ts`, the only place numbers live):
+  - **Feature links C** (lags 0, 1, 2 → C0, C1, C2): elasticities. Strong 1.0, moderate 0.5, weak 0.2.
+  - **Sector links L:** each sector reaches itself with 1; the share reaching another sector is strong 0.5, moderate 0.25, weak 0.1.
+  - **Macro links M:** % per unit (+1 pp, or +10 VIX points): strong 10, moderate 5, weak 2.
+  - Every entry has a direction, strength, lag, one-sentence reason and `status: "assumption — not yet estimated from data"` (a test enforces this).
+- **Engine** (`engine.ts`): `A_lag = C_lag ⊗ L` (feature-major index = feature·5 + sector) with self-links zeroed, so a variable's own shock just fades. Shocks hit in quarter 1 and fade by λ = 0.7 a quarter. A lag-ℓ link fires ℓ quarters later and fades from then on: `y_k = λ^(k−1)·s + Σ_ℓ<k λ^(k−1−ℓ)·(A_ℓ·s + M_ℓ·m)`.
+  - One link deep: no second-round effects in v1, so hand-set numbers don't compound.
+  - From quarter 3 every response shrinks by exactly λ.
+  - Range: each link's contribution at ±50% (positive and negative contributions bounded separately), until bootstrapping replaces it.
+  - `explain()` lists a result's contributions.
+- **Advisers** (`advisers.ts`): each bank's share of sector deal value over the last 3 years (league-table credit, both sides) × the sector's average quarterly deal value × the predicted % change, summed over the quarters. Banks are ranked by predicted change, with range, % of baseline and driving sector.
+- **Levels** (`baseline.ts`): turns % responses into quarterly levels using the last four complete quarters of `sector_monthly`.
 
 ## Roadmap
 
