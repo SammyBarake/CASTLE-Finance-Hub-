@@ -1,0 +1,50 @@
+name: History (monthly)
+
+# The what-if engine's history tables: refreshes the sector ETF and FRED series, adds last months' priced IPOs,
+# rebuilds sector_monthly and macro_monthly, and saves a snapshot of the IPO pipeline and league table for the month
+# just ended. Runs on the 2nd of each month (a few minutes). Needs supabase/migrations/0002_history.sql applied.
+on:
+  schedule:
+    - cron: "0 8 2 * *"
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Snapshot month (YYYY-MM). Leave empty for the month just ended."
+        required: false
+        default: ""
+
+# Shares the ingest job's group so the two never hit EDGAR at the same time (SEC's limit is 10 requests a second).
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check secrets are configured
+        run: |
+          for v in SEC_USER_AGENT SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Missing repository secret $v"; exit 1; fi
+          done
+      - name: Monthly history update
+        run: |
+          if [ -n "${{ inputs.period }}" ]; then
+            npm run history -- monthly --period "${{ inputs.period }}"
+          else
+            npm run history -- monthly
+          fi

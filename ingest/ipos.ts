@@ -33,11 +33,11 @@ import { htmlToText } from "./text";
 import type { Filing, IpoStage } from "../lib/types";
 
 const REG_FORMS = /^(S-1|F-1)(\/A)?$/;
-const PERIODIC = /^(10-K|10-Q|20-F|40-F|10-KT)(\/A)?$/;
-const EXCLUDED_SIC = new Set(["6770", "6221", "6189", "6798"]); // SPACs, commodity pools, ABS, (non-traded) REITs
-const FUNDLIKE =
+export const PERIODIC = /^(10-K|10-Q|20-F|40-F|10-KT)(\/A)?$/;
+export const EXCLUDED_SIC = new Set(["6770", "6221", "6189", "6798"]); // SPACs, commodity pools, ABS, (non-traded) REITs
+export const FUNDLIKE =
   /\b(ETF|Fund|Trust|Bitcoin|Ether(?:eum)?|Staked|Solana|XRP|Crypto(?:currency)?|Portfolio|Income Shares)\b|\bAcquisition (?:Corp|Company|Co)\b|\b(?:Holdings|Capital|Acquisition) (?:Corp\.?,? |Inc\.?,? )?[IVX]{1,4}\b/i;
-const MIN_RAISE = 20e6;
+export const MIN_RAISE = 20e6;
 /** How long a new pricing shows as "Priced" before moving to "Trading". */
 const PRICED_DAYS = 7;
 /** Tracked companies are re-checked when their last check is older than this (the ingest runs every 3 hours). */

@@ -6,7 +6,7 @@ The data engine works without any of this: `npm run ingest -- --local` writes re
 ## 1. Supabase (database)
 
 1. Create a free account at [supabase.com](https://supabase.com) and click **New project**. Any name and region; save the database password somewhere safe.
-2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**.
+2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**. Then do the same with [`supabase/migrations/0002_history.sql`](supabase/migrations/0002_history.sql) (the history tables for the what-if engine; the site doesn't read them yet).
 3. Open **Project Settings → API** (or **API Keys**). You need three values:
    - **Project URL**
    - **anon / publishable key**: read-only, safe for the website

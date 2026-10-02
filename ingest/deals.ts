@@ -632,7 +632,12 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
   return { terms: empty ? null : terms, settled: !!fromEightK && !!fromProxy };
 }
 
-export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory) {
+/**
+ * `light` (the 2015–2020 history backfill): skip the two heaviest reads, fairness opinions (the full merger proxy)
+ * and deal protections (8-K + proxy), which would be gigabytes over six years. Status, sector, names, premium,
+ * advisers, milestones and multiples are still filled.
+ */
+export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory, opts: { light?: boolean } = {}) {
   // Official SEC registrant names beat names parsed from prose.
   if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
   if (sub) {
@@ -688,14 +693,14 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
 
   // Fairness opinions (valuation ranges, DCF inputs, fees) from the full proxy. A preliminary proxy is
   // re-read once the definitive one is filed; the search ends with a definitive proxy or when the deal is over.
-  if (sub && deal.fairnessParser !== FAIRNESS_PARSER_VERSION) {
+  if (sub && !opts.light && deal.fairnessParser !== FAIRNESS_PARSER_VERSION) {
     // A newer parser re-reads the proxy even if the search had finished.
     deal.fairnessCheckedAt = null;
     deal.fairnessAdsh = null;
     deal.fairness = undefined;
     deal.fairnessParser = FAIRNESS_PARSER_VERSION;
   }
-  if (sub && !deal.fairnessCheckedAt) {
+  if (sub && !opts.light && !deal.fairnessCheckedAt) {
     const proxy = recentFilings(sub)
       .filter((f) => f.date >= deal.announcedDate && FAIRNESS_FORMS.includes(f.form))
       .sort((a, b) => FAIRNESS_FORMS.indexOf(a.form) - FAIRNESS_FORMS.indexOf(b.form) || b.date.localeCompare(a.date))[0];
@@ -714,11 +719,11 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
   }
 
   // Deal protections (break fees, go-shop, financing). Re-read when the parser changes.
-  if (sub && deal.termsParser !== TERMS_PARSER_VERSION) {
+  if (sub && !opts.light && deal.termsParser !== TERMS_PARSER_VERSION) {
     deal.termsCheckedAt = null;
     deal.termsParser = TERMS_PARSER_VERSION;
   }
-  if (sub && !deal.termsCheckedAt) {
+  if (sub && !opts.light && !deal.termsCheckedAt) {
     try {
       const { terms, settled } = await readDealTerms(deal, sub);
       if (terms) deal.terms = terms;
@@ -759,7 +764,7 @@ export interface DealRunStats {
 
 export async function ingestDeals(
   state: State,
-  opts: { from: string; to: string; directory: Directory; log: (s: string) => void; today: string; checkpoint?: () => Promise<void> },
+  opts: { from: string; to: string; directory: Directory; log: (s: string) => void; today: string; checkpoint?: () => Promise<void>; light?: boolean },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
   const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [] };
@@ -999,11 +1004,9 @@ export async function ingestDeals(
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       !d.financialsCheckedAt ||
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
-      !d.fairnessCheckedAt ||
-      d.fairnessParser !== FAIRNESS_PARSER_VERSION ||
-      d.termsParser !== TERMS_PARSER_VERSION ||
+      (!opts.light && (!d.fairnessCheckedAt || d.fairnessParser !== FAIRNESS_PARSER_VERSION || d.termsParser !== TERMS_PARSER_VERSION)) ||
       // Unsettled terms (no proxy yet) are looked for once a day, not every run.
-      (!d.termsCheckedAt && d.statusCheckedAt !== opts.today) ||
+      (!opts.light && !d.termsCheckedAt && d.statusCheckedAt !== opts.today) ||
       !d.milestones ||
       d.milestones.voteHeld === undefined ||
       // Looks like a company buying itself: a target renamed after its buyer (re-read the name it had then).
@@ -1057,7 +1060,7 @@ export async function ingestDeals(
           drop(deal);
           continue;
         }
-        await enrichDeal(deal, sub, opts.today, directory);
+        await enrichDeal(deal, sub, opts.today, directory, { light: opts.light });
       }
       // Acquirer and target still look identical: the buyer took the target's name afterwards (a reverse merger,
       // a de-SPAC, "California BanCorp" for Southern California Bancorp). Use the buyer's name at announcement.

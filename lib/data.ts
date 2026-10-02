@@ -100,6 +100,8 @@ const CHUNK = 500;
 const DEAL_FIELDS = [
   "id", "announcedDate", "acquirer", "target", "valueUsd", "pricePerShare", "premiumPct", "consideration", "sector", "industry", "status", "statusDate",
   "enterpriseValueUsd", "evEbitda", "evRevenue", "acquirerAdvisors", "targetAdvisors", "filings", "milestones", "privateTarget", "terms", "fairness",
+  // Internal (server side, for filtering by value type); toPublicDeal leaves it out of the browser feed.
+  "valueKind",
 ];
 const DEAL_SELECT = DEAL_FIELDS.map((f) => `${f}:data->${f}`).join(",");
 

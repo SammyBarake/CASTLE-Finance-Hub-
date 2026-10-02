@@ -17,6 +17,9 @@
 export const SECTORS = ["Tech", "Healthcare", "Energy", "Financials", "Industrials"] as const;
 export type Sector = (typeof SECTORS)[number];
 
+/** How a deal's headline value is stated. */
+export type ValueKind = "transaction" | "equity" | "enterprise";
+
 /**
  * Announced: definitive agreement signed.
  * Pending:   proxy / tender offer / S-4 on file (shareholder or regulatory stage).
@@ -54,6 +57,11 @@ export interface Deal {
   target: Company;
   /** Headline transaction (equity) value in USD. */
   valueUsd: number | null;
+  /**
+   * What `valueUsd` is: the stated transaction value, equity value or enterprise value. Internal (stored records and
+   * the server-side read, for filtering by value type); `toPublicDeal` leaves it out of the browser feed.
+   */
+  valueKind?: ValueKind | null;
   /** Offer price per target share in USD. */
   pricePerShare: number | null;
   /** Premium of offer price over the unaffected share price, in %. */

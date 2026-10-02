@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { leagueTable, monthlyVolume, sectorValuations } from "./aggregate";
+import { leagueTable, monthlyVolume, sectorValuations, toPublicDeal } from "./aggregate";
 import type { Deal } from "./types";
+
+describe("toPublicDeal", () => {
+  it("keeps the internal value type out of the browser feed", () => {
+    const pub = toPublicDeal({ ...deal({}), valueKind: "equity" });
+    expect("valueKind" in pub).toBe(false);
+  });
+});
 
 const deal = (over: Partial<Deal>): Deal => ({
   id: Math.random().toString(36),

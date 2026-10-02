@@ -56,6 +56,7 @@ npm run ingest -- --skip macro         # everything except the named step(s), co
 npm run ingest -- --only deals --rebuild-deals --from 2024-09-01   # re-read all filings with current parsers; drops stale deals at the end
                                        # (also a "rebuild" checkbox on the GitHub Actions "Run workflow" form)
 npm run audit                          # data-quality audit of the live database (read-only); -- --local, -- --all
+npm run history -- report              # history foundation (what-if engine): see "History foundation" below
 ```
 
 With Supabase keys in `.env.local`, the local site reads the live database. Set `CASTLE_DATA_SOURCE=local` (in the shell or `.env.local`) to make it read `.data/castle.json` instead, e.g. to try ingest changes without touching production.
@@ -125,9 +126,14 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
   audit-rules.ts      Data-quality rules (pure); audit.ts prints what fails (`npm run audit`)
   text.ts             EDGAR HTML → plain text
   parse/              Pure text parsers (press releases, merger 8-K Item 1.01, merger proxies, fairness opinions, IPO documents, company names) + tests
-supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon)
+  history.ts          History CLI (what-if engine foundation): 2015–2020 deal backfill, IPO history, markets, monthly tables
+  historyStore.ts     History storage: .data/history/*.json and the Supabase history tables
+  ipoHistory.ts       Priced IPOs since 2015 from 424B4 final prospectuses (same IPO tests as ipos.ts)
+  markets.ts          Sector ETF monthly prices (Yahoo chart API) and FRED series (public CSV), no keys
+lib/history.ts        Pure builders for sector_monthly / macro_monthly (inflation adjustment, one value type) + tests
+supabase/migrations/  SQL schema (jsonb `data` column per record, RLS read-only for anon); 0002_history.sql = history tables
 .github/workflows/    ingest.yml (full run every 6 hours + a quick 2-day run hourly on weekdays 11:50–23:50 UTC;
-                      manual backfill / "rebuild" from 2021) and ci.yml (lint/test/build)
+                      manual backfill / "rebuild" from 2021), history.yml (2nd of each month) and ci.yml (lint/test/build)
 app/api/deal/[id]/    Full record for one deal (fairness opinions); the page feed leaves them out
 ```
 
@@ -200,6 +206,21 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
   - `npm run audit` checks every rule in `audit-rules.ts`. The October 2026 pass took flagged records from 5.1% to 1.7%. What remains is mostly legitimate or known: EV far above equity for heavily indebted targets (Sotherly, Hall of Fame Resort), placeholder buyers no filing names, and multiples stored before the bank / share-count rules (recomputed by a rebuild). Veoneer is a known miss: EDGAR's name lookup doesn't know it.
 - **Parser changes need a test** in `ingest/parse/*.test.ts`. Fixtures are synthetic text in the style of real filings.
 - **EDGAR etiquette:** always go through `ingest/edgar.ts`, which sends the User-Agent and throttles to ~8 requests/second.
+
+## History foundation (for the what-if engine)
+
+Separate from the live features: its own tables (`supabase/migrations/0002_history.sql`), its own CLI (`npm run history -- <command>`, `ingest/history.ts`) and local files (`.data/history/`). The site doesn't read any of it yet, and the live tables and pipelines are unchanged.
+
+- **`deals_history`**: deals announced 2015–2020, found by the live discovery channels and parsers (`npm run history -- deals --from … --to …`, `ingestDeals(..., { light: true })`). Light enrichment skips fairness opinions and deal protections (gigabytes of proxies); status, sector, names, premium, advisers, milestones and multiples are filled. 2021 onward lives in `deals`; `mergeDeals` combines both without double counting (same id, or same target CIK within 30 days: the live record wins).
+- **`ipo_history`**: priced IPOs since 2015 from 424B4 final prospectuses (`ingest/ipoHistory.ts`), with the live pipeline's IPO tests (no earlier periodic report or 424B4, an S-1 / F-1 on file, not a SPAC, fund, resale, direct listing or de-SPAC). Pricing date = the prospectus cover date ("The date of this prospectus is …") when within ten days of the filing, else the filing date. Raise = offer price × cover shares (base deal, no over-allotment). `filingsUntil` reads a company's older submission pages, since `filings.recent` holds only ~1,000 filings.
+- **`sector_monthly`** (one row per sector per month, 2015-01 to the last complete month; `lib/history.ts`):
+  - **ETF:** XLK = Tech, XLV = Healthcare, XLE = Energy, XLF = Financials, XLI = Industrials. Month-end close, plus the total return from Yahoo's dividend-adjusted close (Stooq now returns 403; other free APIs need keys).
+  - **Deals:** counted like the volume chart (terminated excluded). `deal_value_usd` sums **one** value type (default `transaction`, the headline value; `--value-kind equity|enterprise`) in today's dollars (CPI-U, latest published month; October 2025 CPI was never published and is interpolated). Deals left out are counted: `deal_value_null_n` (no value), `deal_value_other_kind_n` (another type).
+  - **IPOs:** `ipo_count` = IPOs priced that month (from `ipo_history`).
+- **`macro_monthly`**: FRED monthly averages (public CSV, no key): FEDFUNDS, GS10, VIXCLS, CPIAUCSL, and two credit spreads. ICE BofA HY OAS (BAMLH0A0HYM2) is limited on FRED to ~3 years by ICE's licence, so Moody's Baa − 10-year (BAA10Y) is kept as the full-history spread.
+- **`snapshots`**: on the 2nd of each month `.github/workflows/history.yml` runs `npm run history -- monthly`. It refreshes markets, adds the last two months' IPOs and rebuilds both monthly tables. It also saves the IPO pipeline as shown and the YTD league table at month end (`kind` = `ipo_pipeline` / `league_table`, `period` = the month just ended), plus the raw market series (`markets` / `latest`) as a fallback when a source fails.
+- **`valueKind`** stays in stored records and the server-side read (`DEAL_FIELDS` in `lib/data.ts`, optional `Deal.valueKind`); `toPublicDeal` still leaves it out of the browser feed (tested).
+- **Order of work for a fresh history:** `deals` (hours) → `ipos` → `markets` → `recall` (per-year coverage against merger-proxy filers) → `report` (builds the tables locally) → `push` (after the migration). Never run two EDGAR-heavy commands at once: each process throttles itself to ~8 requests a second, and SEC's limit is 10.
 
 ## Roadmap
 

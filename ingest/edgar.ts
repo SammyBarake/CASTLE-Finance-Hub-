@@ -211,14 +211,38 @@ export interface Submissions {
   formerNames?: { name: string; from?: string; to?: string }[];
   addresses?: { business?: { stateOrCountry?: string | null; stateOrCountryDescription?: string | null } };
   filings: {
-    recent: {
-      accessionNumber: string[];
-      filingDate: string[];
-      form: string[];
-      primaryDocument: string[];
-      items: string[];
-    };
+    recent: FilingColumns;
+    /** Older filings, in pages: `recent` holds only the last ~1,000 filings (or one year). */
+    files?: { name: string; filingFrom: string; filingTo: string }[];
   };
+}
+
+interface FilingColumns {
+  accessionNumber: string[];
+  filingDate: string[];
+  form: string[];
+  primaryDocument: string[];
+  items: string[];
+}
+
+const rowsOf = (r: FilingColumns) =>
+  r.accessionNumber.map((adsh, i) => ({ adsh, date: r.filingDate[i], form: r.form[i], primaryDocument: r.primaryDocument[i], items: r.items?.[i] ?? "" }));
+
+/**
+ * Every filing up to `until` (ISO date), oldest pages included: a company with thousands of filings since its 2015
+ * IPO has the IPO's S-1 and 424B4 only in an older page. Newest first, like `recentFilings`.
+ */
+export async function filingsUntil(sub: Submissions, until: string) {
+  const rows = recentFilings(sub);
+  const oldestRecent = rows.reduce((m, f) => (f.date < m ? f.date : m), "9999");
+  if (oldestRecent > until || rows.length >= 1000) {
+    for (const page of sub.filings.files ?? []) {
+      if (page.filingFrom > until) continue;
+      rows.push(...rowsOf(await getJson<FilingColumns>(`https://data.sec.gov/submissions/${page.name}`)));
+    }
+  }
+  const seen = new Set<string>();
+  return rows.filter((f) => !seen.has(f.adsh) && seen.add(f.adsh)).sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export const getSubmissions = (cik: string) => getJson<Submissions>(`https://data.sec.gov/submissions/CIK${padCik(cik)}.json`);
@@ -249,14 +273,7 @@ export async function lookupCompanies(name: string): Promise<{ cik: string; name
 
 /** Recent filings flattened into rows, newest first. */
 export function recentFilings(sub: Submissions) {
-  const r = sub.filings.recent;
-  return r.accessionNumber.map((adsh, i) => ({
-    adsh,
-    date: r.filingDate[i],
-    form: r.form[i],
-    primaryDocument: r.primaryDocument[i],
-    items: r.items[i] ?? "",
-  }));
+  return rowsOf(sub.filings.recent);
 }
 
 export interface ListedCompany {
