@@ -1,6 +1,6 @@
 # Ripple links: hand-set vs estimated
 
-Generated 2026-10-02 06:04 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
+Generated 2026-10-02 06:08 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
 
 ## Summary
 

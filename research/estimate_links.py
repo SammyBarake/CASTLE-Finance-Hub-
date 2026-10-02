@@ -750,7 +750,7 @@ def write_report(handset: dict, links: dict, candidates: list, eqs: dict, sector
               "The posterior mean pulls toward the prior, harder where the data is noisy.",
               f"- **Ranges**: {N_BOOT} bootstrap runs resampling whole quarters (and a random IO year for L); each adds the prior's remaining uncertainty, (1 − data weight) × prior sd. 90% range = 5th–95th percentile.",
               f"- **Badge**: a link drops \"assumption\" when its data weight is at least {ENOUGH_DATA:.0%}.", ""]
-    OUT_REPORT.write_text("\n".join(lines), encoding="utf-8")
+    OUT_REPORT.write_text("\n".join(lines), encoding="utf-8", newline="\n")  # LF on Windows too (.gitattributes)
     return rows
 
 
@@ -781,7 +781,7 @@ def main() -> None:
         "total": len(rows),
     }
     out = {"meta": meta, "features": links["features"], "sectors": links["sectors"], "macro": links["macro"]}
-    OUT_JSON.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    OUT_JSON.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     log(f"wrote {OUT_JSON.relative_to(ROOT)} ({meta['estimated']} of {meta['total']} links data-driven) and {OUT_REPORT.relative_to(ROOT)}")
 
 
