@@ -1,95 +1,95 @@
 {
  "meta": {
-  "generatedAt": "2026-10-07T03:26:37+00:00",
+  "generatedAt": "2026-10-07T07:51:21+00:00",
   "window": {
-   "from": "2015Q1",
+   "from": "2010Q1",
    "to": "2026Q3",
-   "quarters": 47
+   "quarters": 67
   },
   "ipoHistory": true,
   "enoughData": 0.5,
   "bootstrapRuns": 1000,
-  "estimated": 7,
+  "estimated": 13,
   "total": 38
  },
  "features": [
   {
    "key": "C:valuation>ipoCount@1",
-   "value": 1.057,
+   "value": 1.039,
    "range": [
-    0.851,
-    1.276
+    0.841,
+    1.261
    ],
-   "n": 220,
-   "weight": 0.11,
+   "n": 320,
+   "weight": 0.14,
    "prior": 1,
-   "ols": 1.279,
-   "olsSe": 0.483
+   "ols": 1.266,
+   "olsSe": 0.431
   },
   {
    "key": "C:valuation>ipoCount@2",
-   "value": 0.488,
+   "value": 0.483,
    "range": [
-    0.388,
-    0.601
+    0.378,
+    0.585
    ],
-   "n": 220,
-   "weight": 0.03,
+   "n": 320,
+   "weight": 0.04,
    "prior": 0.5,
-   "ols": 0.273,
-   "olsSe": 0.481
+   "ols": 0.19,
+   "olsSe": 0.421
   },
   {
    "key": "C:valuation>ipoCount@0",
-   "value": 0.204,
+   "value": 0.206,
    "range": [
-    0.161,
-    0.246
+    0.163,
+    0.247
    ],
-   "n": 220,
-   "weight": 0.0,
+   "n": 320,
+   "weight": 0.01,
    "prior": 0.2,
-   "ols": 0.37,
-   "olsSe": 0.457
+   "ols": 0.277,
+   "olsSe": 0.411
   },
   {
    "key": "C:valuation>dealValue@0",
-   "value": 0.498,
+   "value": 0.497,
    "range": [
-    0.39,
-    0.595
+    0.393,
+    0.602
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.0,
    "prior": 0.5,
-   "ols": 0.407,
-   "olsSe": 1.385
+   "ols": -0.49,
+   "olsSe": 1.188
   },
   {
    "key": "C:valuation>dealValue@1",
-   "value": 0.503,
+   "value": 0.504,
    "range": [
-    0.403,
+    0.399,
     0.606
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.0,
    "prior": 0.5,
-   "ols": 1.269,
-   "olsSe": 1.437
+   "ols": 1.114,
+   "olsSe": 1.259
   },
   {
    "key": "C:valuation>dealCount@1",
-   "value": 0.475,
+   "value": 0.464,
    "range": [
-    0.364,
-    0.574
+    0.361,
+    0.556
    ],
-   "n": 184,
-   "weight": 0.07,
+   "n": 236,
+   "weight": 0.08,
    "prior": 0.5,
-   "ols": 0.139,
-   "olsSe": 0.28
+   "ols": -0.097,
+   "olsSe": 0.263
   },
   {
    "key": "C:valuation>valuation@0",
@@ -105,80 +105,80 @@
   },
   {
    "key": "C:dealCount>dealValue@0",
-   "value": 0.951,
+   "value": 0.979,
    "range": [
-    0.749,
-    1.151
+    0.789,
+    1.178
    ],
-   "n": 184,
-   "weight": 0.14,
+   "n": 236,
+   "weight": 0.2,
    "prior": 1,
-   "ols": 0.866,
-   "olsSe": 0.407
+   "ols": 1.154,
+   "olsSe": 0.324
   },
   {
    "key": "C:dealValue>valuation@0",
-   "value": 0.005,
+   "value": 0.003,
    "range": [
-    -0.002,
-    0.012
+    -0.003,
+    0.009
    ],
-   "n": 220,
-   "weight": 0.97,
+   "n": 320,
+   "weight": 0.98,
    "prior": 0.2,
-   "ols": 0.001,
-   "olsSe": 0.005
+   "ols": -0.001,
+   "olsSe": 0.004
   },
   {
    "key": "C:dealCount>ipoCount@1",
-   "value": -0.196,
+   "value": -0.197,
    "range": [
-    -0.234,
-    -0.153
+    -0.237,
+    -0.159
    ],
-   "n": 220,
+   "n": 320,
    "weight": 0.04,
    "prior": -0.2,
-   "ols": 0.03,
-   "olsSe": 0.19
+   "ols": -0.061,
+   "olsSe": 0.159
   },
   {
    "key": "C:ipoCount>valuation@1",
-   "value": 0.005,
+   "value": 0.015,
    "range": [
-    -0.015,
-    0.026
+    -0.003,
+    0.034
    ],
-   "n": 220,
-   "weight": 0.85,
+   "n": 320,
+   "weight": 0.9,
    "prior": -0.2,
-   "ols": 0.027,
-   "olsSe": 0.012
+   "ols": 0.028,
+   "olsSe": 0.009
   },
   {
    "key": "C:ipoCount>dealCount@1",
-   "value": 0.147,
+   "value": 0.146,
    "range": [
-    0.108,
-    0.18
+    0.11,
+    0.179
    ],
-   "n": 184,
-   "weight": 0.36,
+   "n": 236,
+   "weight": 0.38,
    "prior": 0.2,
-   "ols": 0.052,
-   "olsSe": 0.045
+   "ols": 0.075,
+   "olsSe": 0.041
   }
  ],
  "sectors": [
   {
    "key": "L:Tech>Healthcare",
-   "value": 0.103,
+   "value": 0.08,
    "range": [
-    0.064,
-    0.151
+    0.044,
+    0.129
    ],
-   "n": 140,
-   "weight": 0.83,
+   "n": 200,
+   "weight": 0.96,
    "prior": 0.25,
    "io": 0.002,
    "market": 0.144,
@@ -186,143 +186,143 @@
   },
   {
    "key": "L:Tech>Financials",
-   "value": 0.091,
+   "value": 0.092,
    "range": [
-    0.056,
-    0.125
+    0.042,
+    0.137
    ],
-   "n": 140,
-   "weight": 0.31,
+   "n": 200,
+   "weight": 0.67,
    "prior": 0.1,
    "io": 0.019,
-   "market": 0.125,
-   "ols": 0.072
+   "market": 0.158,
+   "ols": 0.088
   },
   {
    "key": "L:Tech>Industrials",
-   "value": 0.137,
+   "value": 0.163,
    "range": [
-    0.108,
-    0.164
+    0.13,
+    0.197
    ],
-   "n": 140,
-   "weight": 0.54,
+   "n": 200,
+   "weight": 0.84,
    "prior": 0.1,
    "io": 0.028,
-   "market": 0.309,
-   "ols": 0.168
+   "market": 0.323,
+   "ols": 0.175
   },
   {
    "key": "L:Healthcare>Tech",
-   "value": 0.113,
+   "value": 0.13,
    "range": [
-    0.076,
-    0.149
+    0.077,
+    0.182
    ],
-   "n": 140,
-   "weight": 0.2,
+   "n": 200,
+   "weight": 0.58,
    "prior": 0.1,
    "io": 0.032,
-   "market": 0.297,
-   "ols": 0.165
+   "market": 0.269,
+   "ols": 0.151
   },
   {
    "key": "L:Energy>Industrials",
-   "value": 0.067,
+   "value": 0.069,
    "range": [
-    0.034,
-    0.094
+    0.044,
+    0.096
    ],
-   "n": 140,
-   "weight": 0.98,
+   "n": 200,
+   "weight": 1.0,
    "prior": 0.5,
    "io": 0.013,
-   "market": 0.1,
-   "ols": 0.056
+   "market": 0.121,
+   "ols": 0.067
   },
   {
    "key": "L:Financials>Tech",
-   "value": 0.221,
+   "value": 0.201,
    "range": [
-    0.135,
-    0.295
+    0.096,
+    0.286
    ],
-   "n": 140,
-   "weight": 0.36,
+   "n": 200,
+   "weight": 0.79,
    "prior": 0.25,
    "io": 0.047,
-   "market": 0.294,
-   "ols": 0.171
+   "market": 0.327,
+   "ols": 0.187
   },
   {
    "key": "L:Financials>Healthcare",
-   "value": 0.181,
+   "value": 0.164,
    "range": [
-    0.127,
-    0.246
+    0.11,
+    0.225
    ],
-   "n": 140,
-   "weight": 0.67,
+   "n": 200,
+   "weight": 0.93,
    "prior": 0.25,
    "io": 0.004,
-   "market": 0.292,
-   "ols": 0.148
+   "market": 0.309,
+   "ols": 0.157
   },
   {
    "key": "L:Financials>Energy",
-   "value": 0.314,
+   "value": 0.364,
    "range": [
-    0.226,
-    0.402
+    0.255,
+    0.465
    ],
-   "n": 140,
-   "weight": 0.32,
+   "n": 200,
+   "weight": 0.73,
    "prior": 0.25,
    "io": 0.053,
-   "market": 0.849,
-   "ols": 0.451
+   "market": 0.762,
+   "ols": 0.407
   },
   {
    "key": "L:Financials>Industrials",
-   "value": 0.262,
+   "value": 0.268,
    "range": [
-    0.21,
-    0.317
+    0.219,
+    0.319
    ],
-   "n": 140,
-   "weight": 0.72,
+   "n": 200,
+   "weight": 0.94,
    "prior": 0.25,
    "io": 0.051,
-   "market": 0.482,
-   "ols": 0.267
+   "market": 0.487,
+   "ols": 0.269
   },
   {
    "key": "L:Industrials>Energy",
-   "value": 0.308,
+   "value": 0.44,
    "range": [
-    0.211,
-    0.391
+    0.33,
+    0.547
    ],
-   "n": 140,
-   "weight": 0.25,
+   "n": 200,
+   "weight": 0.71,
    "prior": 0.25,
    "io": 0.348,
-   "market": 0.62,
-   "ols": 0.484
+   "market": 0.686,
+   "ols": 0.517
   },
   {
    "key": "L:Industrials>Financials",
-   "value": 0.162,
+   "value": 0.289,
    "range": [
-    0.128,
-    0.197
+    0.239,
+    0.335
    ],
-   "n": 140,
-   "weight": 0.22,
+   "n": 200,
+   "weight": 0.66,
    "prior": 0.1,
    "io": 0.186,
-   "market": 0.579,
-   "ols": 0.382
+   "market": 0.583,
+   "ols": 0.384
   }
  ],
  "macro": [
@@ -335,13 +335,13 @@
     "Tech"
    ],
    "basedOn": "M:treasury10y>valuation@0:Tech",
-   "value": -10.5,
+   "value": -8.93,
    "range": [
-    -14.6,
-    -7.15
+    -12.37,
+    -5.33
    ],
-   "n": 44,
-   "weight": 0.29,
+   "n": 64,
+   "weight": 0.41,
    "prior": -10,
    "sectorSpecific": true,
    "p": 0.0
@@ -355,13 +355,13 @@
     "Healthcare"
    ],
    "basedOn": "M:treasury10y>valuation@0:Healthcare",
-   "value": -4.83,
+   "value": -4.55,
    "range": [
-    -6.52,
-    -2.8
+    -6.26,
+    -2.58
    ],
-   "n": 44,
-   "weight": 0.09,
+   "n": 64,
+   "weight": 0.15,
    "prior": -5,
    "sectorSpecific": true,
    "p": 0.0
@@ -375,13 +375,13 @@
     "Energy"
    ],
    "basedOn": "M:treasury10y>valuation@0:Industrials+Energy",
-   "value": -1.74,
+   "value": -1.54,
    "range": [
-    -2.54,
-    -0.96
+    -2.37,
+    -0.58
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -2,
    "sectorSpecific": true,
    "p": 0.0
@@ -395,13 +395,13 @@
     "Financials"
    ],
    "basedOn": "M:treasury10y>valuation@0:Financials",
-   "value": 1.99,
+   "value": 2.02,
    "range": [
-    1.16,
-    2.79
+    1.17,
+    2.88
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.03,
    "prior": 2,
    "sectorSpecific": true,
    "p": 0.0
@@ -415,68 +415,230 @@
     "Industrials"
    ],
    "basedOn": "M:treasury10y>valuation@0:Industrials+Energy",
-   "value": -2.04,
+   "value": -1.95,
    "range": [
-    -2.91,
-    -1.26
+    -2.85,
+    -1.18
    ],
-   "n": 44,
-   "weight": 0.02,
+   "n": 64,
+   "weight": 0.03,
    "prior": -2,
    "sectorSpecific": true,
    "p": 0.0
   },
   {
-   "key": "M:baaSpread>valuation@0:all",
-   "value": -6.67,
-   "range": [
-    -9.5,
-    -3.9
-   ],
-   "n": 220,
-   "weight": 0.16,
-   "prior": -5,
-   "sectorSpecific": false,
-   "p": 0.484,
-   "ols": -1.29,
+   "key": "M:baaSpread>valuation@0:Tech",
    "from": "baaSpread",
    "to": "valuation",
    "lag": 0,
-   "sectors": "all",
-   "basedOn": "M:baaSpread>valuation@0:all"
+   "sectors": [
+    "Tech"
+   ],
+   "basedOn": "M:baaSpread>valuation@0:all",
+   "value": -5.11,
+   "range": [
+    -6.95,
+    -3.14
+   ],
+   "n": 64,
+   "weight": 0.06,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.036
   },
   {
-   "key": "M:vix>valuation@0:all",
-   "value": -7.19,
-   "range": [
-    -10.08,
-    -3.28
+   "key": "M:baaSpread>valuation@0:Healthcare",
+   "from": "baaSpread",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Healthcare"
    ],
-   "n": 220,
-   "weight": 0.4,
+   "basedOn": "M:baaSpread>valuation@0:all",
+   "value": -4.98,
+   "range": [
+    -6.84,
+    -3.12
+   ],
+   "n": 64,
+   "weight": 0.06,
    "prior": -5,
-   "sectorSpecific": false,
-   "p": 0.314,
-   "ols": -12.79,
+   "sectorSpecific": true,
+   "p": 0.036
+  },
+  {
+   "key": "M:baaSpread>valuation@0:Energy",
+   "from": "baaSpread",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Energy"
+   ],
+   "basedOn": "M:baaSpread>valuation@0:all",
+   "value": -5.88,
+   "range": [
+    -8.3,
+    -3.52
+   ],
+   "n": 64,
+   "weight": 0.06,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.036
+  },
+  {
+   "key": "M:baaSpread>valuation@0:Financials",
+   "from": "baaSpread",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Financials"
+   ],
+   "basedOn": "M:baaSpread>valuation@0:Financials",
+   "value": -10.71,
+   "range": [
+    -14.51,
+    -7.25
+   ],
+   "n": 64,
+   "weight": 0.21,
+   "prior": -10,
+   "sectorSpecific": true,
+   "p": 0.036
+  },
+  {
+   "key": "M:baaSpread>valuation@0:Industrials",
+   "from": "baaSpread",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Industrials"
+   ],
+   "basedOn": "M:baaSpread>valuation@0:all",
+   "value": -5.42,
+   "range": [
+    -7.47,
+    -3.55
+   ],
+   "n": 64,
+   "weight": 0.06,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.036
+  },
+  {
+   "key": "M:vix>valuation@0:Tech",
    "from": "vix",
    "to": "valuation",
    "lag": 0,
-   "sectors": "all",
-   "basedOn": "M:vix>valuation@0:all"
+   "sectors": [
+    "Tech"
+   ],
+   "basedOn": "M:vix>valuation@0:all",
+   "value": -6.21,
+   "range": [
+    -8.05,
+    -4.45
+   ],
+   "n": 64,
+   "weight": 0.22,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.033
+  },
+  {
+   "key": "M:vix>valuation@0:Healthcare",
+   "from": "vix",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Healthcare"
+   ],
+   "basedOn": "M:vix>valuation@0:all",
+   "value": -5.09,
+   "range": [
+    -6.73,
+    -3.43
+   ],
+   "n": 64,
+   "weight": 0.22,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.033
+  },
+  {
+   "key": "M:vix>valuation@0:Energy",
+   "from": "vix",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Energy"
+   ],
+   "basedOn": "M:vix>valuation@0:all",
+   "value": -7.63,
+   "range": [
+    -11.77,
+    -3.93
+   ],
+   "n": 64,
+   "weight": 0.22,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.033
+  },
+  {
+   "key": "M:vix>valuation@0:Financials",
+   "from": "vix",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Financials"
+   ],
+   "basedOn": "M:vix>valuation@0:all",
+   "value": -6.18,
+   "range": [
+    -8.41,
+    -4.11
+   ],
+   "n": 64,
+   "weight": 0.21,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.033
+  },
+  {
+   "key": "M:vix>valuation@0:Industrials",
+   "from": "vix",
+   "to": "valuation",
+   "lag": 0,
+   "sectors": [
+    "Industrials"
+   ],
+   "basedOn": "M:vix>valuation@0:all",
+   "value": -6.41,
+   "range": [
+    -8.62,
+    -4.43
+   ],
+   "n": 64,
+   "weight": 0.22,
+   "prior": -5,
+   "sectorSpecific": true,
+   "p": 0.033
   },
   {
    "key": "M:fedFunds>dealCount@1:all",
-   "value": -5.01,
+   "value": -4.9,
    "range": [
-    -7.1,
-    -3.11
+    -6.85,
+    -2.77
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.05,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.568,
-   "ols": 11.85,
+   "p": 0.365,
+   "ols": 13.85,
    "from": "fedFunds",
    "to": "dealCount",
    "lag": 1,
@@ -485,17 +647,17 @@
   },
   {
    "key": "M:baaSpread>dealCount@0:all",
-   "value": -5.07,
+   "value": -4.94,
    "range": [
-    -7.11,
-    -3.04
+    -7.04,
+    -2.99
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.01,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.173,
-   "ols": 0.64,
+   "p": 0.591,
+   "ols": -6.44,
    "from": "baaSpread",
    "to": "dealCount",
    "lag": 0,
@@ -504,17 +666,17 @@
   },
   {
    "key": "M:vix>dealCount@0:all",
-   "value": -4.8,
+   "value": -4.61,
    "range": [
-    -6.77,
-    -2.83
+    -6.6,
+    -2.62
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.04,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.299,
-   "ols": -2.17,
+   "p": 0.18,
+   "ols": 4.03,
    "from": "vix",
    "to": "dealCount",
    "lag": 0,
@@ -523,17 +685,17 @@
   },
   {
    "key": "M:fedFunds>dealValue@1:all",
-   "value": -5.05,
+   "value": -5.06,
    "range": [
-    -7.15,
-    -3.01
+    -7.09,
+    -3.11
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.0,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.691,
-   "ols": 6.04,
+   "p": 0.594,
+   "ols": -9.08,
    "from": "fedFunds",
    "to": "dealValue",
    "lag": 1,
@@ -542,17 +704,17 @@
   },
   {
    "key": "M:baaSpread>dealValue@0:all",
-   "value": -9.99,
+   "value": -10.08,
    "range": [
-    -13.96,
-    -5.87
+    -14.45,
+    -6.15
    ],
-   "n": 184,
+   "n": 236,
    "weight": 0.0,
    "prior": -10,
    "sectorSpecific": false,
-   "p": 0.977,
-   "ols": -31.02,
+   "p": 0.931,
+   "ols": -46.95,
    "from": "baaSpread",
    "to": "dealValue",
    "lag": 0,
@@ -561,17 +723,17 @@
   },
   {
    "key": "M:fedFunds>ipoCount@1:all",
-   "value": -5.02,
+   "value": -5.09,
    "range": [
-    -6.98,
-    -3.02
+    -7.11,
+    -3.06
    ],
-   "n": 220,
+   "n": 320,
    "weight": 0.02,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.986,
-   "ols": 19.75,
+   "p": 0.991,
+   "ols": 11.74,
    "from": "fedFunds",
    "to": "ipoCount",
    "lag": 1,
@@ -580,17 +742,17 @@
   },
   {
    "key": "M:baaSpread>ipoCount@1:all",
-   "value": -5.04,
+   "value": -5.07,
    "range": [
-    -7.0,
-    -2.87
+    -7.01,
+    -3.07
    ],
-   "n": 220,
-   "weight": 0.0,
+   "n": 320,
+   "weight": 0.01,
    "prior": -5,
    "sectorSpecific": false,
-   "p": 0.585,
-   "ols": -85.87,
+   "p": 0.248,
+   "ols": -67.8,
    "from": "baaSpread",
    "to": "ipoCount",
    "lag": 1,
@@ -606,16 +768,16 @@
     "Tech"
    ],
    "basedOn": "M:vix>ipoCount@0:all",
-   "value": -10.97,
+   "value": -11.47,
    "range": [
-    -15.18,
-    -6.79
+    -15.88,
+    -7.77
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -10,
    "sectorSpecific": true,
-   "p": 0.042
+   "p": 0.001
   },
   {
    "key": "M:vix>ipoCount@0:Healthcare",
@@ -626,16 +788,16 @@
     "Healthcare"
    ],
    "basedOn": "M:vix>ipoCount@0:all",
-   "value": -10.46,
+   "value": -10.7,
    "range": [
-    -14.55,
-    -6.57
+    -14.85,
+    -6.4
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -10,
    "sectorSpecific": true,
-   "p": 0.042
+   "p": 0.001
   },
   {
    "key": "M:vix>ipoCount@0:Energy",
@@ -646,16 +808,16 @@
     "Energy"
    ],
    "basedOn": "M:vix>ipoCount@0:all",
-   "value": -9.66,
+   "value": -9.24,
    "range": [
-    -13.49,
-    -5.09
+    -13.17,
+    -4.97
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -10,
    "sectorSpecific": true,
-   "p": 0.042
+   "p": 0.001
   },
   {
    "key": "M:vix>ipoCount@0:Financials",
@@ -666,16 +828,16 @@
     "Financials"
    ],
    "basedOn": "M:vix>ipoCount@0:all",
-   "value": -10.67,
+   "value": -11.27,
    "range": [
-    -15.06,
-    -6.63
+    -15.37,
+    -7.4
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -10,
    "sectorSpecific": true,
-   "p": 0.042
+   "p": 0.001
   },
   {
    "key": "M:vix>ipoCount@0:Industrials",
@@ -686,16 +848,16 @@
     "Industrials"
    ],
    "basedOn": "M:vix>ipoCount@0:all",
-   "value": -10.78,
+   "value": -11.09,
    "range": [
-    -15.05,
-    -6.98
+    -15.1,
+    -6.91
    ],
-   "n": 44,
-   "weight": 0.01,
+   "n": 64,
+   "weight": 0.02,
    "prior": -10,
    "sectorSpecific": true,
-   "p": 0.042
+   "p": 0.001
   }
  ]
 }

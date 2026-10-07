@@ -36,7 +36,7 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const thisMonth = () => isoDay(new Date()).slice(0, 7);
 
 /** The history starts here; months are complete months only (up to, not including, the current month). */
-export const HISTORY_FROM = "2015-01";
+export const HISTORY_FROM = "2010-01";
 type Log = (s: string) => void;
 
 // ---------------------------------------------------------------------------
@@ -263,7 +263,7 @@ async function main() {
     log(`snapshots for ${snapshotPeriod()}: ${snaps.map((s) => s.kind).join(", ")}`);
   } else if (cmd === "recall") {
     const live = await loadLive(log);
-    await recall(mergeDeals(live.deals, historyDeals()), Number(arg("from") ?? 2015), Number(arg("to") ?? Number(thisMonth().slice(0, 4)) - 1), log);
+    await recall(mergeDeals(live.deals, historyDeals()), Number(arg("from") ?? HISTORY_FROM.slice(0, 4)), Number(arg("to") ?? Number(thisMonth().slice(0, 4)) - 1), log);
   } else if (cmd === "push") {
     const db = historyDb();
     await push.deals(db, historyDeals());

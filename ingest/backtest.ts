@@ -207,7 +207,7 @@ function report(o: any): string {
     "## Caveats",
     "",
     "- Settings chosen on the same quarters they are scored on flatter them a little; the two halves show whether the choice holds.",
-    "- Deal figures in weak sector-years (2019–2020 and a few earlier) can't be scored, so deal results lean on 2021 onward.",
+    "- Deal figures in weak coverage years (2010–2011, 2020 and a few sector-years) are left out of the estimation and can't be scored.",
     "- Quarterly deal and IPO counts are noisy: most of their movement is not explained by macro or market moves, so skill stays small even when the direction is right.",
     "",
   );

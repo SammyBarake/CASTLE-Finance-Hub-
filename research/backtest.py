@@ -23,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import estimate_links as E  # noqa: E402
 
 BACKTEST_FROM = 2019 * 4  # 2019Q1: four years of history to learn from
+# The yardstick (each sector's trend and calendar pattern) is measured from 2015 on, as when the history started there:
+# results stay comparable whatever history the links are estimated from (it starts in 2010 since October 2026).
+SCORE_FROM = 2015 * 4
 # Prior width multipliers ("0.5" = every link kind; "f0.25/s0.5/m1" = feature / sector / macro links separately).
 UNIFORM = ["0.25", "0.5", "0.75", "1", "2"]
 PER_KIND = [f"f{f}/s{s}/m{m}" for f in ("0.25", "0.5") for s in ("0.5", "1") for m in ("0.5", "1", "2") if not (f == s == m)]
@@ -51,6 +54,7 @@ def main() -> None:
     ap.add_argument("--half-life", type=float, default=E.HALF_LIFE, help="recency weighting: weight halves every N years back")
     ap.add_argument("--sector-features", choices=["on", "off"], default="on" if E.SECTOR_FEATURES else "off", help="sector-specific valuation → deal / IPO links where an F-test supports them")
     ap.add_argument("--extra-inputs", default=",".join(E.EXTRA_INPUTS), help="extra macro-style inputs, e.g. oil,biotech (the engine needs hand-set links for them)")
+    ap.add_argument("--est-from", default=E.ESTIMATE_FROM or "", help="first quarter the links are estimated from, e.g. 2012Q1 (default: all history)")
     ap.add_argument("--out", default=str(OUT), help="where to write the inputs")
     args = ap.parse_args()
     E.HALF_LIFE = args.half_life
@@ -59,8 +63,12 @@ def main() -> None:
     E.SECTOR_FEATURES = args.sector_features == "on"
 
     handset = E.load_json("handset_links.json")
-    # What the engine is scored against stays fixed (total deal values, standard clipping) whatever the estimation uses.
+    # What the engine is scored against stays fixed (total deal values, standard clipping, trends and calendar pattern
+    # from SCORE_FROM) whatever the estimation uses.
+    E.ESTIMATE_FROM = None
     scored, _, _ = E.build_panel(deal_value="total", winsor=E.WINSOR, macro_timing=args.macro)
+    scored = scored[scored["qi"] >= SCORE_FROM]
+    E.ESTIMATE_FROM = args.est_from or None
     panel, sm_rows, info = E.build_panel(deal_value=args.deal_value, winsor=(args.winsor, 100 - args.winsor), macro_timing=args.macro)
     exclude = [q for q in args.exclude.split(",") if q]
     quarters = sorted(int(q) for q in panel["qi"].unique())

@@ -83,6 +83,8 @@ DEAL_VALUE = "total"  # or "capped": estimate deal-value links on deals capped a
 MACRO_TIMING = "average"  # or "end": macro changes between quarter-end months
 # Quarters left out of the estimation (as the quarter explained), e.g. the pandemic shutdown: ["2020Q1", "2020Q2", "2020Q3"].
 EXCLUDE_QUARTERS: list[str] = []
+# First quarter the links are estimated from ("2012Q1"); None = all of the history (it starts in 2010).
+ESTIMATE_FROM: str | None = None
 # Recency weighting of the C / M equations: a quarter's weight halves every HALF_LIFE years back (None = equal weights).
 HALF_LIFE: float | None = None
 # Valuation → deal / IPO links may differ by sector (pharma buys biotech when prices fall; energy deals follow oil):
@@ -247,6 +249,13 @@ def build_panel(deal_value: str | None = None, winsor: tuple | None = None, macr
     for col in FEATURES + MACROS:
         for lag in LAGS:
             q[f"{col}_l{lag}"] = g[col].shift(lag) if lag else q[col]
+
+    if ESTIMATE_FROM:
+        # Earlier quarters still supply the lags; the sector links' ETF months start there too.
+        start = quarter_index(f"{ESTIMATE_FROM[:4]}-{(int(ESTIMATE_FROM[5]) - 1) * 3 + 1:02d}")
+        q = q[q["qi"] >= start]
+        quarters = [x for x in quarters if x >= start]
+        sm_rows = sm_rows[sm_rows["qi"] >= start]
 
     info = {
         "quarters": (quarter_label(quarters[0]), quarter_label(quarters[-1])),

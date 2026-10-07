@@ -196,8 +196,8 @@ export function WhatIfAccuracyView() {
           <code>research/experiments.md</code>.
         </p>
         <p>
-          <strong>Limits.</strong> Deal figures in weak coverage years (2019–2020 and a few earlier sector-years) can&apos;t be scored, so deal results lean on 2021
-          onward. Quarterly deal values hinge on single megadeals and stay close to a coin flip. Re-run with <code>npm run backtest</code>; the full report is
+          <strong>Limits.</strong> Deal figures in weak coverage years (2010–2011, 2020 and a few sector-years) are left out of the estimation and can&apos;t be
+          scored. The links learn from history back to 2010; the scoring yardstick (trends and the calendar pattern) is measured from 2015. Quarterly deal values hinge on single megadeals and stay close to a coin flip. Re-run with <code>npm run backtest</code>; the full report is
           in <code>research/backtest.md</code>.
         </p>
       </AboutData>
