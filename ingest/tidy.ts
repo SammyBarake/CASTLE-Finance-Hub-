@@ -14,6 +14,11 @@ export function junkReason(d: StoredDeal): string | null {
   for (const c of [d.acquirer, d.target]) if (!isPlausibleName(c.name) && !isPlaceholderBuyer(c.name)) return `implausible name "${c.name}"`;
   if (!d.target.cik && isMergerVehicle(d.target.name)) return `merger vehicle as target "${d.target.name}"`;
   if (d.acquirer.cik && d.acquirer.cik === d.target.cik) return "acquirer and target are the same registrant";
+  // The same company on both sides once names are cleaned ("Nasdaq-listed Gryphon Digital Mining" buying
+  // "Gryphon Digital Mining, Inc." was a reverse merger read as a self-deal).
+  // The exact same name ignoring legal suffixes ("Viking Global Technologies" and "Viking Energy" are not).
+  if (!(d.acquirer.cik && d.target.cik) && normalizeName(cleanPartyName(d.acquirer.name)) === normalizeName(cleanPartyName(d.target.name)))
+    return "acquirer and target are the same company";
   // Business development companies are investment funds, out of scope: "BDC" in the name, or an "… Investment /
   // Capital / Finance / Credit Corp" with no industry code (operating companies have one; BDCs usually don't).
   if (!d.privateTarget && (/\bBDC\b/.test(d.target.name) || (!d.industry && /\b(?:Investment|Capital|Finance|Credit|Lending)\s+(?:Corp(?:oration)?|Inc\.?|Company)$/i.test(d.target.name.trim()))))
@@ -89,10 +94,12 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     result.dropped.push({ id: d.id, reason });
   };
 
+  // Clean first, then judge: "Leading Loyalty Provider Punchh Inc." becomes "Punchh Inc." rather than being dropped.
   for (const d of [...deals]) {
+    const changed = sanitizeDeal(d);
     const why = junkReason(d);
     if (why) drop(d, why);
-    else if (sanitizeDeal(d)) result.sanitized++;
+    else if (changed) result.sanitized++;
   }
 
   // Group by target: the CIK for listed targets, the name for private ones.

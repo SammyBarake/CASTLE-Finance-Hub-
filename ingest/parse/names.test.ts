@@ -1,6 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
+describe("descriptions, tails and fragments read as names", () => {
+  it("strips a 'Leading … Provider' description, a 'via …' tail, a listing prefix and a dangling connector", () => {
+    expect(cleanPartyName("Leading Loyalty Provider Punchh Inc.")).toBe("Punchh Inc.");
+    expect(cleanPartyName("Leading Metal Roof Components Manufacturer LSI Group")).toBe("LSI Group");
+    expect(cleanPartyName("Leading Healthcare Data and Analytics Firm Benefits Science LLC")).toBe("Benefits Science LLC");
+    expect(cleanPartyName("SHUSA via an all-cash tender offer")).toBe("SHUSA");
+    expect(cleanPartyName("Nasdaq-listed Gryphon Digital Mining")).toBe("Gryphon Digital Mining");
+    expect(cleanPartyName("Corlieve Therapeutics and")).toBe("Corlieve Therapeutics");
+    // Real names stay: "Via" capitalised is a name, "And" inside a name too.
+    expect(cleanPartyName("ViaSat, Inc.")).toBe("ViaSat, Inc.");
+    expect(cleanPartyName("Procter And Gamble")).toBe("Procter And Gamble");
+  });
+
+  it("rejects group structure, paperwork, places, descriptions and products", () => {
+    for (const s of [
+      "Cayman Islands and a wholly-owned subsidiary of the Company",
+      "Parent and its subsidiaries, including the General Partner",
+      "Merger by and among the Company, HyperScale Nexus Holding Corporation",
+      "Leading Social Media & Technology",
+      "Texas-based",
+      "EnvisionTEC's Category-leading Product",
+      "Non-operated Oil and Gas",
+    ])
+      expect(isPlausibleName(s), s).toBe(false);
+    expect(isPlausibleName("U.S. Subsidiary")).toBe(false);
+    for (const s of ["Air Products and Chemicals, Inc.", "Premier, Inc.", "Premier NYC", "Leidos Holdings, Inc."]) expect(isPlausibleName(s), s).toBe(true);
+  });
+});
+
 describe("headline and press-release debris", () => {
   it("cuts signing verbs, release labels, owner-of tails and joint-venture wording", () => {
     expect(cleanPartyName("Smart for Life Executes Definitive Agreement")).toBe("Smart for Life");

@@ -102,7 +102,15 @@ export function cleanPartyName(raw: string): string {
   // "A Joint Venture Between Affiliates Of Highgate And Cerberus …" -> "Highgate and Cerberus …"
   const jv = /^(?:an?\s+)?joint venture (?:between|of|formed by)\s+(?:affiliates of\s+)?/i;
   if (jv.test(s)) s = s.replace(jv, "").replace(/\s+And\s+(?:Affiliates Of\s+)?(?=[A-Z])/gi, " and ");
+  // A description in front of the name: "Leading Loyalty Provider Punchh Inc." -> "Punchh Inc.",
+  // "Leading Metal Roof Components Manufacturer LSI Group" -> "LSI Group".
+  s = s.replace(
+    /^(?:an?\s+)?(?:Leading|Premier)\s+(?:[A-Z][\w&.'-]*\s+(?:(?:and|&)\s+)?){0,6}?(?:Provider|Supplier|Manufacturer|Maker|Firm|Company|Developer|Distributor|Operator|Platform|Specialist|Leader)\s+(?=[A-Z])/,
+    "",
+  );
   s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
+  // "SHUSA via an all-cash tender offer" -> "SHUSA" (lower-case "via" only: ViaSat and Via Renewables are names).
+  s = s.replace(/\s+via\s+.*$/, "");
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
   // A description glued in front of a one-word brand: "Antibody and Reagent Leader BioLegend" -> "BioLegend",
   // "Sports Betting Company Openbet" -> "Openbet".
@@ -112,8 +120,10 @@ export function cleanPartyName(raw: string): string {
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
-  s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based)\s+(?=\S)/i, "");
+  s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based|(?:Nasdaq|NYSE|NYSE American|publicly)[- ](?:listed|traded))\s+(?=\S)/i, "");
   s = s.replace(/['’]s$/, "");
+  // A connector left at the end: "Corlieve Therapeutics and" -> "Corlieve Therapeutics".
+  s = s.replace(/\s+(?:and|&|of|for|with)$/i, "");
   s = s.replace(/[\s,;:\-–]+$/g, "").replace(/^["'\s]+|["'\s]+$/g, "");
   // Keep "Inc." / "Co." periods, drop a stray trailing sentence period otherwise.
   if (/\.$/.test(s) && !/\b(?:Inc|Corp|Co|Ltd|L\.P|N\.V|S\.A|[A-Z])\.$/.test(s)) s = s.slice(0, -1);
@@ -160,4 +170,14 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s) &&
   !/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}$/i.test(s.trim()) &&
   // Other legal documents an 8-K describes: "Restated Credit Agreement", "Notes and the Indenture are jointly …".
-  !/\b(?:credit agreement|loan agreement|security agreement|indenture|amendment no|amended and restated|restated credit|supplemental)\b|^(?:the )?notes\b/i.test(s);
+  !/\b(?:credit agreement|loan agreement|security agreement|indenture|amendment no|amended and restated|restated credit|supplemental)\b|^(?:the )?notes\b/i.test(s) &&
+  // Group structure and paperwork, not a party: "Cayman Islands and a wholly-owned subsidiary of the Company",
+  // "Parent and its subsidiaries, including the General Partner", "Merger by and among the Company, …".
+  !/\bwholly[- ]owned subsidiary\b|\bsubsidiary of the Company\b|\bits subsidiaries\b|\bincluding the\b|\bby and among\b/i.test(s) &&
+  // A description, a place or a product, not a company: "Leading Social Media & Technology", "Texas-based",
+  // "EnvisionTEC's Category-leading Product", "Non-operated Oil and Gas" (working interests).
+  !/^Leading\s/.test(s) &&
+  !/^(?:the\s+)?(?:U\.?S\.?\s+)?subsidiary(?:\s+of)?$/i.test(s.trim()) &&
+  !/^[A-Za-z.]+-based$/i.test(s.trim()) &&
+  !/\bProduct$/.test(s.trim()) &&
+  !/^Non-operated\b/i.test(s);

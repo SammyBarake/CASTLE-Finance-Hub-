@@ -228,8 +228,16 @@ export function LineChart({
     } else {
       chart.data.datasets = series.map((s) => ({ label: s.label, data: s.data, hidden: s.hidden, ...style(s) }));
     }
-    // A different time window is a different picture: switch without a sliding animation.
-    chart.update(labelsChanged && sameShape ? "none" : undefined);
+    if (!sameShape) {
+      // New datasets have no previous position, so Chart.js would fly them in from the canvas corner. Lay them out,
+      // put them back on the baseline, then animate: bars grow up from zero and lines rise from the axis.
+      chart.update("none");
+      chart.reset();
+      chart.update();
+    } else {
+      // A different time window is a different picture: switch without a sliding animation.
+      chart.update(labelsChanged ? "none" : undefined);
+    }
     setTip((t) => ({ ...t, visible: false }));
   }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks]);
 

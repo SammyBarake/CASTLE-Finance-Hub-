@@ -34,4 +34,14 @@ describe("titleCaseCaps", () => {
     expect(titleCaseCaps("TRINITY AIR MEDICAL")).toBe("Trinity Air Medical");
     expect(titleCaseCaps("C&K SWITCHES")).toBe("C&K Switches");
   });
+
+  it("capitalises after Mc and O'", () => {
+    expect(titleCaseCaps("MCKESSON CORP")).toBe("McKesson Corp");
+    expect(titleCaseCaps("O'REILLY AUTOMOTIVE")).toBe("O'Reilly Automotive");
+    expect(displayCompanyName("Marsh & Mclennan Companies, Inc.")).toBe("Marsh & McLennan Companies, Inc.");
+    expect(displayCompanyName("Columbus Mckinnon Corp")).toBe("Columbus McKinnon Corp");
+    // Only the Mc prefix: "Macy's" and "Mack" are left alone.
+    expect(displayCompanyName("Macy's, Inc.")).toBe("Macy's, Inc.");
+    expect(titleCaseCaps("MACK TRUCKS")).toBe("Mack Trucks");
+  });
 });

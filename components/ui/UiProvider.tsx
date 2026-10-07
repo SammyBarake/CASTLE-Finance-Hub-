@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 export interface DialogContent {
@@ -45,7 +45,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const originRef = useRef<HTMLElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [menu, setMenu] = useState<{ items: MenuItem[]; at: MenuPosition; refresh?: boolean } | null>(null);
-  const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
+  /** Where the menu sits, the point it scales out from, and whether it opened above its anchor (no room below). */
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number; origin: string; above: boolean } | null>(null);
+  const [menuClosing, setMenuClosing] = useState(false);
+  const menuCloseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const dialogStateRef = useRef<DialogContent | null>(null);
@@ -67,6 +70,8 @@ export function UiProvider({ children }: { children: ReactNode }) {
     }
     dialogStateRef.current = content;
     menuStateRef.current = null;
+    clearTimeout(menuCloseTimer.current);
+    setMenuClosing(false);
     setMenu(null);
     setDialog(content);
   }, []);
@@ -96,13 +101,25 @@ export function UiProvider({ children }: { children: ReactNode }) {
     const current = menuStateRef.current;
     const sameAnchor = !!current && "anchor" in current.at && "anchor" in at && current.at.anchor === at.anchor;
     if (!sameAnchor) setMenuPos(null);
+    clearTimeout(menuCloseTimer.current);
+    setMenuClosing(false);
     menuStateRef.current = { at };
     setMenu({ items, at, refresh: sameAnchor });
   }, []);
+  // A short fade-out before the menu goes; keyboard focus goes back to the button that opened it.
   const closeMenu = useCallback(() => {
+    const current = menuStateRef.current;
+    if (!current) return;
+    if ("anchor" in current.at && menuRef.current?.contains(document.activeElement)) current.at.anchor.focus({ preventScroll: true });
     menuStateRef.current = null;
-    setMenu(null);
+    setMenuClosing(true);
+    clearTimeout(menuCloseTimer.current);
+    menuCloseTimer.current = setTimeout(() => {
+      setMenu(null);
+      setMenuClosing(false);
+    }, 110);
   }, []);
+  useEffect(() => () => clearTimeout(menuCloseTimer.current), []);
 
   // Place the menu once it has a size, keeping it inside the viewport.
   useLayoutEffect(() => {
@@ -110,16 +127,36 @@ export function UiProvider({ children }: { children: ReactNode }) {
     if (!menu || !el || menu.refresh) return;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    let x: number, y: number;
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
+    // Below the anchor (or the pointer) when it fits; above it when it doesn't and there's room there.
+    let x: number, y: number, above = false;
     if ("anchor" in menu.at) {
       const r = menu.at.anchor.getBoundingClientRect();
       x = r.right - w;
-      y = r.bottom + 7;
+      y = r.bottom + 6;
+      if (y + h > innerHeight - 12 && r.top - h - 6 >= 12) {
+        y = r.top - h - 6;
+        above = true;
+      }
     } else {
       x = menu.at.x;
       y = menu.at.y;
+      if (y + h > innerHeight - 12 && y - h >= 12) {
+        y -= h;
+        above = true;
+      }
     }
-    setMenuPos({ left: Math.max(12, Math.min(x, innerWidth - w - 12)), top: Math.max(12, Math.min(y, innerHeight - h - 12)) });
+    const left = clamp(x, 12, innerWidth - w - 12);
+    const top = clamp(y, 12, innerHeight - h - 12);
+    // Scale out from the anchor's middle edge, or from the pointer.
+    let origin: string;
+    if ("anchor" in menu.at) {
+      const r = menu.at.anchor.getBoundingClientRect();
+      origin = `${clamp(r.left + r.width / 2 - left, 0, w)}px ${above ? h : 0}px`;
+    } else {
+      origin = `${clamp(menu.at.x - left, 0, w)}px ${clamp(menu.at.y - top, 0, h)}px`;
+    }
+    setMenuPos({ left, top, origin, above });
     el.querySelector<HTMLElement>("button, input")?.focus({ preventScroll: true });
   }, [menu]);
 
@@ -159,16 +196,18 @@ export function UiProvider({ children }: { children: ReactNode }) {
       {menu && (
         <div
           ref={menuRef}
-          className="context-menu"
+          className={`context-menu${menuPos?.above ? " above" : ""}${menuClosing ? " closing" : ""}`}
           role="menu"
-          style={{ left: menuPos?.left ?? -9999, top: menuPos?.top ?? -9999, maxHeight: "calc(100vh - 24px)" }}
+          style={{ left: menuPos?.left ?? -9999, top: menuPos?.top ?? -9999, maxHeight: "calc(100vh - 24px)", transformOrigin: menuPos?.origin }}
         >
           {menu.items.map((item, i) => {
-            if (item.kind === "title") return <div key={i} className="menu-title">{item.label}</div>;
-            if (item.kind === "rule") return <div key={i} className="menu-rule" />;
+            // `--i` staggers the items' entrance.
+            const stagger = { "--i": i } as CSSProperties;
+            if (item.kind === "title") return <div key={i} className="menu-title" style={stagger}>{item.label}</div>;
+            if (item.kind === "rule") return <div key={i} className="menu-rule" style={stagger} />;
             if (item.kind === "check")
               return (
-                <label key={i} role="menuitemcheckbox" aria-checked={item.checked}>
+                <label key={i} role="menuitemcheckbox" aria-checked={item.checked} style={stagger}>
                   <input type="checkbox" checked={item.checked} disabled={item.disabled} onChange={(e) => item.onToggle(e.target.checked)} />
                   <span>{item.label}</span>
                 </label>
@@ -178,6 +217,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
                 key={i}
                 type="button"
                 role="menuitem"
+                style={stagger}
                 onClick={() => {
                   closeMenu();
                   item.onSelect();

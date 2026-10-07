@@ -79,6 +79,20 @@ describe("junkReason", () => {
     expect(junkReason(deal({ industry: "State Commercial Banks", target: { name: "Pinnacle Capital Corp", ticker: null, cik: "123" } }))).toBeNull();
   });
 
+  it("rejects the same company on both sides by name", () => {
+    expect(junkReason(deal({ acquirer: { name: "Nasdaq-listed Gryphon Digital Mining", ticker: null, cik: null }, target: { name: "Gryphon Digital Mining, Inc.", ticker: "GRYP", cik: "1" } }))).toMatch(/same company/);
+    expect(junkReason(deal({ acquirer: { name: "Hampton Roads Bankshares, Inc.", ticker: null, cik: null }, target: { name: "Xenith Bankshares, Inc.", ticker: null, cik: "2" } }))).toBeNull();
+    // A shared first word isn't the same company.
+    expect(junkReason(deal({ acquirer: { name: "Viking Global Technologies, Inc.", ticker: null, cik: null }, target: { name: "Viking Energy", ticker: null, cik: null }, privateTarget: true }))).toBeNull();
+  });
+
+  it("cleans a described name before judging it", () => {
+    const d = deal({ privateTarget: true, target: { name: "Leading Loyalty Provider Punchh Inc.", ticker: null, cik: null } });
+    const deals = [d];
+    expect(tidyDeals(deals).dropped).toEqual([]);
+    expect(d.target.name).toBe("Punchh Inc.");
+  });
+
   it("rejects SPACs buying private companies, and bare legal suffixes as names", () => {
     const spac = deal({ privateTarget: true, industry: "Blank Checks", acquirer: { name: "Global Star Acquisition Inc.", ticker: "GLST", cik: "1922331" }, target: { name: "K Enter Holdings Inc.", ticker: null, cik: null } });
     expect(junkReason(spac)).toMatch(/SPAC buyer/);

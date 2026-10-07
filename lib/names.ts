@@ -6,7 +6,10 @@ const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: 
 const MINOR = new Set(["OF", "AND", "FOR", "AT", "IN", "ON", "BY", "TO", "THE", "A", "AN"]);
 const SHORT_WORDS = new Set(["AIR", "OIL", "GAS", "SEA", "SUN", "BAY", "CAR", "NEW", "ONE", "TWO", "BIG", "RED", "TOP", "WAY", "FOX", "KEY", "ART", "LAW", "PRO", "BIO", "ITS", "OLD", "ICE", "SKY", "BAR", "WAR", "LAB", "EYE", "DOG", "CAT", "BOX", "HUB"]);
 
-const capWord = (w: string) => w.replace(/[A-Z][A-Z'’&-]*/g, (t) => t[0] + t.slice(1).toLowerCase());
+const capWord = (w: string) =>
+  w.replace(/[A-Z][A-Z'’&-]*/g, (t) => t[0] + t.slice(1).toLowerCase()).replace(/\b([A-Z])(['’])([a-z])/g, (_, a: string, q: string, c: string) => a + q + c.toUpperCase());
+/** "Mckesson" -> "McKesson", "Mclennan" -> "McLennan": the letter after a "Mc" prefix is a capital. */
+const fixMc = (s: string) => s.replace(/\bMc([a-z])/g, (_, c: string) => "Mc" + c.toUpperCase());
 
 /**
  * "TETON FINANCIAL SERVICES" -> "Teton Financial Services"; "WTG MIDSTREAM" -> "WTG Midstream". Only names written
@@ -26,7 +29,7 @@ export function titleCaseCaps(name: string): string {
       if (SHORT_WORDS.has(w)) return w[0] + w.slice(1).toLowerCase();
       if (SUFFIX_CASE[w]) return SUFFIX_CASE[w];
       if (KEEP_CAPS.test(w.replace(/[,.]$/, "")) || /&|\d|\.[A-Z]/.test(w)) return w;
-      return capWord(w);
+      return fixMc(capWord(w));
     })
     .join("");
 }
@@ -51,5 +54,6 @@ export function displayCompanyName(raw: string): string {
   s = s.replace(/(?<=\S\s)(Of|And|For|The|At|In|On)(?=\s)/g, (w) => w.toLowerCase());
   // Suffixes and numerals title-cased word by word: "Northstrive Fund Ii Lp" -> "Northstrive Fund II LP".
   s = s.replace(/\b(?:Lp|Llp|Llc|Ii|Iii)\b/g, (w) => w.toUpperCase());
-  return s;
+  // Names stored title-cased before the "Mc" rule: "Mckesson Corp" -> "McKesson Corp".
+  return fixMc(s);
 }
