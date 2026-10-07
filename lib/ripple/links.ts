@@ -68,6 +68,11 @@ export const MACRO_UNITS: Record<Macro, { size: number; label: string }> = {
 export interface FeatureLink extends Estimate {
   from: Feature;
   to: Feature;
+  /**
+   * Value per target sector, where the data finds the link differs by sector (overrides `value` for that sector;
+   * `value` is then their average). Only estimated links have one.
+   */
+  bySector?: Partial<Record<Sector, number>>;
   direction: Direction;
   strength: Strength;
   lag: Lag;

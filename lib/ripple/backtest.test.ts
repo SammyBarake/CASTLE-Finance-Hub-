@@ -110,6 +110,27 @@ describe("backtest scoring", () => {
     expect(q1).toBeCloseTo(avg, 1);
   });
 
+  it("feeds earlier quarters' shocks: only their part still to come counts", () => {
+    // Tech valuations jump 10 a quarter before the origin (offset by a fall long before, so the trend stays 0).
+    const p = panel(14, 0, (r) => {
+      if (r.sector === "Tech" && r.qi === 7) r.valuation = 10;
+      if (r.sector === "Tech" && r.qi === 1) r.valuation = -10;
+    });
+    const at = (history: number, links: Links) => backtest(p, [8], () => links, { lambda: 1, rounds: 1, history }).points;
+    // No links, prices persisting: last quarter's jump is already in the starting level, so it adds nothing.
+    const val = (h: number) => at(h, NONE).find((x) => x.feature === "valuation")!.predicted;
+    expect(val(1)).toEqual(val(0));
+    // With links, the jump's lagged effect on IPOs is still to come at the origin: history 1 predicts it, history 0 can't.
+    const ipo = (h: number) => at(h, DEFAULT_LINKS).find((x) => x.feature === "ipoCount")!.predicted;
+    expect(ipo(0)).toEqual([0, 0, 0, 0]);
+    expect(ipo(1)[0]!).toBeGreaterThan(0);
+    // The four-quarter baseline already holds part of a flow's level: the prediction is the level less that average.
+    const path = runRipple({ sectors: { Tech: { valuation: 10 } } }, { links: DEFAULT_LINKS, lambda: 1, rounds: 1, quarters: 5 }).quarters;
+    const lvl = (x: number) => (x >= 0 ? path[x].sectors.Tech.ipoCount.mid : 0);
+    const techOnly = (lvl(1) - (lvl(0) + lvl(-1) + lvl(-2) + lvl(-3)) / 4) / SECTORS.length;
+    expect(ipo(1)[0]!).toBeGreaterThanOrEqual(techOnly - 1e-6);
+  });
+
   it("puts prior widths into words", () => {
     expect(priorWords("0.5")).toBe("priors ×0.5");
     expect(priorWords("f0.25/s0.5/m1")).toBe("priors ×0.25 links, ×0.5 spillovers, ×1 macro");

@@ -40,9 +40,13 @@ export function accuracyInsights(file: BacktestFile): string[] {
   const dv = pool(file.features.dealValue);
   if (dv != null && dv < 0.56) out.push(`Deal values are close to a coin flip (${pct(dv)} right): one megadeal can make or break a sector's quarter.`);
   const held = file.halves.every((h) => h.chosen > h.previous);
-  out.push(
-    `Tuning lifted average skill from ${file.summary.previous.score.toFixed(3)} to ${file.summary.chosen.score.toFixed(3)}${held ? ", and it held in both halves of the period" : ""}.`,
-  );
+  const only = file.summary.thisQuarterOnly;
+  const now = file.summary.chosen.all.hitRate;
+  if (file.chosen.history && only?.all.hitRate != null && now != null && now > only.all.hitRate) {
+    out.push(`Feeding in the last ${file.chosen.history} quarters' moves, whose effects are still rippling, lifted direction from ${pct(only.all.hitRate)} to ${pct(now)}.`);
+  } else {
+    out.push(`Tuning lifted average skill from ${file.summary.previous.score.toFixed(3)} to ${file.summary.chosen.score.toFixed(3)}${held ? ", and it held in both halves of the period" : ""}.`);
+  }
   return out;
 }
 
@@ -61,6 +65,12 @@ export function tuningChanges(file: BacktestFile): { setting: string; before: st
     { setting: "Links", before: "estimated, normal priors", after: ch.linkSet === "hand-set" ? "hand-set" : `estimated, ${priorWords(ch.priorScale)}` },
     { setting: "Effects of effects", before: "off", after: ch.rounds === 1 ? "off" : `${ch.rounds} rounds` },
     ...FEATURES.map((f) => ({ setting: `${FEATURE_NAMES[f]} fade`, before: "30%/qtr", after: fade(ch.lambda[f]) })),
+    { setting: "Shocks fed in", before: "this quarter's", after: ch.history ? `+ last ${ch.history === 1 ? "quarter's" : `${ch.history} quarters'`}` : "this quarter's" },
+    {
+      setting: "Direction right",
+      before: file.summary.previous.all.hitRate != null ? pct(file.summary.previous.all.hitRate) : "—",
+      after: file.summary.chosen.all.hitRate != null ? pct(file.summary.chosen.all.hitRate) : "—",
+    },
     { setting: "Average skill", before: file.summary.previous.score.toFixed(3), after: file.summary.chosen.score.toFixed(3) },
   ];
 }

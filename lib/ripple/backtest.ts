@@ -14,7 +14,7 @@
  */
 import type { Sector } from "../types";
 import { SECTORS } from "../types";
-import { runRipple, type Fade, type Links, type RippleOptions, type RippleShock } from "./engine";
+import { runRipple, type Fade, type Links, type QuarterResult, type RippleOptions, type RippleShock } from "./engine";
 import { FEATURES, MACROS, type Feature, type Macro } from "./links";
 
 export type PanelRow = { sector: Sector; qi: number; quarter: string } & Record<Feature, number | null> & Record<Macro, number | null>;
@@ -157,21 +157,78 @@ export interface ForecastPoint {
  * Run the engine at every origin and score it. `links(t)` gives the links known at t (re-estimated out of sample).
  * Every origin's forecast is also returned, averaged over sectors, for charts.
  */
-export function backtest(panel: PanelRow[], origins: number[], links: (t: number) => Links, opts: RippleOptions = {}): { scores: Scores; points: ForecastPoint[] } {
+export interface BacktestOptions extends RippleOptions {
+  /**
+   * Quarters of earlier shocks fed in as well (0 = this quarter's only). A move one or two quarters ago is still
+   * rippling through the lagged links at t; its part still to come counts, measured from the same baseline as the
+   * realised outcome (the quarter before t for valuations, the four quarters before t for flows).
+   */
+  history?: number;
+  /**
+   * Earlier quarters also bring their deal and IPO surprises (the change versus trend, calendar pattern taken out), not
+   * only prices and macro: the engine propagates them like any shock, and its fade decides how much persists.
+   * The forecast quarter's own deals and IPOs are never an input (they're what is scored).
+   */
+  flowHistory?: boolean;
+  /** Take the macro-explained part out of each ETF move (default; false only for experiments). */
+  netOfMacro?: boolean;
+  /** Trend an ETF move is measured against as an input: the sector's own (default), the all-sector average, or none. */
+  inputTrend?: "sector" | "pooled" | "none";
+  /** Cap on each input ETF move, in points (experiments; default none). */
+  inputCap?: number;
+  /** Called with every scored forecast (diagnostics). */
+  trace?: (row: { t: number; sector: Sector; feature: Feature; k: number; predicted: number; realized: number }) => void;
+}
+
+export function backtest(panel: PanelRow[], origins: number[], links: (t: number) => Links, opts: BacktestOptions = {}): { scores: Scores; points: ForecastPoint[] } {
   const index = indexPanel(panel);
   const scores = emptyScores();
   const points: ForecastPoint[] = [];
+  const { history = 0, flowHistory = false, netOfMacro = true, inputTrend = "sector", inputCap, trace, ...engineOpts } = opts;
   for (const t of origins) {
     const base = baselines(panel, t);
     const season = seasonality(panel, t, base);
-    const shock = scenarioAt(index, t, base);
-    if (!shock) continue;
     const linkSet = links(t);
-    // The quarter's ETF move already contains the macro inputs' same-quarter effect: feed the engine only the rest,
+    // A quarter's ETF move already contains the macro inputs' same-quarter effect: feed the engine only the rest,
     // so Q1 valuations match what happened and nothing is counted twice.
-    const macroPart = runRipple({ macro: shock.macro }, { ...opts, links: linkSet, quarters: 1 }).quarters[0].sectors;
-    for (const s of SECTORS) shock.sectors![s]!.valuation! -= macroPart[s].valuation.mid;
-    const result = runRipple(shock, { ...opts, links: linkSet, quarters: HORIZON });
+    const pooledTrend = SECTORS.reduce((a, s) => a + base[s].valuation, 0) / SECTORS.length;
+    const inputBase: Baselines =
+      inputTrend === "sector"
+        ? base
+        : (Object.fromEntries(SECTORS.map((s) => [s, { ...base[s], valuation: inputTrend === "pooled" ? pooledTrend : 0 }])) as Baselines);
+    const inputsAt = (q: number) => {
+      const shock = scenarioAt(index, q, inputBase);
+      if (!shock) return null;
+      const macroPart = runRipple({ macro: shock.macro }, { ...engineOpts, links: linkSet, quarters: 1 }).quarters[0].sectors;
+      if (netOfMacro) for (const s of SECTORS) shock.sectors![s]!.valuation! -= macroPart[s].valuation.mid;
+      if (inputCap) for (const s of SECTORS) shock.sectors![s]!.valuation = Math.max(-inputCap, Math.min(inputCap, shock.sectors![s]!.valuation!));
+      if (flowHistory && q < t) {
+        for (const s of SECTORS) {
+          for (const f of FEATURES) {
+            if (f === "valuation") continue;
+            const v = index.get(key(s, q))?.[f];
+            // The quarter's calendar step (seasonal level change) is expected, not a surprise.
+            if (v != null) shock.sectors![s]![f] = v - base[s][f] - (season[f][q % 4] - season[f][(q + 3) % 4]);
+          }
+        }
+      }
+      return shock;
+    };
+    const shock = inputsAt(t);
+    if (!shock) continue;
+    const result = runRipple(shock, { ...engineOpts, links: linkSet, quarters: HORIZON });
+    // Earlier shocks: quarter offset x from the shock (x < 0 is before it, no effect yet).
+    const past: { j: number; path: QuarterResult[] }[] = [];
+    for (let j = 1; j <= history; j++) {
+      const earlier = inputsAt(t - j);
+      if (earlier) past.push({ j, path: runRipple(earlier, { ...engineOpts, links: linkSet, quarters: j + HORIZON }).quarters });
+    }
+    const pastEffect = (s: Sector, f: Feature, k: number) =>
+      past.reduce((sum, { j, path }) => {
+        const level = (x: number) => (x >= 0 ? path[x].sectors[s][f].mid : 0);
+        const from = f === "valuation" ? level(j - 1) : (level(j - 1) + level(j - 2) + level(j - 3) + level(j - 4)) / 4;
+        return sum + level(j + k - 1) - from;
+      }, 0);
     const quarter = index.get(key(SECTORS[0], t))!.quarter;
     for (const f of FEATURES) {
       const pSum = new Array<number>(HORIZON).fill(0);
@@ -182,11 +239,14 @@ export function backtest(panel: PanelRow[], origins: number[], links: (t: number
         for (let k = 1; k <= HORIZON; k++) {
           const r = real[k - 1];
           if (r == null) continue;
-          const p = result.quarters[k - 1].sectors[s][f].mid;
+          const p = result.quarters[k - 1].sectors[s][f].mid + pastEffect(s, f, k);
           pSum[k - 1] += p;
           rSum[k - 1] += r;
           count[k - 1]++;
-          if (!(f === "valuation" && k === 1)) addForecast(scores, f, k, p, r);
+          if (!(f === "valuation" && k === 1)) {
+            addForecast(scores, f, k, p, r);
+            trace?.({ t, sector: s, feature: f, k, predicted: p, realized: r });
+          }
         }
       }
       points.push({
@@ -244,6 +304,8 @@ export interface TunedSettings {
   priorScale: string | null;
   rounds: number;
   lambda: Fade;
+  /** Quarters of earlier shocks the backtest fed in at each forecast (the scenario screen runs one scenario). */
+  history: number;
   score: number;
   previousScore: number;
   /** Share of predicted moves with the right sign, all features. */
@@ -260,16 +322,18 @@ export interface BacktestFile {
   origins: { from: string; to: string; count: number };
   ipoHistory: boolean;
   horizon: number;
-  chosen: Pick<TunedSettings, "linkSet" | "priorScale" | "rounds" | "lambda"> & { label: string };
+  chosen: Pick<TunedSettings, "linkSet" | "priorScale" | "rounds" | "lambda" | "history"> & { label: string };
   summary: {
     chosen: { score: number; all: CellSummary; flows: CellSummary; valuation: CellSummary };
     previous: SetupSummary;
     handSet: SetupSummary;
+    /** The best setup fed only the forecast quarter's shocks. */
+    thisQuarterOnly: SetupSummary;
     noLinks: { score: number; flows: CellSummary };
   };
   features: Record<Feature, (CellSummary & { k: number })[]>;
   halves: { from: string; to: string; chosen: number; previous: number; handSet: number }[];
-  candidates: { label: string; linkSet: "hand-set" | "estimated"; priorScale: string | null; rounds: number; lambda: Fade; score: number; perFeature: Record<Feature, number> }[];
+  candidates: { label: string; linkSet: "hand-set" | "estimated"; priorScale: string | null; rounds: number; lambda: Fade; history: number; score: number; perFeature: Record<Feature, number> }[];
   points: ForecastPoint[];
 }
 

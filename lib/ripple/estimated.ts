@@ -19,6 +19,8 @@ interface EstimateRow {
   n: number;
   weight: number;
   prior: number;
+  /** Feature links the data finds differ by sector: one value per target sector. */
+  bySector?: Partial<Record<Sector, number>>;
 }
 
 interface MacroRow extends EstimateRow {
@@ -64,6 +66,7 @@ function withEstimate<T extends FeatureLink | SectorLink | MacroLink>(link: T, r
     direction: row.value < 0 ? "-" : "+",
     strength: strengthOf(kind, row.value),
     status: row.weight >= enough ? ESTIMATED : ASSUMPTION,
+    ...(row.bySector ? { bySector: row.bySector } : {}),
   };
 }
 

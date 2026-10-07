@@ -169,6 +169,13 @@ export function WhatIfAccuracyView() {
           <strong>Out of sample.</strong> At each of {B.origins.count} quarters from {B.origins.from} to {B.origins.to}, the links are re-estimated using only the
           data available before that quarter. The engine then gets that quarter&apos;s real inputs, the changes in Fed funds, the 10-year yield, the Baa spread
           and the VIX plus each sector&apos;s ETF move (less the part it already puts down to those macro changes), and predicts the next four quarters.
+          {B.chosen.history ? (
+            <>
+              {" "}It also gets the same inputs for the {B.chosen.history === 1 ? "quarter" : `${B.chosen.history} quarters`} before: their effects are still
+              travelling through the lagged links at the forecast date, so the part still to come counts. That lifted direction from{" "}
+              {pct(B.summary.thisQuarterOnly?.all.hitRate ?? null)} to {pct(s.chosen.all.hitRate)}. Deal and IPO numbers are never inputs.
+            </>
+          ) : null}
         </p>
         <p>
           <strong>Scoring.</strong> Deal and IPO counts are compared with the average of the four quarters before (plus trend), because a single quarter is
@@ -182,9 +189,10 @@ export function WhatIfAccuracyView() {
           quarters they are scored on flatters them a little, so the two halves of the period are shown separately.
         </p>
         <p>
-          <strong>Tried and rejected.</strong> Magnitude calibration (it fitted the 2020 quarters and failed cross-validation), separate prior strengths per
-          link type, quarter-of-year controls, megadeal-capped deal values, stronger clipping, six extra sector spillovers the data suggested, end-of-quarter
-          macro changes and leaving out the pandemic quarters. None beat the settings above out of sample; the log is in{" "}
+          <strong>Tried and rejected.</strong> Magnitude calibration (it fitted the 2020 quarters and failed cross-validation), quarter-of-year controls,
+          megadeal-capped deal values, stronger clipping, six extra sector spillovers the data suggested, end-of-quarter macro changes, leaving out the
+          pandemic quarters, feeding past deal and IPO surprises, more than two quarters of history, sector-specific deal links, weighting recent years,
+          capping big market moves and averaging several link sets. None beat the settings above out of sample; the log is in{" "}
           <code>research/experiments.md</code>.
         </p>
         <p>

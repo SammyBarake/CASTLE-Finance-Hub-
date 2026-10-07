@@ -65,6 +65,12 @@ DEAL_VALUE = "total"  # or "capped": estimate deal-value links on deals capped a
 MACRO_TIMING = "average"  # or "end": macro changes between quarter-end months
 # Quarters left out of the estimation (as the quarter explained), e.g. the pandemic shutdown: ["2020Q1", "2020Q2", "2020Q3"].
 EXCLUDE_QUARTERS: list[str] = []
+# Recency weighting of the C / M equations: a quarter's weight halves every HALF_LIFE years back (None = equal weights).
+HALF_LIFE: float | None = None
+# Valuation → deal / IPO links may differ by sector (pharma buys biotech when prices fall; energy deals follow oil):
+# where an F-test rejects one common coefficient, each sector gets its own, shrunk toward the same hand-set prior.
+SECTOR_FEATURES = False
+SECTOR_FEATURE_TARGETS = ("dealCount", "dealValue", "ipoCount")
 N_BOOT = 1000
 SEED = 20261001
 ENOUGH_DATA = 0.5  # data weight at which a link drops the "assumption" badge
@@ -360,7 +366,28 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
             f_stat, p, _ = ols_with_fe(df, y, cols).compare_f_test(base)
             tests[(m, lag)] = float(p)
     specific = {k for k, p in tests.items() if p < SECTOR_SPECIFIC_P}
-    regs = feats + macro_regs(specific)
+
+    # The same for valuation → this target (deal and IPO targets only, when SECTOR_FEATURES is on).
+    def feature_regs(split: set) -> list[Regressor]:
+        out = []
+        for r in feats:
+            if r.source == "valuation" and r.lag in split:
+                for s in SECTORS:
+                    df[f"{r.name}_{s}"] = df[r.name] * (df["sector"] == s)
+                    out.append(Regressor(f"{r.name}_{s}", r.kind, r.source, r.lag, r.prior, s, scale=scale))
+            else:
+                out.append(r)
+        return out
+
+    split = set()
+    if SECTOR_FEATURES and target in SECTOR_FEATURE_TARGETS and "valuation" in available:
+        for lag in LAGS:
+            cols = [r.name for r in feature_regs({lag})] + [r.name for r in macro_regs(set())]
+            f_stat, p, _ = ols_with_fe(df, y, cols).compare_f_test(base)
+            tests[("valuation", lag)] = float(p)
+            if p < SECTOR_SPECIFIC_P:
+                split.add(lag)
+    regs = feature_regs(split) + macro_regs(specific)
     cols = [r.name for r in regs]
 
     groups = df["sector"].to_numpy()
@@ -371,6 +398,12 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
     final = ols_with_fe(df, y, cols)
     sigma2 = float(final.ssr / final.df_resid)
     xd, yd = within(x, groups), within(yv[:, None], groups)[:, 0]
+    if HALF_LIFE:
+        # Recent quarters count more: weight halves every HALF_LIFE years back (mean weight 1).
+        qi = df["qi"].to_numpy(float)
+        w = 0.5 ** ((qi.max() - qi) / (4 * HALF_LIFE))
+        sw = np.sqrt(w / w.mean())
+        xd, yd = xd * sw[:, None], yd * sw
     mean, cov = posterior(xd, yd, mu, tau, sigma2)
     weight = np.clip(1 - np.diag(cov) / tau**2, 0, 1)
 
@@ -612,8 +645,18 @@ def collect(eqs: dict, sector_links: dict, handset: dict, info: dict):
     # Feature links: the coefficient of `from` at `lag` in the `to` equation.
     for l in handset["features"]:
         eq = eqs.get(l["to"])
-        idx = next((k for k, r in enumerate(eq["regs"]) if r.kind in ("feature", "absent") and r.source == l["from"] and r.lag == l["lag"]), None) if eq else None
+        idx = next((k for k, r in enumerate(eq["regs"]) if r.kind in ("feature", "absent") and r.source == l["from"] and r.lag == l["lag"] and r.sector is None), None) if eq else None
         tau = prior_sd("feature", l["value"])
+        per_sector = [(k, r) for k, r in enumerate(eq["regs"]) if r.kind in ("feature", "absent") and r.source == l["from"] and r.lag == l["lag"] and r.sector] if eq else []
+        if per_sector:
+            # One estimate per target sector; the link's own value is their average (what the report compares).
+            ks = [k for k, _ in per_sector]
+            v = float(np.mean(eq["mean"][ks]))
+            lo, hi = summarise(v, eq["draws"][:, ks].mean(axis=1))
+            links["features"].append({"key": l["key"], "value": rnd(v, "feature"), "range": [rnd(lo, "feature"), rnd(hi, "feature")], "n": eq["n"],
+                                      "weight": round(float(np.mean(eq["weight"][ks])), 2), "prior": l["value"],
+                                      "bySector": {r.sector: rnd(eq["mean"][k], "feature") for k, r in per_sector}})
+            continue
         if idx is None:
             reason = "IPO history not in yet" if "ipoCount" in (l["from"], l["to"]) and not info["ipoOk"] else \
                 "cross-sector co-movement: not estimable in a within-sector panel" if l["from"] == l["to"] else "no data"

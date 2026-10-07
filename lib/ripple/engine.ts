@@ -95,11 +95,17 @@ export function buildMatrices(links: Links = DEFAULT_LINKS): Matrices {
   const L = zeros(SECTORS.length, SECTORS.length);
   SECTORS.forEach((_, i) => (L[i][i] = 1));
   for (const l of links.sectors) L[SECTORS.indexOf(l.to)][SECTORS.indexOf(l.from)] += sectorValue(l);
-  const A = C.map((c) => {
-    const a = kron(c, L);
-    for (let i = 0; i < N; i++) a[i][i] = 0;
-    return a;
-  });
+  const A = C.map((c) => kron(c, L));
+  // A link that differs by sector replaces its common value in the target sector's rows: C_s[f][g] · L[s][t].
+  for (const l of links.features) {
+    if (!l.bySector) continue;
+    const common = featureValue(l);
+    for (const [sector, v] of Object.entries(l.bySector) as [Sector, number][]) {
+      const si = SECTORS.indexOf(sector);
+      SECTORS.forEach((_, t) => (A[l.lag][index(l.to, sector)][index(l.from, SECTORS[t])] += (v - common) * L[si][t]));
+    }
+  }
+  for (const a of A) for (let i = 0; i < N; i++) a[i][i] = 0;
   const M = LAGS.map(() => zeros(N, MACROS.length));
   for (const l of links.macro) {
     for (const s of l.sectors === "all" ? SECTORS : l.sectors) M[l.lag][index(l.to, s)][MACROS.indexOf(l.from)] += macroValue(l);

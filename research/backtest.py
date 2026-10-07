@@ -48,8 +48,12 @@ def main() -> None:
     ap.add_argument("--scales", default=",".join(PRIOR_SCALES), help="prior width labels to estimate, comma-separated")
     ap.add_argument("--macro", choices=["average", "end"], default=E.MACRO_TIMING, help="macro changes between quarter averages or quarter-end months")
     ap.add_argument("--exclude", default=",".join(E.EXCLUDE_QUARTERS), help="quarters left out of the estimation, e.g. 2020Q1,2020Q2,2020Q3")
+    ap.add_argument("--half-life", type=float, default=E.HALF_LIFE, help="recency weighting: weight halves every N years back")
+    ap.add_argument("--sector-features", choices=["on", "off"], default="on" if E.SECTOR_FEATURES else "off", help="sector-specific valuation → deal / IPO links where an F-test supports them")
     ap.add_argument("--out", default=str(OUT), help="where to write the inputs")
     args = ap.parse_args()
+    E.HALF_LIFE = args.half_life
+    E.SECTOR_FEATURES = args.sector_features == "on"
 
     handset = E.load_json("handset_links.json")
     # What the engine is scored against stays fixed (total deal values, standard clipping) whatever the estimation uses.

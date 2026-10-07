@@ -1,17 +1,18 @@
 {
- "generatedAt": "2026-10-07T01:36:13Z",
+ "generatedAt": "2026-10-07T03:03:42Z",
  "linkSet": "estimated",
- "priorScale": "f0.5/s1/m0.5",
+ "priorScale": "f0.25/s0.5/m0.5",
  "rounds": 3,
  "lambda": {
-  "valuation": 0.85,
+  "valuation": 1,
   "dealCount": 1,
   "dealValue": 1,
   "ipoCount": 0.55
  },
- "score": 0.119,
+ "history": 2,
+ "score": 0.164,
  "previousScore": 0.088,
- "hitRate": 0.6,
+ "hitRate": 0.65,
  "quarters": 31,
  "window": {
   "from": "2019Q1",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SECTORS } from "../types";
 import { adviserOutlook, adviserShares } from "./advisers";
-import { buildMatrices, DEFAULT_LAMBDA, explain, index, kron, N, runRipple, type RippleResult } from "./engine";
+import { buildMatrices, DEFAULT_LAMBDA, DEFAULT_LINKS, explain, index, kron, N, runRipple, type RippleResult } from "./engine";
 import { ASSUMPTION, FEATURE_LINKS, FEATURES, MACRO_LINKS, MACROS, SECTOR_LINKS } from "./links";
 
 const all = (r: RippleResult) => r.quarters.flatMap((q) => SECTORS.flatMap((s) => FEATURES.map((f) => q.sectors[s][f])));
@@ -15,6 +15,20 @@ describe("matrices", () => {
       [0, 15, 0, 20],
       [18, 21, 24, 28],
     ]);
+  });
+
+  it("uses a link's per-sector value in that target sector's rows only", () => {
+    const base = DEFAULT_LINKS;
+    const links = {
+      ...base,
+      features: base.features.map((l) => (l.from === "valuation" && l.to === "dealCount" && l.lag === 1 ? { ...l, value: 0.5, bySector: { Healthcare: -0.4 } } : l)),
+    };
+    const { A, L } = buildMatrices(links);
+    const hc = SECTORS.indexOf("Healthcare");
+    // Healthcare deal counts: −0.4 × L[Healthcare][from]; Tech deal counts keep 0.5 × L[Tech][from].
+    expect(A[1][index("dealCount", "Healthcare")][index("valuation", "Healthcare")]).toBeCloseTo(-0.4 * L[hc][hc]);
+    expect(A[1][index("dealCount", "Healthcare")][index("valuation", "Energy")]).toBeCloseTo(-0.4 * L[hc][SECTORS.indexOf("Energy")]);
+    expect(A[1][index("dealCount", "Tech")][index("valuation", "Tech")]).toBeCloseTo(0.5);
   });
 
   it("builds A = C ⊗ L per lag, without self-links", () => {
