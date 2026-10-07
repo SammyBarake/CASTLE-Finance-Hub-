@@ -71,10 +71,12 @@ describe("buildSectorMonthly", () => {
 
 describe("buildMacroMonthly", () => {
   it("lines the FRED series up by month, null where a series has no value", () => {
-    const rows = buildMacroMonthly({ fedFunds: { "2015-01": 0.11 }, vix: { "2015-01": 19.1, "2015-02": 15.9 } }, "2015-01", "2015-03");
+    const rows = buildMacroMonthly({ fedFunds: { "2015-01": 0.11 }, vix: { "2015-01": 19.1, "2015-02": 15.9 }, oil: { "2015-02": 50.6 } }, "2015-01", "2015-03", {
+      biotech: [{ month: "2015-01", close: 60, adjClose: 59.5 }],
+    });
     expect(rows).toEqual([
-      { month: "2015-01", fedFundsPct: 0.11, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 19.1, cpi: null },
-      { month: "2015-02", fedFundsPct: null, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 15.9, cpi: null },
+      { month: "2015-01", fedFundsPct: 0.11, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 19.1, cpi: null, oilUsd: null, biotech: 59.5 },
+      { month: "2015-02", fedFundsPct: null, treasury10yPct: null, hySpreadPct: null, baaSpreadPct: null, vix: 15.9, cpi: null, oilUsd: 50.6, biotech: null },
     ]);
   });
 });

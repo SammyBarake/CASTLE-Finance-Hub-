@@ -18,8 +18,13 @@ export const FRED_SERIES = {
   baaSpread: "BAA10Y", // Moody's Baa corporate yield minus 10-year Treasury, % (full history)
   vix: "VIXCLS", // CBOE VIX, index level
   cpi: "CPIAUCSL", // CPI-U, seasonally adjusted, 1982-84 = 100
+  oil: "DCOILWTICO", // WTI crude, $ a barrel (daily; FRED averages it by month)
 } as const;
 export type FredKey = keyof typeof FRED_SERIES;
+
+/** Index ETFs read like the sector ETFs: biotech (XBI, equal-weighted, mostly small biotechs, the IPO and deal pool). */
+export const INDEX_ETFS = { biotech: "XBI" } as const;
+export type IndexKey = keyof typeof INDEX_ETFS;
 
 export interface EtfMonth {
   /** "2015-01" */
@@ -89,6 +94,8 @@ export interface Markets {
   fetchedAt: string;
   etf: Partial<Record<Sector, EtfMonth[]>>;
   fred: Partial<Record<FredKey, Record<string, number>>>;
+  /** Index ETFs (INDEX_ETFS); missing in markets snapshots saved before October 2026. */
+  index?: Partial<Record<IndexKey, EtfMonth[]>>;
 }
 
 /**
@@ -96,8 +103,17 @@ export interface Markets {
  * history. Returns the merged result and the names of series that failed.
  */
 export async function fetchMarkets(from: string, before: string, previous: Markets | null, log: (s: string) => void): Promise<{ markets: Markets; failed: string[] }> {
-  const markets: Markets = { fetchedAt: new Date().toISOString(), etf: { ...previous?.etf }, fred: { ...previous?.fred } };
+  const markets: Markets = { fetchedAt: new Date().toISOString(), etf: { ...previous?.etf }, fred: { ...previous?.fred }, index: { ...previous?.index } };
   const failed: string[] = [];
+  for (const [key, ticker] of Object.entries(INDEX_ETFS) as [IndexKey, string][]) {
+    try {
+      markets.index![key] = await fetchEtfMonthly(ticker, from, before);
+      log(`  ${ticker}: ${markets.index![key]!.length} months`);
+    } catch (err) {
+      failed.push(ticker);
+      log(`  ! ${ticker}: ${(err as Error).message} (keeping previous values)`);
+    }
+  }
   for (const [sector, ticker] of Object.entries(SECTOR_ETFS) as [Sector, string][]) {
     try {
       markets.etf[sector] = await fetchEtfMonthly(ticker, from, before);

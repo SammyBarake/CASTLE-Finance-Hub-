@@ -1,6 +1,6 @@
 # Ripple links: hand-set vs estimated
 
-Generated 2026-10-07 03:04 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
+Generated 2026-10-07 03:26 UTC by `research/estimate_links.py` (`npm run estimate`). Do not edit by hand.
 
 ## Summary
 
@@ -25,17 +25,17 @@ Units: % per 1% move. Data alone = the OLS coefficient (± standard error) befor
 | Link | Hand-set | Data alone | Estimated | 90% range | n | Data weight | Verdict |
 |---|---|---|---|---|---|---|---|
 | Valuation → IPO count (1 quarter later) | +1.00 | +1.28 ± 0.48 | +1.06 | +0.85 to +1.28 | 220 | 11% | agreed (mostly prior) |
-| Valuation → IPO count (2 quarters later) | +0.50 | +0.28 ± 0.48 | +0.49 | +0.39 to +0.60 | 220 | 3% | agreed (mostly prior) |
-| Valuation → IPO count (same quarter) | +0.20 | +0.38 ± 0.46 | +0.20 | +0.16 to +0.25 | 220 | 0% | agreed (mostly prior) |
-| Valuation → Deal value (same quarter) | +0.50 | +0.40 ± 1.39 | +0.50 | +0.39 to +0.59 | 184 | 0% | agreed (mostly prior) |
-| Valuation → Deal value (1 quarter later) | +0.50 | +1.25 ± 1.44 | +0.50 | +0.40 to +0.60 | 184 | 0% | agreed (mostly prior) |
-| Valuation → Deal count (1 quarter later) | +0.50 | +0.16 ± 0.28 | +0.48 | +0.36 to +0.58 | 184 | 7% | agreed (mostly prior) |
+| Valuation → IPO count (2 quarters later) | +0.50 | +0.27 ± 0.48 | +0.49 | +0.39 to +0.60 | 220 | 3% | agreed (mostly prior) |
+| Valuation → IPO count (same quarter) | +0.20 | +0.37 ± 0.46 | +0.20 | +0.16 to +0.25 | 220 | 0% | agreed (mostly prior) |
+| Valuation → Deal value (same quarter) | +0.50 | +0.41 ± 1.39 | +0.50 | +0.39 to +0.59 | 184 | 0% | agreed (mostly prior) |
+| Valuation → Deal value (1 quarter later) | +0.50 | +1.27 ± 1.44 | +0.50 | +0.40 to +0.61 | 184 | 0% | agreed (mostly prior) |
+| Valuation → Deal count (1 quarter later) | +0.50 | +0.14 ± 0.28 | +0.47 | +0.36 to +0.57 | 184 | 7% | agreed (mostly prior) |
 | Valuation → Valuation (same quarter) | +0.20 | — | +0.20 | +0.02 to +0.37 | 0 | 0% | prior only: cross-sector co-movement: not estimable in a within-sector panel |
-| Deal count → Deal value (same quarter) | +1.00 | +0.84 ± 0.40 | +0.95 | +0.75 to +1.15 | 184 | 15% | agreed (mostly prior) |
+| Deal count → Deal value (same quarter) | +1.00 | +0.87 ± 0.41 | +0.95 | +0.75 to +1.15 | 184 | 14% | agreed (mostly prior) |
 | Deal value → Valuation (same quarter) | +0.20 | +0.00 ± 0.01 | +0.01 | −0.00 to +0.01 | 220 | 97% | too weak to matter |
-| Deal count → IPO count (1 quarter later) | −0.20 | +0.01 ± 0.19 | −0.20 | −0.23 to −0.15 | 220 | 4% | agreed (mostly prior) |
+| Deal count → IPO count (1 quarter later) | −0.20 | +0.03 ± 0.19 | −0.20 | −0.23 to −0.15 | 220 | 4% | agreed (mostly prior) |
 | IPO count → Valuation (1 quarter later) | −0.20 | +0.03 ± 0.01 | +0.01 | −0.01 to +0.03 | 220 | 85% | too weak to matter |
-| IPO count → Deal count (1 quarter later) | +0.20 | +0.05 ± 0.04 | +0.15 | +0.11 to +0.18 | 184 | 35% | weaker than assumed (mostly prior) |
+| IPO count → Deal count (1 quarter later) | +0.20 | +0.05 ± 0.04 | +0.15 | +0.11 to +0.18 | 184 | 36% | weaker than assumed (mostly prior) |
 
 ## Sector links (L)
 
@@ -61,20 +61,20 @@ Units: % per unit (1 pp; 10 VIX points). Data alone = the OLS coefficient before
 
 | Link | Hand-set | Data alone | Estimated | 90% range | n | Data weight | Verdict |
 |---|---|---|---|---|---|---|---|
-| Fed funds → Deal count (all sectors, 1 quarter later) | −5.0 | +13.6 | −5.0 | −7.1 to −3.1 | 184 | 5% | agreed (mostly prior) |
-| Fed funds → Deal value (all sectors, 1 quarter later) | −5.0 | +3.5 | −5.0 | −7.2 to −3.0 | 184 | 0% | agreed (mostly prior) |
-| Fed funds → IPO count (all sectors, 1 quarter later) | −5.0 | +19.7 | −5.0 | −7.0 to −3.0 | 220 | 2% | agreed (mostly prior) |
-| 10-year yield → Valuation (Tech, same quarter) | −10.0 | −8.6 | −10.5 | −14.6 to −7.1 | 44 | 29% | agreed (mostly prior); sector-specific (F-test p = 0.0) |
+| Fed funds → Deal count (all sectors, 1 quarter later) | −5.0 | +11.8 | −5.0 | −7.1 to −3.1 | 184 | 5% | agreed (mostly prior) |
+| Fed funds → Deal value (all sectors, 1 quarter later) | −5.0 | +6.0 | −5.0 | −7.2 to −3.0 | 184 | 0% | agreed (mostly prior) |
+| Fed funds → IPO count (all sectors, 1 quarter later) | −5.0 | +19.8 | −5.0 | −7.0 to −3.0 | 220 | 2% | agreed (mostly prior) |
+| 10-year yield → Valuation (Tech, same quarter) | −10.0 | −8.6 | −10.5 | −14.6 to −7.2 | 44 | 29% | agreed (mostly prior); sector-specific (F-test p = 0.0) |
 | 10-year yield → Valuation (Healthcare, same quarter) | −5.0 | −0.6 | −4.8 | −6.5 to −2.8 | 44 | 9% | agreed (mostly prior); sector-specific (F-test p = 0.0) |
 | 10-year yield → Valuation (Industrials, Energy, same quarter) | −2.0 | +9.1 | −1.9 | −2.5 to −1.4 | 88 | 1% | agreed (mostly prior); sector-specific (F-test p = 0.0) |
 | 10-year yield → Valuation (Financials, same quarter) | +2.0 | +4.5 | +2.0 | +1.2 to +2.8 | 44 | 1% | agreed (mostly prior); sector-specific (F-test p = 0.0) |
-| Baa spread → Deal value (all sectors, same quarter) | −10.0 | −29.7 | −10.0 | −14.0 to −5.9 | 184 | 0% | agreed (mostly prior) |
-| Baa spread → Deal count (all sectors, same quarter) | −5.0 | −1.0 | −5.1 | −7.1 to −3.0 | 184 | 1% | agreed (mostly prior) |
-| Baa spread → IPO count (all sectors, 1 quarter later) | −5.0 | −85.7 | −5.0 | −7.0 to −2.9 | 220 | 0% | agreed (mostly prior) |
+| Baa spread → Deal value (all sectors, same quarter) | −10.0 | −31.0 | −10.0 | −14.0 to −5.9 | 184 | 0% | agreed (mostly prior) |
+| Baa spread → Deal count (all sectors, same quarter) | −5.0 | +0.6 | −5.1 | −7.1 to −3.0 | 184 | 1% | agreed (mostly prior) |
+| Baa spread → IPO count (all sectors, 1 quarter later) | −5.0 | −85.9 | −5.0 | −7.0 to −2.9 | 220 | 0% | agreed (mostly prior) |
 | Baa spread → Valuation (all sectors, same quarter) | −5.0 | −1.3 | −6.7 | −9.5 to −3.9 | 220 | 16% | agreed (mostly prior) |
-| Baa spread → Valuation (Financials, same quarter) | −5.0 | 0.0 | 0.0 | 0.0 to 0.0 | 44 | 16% | merged into the common effect: no separate sector effect in the data (F-test p = 0.486) |
-| VIX → IPO count (all sectors, same quarter) | −10.0 | −20.9 | −10.5 | −12.5 to −8.8 | 220 | 1% | agreed (mostly prior); sector-specific (F-test p = 0.042) |
-| VIX → Deal count (all sectors, same quarter) | −5.0 | −1.1 | −4.8 | −6.8 to −2.8 | 184 | 4% | agreed (mostly prior) |
+| Baa spread → Valuation (Financials, same quarter) | −5.0 | 0.0 | 0.0 | 0.0 to 0.0 | 44 | 16% | merged into the common effect: no separate sector effect in the data (F-test p = 0.484) |
+| VIX → IPO count (all sectors, same quarter) | −10.0 | −21.0 | −10.5 | −12.5 to −8.8 | 220 | 1% | agreed (mostly prior); sector-specific (F-test p = 0.042) |
+| VIX → Deal count (all sectors, same quarter) | −5.0 | −2.2 | −4.8 | −6.8 to −2.8 | 184 | 4% | agreed (mostly prior) |
 | VIX → Valuation (all sectors, same quarter) | −5.0 | −12.8 | −7.2 | −10.1 to −3.3 | 220 | 40% | agreed (mostly prior) |
 
 ## Links the data suggests that the engine doesn't have
@@ -90,7 +90,7 @@ Coefficients with no hand-set link (prior 0) that came out clearly non-zero with
 A macro input gets its own coefficient per sector only when an F-test rejects a common effect (p < 0.05). Supported:
 
 - 10-year yield → Valuation (same quarter): p = 0.000
-- Baa spread → Deal count (2 quarters later): p = 0.035
+- Baa spread → Deal count (2 quarters later): p = 0.038
 - Baa spread → Deal value (1 quarter later): p = 0.011
 - VIX → Deal value (1 quarter later): p = 0.003
 - VIX → IPO count (same quarter): p = 0.042
@@ -100,9 +100,9 @@ A macro input gets its own coefficient per sector only when an F-test rejects a 
 | Target | Sector-quarters | Quarters | Within R² | Residual sd |
 |---|---|---|---|---|
 | Valuation | 220 | 44 | 0.48 | 8.8 |
-| Deal count | 184 | 39 | 0.49 | 28.0 |
-| Deal value | 184 | 39 | 0.42 | 142.6 |
-| IPO count | 220 | 44 | 0.47 | 58.2 |
+| Deal count | 184 | 39 | 0.48 | 27.8 |
+| Deal value | 184 | 39 | 0.42 | 142.5 |
+| IPO count | 220 | 44 | 0.47 | 58.3 |
 
 ## Method
 

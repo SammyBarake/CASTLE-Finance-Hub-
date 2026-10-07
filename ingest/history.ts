@@ -129,7 +129,7 @@ function build(deals: StoredDeal[], ipos: IpoHistoryState, markets: Markets | nu
     before: thisMonth(),
     valueKind,
   });
-  const macroMonthly = buildMacroMonthly(markets?.fred ?? {}, HISTORY_FROM, thisMonth());
+  const macroMonthly = buildMacroMonthly(markets?.fred ?? {}, HISTORY_FROM, thisMonth(), markets?.index ?? {});
   return { sectorMonthly, macroMonthly };
 }
 

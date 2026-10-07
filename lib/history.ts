@@ -64,6 +64,10 @@ export interface MacroMonthRow {
   vix: number | null;
   /** CPI-U, seasonally adjusted (1982–84 = 100). */
   cpi: number | null;
+  /** WTI crude, monthly average $ a barrel (local history only; not a Supabase column). */
+  oilUsd?: number | null;
+  /** Biotech ETF (XBI) month-end adjusted close (local history only). */
+  biotech?: number | null;
 }
 
 export interface EtfMonthInput {
@@ -261,8 +265,14 @@ export function coverageFlags(input: {
   return { years, sectorYears };
 }
 
-export function buildMacroMonthly(fred: Partial<Record<"fedFunds" | "treasury10y" | "hySpread" | "baaSpread" | "vix" | "cpi", Record<string, number>>>, from: string, before: string): MacroMonthRow[] {
+export function buildMacroMonthly(
+  fred: Partial<Record<"fedFunds" | "treasury10y" | "hySpread" | "baaSpread" | "vix" | "cpi" | "oil", Record<string, number>>>,
+  from: string,
+  before: string,
+  index: { biotech?: EtfMonthInput[] } = {},
+): MacroMonthRow[] {
   const get = (k: keyof typeof fred, m: string) => fred[k]?.[m] ?? null;
+  const biotech = new Map((index.biotech ?? []).map((r) => [r.month, r.adjClose]));
   return monthsBetween(from, before).map((month) => ({
     month,
     fedFundsPct: get("fedFunds", month),
@@ -271,5 +281,7 @@ export function buildMacroMonthly(fred: Partial<Record<"fedFunds" | "treasury10y
     baaSpreadPct: get("baaSpread", month),
     vix: get("vix", month),
     cpi: get("cpi", month),
+    oilUsd: get("oil", month),
+    biotech: biotech.get(month) ?? null,
   }));
 }

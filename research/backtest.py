@@ -50,9 +50,12 @@ def main() -> None:
     ap.add_argument("--exclude", default=",".join(E.EXCLUDE_QUARTERS), help="quarters left out of the estimation, e.g. 2020Q1,2020Q2,2020Q3")
     ap.add_argument("--half-life", type=float, default=E.HALF_LIFE, help="recency weighting: weight halves every N years back")
     ap.add_argument("--sector-features", choices=["on", "off"], default="on" if E.SECTOR_FEATURES else "off", help="sector-specific valuation → deal / IPO links where an F-test supports them")
+    ap.add_argument("--extra-inputs", default=",".join(E.EXTRA_INPUTS), help="extra macro-style inputs, e.g. oil,biotech (the engine needs hand-set links for them)")
     ap.add_argument("--out", default=str(OUT), help="where to write the inputs")
     args = ap.parse_args()
     E.HALF_LIFE = args.half_life
+    E.EXTRA_INPUTS = [m for m in args.extra_inputs.split(",") if m]
+    E.MACROS = E.BASE_MACROS + E.EXTRA_INPUTS
     E.SECTOR_FEATURES = args.sector_features == "on"
 
     handset = E.load_json("handset_links.json")

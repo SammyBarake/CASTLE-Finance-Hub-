@@ -53,10 +53,28 @@ OUT_REPORT = ROOT / "research" / "link-estimates.md"
 
 SECTORS = ["Tech", "Healthcare", "Energy", "Financials", "Industrials"]
 FEATURES = ["valuation", "dealCount", "dealValue", "ipoCount"]
-MACROS = ["fedFunds", "treasury10y", "baaSpread", "vix"]
+BASE_MACROS = ["fedFunds", "treasury10y", "baaSpread", "vix"]
+# Extra inputs tried in October 2026: the oil price (WTI) and the biotech index (XBI), both in macro_monthly.json. They
+# didn't raise the backtest's direction rate, so they're off and the engine has no links for them
+# (research/experiments.md lists the hand-set links used). `python research/backtest.py --extra-inputs oil,biotech`.
+EXTRA_INPUTS: list[str] = []
+MACROS = BASE_MACROS + EXTRA_INPUTS
+# Prices enter as % changes (log), the rest as differences. Sector links are controlled for the base inputs only.
+MACRO_LOG = {"oil", "biotech"}
+# Sector-targeted inputs: estimated only for the sectors a hand-set link names, each against its own prior (a pooled
+# coefficient would average oil's Energy effect over five sectors and spread it to all of them).
+TARGETED = {"oil", "biotech"}
+CONTROL_MACROS = BASE_MACROS
 LAGS = [0, 1, 2]
-MACRO_COLUMN = {"fedFunds": "fedFundsPct", "treasury10y": "treasury10yPct", "baaSpread": "baaSpreadPct", "vix": "vix"}
-MACRO_UNIT = {"fedFunds": 1.0, "treasury10y": 1.0, "baaSpread": 1.0, "vix": 10.0}  # as MACRO_UNITS in links.ts
+MACRO_COLUMN = {"fedFunds": "fedFundsPct", "treasury10y": "treasury10yPct", "baaSpread": "baaSpreadPct", "vix": "vix", "oil": "oilUsd", "biotech": "biotech"}
+MACRO_UNIT = {"fedFunds": 1.0, "treasury10y": 1.0, "baaSpread": 1.0, "vix": 10.0, "oil": 10.0, "biotech": 10.0}  # as MACRO_UNITS in links.ts
+
+
+def macro_change(frame: pd.DataFrame, m: str) -> pd.Series:
+    """One macro input's period-to-period change in its unit (+1 pp; +10 VIX points; +10% for prices)."""
+    col = frame[MACRO_COLUMN[m]]
+    change = 100 * np.log(col.astype(float)).diff() if m in MACRO_LOG else col.diff()
+    return change / MACRO_UNIT[m]
 
 COUNT_CONSTANT = 1.0
 VALUE_CONSTANT = 1e8
@@ -109,7 +127,7 @@ SECTOR_SPECIFIC_P = 0.05
 IO_YEARS = list(range(2015, 2024))
 
 LABEL = {"valuation": "Valuation", "dealCount": "Deal count", "dealValue": "Deal value", "ipoCount": "IPO count",
-         "fedFunds": "Fed funds", "treasury10y": "10-year yield", "baaSpread": "Baa spread", "vix": "VIX"}
+         "fedFunds": "Fed funds", "treasury10y": "10-year yield", "baaSpread": "Baa spread", "vix": "VIX", "oil": "Oil price", "biotech": "Biotech index"}
 LAG_TEXT = {0: "same quarter", 1: "1 quarter later", 2: "2 quarters later"}
 # "Too weak to matter": under a quarter of the weakest hand-set strength for the link's kind.
 TOO_WEAK = {"feature": 0.05, "sector": 0.025, "macro": 0.5}
@@ -221,7 +239,7 @@ def build_panel(deal_value: str | None = None, winsor: tuple | None = None, macr
     grouped = macro[macro["qi"].isin(quarters)].sort_values("month").groupby("qi")[[MACRO_COLUMN[m] for m in MACROS]]
     mq = grouped.last() if macro_timing == "end" else grouped.mean()
     for m in MACROS:
-        mq[m] = mq[MACRO_COLUMN[m]].diff() / MACRO_UNIT[m]
+        mq[m] = macro_change(mq, m)
     q = q.merge(mq[MACROS], left_on="qi", right_index=True, how="left")
 
     # Lags within each sector (the grid has no gaps).
@@ -349,6 +367,9 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
         for m in MACROS:
             for lag in LAGS:
                 priors = [hand_m.get((m, lag, s), 0.0) for s in SECTORS]
+                if m in TARGETED:
+                    out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s, scale=macro_scale) for s, p in zip(SECTORS, priors) if p]
+                    continue
                 if (m, lag) in specific:
                     out += [Regressor(f"{m}_l{lag}_{s}", "macro", m, lag, p, s, scale=macro_scale) for s, p in zip(SECTORS, priors)]
                 else:
@@ -361,6 +382,8 @@ def estimate_equation(panel: pd.DataFrame, target: str, handset: dict, rng: np.r
     base = ols_with_fe(df, y, base_cols)
     tests = {}
     for m in MACROS:
+        if m in TARGETED:
+            continue
         for lag in LAGS:
             cols = [r.name for r in feats] + [r.name for r in macro_regs({(m, lag)})]
             f_stat, p, _ = ols_with_fe(df, y, cols).compare_f_test(base)
@@ -568,8 +591,8 @@ def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.G
     io_mean = np.mean([io[y] for y in years], axis=0)
     rets = sm_rows.pivot(index="month", columns="sector", values="etfReturnPct")[SECTORS]
     rets = 100 * np.log1p(rets / 100)
-    macro = pd.DataFrame(load_json("macro_monthly.json")).set_index("month")[[MACRO_COLUMN[m] for m in MACROS]]
-    macro = macro.diff() / np.array([MACRO_UNIT[m] for m in MACROS])
+    levels = pd.DataFrame(load_json("macro_monthly.json")).set_index("month")
+    macro = pd.DataFrame({MACRO_COLUMN[m]: macro_change(levels, m) for m in CONTROL_MACROS})
     rets = rets.join(macro, how="inner").dropna()
     if before_month:
         rets = rets[rets.index < before_month]
@@ -581,7 +604,7 @@ def estimate_sector_links(sm_rows: pd.DataFrame, handset: dict, rng: np.random.G
     hand = {(l["from"], l["to"]): l["value"] for l in handset["sectors"]}
     pairs = [(j, i) for j in SECTORS for i in SECTORS if i != j]  # (from, to)
 
-    r, mkt = rets[SECTORS].to_numpy(), rets[[MACRO_COLUMN[m] for m in MACROS]].to_numpy()
+    r, mkt = rets[SECTORS].to_numpy(), rets[[MACRO_COLUMN[m] for m in CONTROL_MACROS]].to_numpy()
     slopes = market_slopes(r, mkt)
     point = {}
     boot = {p: np.empty(n_boot) for p in pairs}
@@ -695,6 +718,19 @@ def collect(eqs: dict, sector_links: dict, handset: dict, info: dict):
         for m in MACROS:
             for lag in LAGS:
                 idx = [k for k, r in enumerate(eq["regs"]) if r.kind == "macro" and r.source == m and r.lag == lag]
+                if m in TARGETED:
+                    # One link per named sector, with its own estimate and the hand-set link's reason.
+                    for k in idx:
+                        s = eq["regs"][k].sector
+                        based = next((l for l in groups.get((m, f, lag), []) if l["sectors"] == "all" or s in l["sectors"]), None)
+                        if based is None:
+                            continue
+                        lo, hi = np.percentile(eq["draws"][:, k], [5, 95])
+                        entry = {"key": f"M:{m}>{f}@{lag}:{s}", "value": rnd(eq["mean"][k], "macro"), "range": [rnd(lo, "macro"), rnd(hi, "macro")], "n": int(eq["sectorsN"][s]),
+                                 "weight": round(float(eq["weight"][k]), 2), "prior": eq["regs"][k].prior, "sectorSpecific": True, "p": None, "ols": rnd(eq["olsBeta"][k], "macro")}
+                        links["macroCompare"].append({**entry, "key": based["key"]})
+                        links["macro"].append({**entry, "from": m, "to": f, "lag": lag, "sectors": [s], "basedOn": based["key"]})
+                    continue
                 specific = (m, lag) in eq["specific"]
                 beta = np.array([eq["mean"][idx[SECTORS.index(s)]] if specific else eq["mean"][idx[0]] for s in SECTORS])
                 ols = np.array([eq["olsBeta"][idx[SECTORS.index(s)]] if specific else eq["olsBeta"][idx[0]] for s in SECTORS])
@@ -723,7 +759,10 @@ def collect(eqs: dict, sector_links: dict, handset: dict, info: dict):
                 if specific:
                     # The engine gets one link per sector, each with its own estimate; reasons from the most specific hand-set link.
                     for si, s in enumerate(SECTORS):
-                        based = min((l for l in hand_links if l["sectors"] == "all" or s in l["sectors"]), key=lambda l: 5 if l["sectors"] == "all" else len(l["sectors"]))
+                        covering = [l for l in hand_links if l["sectors"] == "all" or s in l["sectors"]]
+                        if not covering:
+                            continue  # no hand-set link (and no reason) for this sector: none is added
+                        based = min(covering, key=lambda l: 5 if l["sectors"] == "all" else len(l["sectors"]))
                         lo, hi = np.percentile(bdraws[:, si], [5, 95])
                         prior = sum(l["value"] for l in hand_links if l["sectors"] == "all" or s in l["sectors"])
                         links["macro"].append({"key": f"M:{m}>{f}@{lag}:{s}", "from": m, "to": f, "lag": lag, "sectors": [s], "basedOn": based["key"], "value": rnd(beta[si], "macro"),
@@ -776,7 +815,7 @@ def plain(l: dict, e: dict, kind: str) -> str:
     if kind == "sector":
         return (f"About {abs(v):.0%} of a move in {l['from']} {'reaches' if v >= 0 else 'shows up reversed in'} {l['to']} (90% range {fmt(lo, kind)} to {fmt(hi, kind)}); "
                 f"we had assumed {p:.0%}. Input-output links alone say {fmt(e['io'], kind)}, the ETFs' co-movement beyond the market {fmt(e['market'], kind)}.")
-    unit = "10 VIX points" if l["from"] == "vix" else "1 percentage point"
+    unit = "10 VIX points" if l["from"] == "vix" else "10%" if l["from"] in MACRO_LOG else "1 percentage point"
     secs = "" if l["sectors"] == "all" else f" in {', '.join(l['sectors'])}"
     return (f"A {unit} rise in {LABEL[l['from']]} goes with {fmt(v, kind)}% {LABEL[l['to']].lower()}{secs} {LAG_TEXT[l['lag']]} "
             f"(90% range {fmt(lo, kind)}% to {fmt(hi, kind)}%); we had assumed {fmt(p, kind)}%.")
