@@ -63,6 +63,8 @@ const highlightBand: Plugin<"line" | "bar"> = {
  * Multi-series line chart with the design's tooltip and crosshair.
  * `format` renders values in the tooltip; `formatTick` the y axis.
  * `onPointClick` reports the clicked period (and the series under the pointer, if any); `highlight` shades a period.
+ * `partialIndex` marks a period still in progress (the current month): lighter bars, a dashed line into it, and
+ * "to date" in its tooltip.
  */
 export function LineChart({
   labels,
@@ -79,6 +81,7 @@ export function LineChart({
   onPointClick,
   maxTicks = 8,
   showTotal = false,
+  partialIndex = null,
 }: {
   labels: string[];
   series: ChartSeries[];
@@ -96,6 +99,7 @@ export function LineChart({
   maxTicks?: number;
   /** Add a total row to the tooltip (additive series such as deal value or count). */
   showTotal?: boolean;
+  partialIndex?: number | null;
 }) {
   const clickRef = useRef(onPointClick);
   const { prefs } = useWorkspace();
@@ -104,10 +108,12 @@ export function LineChart({
   const chartRef = useRef<Chart<"line" | "bar"> | null>(null);
   const motionRef = useRef(prefs.motion);
   const fmt = useRef({ format, formatTick });
+  const partialRef = useRef(partialIndex);
   const [tip, setTip] = useState<TooltipState>({ visible: false, left: 0, top: 0, title: "", rows: [] });
 
   useEffect(() => {
     fmt.current = { format, formatTick };
+    partialRef.current = partialIndex;
     motionRef.current = prefs.motion;
     clickRef.current = onPointClick;
   });
@@ -131,7 +137,7 @@ export function LineChart({
         visible: true,
         left: Math.max(4, Math.min(chart.width - w - 4, tooltip.caretX + 14)),
         top: Math.max(4, Math.min(chart.height - h - 4, tooltip.caretY - h / 2)),
-        title: tooltip.title[0] ?? "",
+        title: `${tooltip.title[0] ?? ""}${tooltip.dataPoints[0]?.dataIndex === partialRef.current ? " · to date" : ""}`,
         rows: tooltip.dataPoints.map((p) => ({ label: p.dataset.label ?? "", color: p.dataset.borderColor as string, value: p.raw as number | null })),
       });
     };
@@ -197,9 +203,18 @@ export function LineChart({
     scales.x.stacked = scales.y.stacked = type === "bar" && stacked;
     scales.x.ticks.maxTicksLimit = maxTicks;
     (chart.options.plugins as { castleHighlight?: { index: number | null } }).castleHighlight = { index: highlight };
+    // The period in progress is drawn lighter (bars) or reached by a dashed segment (lines).
+    const isPartial = (i: number) => partialIndex != null && i === partialIndex;
     const style = (s: ChartSeries) =>
       type === "bar"
-        ? { type: "bar" as const, borderColor: s.color, backgroundColor: `${s.color}b0`, borderWidth: 0, borderRadius: stacked ? 0 : 2, maxBarThickness: stacked ? 28 : 14 }
+        ? {
+            type: "bar" as const,
+            borderColor: s.color,
+            backgroundColor: partialIndex == null ? `${s.color}b0` : s.data.map((_, i) => (isPartial(i) ? `${s.color}48` : `${s.color}b0`)),
+            borderWidth: 0,
+            borderRadius: stacked ? 0 : 2,
+            maxBarThickness: stacked ? 28 : 14,
+          }
         : {
             type: "line" as const,
             borderColor: s.color,
@@ -212,6 +227,7 @@ export function LineChart({
             // Monotone curves never overshoot, so lines don't dip below zero around big spikes.
             cubicInterpolationMode: "monotone" as const,
             spanGaps: true,
+            segment: { borderDash: (ctx: { p1DataIndex: number }) => (isPartial(ctx.p1DataIndex) ? [4, 4] : undefined) },
           };
 
     // Update datasets in place so Chart.js animates between values instead of redrawing every line from zero.
@@ -239,7 +255,7 @@ export function LineChart({
       chart.update(labelsChanged ? "none" : undefined);
     }
     setTip((t) => ({ ...t, visible: false }));
-  }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks]);
+  }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks, partialIndex]);
 
   return (
     <div className={className}>

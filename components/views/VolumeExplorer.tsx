@@ -170,6 +170,7 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
                 labels={labels}
                 series={series}
                 highlight={monthIndex >= 0 ? monthIndex : null}
+                partialIndex={matrix.partial && months.includes(matrix.partial) ? months.indexOf(matrix.partial) : null}
                 onPointClick={pickMonth}
                 maxTicks={12}
                 format={(v) => (metric === "value" ? `$${v}B` : `${v} deals`)}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leagueTable, monthlyVolume, sectorValuations, toPublicDeal } from "./aggregate";
+import { leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
 import type { Deal } from "./types";
 
 describe("toPublicDeal", () => {
@@ -32,20 +32,24 @@ const deal = (over: Partial<Deal>): Deal => ({
 });
 
 describe("monthlyVolume", () => {
-  it("zero-fills 24 complete months before the as-of month and skips terminated deals", () => {
-    const rows = monthlyVolume([deal({ announcedDate: "2026-08-03" }), deal({ announcedDate: "2026-08-20", status: "Terminated" })], "2026-09-25T00:00:00Z");
+  it("zero-fills 24 complete months, then the as-of month so far, and skips terminated deals", () => {
+    const rows = monthlyVolume(
+      [deal({ announcedDate: "2026-08-03" }), deal({ announcedDate: "2026-08-20", status: "Terminated" }), deal({ announcedDate: "2026-09-02" })],
+      "2026-09-25T00:00:00Z",
+    );
     const months = [...new Set(rows.map((r) => r.month))];
-    expect(months).toHaveLength(24);
+    expect(months).toHaveLength(25);
     expect(months[0]).toBe("2024-09");
-    expect(months.at(-1)).toBe("2026-08");
+    expect(months.at(-1)).toBe("2026-09");
+    expect(rows.find((r) => r.month === "2026-09" && r.sector === "Tech")).toMatchObject({ dealCount: 1 });
     expect(rows.find((r) => r.month === "2026-08" && r.sector === "Tech")).toMatchObject({ dealCount: 1, dealValueUsd: 1e9 });
   });
 
   it("extends back to the first deal, up to six years", () => {
     const months = (d: string) => [...new Set(monthlyVolume([deal({ announcedDate: d })], "2026-09-25T00:00:00Z").map((r) => r.month))];
     expect(months("2021-03-10")[0]).toBe("2021-03");
-    expect(months("2021-03-10")).toHaveLength(66);
-    expect(months("2015-01-01")).toHaveLength(72);
+    expect(months("2021-03-10")).toHaveLength(67);
+    expect(months("2015-01-01")).toHaveLength(73);
   });
 
   it("starts where coverage really begins, not at a few stray earlier deals", () => {
@@ -55,6 +59,20 @@ describe("monthlyVolume", () => {
     ];
     const months = [...new Set(monthlyVolume(deals, "2026-09-25T00:00:00Z").map((r) => r.month))];
     expect(months[0]).toBe("2021-01");
+  });
+});
+
+describe("yearToDate", () => {
+  it("compares this year through the as-of day with the same days last year", () => {
+    const deals = [
+      deal({ announcedDate: "2026-01-05", valueUsd: 2e9 }),
+      deal({ announcedDate: "2026-10-07", valueUsd: 1e9 }),
+      deal({ announcedDate: "2026-10-08", valueUsd: 9e9 }), // after the as-of day
+      deal({ announcedDate: "2026-03-01", valueUsd: 4e9, status: "Terminated" }),
+      deal({ announcedDate: "2025-10-07", valueUsd: 5e9 }),
+      deal({ announcedDate: "2025-10-20", valueUsd: 7e9 }), // later in last October: not the same period
+    ];
+    expect(yearToDate(deals, "2026-10-07T23:04:00Z")).toEqual({ through: "2026-10-07", value: 3e9, count: 2, priorValue: 5e9, priorCount: 1 });
   });
 });
 

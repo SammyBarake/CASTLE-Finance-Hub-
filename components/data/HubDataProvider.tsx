@@ -158,7 +158,8 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
 
   const data = full ?? boot;
   const value = useMemo(() => {
-    const matrix = buildVolumeMatrix(data.monthlyVolume);
+    // The data's own month is still in progress: shown, but marked and kept out of month-on-month comparisons.
+    const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf ? data.asOf.slice(0, 7) : null);
     return {
       data,
       ready: !!full,
@@ -166,7 +167,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
       reload: () => load(true),
       freshness,
       matrix,
-      ytd: ytdSummary(matrix),
+      ytd: ytdSummary(matrix, data.yearToDate),
       // The latest 25 deals that disclose a premium (private-company deals never do).
       medianPremiumPct: medianPremium(data.deals.filter((d) => d.premiumPct != null).slice(0, 25)),
       ipoSummary: ipoPipelineSummary(data.ipos),

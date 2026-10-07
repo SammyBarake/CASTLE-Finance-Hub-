@@ -9,7 +9,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { DOWN, PageLink, SectorDot, Segment, Sparkline, UP } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { formatMonth, formatQuarter, formatSignedPct } from "@/lib/format";
-import { sectorMomentum, valuationCards, type ValuationMetric, type VolumeMetric } from "@/lib/metrics";
+import { completeMonths, sectorMomentum, valuationCards, type ValuationMetric, type VolumeMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
 import type { Sector } from "@/lib/types";
 
@@ -76,14 +76,15 @@ const ALL_RANGES = [
 export const rangesFor = (months: number) => ALL_RANGES.filter((r) => r.value <= Math.max(24, months));
 
 /** Group the last `range` months into calendar quarters; a quarter with fewer than 3 months is marked "*". */
-function periodGroups(months: string[], granularity: "month" | "quarter") {
-  if (granularity === "month") return months.map((m, i) => ({ label: formatMonth(m), idx: [i] }));
+/** Chart periods. The month in progress (`partial`) is starred, like a quarter that isn't complete. */
+function periodGroups(months: string[], granularity: "month" | "quarter", partial: string | null = null) {
+  if (granularity === "month") return months.map((m, i) => ({ label: m === partial ? `${formatMonth(m)}*` : formatMonth(m), idx: [i] }));
   const groups = new Map<string, number[]>();
   months.forEach((m, i) => {
     const key = `Q${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1} ${m.slice(0, 4)}`;
     groups.set(key, [...(groups.get(key) ?? []), i]);
   });
-  return [...groups].map(([label, idx]) => ({ label: idx.length < 3 ? `${label}*` : label, idx }));
+  return [...groups].map(([label, idx]) => ({ label: idx.length < 3 || idx.some((i) => months[i] === partial) ? `${label}*` : label, idx }));
 }
 
 type ChartStyle = "stacked" | "bars" | "lines";
@@ -117,7 +118,9 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
     );
 
   const months = matrix.months.slice(-range);
-  const groups = useMemo(() => periodGroups(matrix.months.slice(-range), granularity), [matrix, range, granularity]);
+  const groups = useMemo(() => periodGroups(matrix.months.slice(-range), granularity, matrix.partial), [matrix, range, granularity]);
+  // The period holding the month in progress: drawn lighter, its tooltip says "to date".
+  const partialIndex = matrix.partial && months.includes(matrix.partial) ? groups.findIndex((g) => g.idx.includes(months.indexOf(matrix.partial!))) : -1;
   const labels = useMemo(() => groups.map((g) => g.label), [groups]);
   const series = useMemo(
     () =>
@@ -136,8 +139,9 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
     [matrix, metric, range, visible, groups],
   );
   const momentum = new Map(sectorMomentum(matrix, metric).map((m) => [m.sector, m.changePct]));
-  const latest = matrix.months.at(-1);
-  const prev = matrix.months.at(-2);
+  // The scoreboard compares the last two complete months.
+  const latest = matrix.months[completeMonths(matrix) - 1];
+  const prev = matrix.months[completeMonths(matrix) - 2];
   const periodLabel = months.length ? `${formatMonth(months[0])} – ${formatMonth(months.at(-1)!)}` : "";
   const shortMonth = (m?: string) => (m ? formatMonth(m).split(" ")[0] : "");
 
@@ -203,6 +207,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
           grid={grid}
           labels={labels}
           series={series}
+          partialIndex={partialIndex >= 0 ? partialIndex : null}
           showTotal
           format={(v) => (metric === "value" ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 1 })}B` : `${v} deals`)}
           formatTick={(v) => (metric === "value" ? `$${v}B` : String(v))}
@@ -213,6 +218,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
         <span>
           {granularity === "month" ? "Monthly" : "Quarterly"} totals
           {granularity === "quarter" && labels.some((l) => l.endsWith("*")) ? " · * Partial quarter" : ""}
+          {granularity === "month" && partialIndex >= 0 ? ` · * ${formatMonth(matrix.partial!).split(" ")[0]} to date` : ""}
         </span>
         <span className="secondary-note">
           U.S.-listed targets and private companies bought by listed acquirers{data.isSample ? "" : " · SEC EDGAR"}

@@ -286,7 +286,10 @@ export interface HubData {
   /** Total deals in the dataset (HubData.deals may be only the latest slice). */
   totalDeals: number;
   deals: Deal[];
+  /** Complete months, then the month in progress (through `asOf`). */
   monthlyVolume: MonthlySectorVolume[];
+  /** Announced deals this year through `asOf`'s day, and over the same days last year (terminated deals excluded). */
+  yearToDate?: { through: string; value: number; count: number; priorValue: number; priorCount: number };
   ipos: Ipo[];
   leagueTable: LeagueTable;
   valuations: SectorValuation[];

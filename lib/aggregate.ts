@@ -40,15 +40,16 @@ export function coverageStart(deals: Deal[]): string | null {
 const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
 
 /**
- * Complete months before `asOf`'s month: as far back as the data goes (at least 24, at most 72),
- * so a longer history shows up without inventing empty months before coverage began.
+ * Complete months before `asOf`'s month, as far back as the data goes (at least 24, at most 72, so a longer history
+ * shows up without inventing empty months before coverage began), then `asOf`'s own month so far. The site shows
+ * that last one as a month in progress (`VolumeMatrix.partial`) and leaves it out of month-on-month comparisons.
  */
 export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[] {
   const now = new Date(asOf);
   const first = coverageStart(deals) ?? asOf.slice(0, 10);
   const span = (now.getUTCFullYear() - Number(first.slice(0, 4))) * 12 + (now.getUTCMonth() - (Number(first.slice(5, 7)) - 1));
   const length = Math.min(MAX_MONTHS, Math.max(MONTHS, span));
-  const months = Array.from({ length }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - length + i));
+  const months = Array.from({ length: length + 1 }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - length + i));
   const rows = new Map<string, MonthlySectorVolume>();
   for (const month of months) for (const sector of SECTORS) rows.set(`${month}|${sector}`, { month, sector, dealValueUsd: 0, dealCount: 0 });
   for (const d of deals) {
@@ -59,6 +60,28 @@ export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[
     row.dealValueUsd += d.valueUsd ?? 0;
   }
   return [...rows.values()];
+}
+
+/**
+ * Year to date through `asOf`'s day, against the same days a year earlier (Jan 1 – Oct 7 vs Jan 1 – Oct 7): a month
+ * in progress compared with the whole of last year's month would make every October look like a slump.
+ */
+export function yearToDate(deals: Deal[], asOf: string): NonNullable<HubData["yearToDate"]> {
+  const through = asOf.slice(0, 10);
+  const year = Number(through.slice(0, 4));
+  const total = (from: string, to: string) => {
+    let value = 0;
+    let count = 0;
+    for (const d of deals) {
+      if (d.status === "Terminated" || d.announcedDate < from || d.announcedDate > to) continue;
+      count++;
+      value += d.valueUsd ?? 0;
+    }
+    return { value, count };
+  };
+  const current = total(`${year}-01-01`, through);
+  const prior = total(`${year - 1}-01-01`, `${year - 1}${through.slice(4)}`);
+  return { through, value: current.value, count: current.count, priorValue: prior.value, priorCount: prior.count };
 }
 
 function rankAdvisors(deals: Deal[]) {
@@ -209,6 +232,7 @@ export function buildHubData(input: {
     deals: deals.slice(0, DEAL_FEED_SIZE).map((d) => toPublicDeal(d)),
     fees: feeRows(deals),
     monthlyVolume: monthlyVolume(deals, input.asOf),
+    yearToDate: yearToDate(deals, input.asOf),
     ipos: ipos.slice(0, IPO_FEED_SIZE).map(toPublicIpo),
     leagueTable: leagueTable(deals, input.asOf, input.shortName),
     valuations: sectorValuations(deals, input.asOf),

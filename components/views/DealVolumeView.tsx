@@ -4,7 +4,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Kpi, Kpis, PageHeading, SectorLabel } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatMonth, formatRaise, formatUsd } from "@/lib/format";
+import { formatDateLong, formatMonth, formatRaise, formatUsd } from "@/lib/format";
 import { rangeSummary, sectorBreakdown } from "@/lib/metrics";
 import { SECTORS } from "@/lib/sectors";
 import { useVolumeState, VolumePanel } from "./sections";
@@ -33,8 +33,16 @@ export function DealVolumeView() {
       <Kpis label="Deal volume summary">
         <Kpi label="Announced value" value={formatUsd(s.value)} note={period} />
         <Kpi label="Transactions" value={s.count.toLocaleString("en-US")} note="All five sectors" />
-        <Kpi label="Monthly average" value={formatUsd(s.monthlyAverage)} note="Announced transaction value" />
-        <Kpi label="Latest month" value={formatUsd(s.latestMonthValue)} note={s.lastMonth ? formatMonth(s.lastMonth) : ""} />
+        <Kpi label="Monthly average" value={formatUsd(s.monthlyAverage)} note={s.partialMonth ? "Complete months" : "Announced transaction value"} />
+        {s.partialMonth ? (
+          <Kpi
+            label={`${formatMonth(s.partialMonth).split(" ")[0]} to date`}
+            value={formatUsd(s.partialValue)}
+            note={`${s.partialCount} deals${data.yearToDate ? ` · through ${formatDateLong(data.yearToDate.through)}` : ""}`}
+          />
+        ) : (
+          <Kpi label="Latest month" value={formatUsd(s.latestMonthValue)} note={s.latestMonth ? formatMonth(s.latestMonth) : ""} />
+        )}
       </Kpis>
 
       <VolumePanel state={volume} large />

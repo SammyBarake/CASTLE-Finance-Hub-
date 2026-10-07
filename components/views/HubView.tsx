@@ -7,7 +7,7 @@ import { Change, CompanyMark, Kpi, Kpis, PageHeading, PageLink } from "@/compone
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions } from "@/components/workspace/actions";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
-import { formatDate, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
+import { formatDate, formatDateLong, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { ValuationMetric } from "@/lib/metrics";
 import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRICS, VolumePanel } from "./sections";
 
@@ -21,7 +21,8 @@ export function HubView() {
   const volume = useVolumeState();
   const [metric, setMetric] = useState<ValuationMetric>("evEbitda");
 
-  const ytdNote = ytd ? `Jan–${formatMonth(ytd.throughMonth).split(" ")[0]} ${ytd.year} · YoY` : "No data";
+  // "Jan 1 – Oct 7, 2026 · YoY" against the same days last year; complete months only when the day isn't known.
+  const ytdNote = !ytd ? "No data" : ytd.throughDay ? `Jan 1 – ${formatDateLong(ytd.throughDay)} · YoY` : `Jan–${formatMonth(ytd.throughMonth).split(" ")[0]} ${ytd.year} · YoY`;
   const exportDeals = () => {
     downloadCsv(dealsToCsv(data.deals, data.isSample), data.isSample ? "Castle_Deals_Sample.csv" : "Castle_Deals.csv");
     toast(`${data.deals.length} rows exported.`);
