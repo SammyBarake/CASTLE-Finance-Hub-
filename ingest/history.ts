@@ -84,8 +84,9 @@ export function mergeDeals(live: StoredDeal[], history: StoredDeal[]): StoredDea
 // Steps
 // ---------------------------------------------------------------------------
 
-async function backfillDeals(from: string, to: string, log: Log) {
-  const store = new JsonStore(LOCAL.deals);
+/** `statePath`: another history file (e.g. a fresh re-read to compare before replacing .data/history/deals.json). */
+async function backfillDeals(from: string, to: string, log: Log, statePath = LOCAL.deals) {
+  const store = new JsonStore(statePath);
   const state = await store.load();
   log(`history deals ${from} -> ${to}: ${state.deals.length} deals, ${state.seen.size} documents already read`);
   const directory = buildDirectory(await getListedCompanies());
@@ -241,7 +242,7 @@ async function main() {
   const ipoState = () => readJson<IpoHistoryState>(LOCAL.ipos, { records: [], checked: [] });
 
   if (cmd === "deals") {
-    await backfillDeals(arg("from") ?? "2015-01-01", arg("to") ?? "2020-12-31", log);
+    await backfillDeals(arg("from") ?? "2015-01-01", arg("to") ?? "2020-12-31", log, arg("state"));
   } else if (cmd === "ipos") {
     await updateIpos(ipoState(), arg("from") ?? `${HISTORY_FROM}-01`, arg("to") ?? isoDay(new Date()), log, async (s) => writeJson(LOCAL.ipos, s));
   } else if (cmd === "markets") {

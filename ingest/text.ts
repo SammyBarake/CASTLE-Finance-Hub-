@@ -56,11 +56,22 @@ function namedEntity(name: string): string | undefined {
   return ENTITIES[name.toLowerCase()];
 }
 
+/**
+ * Code points 128–159 read as Windows-1252, as older EDGAR filings mean them: "&#147;Company&#148;" is “Company”, not
+ * two invisible control characters (which hid every defined term, "the Company", "Parent", from the 8-K parser).
+ */
+const WIN1252: Record<number, string> = {
+  128: "€", 130: "‚", 131: "ƒ", 132: "„", 133: "…", 134: "†", 135: "‡", 136: "ˆ", 137: "‰", 138: "Š", 139: "‹", 140: "Œ", 142: "Ž",
+  145: "‘", 146: "’", 147: "“", 148: "”", 149: "•", 150: "–", 151: "—", 152: "˜", 153: "™", 154: "š", 155: "›", 156: "œ", 158: "ž", 159: "Ÿ",
+};
+const codePoint = (n: number) => (n >= 128 && n <= 159 ? (WIN1252[n] ?? " ") : String.fromCodePoint(n));
+
 export function decodeEntities(s: string): string {
   return s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&([a-z]+\d*);/gi, (m, n) => namedEntity(n) ?? m);
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => codePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => codePoint(Number(d)))
+    .replace(/&([a-z]+\d*);/gi, (m, n) => namedEntity(n) ?? m)
+    .replace(/[\u0080-\u009f]/g, (c) => codePoint(c.charCodeAt(0)));
 }
 
 export function htmlToText(html: string): string {

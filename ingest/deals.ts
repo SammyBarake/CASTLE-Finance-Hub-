@@ -30,7 +30,7 @@ import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
@@ -40,6 +40,10 @@ import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
 const QUERIES = [
   '"represents a premium"',
+  // All-stock deals quote neither a cash price nor "exchange ratio": "Capital One to Acquire Discover … in an all-stock
+  // transaction … representing a premium of 26.6%".
+  '"representing a premium"',
+  '"all-stock transaction" "definitive agreement"',
   '"per share in cash"',
   '"exchange ratio" "merger agreement"',
   '"definitive merger agreement"',
@@ -185,6 +189,7 @@ interface Resolved {
 
 function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   const filers = hit.displayNames.map(parseDisplayName);
+  const listedThen = (cik: string | null) => !!cik && !!hit.listedCiks?.includes(cik);
   const pressUs = !!p.exchange && US_LISTED.test(p.exchange);
   const ticker = p.ticker?.toUpperCase() ?? null;
 
@@ -197,7 +202,7 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     if (listed && sameCompany(listed.name, p.name)) {
       return { cik: listed.cik, ticker, listedInUs: pressUs || US_LISTED.test(listed.exchange ?? "") };
     }
-    if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs };
+    if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs || listedThen(f.cik) };
   }
   // A party written as its ticker ("Blackstone to acquire PSB") is the filer that trades under it: the release was
   // filed by PS Business Parks (PSB).
@@ -205,7 +210,7 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     const f = filers.find((x) => x.tickers.includes(p.name));
     if (f?.cik) {
       const listed = dir.byCik.get(f.cik);
-      return { cik: f.cik, ticker: p.name, listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || !listed };
+      return { cik: f.cik, ticker: p.name, listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || !listed || listedThen(f.cik) };
     }
   }
   // Also accept a filer whose registered name appears inside a run-on parsed name
@@ -219,7 +224,7 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     return {
       cik: f.cik,
       ticker: ticker ?? listed?.ticker ?? f.tickers[0] ?? null,
-      listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || delistedSince,
+      listedInUs: pressUs || US_LISTED.test(listed?.exchange ?? "") || delistedSince || listedThen(f.cik),
     };
   }
   const byName = dir.byName.get(normalizeName(p.name));
@@ -864,7 +869,10 @@ export async function ingestDeals(
     // ticker, and isn't the target of a public deal we already track (a delisted public company, e.g. after closing).
     // Checked before and after tidying: "TWO … COMMUNITIES FREEHOLD" must fail on its raw form.
     const name = tidyTargetName(rawTarget, parsed.acquirer.name);
-    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, name));
+    // A public deal that closed or ended over a month earlier isn't this one: the same name can be bought again
+    // (Hampton Roads bought Xenith in 2016 and took its name; Union Bankshares bought that Xenith in 2017).
+    const over = (d: StoredDeal) => (d.status === "Closed" || d.status === "Terminated") && !!d.statusDate && (Date.parse(hit.fileDate) - Date.parse(d.statusDate)) / 86_400_000 > 30;
+    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, name) && !over(d));
     if (
       !target.cik &&
       !target.ticker &&
@@ -941,9 +949,14 @@ export async function ingestDeals(
         .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= firstDate)
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 3);
-      const displayNames = [`${sub.name}${sub.tickers?.length ? `  (${sub.tickers.join(", ")})` : ""}  (CIK ${cik.padStart(10, "0")})`];
-      const ctx = { filerName: displayName(sub.name), filerTickers: sub.tickers ?? [] };
       for (const f of announcements) {
+        // The filer as it was then: its name at the time (Resolute Energy, not today's Cimarex Resolute), and listed
+        // then if it filed periodic reports and was on an exchange or delisted afterwards (today it has no ticker).
+        const nameThen = nameOn(sub, f.date);
+        const displayNames = [`${nameThen}${sub.tickers?.length ? `  (${sub.tickers.join(", ")})` : ""}  (CIK ${cik.padStart(10, "0")})`];
+        const ctx = { filerName: displayName(nameThen), filerTickers: sub.tickers ?? [] };
+        const isFiler = (name: string) => namesCompany(name, nameThen) || namesCompany(name, sub.name);
+        const listedCiks = listedOn(sub, f.date) ? [cik] : [];
         const docsIn = await filingDocuments(sub.cik, f.adsh);
         const exhibits = docsIn.filter((d) => /ex-?99|dex99/i.test(d) && /\.htm/i.test(d));
         // Press-release exhibits first (they carry premiums and advisors), then the 8-K's own Item 1.01.
@@ -952,7 +965,10 @@ export async function ingestDeals(
             file: ex,
             parse: async () => {
               const p = parsePressRelease(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, ex))), ctx);
-              return p && p.kind === "announcement" && sameCompany(p.target.name, sub.name) ? p : null;
+              // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), never
+              // as the buyer (that would be an acquirer's own vote). Use its registered name so it resolves to it.
+              if (!p || p.kind !== "announcement" || !isFiler(p.target.name) || isFiler(p.acquirer.name)) return null;
+              return { ...p, target: { ...p.target, name: displayName(nameThen) } };
             },
           })),
           {
@@ -976,6 +992,7 @@ export async function ingestDeals(
             displayNames,
             sics: proxyHit.sics,
             items: f.items.split(","),
+            listedCiks,
           };
           deal = await accept(parsed, synthetic);
           if (deal) break;

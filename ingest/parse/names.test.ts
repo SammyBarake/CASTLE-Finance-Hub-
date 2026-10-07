@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 describe("headline and press-release debris", () => {
   it("cuts signing verbs, release labels, owner-of tails and joint-venture wording", () => {
@@ -98,5 +98,19 @@ describe("isPlaceholderBuyer", () => {
     for (const n of ["GSK plc", "Clayton, Dubilier & Rice, LLC", "Coursebook, Inc.", "BioMarin Pharmaceutical Inc.", "Kinderhook Industries"]) {
       expect(isPlaceholderBuyer(n), n).toBe(false);
     }
+  });
+});
+
+describe("namesCompany (a release's short name for a known company)", () => {
+  it("accepts the same company, its first word or its initials", () => {
+    expect(namesCompany("Newfield", "NEWFIELD EXPLORATION CO /DE/")).toBe(true);
+    expect(namesCompany("EFI", "ELECTRONICS FOR IMAGING INC")).toBe(true);
+    expect(namesCompany("WBA", "Walgreens Boots Alliance, Inc.")).toBe(true);
+  });
+
+  it("rejects other companies and initials of one-word names", () => {
+    expect(namesCompany("Encana", "NEWFIELD EXPLORATION CO /DE/")).toBe(false);
+    expect(namesCompany("NV", "NVIDIA CORP")).toBe(false);
+    expect(namesCompany("EFX", "ELECTRONICS FOR IMAGING INC")).toBe(false);
   });
 });

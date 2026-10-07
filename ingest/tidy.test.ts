@@ -63,6 +63,21 @@ describe("junkReason", () => {
     // A placeholder buyer is kept until a filing names the sponsor.
     expect(junkReason(deal({ acquirer: { name: "Parent", ticker: null, cik: null } }))).toBeNull();
   });
+
+  it("rejects legal documents and dates read as buyers", () => {
+    expect(junkReason(deal({ acquirer: { name: "Restated Credit Agreement", ticker: null, cik: null } }))).toMatch(/implausible/);
+    expect(junkReason(deal({ acquirer: { name: "Notes and the Indenture are jointly", ticker: null, cik: null } }))).toMatch(/implausible/);
+    expect(junkReason(deal({ acquirer: { name: "December 2019", ticker: null, cik: null } }))).toMatch(/implausible/);
+    // Real names with these words stay.
+    expect(junkReason(deal({ acquirer: { name: "Credit Acceptance Corporation", ticker: "CACC", cik: "885550" } }))).toBeNull();
+  });
+
+  it("rejects business development companies (investment funds) as targets", () => {
+    expect(junkReason(deal({ target: { name: "Goldman Sachs BDC, Inc.", ticker: "GSBD", cik: "1572694" } }))).toMatch(/investment fund/);
+    expect(junkReason(deal({ industry: null, target: { name: "OHA Investment Corp", ticker: "OHAI", cik: "1414932" } }))).toMatch(/investment fund/);
+    // An operating company with an industry code and a similar name stays.
+    expect(junkReason(deal({ industry: "State Commercial Banks", target: { name: "Pinnacle Capital Corp", ticker: null, cik: "123" } }))).toBeNull();
+  });
 });
 
 describe("sanitizeDeal", () => {

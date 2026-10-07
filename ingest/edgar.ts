@@ -139,6 +139,11 @@ export interface FtsHit {
   displayNames: string[];
   sics: string[];
   items: string[];
+  /**
+   * Filers known to have been exchange-listed when this was filed (set by the backstop from `listedOn`): a company
+   * bought in 2019 has no ticker in today's submissions, but it was listed then.
+   */
+  listedCiks?: string[];
 }
 
 interface FtsResponse {

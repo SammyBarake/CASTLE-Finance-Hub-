@@ -15,6 +15,7 @@ improves skill and holds in both halves of the period (2019Q1–2022Q4, 2023Q1�
 | Effects of effects (2 rounds) | 0.098 → 0.106 | better in both | 3 rounds 0.097. |
 | A fade per feature | 0.080 → 0.106 (with the above) | better in both | Valuations 0.85, deal counts 1 (persist), IPO counts 0.55. Cross-validated: fades tuned on one half still beat the untuned settings on the other. |
 | Scoring: take the calendar pattern out of deal and IPO outcomes | 0.106 → 0.108 (same engine) | — | Not an engine change: a fairer yardstick. Deals dip ~21% in Q1, IPOs bunch ~43% in Q2; a predictable seasonal swing shouldn't count as a miss. Seasonal levels are measured only from quarters before each forecast. |
+| Better data: history and live deal coverage | 0.108 → 0.119 | better in both (0.153 / 0.061 vs untuned 0.105 / 0.059) | Not a model change. Older filings' `&#147;`-style entities hid defined terms, the backstop judged "listed" by today's tickers, press headlines were read from sub-headlines, and all-stock deals matched no search phrase. Fixed, the 2015–2020 history was re-read (public-target deals +52–98% a year) and the live 2021+ deals rebuilt (1,988 → 2,537). Recall 31–44% → 52–66%; 2019 no longer weak (2020 still is). The search now prefers per-kind priors (feature ×0.5, spillovers ×1, macro ×0.5) and 3 rounds: with fuller deal data the spillovers carry more signal. 14 of 38 links data-driven (was 8). The yardstick's data changed too, so the gain isn't a pure like-for-like comparison. |
 
 ## Tried and rejected
 

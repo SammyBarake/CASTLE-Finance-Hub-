@@ -246,6 +246,97 @@ AUSTIN, Texas, March 3, 2026 - Body text here.`;
     expect(splitHeadline(text).headline).toBe("Northwind to Acquire Bluebird");
     expect(splitHeadline(text).body).toBe("Body text here.");
   });
+
+  it("takes the headline above sub-headlines that mention the merger", () => {
+    const text = `Exhibit 99.1
+Northwind Group and Bluebird Watson Announce Merger to Create Leading Global Advisory Firm
+Combination offers clients a broader range of advice
+Merger delivers significant potential to enhance long-term shareholder value through
+incremental revenue growth and greater corporate efficiencies
+LONDON - (BUSINESS WIRE) - June 30, 2026 - Body text here.`;
+    expect(splitHeadline(text).headline).toBe("Northwind Group and Bluebird Watson Announce Merger to Create Leading Global Advisory Firm");
+  });
+
+  it("joins a headline wrapped over two lines, but not its sub-headline", () => {
+    const wrapped = `Exhibit 99.1
+PRESS
+RELEASE
+Harbor Freight Logistics Limited Enters into a Definitive
+Agreement to be Acquired by Certain Investment Funds Affiliated
+with Crestline Partners
+New York, August 28, 2026 - Body text here.`;
+    expect(splitHeadline(wrapped).headline).toBe(
+      "Harbor Freight Logistics Limited Enters into a Definitive Agreement to be Acquired by Certain Investment Funds Affiliated with Crestline Partners",
+    );
+    const object = `Exhibit 99.1
+Northwind Instruments Announces Agreement to Acquire
+Bluebird Corporation
+Combined company will lead in photonics
+ANDOVER, Mass., February 23, 2026 - Body text here.`;
+    expect(splitHeadline(object).headline).toBe("Northwind Instruments Announces Agreement to Acquire Bluebird Corporation");
+    const subhead = `Exhibit 99.1
+kcorliss@bluebird.com
+Northwind Signs Definitive Agreement to Acquire Bluebird
+World's #1 CRM and #1 analytics platform come together
+SAN FRANCISCO, June 10, 2026 - Body text here.`;
+    expect(splitHeadline(subhead).headline).toBe("Northwind Signs Definitive Agreement to Acquire Bluebird");
+  });
+
+  it("names the company when a deal is announced with its results", () => {
+    const text = `Exhibit 99.1
+Bluebird Inc. Reports Second Quarter Fiscal Year 2026 Financial Results
+Announces agreement to be acquired by Crestline Partners in transaction valued at $551 million
+LOS ANGELES (November 9, 2026) - Body text here.`;
+    expect(splitHeadline(text).headline).toBe("Bluebird Inc. Announces agreement to be acquired by Crestline Partners in transaction valued at $551 million");
+  });
+
+  it("drops contact lines and labels above the headline", () => {
+    const text = `Exhibit 99.1
+MICROCHIP CONTACT:
+J. Eric Smith - CFO (480) 792-7804
+Sard Verbinnen & Co.
+FOR IMMEDIATE RELEASE Northwind Technology to Acquire Bluebird
+Chandler, Arizona - May 7, 2026 - Body text here.`;
+    expect(splitHeadline(text).headline).toBe("Northwind Technology to Acquire Bluebird");
+  });
+});
+
+describe("headline details", () => {
+  const ctx = { filerName: "Northwind Foods, Inc.", filerTickers: ["NWF"] };
+
+  it("keeps an apostrophe that belongs to the target's name, but still spots carve-outs", () => {
+    const brand = `Exhibit 99.1
+Northwind Foods Acquires Mama Rosa's Pizza Crusts
+Parsippany, N.J., July 13, 2026 - Northwind Foods, Inc. (NYSE: NWF) announced today that it has acquired Spartan Foods of America, Inc., the maker of Mama Rosa's pizza crusts, for $50 million.`;
+    expect(parsePressRelease(brand, ctx)?.target.name).toBe("Mama Rosa's Pizza Crusts");
+    const unit = `Exhibit 99.1
+Northwind Foods to Acquire Bluebird's Valve Manufacturing Unit
+Parsippany, N.J., July 13, 2026 - Northwind Foods, Inc. (NYSE: NWF) announced today that it will acquire the valve unit of Bluebird Corp.`;
+    expect(parsePressRelease(unit, ctx)).toBeNull();
+  });
+
+  it("cuts 'X and Y Announce Agreement for X to Acquire Y' to the buyer", () => {
+    const text = `Exhibit 99.1
+Galena and Bluebird Announce Agreement for Galena to Acquire Bluebird
+ZURICH, July 21, 2026 - Galena AG (SIX: GALN) and Bluebird, Inc. (NASDAQ: BLBD) today announced a definitive merger agreement under which Galena will acquire Bluebird for $32.00 per share in cash.`;
+    expect(parsePressRelease(text, { filerName: "Bluebird, Inc.", filerTickers: ["BLBD"] })?.acquirer.name).toBe("Galena");
+  });
+
+  it("reads two buyers announcing an acquisition", () => {
+    const text = `Exhibit 99.1
+Northwind and Crestline Global Announce Acquisition of Specialty Insurance Company Bluebird Holdings, Inc.
+NEW YORK, January 15, 2026 - Northwind and Crestline Global today announced a definitive agreement to acquire Bluebird Holdings, Inc. (NYSE: BLBD) for $14.00 per share in cash.`;
+    const p = parsePressRelease(text, { filerName: "Bluebird Holdings, Inc.", filerTickers: ["BLBD"] })!;
+    expect(p.acquirer.name).toBe("Northwind and Crestline Global");
+    expect(p.target).toMatchObject({ name: "Bluebird Holdings, Inc.", ticker: "BLBD" });
+  });
+
+  it("keeps an announcement whose first paragraph mentions an earlier deal", () => {
+    const text = `Exhibit 99.1
+NORTHWIND DIGITAL ANNOUNCES ACQUISITION OF BLUEBIRD
+IRVINE, Calif., October 21, 2026 - Northwind Digital Corporation (NASDAQ: NWDC) and Bluebird Corporation (NASDAQ: BLBD) today announced a definitive agreement under which Northwind will acquire Bluebird for $86.50 per share. The transaction is in addition to the previously announced investment by Crestline.`;
+    expect(parsePressRelease(text, { filerName: "Northwind Digital Corporation", filerTickers: ["NWDC"] })?.kind).toBe("announcement");
+  });
 });
 
 describe("term extractors", () => {

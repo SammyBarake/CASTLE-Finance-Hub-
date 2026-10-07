@@ -56,6 +56,19 @@ export function sameCompany(a: string | null | undefined, b: string | null | und
   return fx.length >= 4 && fx === fy;
 }
 
+/**
+ * A release's short name for a company: `sameCompany`, or its initials ("EFI" for Electronics For Imaging,
+ * "WBA" for Walgreens Boots Alliance). Only for contexts that already know which company is meant (the backstop's
+ * filer), since initials alone are ambiguous.
+ */
+export function namesCompany(short: string, full: string): boolean {
+  if (sameCompany(short, full)) return true;
+  const s = short.trim();
+  if (!/^[A-Z]{2,6}$/.test(s)) return false;
+  const words = normalizeName(full).split(" ").filter((w) => w && w !== "and");
+  return words.length >= 2 && words.map((w) => w[0]).join("") === s.toLowerCase();
+}
+
 /** Strip leading qualifiers and trailing noise from a party name captured by a regex. */
 export function cleanPartyName(raw: string): string {
   let s = raw
@@ -142,4 +155,7 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/\b(?:preferred|common|capital) stock\b|\b(?:preferred|common) shares\b|\bwarrants\b|\bconvertible notes\b/i.test(s) &&
   // Clause fragments, not names: "The board of directors of the Company", "Merger On August 1, 2026".
   !/\b(?:board of directors|that certain|special committee|net to the|without interest|per share|Exchange Commission|(?:closing )?stock price|closing price)\b/i.test(s) &&
-  !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s);
+  !/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2}\b/.test(s) &&
+  !/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}$/i.test(s.trim()) &&
+  // Other legal documents an 8-K describes: "Restated Credit Agreement", "Notes and the Indenture are jointly …".
+  !/\b(?:credit agreement|loan agreement|security agreement|indenture|amendment no|amended and restated|restated credit|supplemental)\b|^(?:the )?notes\b/i.test(s);

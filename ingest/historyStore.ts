@@ -70,8 +70,18 @@ async function selectAll<T>(db: SupabaseClient, table: string, columns: string):
 const firstOfMonth = (month: string) => `${month}-01`;
 
 export const push = {
-  deals: (db: SupabaseClient, deals: StoredDeal[]) =>
-    upsert(db, "deals_history", deals.map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d }))),
+  deals: async (db: SupabaseClient, deals: StoredDeal[]) => {
+    await upsert(db, "deals_history", deals.map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d })));
+    // Records the history no longer has (merged duplicates, junk dropped by tidy, a re-read) are deleted: an upsert
+    // alone would keep them. Never with an empty file, which would wipe the table.
+    if (!deals.length) return;
+    const keep = new Set(deals.map((d) => d.id));
+    const stale = (await selectAll<{ id: string }>(db, "deals_history", "id")).map((r) => r.id).filter((id) => !keep.has(id));
+    for (let i = 0; i < stale.length; i += 200) {
+      const { error } = await db.from("deals_history").delete().in("id", stale.slice(i, i + 200));
+      if (error) throw explain("deals_history", error.message);
+    }
+  },
   ipos: (db: SupabaseClient, state: IpoHistoryState) =>
     upsert(db, "ipo_history", state.records.map((r) => ({ id: r.id, priced_date: r.pricedDate, sector: r.sector, raise_usd: r.raiseUsd, data: r }))),
   sectorMonthly: (db: SupabaseClient, rows: SectorMonthRow[]) =>

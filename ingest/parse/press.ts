@@ -39,7 +39,7 @@ export interface ParsedPress {
 // ---------------------------------------------------------------------------
 
 const SKIP_LINE =
-  /^(?:ex-?\d|exhibit\b|\d+$|[\w-]+\.html?$|press release|news release|for immediate release|contacts?:|media contact|investor contact|tsxv?:|nyse|nasdaq|otc|\(?nyse|\(?nasdaq|[a-z]+ \d{1,2},? \d{4}$|\d{4}$|page \d)/i;
+  /^(?:ex-?\d|exhibit\b|\d+$|[\w-]+\.html?$|press release|news release|(?:for )?immediate (?:release|distribution)|contacts?:|media contact|investor contact|tsxv?:|nyse|nasdaq|otc|\(?nyse|\(?nasdaq|[a-z]+ \d{1,2},? \d{4}$|\d{4}$|page \d)/i;
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December|Jan\\.?|Feb\\.?|Mar\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sept?\\.?|Oct\\.?|Nov\\.?|Dec\\.?";
 const DATELINE = new RegExp(`(?:^|\\n)[^\\n]{0,160}?(?:${MONTHS})\\s*,?\\s*\\d{1,2}\\s*,\\s*(?:19|20)\\d{2}\\s*[-–—/]+\\s*`, "i");
 
@@ -48,6 +48,11 @@ const COVER_LINE =
   /securities and exchange commission|washington,? d\.?\s?c\.?|pursuant to rule|filed by|subject company|commission file|schedule 14a|form 8-k|form 425|current report|check the appropriate box|registrant|soliciting material|securities exchange act of 1934|^(?:DEFA14A|425|8-K|SC TO-C|SC14D9C|EX-99[.\d]*)\s+\d+\s+\S+\.html?/i;
 /** "(mark one)"-style fragments: all lower-case. */
 const LOWERCASE_FRAGMENT = /^\(?[a-z ]+\)?$/;
+/** Media / investor contact lines: a phone number or e-mail address, a PR firm or proxy solicitor, "N E W S". */
+const CONTACT_LINE =
+  /\(?\b\d{3}\)?[\s.-]\d{3}[-.]\d{4}\b|\b[\w.-]+@[\w-]+\.(?:com|net|org)\b|^(?:Sard Verbinnen|Joele Frank|Brunswick Group|Kekst|Abernathy MacGregor|MacKenzie Partners|Innisfree|D\.\s?F\. King|Georgeson|Okapi Partners|FTI Consulting|Finsbury|Gasthalter|Prosek)\b|^(?:[A-Z] ){3,}[A-Z]$|\bcontacts?:?$|^release$/i;
+/** Words that make a headline about a deal. */
+const DEAL_WORDS = /\b(acquir|acquisition|merger|merge|combin|go private|take (?:the )?company private|going private|to be acquired|sale to)\w*/i;
 /** Bullet glyphs, including Symbol-font private-use characters common in EDGAR HTML. */
 const BULLET = /^[•●▪■‣⁃·◦*]|^[-–]\s/;
 
@@ -59,33 +64,75 @@ const BULLET = /^[•●▪■‣⁃·◦*]|^[-–]\s/;
 export function splitHeadline(text: string): { headline: string; body: string } {
   const dl = DATELINE.exec(text);
   const head = dl ? text.slice(0, dl.index + (dl[0].startsWith("\n") ? 1 : 0)) : text.slice(0, 800);
-  const body = dl ? text.slice(dl.index + dl[0].length) : text;
+  const body = flatten(dl ? text.slice(dl.index + dl[0].length) : text);
   const lines = head
     .split(/\n/)
-    .map((l) => l.replace(/&middot;|·/g, "•").trim())
+    // A label on the headline's line: "RELEASE Banner Corporation to Acquire …" ("NEWS" as a logo), "Immediate Release …".
+    .map((l) => l.replace(/&middot;|·/g, "•").replace(HEADLINE_LABEL, "").trim())
     .filter(Boolean);
+  const block = dl ? collectHeadline(lines, lines.length - 1, -1) : collectHeadline(lines, 0, 1);
 
-  const picked: string[] = [];
-  const walk = dl ? [...lines].reverse() : lines;
+  // Reading back from the dateline stops at sub-headlines ("Merger Delivers Significant Value …", "Highlights:") when
+  // the headline sits further up, and skips across bullets; reading forward without one runs into them. So the first
+  // line naming the deal wins: above the block read back, or inside the block read forward. It takes the line above
+  // when it can't start a headline itself ("… Enters into a Definitive" / "Agreement to be Acquired by …"), and the
+  // lines below only where the headline wraps onto them, never a sub-headline ("… to Acquire Tableau" / "World's #1 CRM").
+  const usable = (i: number) => i >= 0 && i < lines.length && !BULLET.test(lines[i]) && !isBoiler(lines[i]) && lines[i].length <= 300;
+  const top = lines.findIndex((l, i) => (dl ? i <= block.start : i >= block.start && i <= block.end) && usable(i) && (DEAL_WORDS.test(l) || DEAL_TERMS.test(l)));
+  if (top < 0) return { headline: block.text, body };
+
+  const picked = [lines[top]];
+  // A deal announced with results: "RealD Inc. Reports Second Quarter … Results" / "Announces agreement to be acquired
+  // by Rizvi Traverse" reads as "RealD Inc. Announces agreement to be acquired by Rizvi Traverse".
+  const results = /^(?:Announces|Signs|Agrees|Enters|Completes|Reaches)\b/.test(lines[top]) ? RESULTS_LINE.exec([top - 2, top - 1].filter(usable).map((i) => lines[i]).join(" ")) : null;
+  if (results) picked.unshift(results[1]);
+  else for (let i = top - 1; i >= 0 && top - i <= 2 && usable(i) && (CONTINUES_ABOVE.test(lines[i + 1]) || wraps(lines[i], lines[i + 1])); i--) picked.unshift(lines[i]);
+  for (let i = top + 1; picked.length < 3 && usable(i) && wraps(lines[i - 1], lines[i]) && picked.join(" ").length + lines[i].length <= 300; i++) picked.push(lines[i]);
+  return { headline: flatten(picked.join(" ")), body };
+}
+
+const HEADLINE_LABEL = /^(?:(?:For |FOR )?(?:Immediate|IMMEDIATE) (?:Release|RELEASE|Distribution|DISTRIBUTION)|(?:NEWS |PRESS )?RELEASE):?\s+(?=[A-Z])/;
+/** Deal wording that locates a headline without making it one ("Instructure and Thoma Bravo Revise Definitive Agreement"). */
+const DEAL_TERMS = /\bdefinitive (?:merger )?agreement|\bmerger agreement|\btender offer\b/i;
+/** Lines that can't start a headline: they continue the line above. */
+const CONTINUES_ABOVE = /^(?:and|or|of|for|to|with|by|in|at|agreement|definitive|merger|acquisition|combination|transaction|signs|agrees?|enters|announces?|completes?)\b/i;
+/** Words that can't start a sub-headline: the headline goes on ("… Enters into Definitive Merger" / "Agreement to be …"). */
+const CONTINUES_HEADLINE = /^(?:and|or|of|for|to|by|in|at|agreement|acquired|definitive)\b/i;
+/** A headline that announces a new deal. */
+const ANNOUNCES_DEAL =
+  /\b(?:to acquire|to be acquired|agree(?:s|ment)? to (?:acquire|merge|combine|be acquired)|announces? (?:the )?(?:acquisition|agreement|merger|definitive)|definitive (?:merger )?agreement|to merge|to combine)\b/i;
+/** "<Company> Reports / Announces … Results / Earnings". */
+const RESULTS_LINE = /^(.{2,80}?)\s+(?:Reports|Announces|Posts|Releases|Delivers)\b.*\b(?:Results|Earnings)\b/i;
+const allCaps = (l: string) => /[A-Z]/.test(l) && !/[a-z]/.test(l);
+/** Line `b` carries on the headline of line `a` (one headline wrapped over two lines), not a new sub-headline. */
+const wraps = (a: string, b: string) =>
+  /^[a-z]/.test(b) || CONTINUES_HEADLINE.test(b) || /\b(?:for|to|of|by|with|and|the|a|an|in|on|into|be|acquire|merge|combine|definitive)$/i.test(a) || (allCaps(a) && allCaps(b));
+
+const isBoiler = (line: string) =>
+  SKIP_LINE.test(line) || COVER_LINE.test(line) || LOWERCASE_FRAGMENT.test(line) || line.length < 6 || (line.length < 120 && CONTACT_LINE.test(line));
+
+/** Up to three headline lines from `lines[from]`, read forward or backward, ending at boilerplate (and, forward, at bullets). */
+function collectHeadline(lines: string[], from: number, step: 1 | -1): { start: number; end: number; text: string } {
+  const picked: number[] = [];
   let seenBullets = false;
-  for (const line of walk) {
+  for (let i = from; i >= 0 && i < lines.length; i += step) {
+    const line = lines[i];
     if (BULLET.test(line)) {
       seenBullets = true;
-      if (!dl && picked.length) break;
+      if (step === 1 && picked.length) break;
       continue;
     }
-    const boiler = SKIP_LINE.test(line) || COVER_LINE.test(line) || LOWERCASE_FRAGMENT.test(line) || line.length < 6;
-    if (boiler) {
+    if (isBoiler(line)) {
       if (picked.length) break;
       continue;
     }
     // Reading backwards: a long paragraph right above the dateline is body copy, not a headline.
-    if (dl && !picked.length && !seenBullets && line.length > 400) continue;
-    picked.push(line);
-    if (picked.join(" ").length > 260 || picked.length >= 3) break;
+    if (step === -1 && !picked.length && !seenBullets && line.length > 400) continue;
+    picked.push(i);
+    if (picked.map((j) => lines[j]).join(" ").length > 260 || picked.length >= 3) break;
   }
-  if (dl) picked.reverse();
-  return { headline: flatten(picked.join(" ")), body: flatten(body) };
+  picked.sort((a, b) => a - b);
+  return { start: picked[0] ?? lines.length, end: picked.at(-1) ?? -1, text: flatten(picked.map((j) => lines[j]).join(" ")) };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +174,8 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
   // Private-company deals: "Acme Acquires Widget Co.", "Acme Has Acquired …", "Acme Announces (the) Acquisition of …".
   // (SUBHEAD_STOP also ends the target where a glued-on sub-headline starts: "… Valve Systems Expands flow-control portfolio".)
   {
-    re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces (?:the |its )?acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
+    // ("TowerBrook and Further Global Announce Acquisition of …": two buyers, one target.)
+    re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces? (?:the |its |their )?acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
     roles: ["acq", "tgt"],
   },
   {
@@ -196,7 +244,21 @@ function tickerMentions(text: string): PartyMention[] {
 const US_EXCHANGES = new Set(["NYSE", "NASDAQ", "NYSE American", "NYSE Arca", "Cboe", "OTCQX", "OTCQB", "OTC"]);
 
 function withTicker(name: string, mentions: PartyMention[]): PartyMention {
-  const matches = mentions.filter((m) => sameCompany(m.name, name));
+  let matches = mentions.filter((m) => sameCompany(m.name, name));
+  // A description in front of the name: "Specialty Insurance Company ProSight Global" is "ProSight Global, Inc.".
+  if (!matches.length) {
+    const plain = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9&]+/g, " ").replace(/\b(?:inc|incorporated|corp|corporation|ltd|limited|llc|plc|co|lp)\b/g, " ").replace(/\s+/g, " ").trim();
+    const n = plain(name);
+    matches = mentions.filter((m) => {
+      const core = plain(m.name);
+      return core.split(" ").length >= 2 && n.endsWith(` ${core}`);
+    });
+    if (matches.length) {
+      const best = matches.find((m) => m.exchange && US_EXCHANGES.has(m.exchange)) ?? matches[0];
+      return { name: best.name, ticker: best.ticker, exchange: best.exchange };
+    }
+  }
   // Prefer a US listing when a company is dual-listed.
   const best = matches.find((m) => m.exchange && US_EXCHANGES.has(m.exchange)) ?? matches[0];
   if (!best) return { name, ticker: null, exchange: null };
@@ -445,12 +507,36 @@ export function isPrivateTarget(targetName: string, intro: string, targetTicker:
   return new RegExp(`${escaped},?\\s+(?:Inc|LLC|L\\.L\\.C|Ltd|Limited|Corp|Corporation|GmbH|AG|S\\.A|B\\.V|N\\.V|plc|Co|L\\.P|LP|Pty|SAS|S\\.r\\.l)\\b`).test(intro);
 }
 
-/** "Acme Acquires Honeywell's Aerospace Unit": a carve-out, not a purchase of the named company. */
+const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const PART_WORDS =
+  /^(?:\s+[\w&.-]+){0,4}?\s+(?:business(?:es)?|division|unit|assets|operations|segments?|portfolio|subsidiar(?:y|ies)|product lines?|products|brands?|plants?|facilit(?:y|ies)|stake|interest|properties|rights)\b/i;
+/** After a possessive: a part of the company ("'s valve unit", "'s Environmental Solutions Business"). */
+const PART_OF = { test: (rest: string) => /^\s+[a-z]/.test(rest) || PART_WORDS.test(rest) };
+
+/**
+ * "Acme Acquires Honeywell's Aerospace Unit": a carve-out, not a purchase of the named company. A possessive followed
+ * by a name is the name itself ("Mama Mary's Pizza Crusts", "Papa Murphy's").
+ */
 export function isCarveOut(headline: string, intro: string, targetName: string): boolean {
-  if (/['’]s\s+[A-Za-z]|s['’]\s+[A-Za-z]/.test(targetName)) return true;
-  const escaped = targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const possessive = new RegExp(`${escaped}['’]s\\s+[A-Za-z]`);
-  return possessive.test(headline) || new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escaped}`, "i").test(intro.slice(0, 1200));
+  const own = /(?:['’]s|s['’])(\s.*)$/.exec(targetName);
+  if (own && PART_OF.test(own[1])) return true;
+  const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
+  if (possessive && PART_OF.test(possessive[1])) return true;
+  return new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(intro.slice(0, 1200));
+}
+
+const NAME_END = /^(?:for|in|at|to|from|with|via|and|or|creating|valued|transaction|deal|acquisition|agreement|merger|subject|following|per)$/i;
+
+/** The headline's name with its possessive kept, when a name follows it: "Mama Mary" → "Mama Mary's Pizza Crusts". */
+function withApostrophe(name: string, headline: string): string {
+  const m = new RegExp(`(?:^|\\s)${escapeRx(name)}['’]s((?:\\s+[A-Z0-9][\\w&.'’-]*)*)`).exec(headline);
+  if (!m || PART_OF.test(headline.slice(m.index + m[0].length - m[1].length))) return name;
+  const words: string[] = [];
+  for (const w of m[1].split(/\s+/).filter(Boolean)) {
+    if (NAME_END.test(w)) break;
+    words.push(w);
+  }
+  return [`${name}'s`, ...words].join(" ");
 }
 
 export function parsePressRelease(text: string, ctx: PressContext): ParsedPress | null {
@@ -491,7 +577,8 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     kind = "completion";
   }
   else if (
-    /previously announced|previously disclosed/i.test(intro.slice(0, 600)) ||
+    // Unless the headline announces the deal itself (Western Digital's SanDisk release mentions an earlier investment).
+    (/previously announced|previously disclosed/i.test(intro.slice(0, 600)) && !(ANNOUNCES_DEAL.test(headline) && !/\b(?:amend|revis|increas|rais|extend)/i.test(headline))) ||
     /\b(?:(?:stockholders?|shareholders?|regulators?|court|members) (?:approve|approval)|receives? (?:\w+ )?approval|go-shop|expiration|expires|record date|special meeting|clearance|\bhsr\b|extends?|update|adjourn|early termination of waiting)/i.test(hl)
   ) {
     kind = "update";
@@ -533,12 +620,14 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     if (extends_(bodyParties.acq, parties.acq)) parties.acq = bodyParties.acq;
     if (extends_(bodyParties.tgt, parties.tgt)) parties.tgt = bodyParties.tgt;
   }
+  parties.tgt = withApostrophe(parties.tgt, headline);
 
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
   const tgtFirst = parties.tgt.replace(/^The\s+/, "").split(/[\s,]+/)[0];
   if (tgtFirst.length >= 3) {
     const at = parties.acq.indexOf(` ${tgtFirst}`);
-    if (at > 0) parties.acq = parties.acq.slice(0, at);
+    // ("Galenica and Relypsa Announce Agreement for Galenica to Acquire Relypsa" cuts to "Galenica and".)
+    if (at > 0) parties.acq = parties.acq.slice(0, at).replace(/\s+(?:and|&|or|of|for|with|the)$/i, "");
   }
   parties.acq = parties.acq.replace(/\s+(?:Shareholders|Stockholders)$/, "");
 

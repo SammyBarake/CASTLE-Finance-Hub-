@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { htmlToText } from "../text";
 import { extractMergerPrice, item101, parseMergerItem } from "./eightk";
 
 // Synthetic Item 1.01 sections in the style of real merger 8-Ks.
@@ -104,5 +105,26 @@ Item 9.01 Financial Statements and Exhibits.`;
     const p = parseMergerItem(BUYER_SIDE, { filerName: "RYVYL Inc.", filerTickers: ["RVYL"] })!;
     expect(p.target.name).toBe("RTB Digital, Inc.");
     expect(p.acquirer.name).toBe("RYVYL Inc.");
+  });
+});
+describe("parseMergerItem: older filings and partnerships", () => {
+  const ctx = { filerName: "TransMontaigne Partners L.P.", filerTickers: [] };
+
+  it("reads a partnership target defined as \"the Partnership\"", () => {
+    const text = `Item 1.01 Entry into a Material Definitive Agreement.
+On October 8, 2018, TransMontaigne Partners L.P., a Delaware limited partnership (the "Partnership"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Kestrel Energy Holdings LLC, a Delaware limited liability company ("Parent"), and Kestrel Merger Sub LLC ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Partnership, with the Partnership surviving as a subsidiary of Parent. Each common unit will be converted into the right to receive $41.00 in cash.
+Item 9.01 Financial Statements and Exhibits.`;
+    const p = parseMergerItem(text, ctx)!;
+    expect(p.target.name).toBe("TransMontaigne Partners L.P.");
+    expect(p.acquirer.name).toBe("Kestrel Energy Holdings LLC");
+    expect(p.pricePerShare).toBe(41);
+  });
+
+  it("reads defined terms written with Windows-1252 quote entities (2018–2019 filings)", () => {
+    const html = `<html><body><p>Item 1.01 Entry into a Material Definitive Agreement.</p><p>On January 5, 2019, Eli Lilly and Company, an Indiana corporation (&#147;Parent&#148;), Bowfin Acquisition Corporation, a Delaware corporation and a wholly owned subsidiary of Parent (&#147;Purchaser&#148;), and Loxo Oncology, Inc., a Delaware corporation (the &#147;Company&#148;), entered into an Agreement and Plan of Merger (the &#147;Merger Agreement&#148;). Purchaser will commence a tender offer to acquire all of the outstanding shares of common stock of the Company for $235.00 per share, net to the seller in cash, and Purchaser will then merge with and into the Company.</p><p>Item 9.01 Financial Statements and Exhibits.</p></body></html>`;
+    const p = parseMergerItem(htmlToText(html), { filerName: "Loxo Oncology, Inc.", filerTickers: [] })!;
+    expect(p.target.name).toBe("Loxo Oncology, Inc.");
+    expect(p.acquirer.name).toBe("Eli Lilly and Company");
+    expect(p.pricePerShare).toBe(235);
   });
 });
