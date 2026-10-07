@@ -40,7 +40,7 @@ export function definedEntities(s: string): Entity[] {
   for (const m of s.matchAll(re)) {
     // "Eli Lilly and Company" is one name: keep its "and" away from the clause-word stripping below, which would
     // otherwise cut at it and leave just "Company".
-    let name = m[1].trim().replace(/\s(?:and|&)\s(Company|Co\.?)(?=\W|$)/g, "\u0001$1");
+    let name = m[1].trim().replace(/\s(and|&)\s(Company|Co\.?)(?=\W|$)/g, (_, join: string, co: string) => (join === "&" ? "\u0002" : "\u0001") + co);
     // Drop leading clause words captured before the name:
     // "Merger On December 1, 2025, Keystone" -> "Keystone"; "with Copart" -> "Copart"; "Company, GlaxoSmithKline LLC" -> "GlaxoSmithKline LLC".
     name = name.replace(/^.*\b(?:19|20)\d{2},\s+(?=[A-Z])/, "");
@@ -49,7 +49,7 @@ export function definedEntities(s: string): Entity[] {
     name = name.replace(/^(?:.*\b(?:with|and|among|between|by|of|that is affiliated with|affiliated with|subsidiary of)\s+)(?=[A-Z])/, "");
     // "Soleno Therapeutics, Inc. a Delaware corporation" -> "Soleno Therapeutics, Inc."
     name = name.replace(/,?\s+an?\s+[A-Z][\w.]*(?:\s[\w.]+){0,3}\s+(?:corporation|company|limited liability company|limited partnership|partnership|trust|société anonyme|public limited company)$/i, "");
-    name = cleanPartyName(name.replace(/,$/, "").replace(/\u0001/g, " and "));
+    name = cleanPartyName(name.replace(/,$/, "").replace(/\u0001/g, " and ").replace(/\u0002/g, " & "));
     if (!isPlausibleName(name) || name.length > 70 || CLAUSE.test(name)) continue;
     if (/^(?:the )?(?:Company|Partnership|Registrant|Trust|Parent|Merger Sub|Purchaser|Board|Effective Time|Offer|Merger|Share|Delaware)$/i.test(name)) continue;
     // "RTB's certificate of incorporation", "the Company's common stock": a possessive then lowercase words is a
@@ -105,6 +105,9 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
   for (const m of section.matchAll(/\b(?:will|shall)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+(?:the\s+)?"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)"?(?=[\s,.(;])/g)) {
     const into = ref(m[1]);
     const before = section.slice(Math.max(0, m.index! - 260), m.index!);
+    // "the Company will merge with and into Corp Merger Sub": the Company merging into a merger subsidiary is the target.
+    const intoShell = /^\s*(?:Merger Sub(?:sidiary)?|Sub)\b/.test(section.slice(m.index! + m[0].length)) || SHELL_NAME.test(into);
+    if (intoShell && /\b(?:Company|Partnership|Registrant|Trust)["”]?\s*$/.test(before)) return { target: "Company" };
     if (/Merger Sub|Purchaser|MergeCo|Merger Subsidiary|Acquisition (?:Co|Corp|Sub)|Merger Corp/i.test(before.slice(-160))) return { target: into };
     // A named party merging directly into another (bank mergers): the named party is the target.
     const subject = [...entities].reverse().find((e) => before.slice(-140).includes(e.nick) || before.slice(-140).includes(e.name));

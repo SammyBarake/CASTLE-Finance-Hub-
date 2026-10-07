@@ -120,6 +120,16 @@ Item 9.01 Financial Statements and Exhibits.`;
     expect(p.pricePerShare).toBe(41);
   });
 
+  it("reads the Company merging into a merger sub as the target", () => {
+    const text = `Item 1.01. Entry into a Material Definitive Agreement.
+On March 31, 2026, Bluebird & Co., Inc., a Delaware corporation (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") among Crestline Midco, Inc., a Delaware corporation ("Parent"), Crestline Merger Sub, Inc., a Delaware corporation and a wholly-owned Subsidiary of Parent, ("Corp Merger Sub"), and Bluebird Group, LLC ("Group LLC"). Pursuant to the Merger Agreement, the Company will merge with and into Corp Merger Sub (the "Company Merger"), and each share of Class A common stock of the Company will be converted into the right to receive $12.85 in cash.
+Item 9.01 Financial Statements and Exhibits.`;
+    const p = parseMergerItem(text, { filerName: "Bluebird & Co., Inc.", filerTickers: [] })!;
+    expect(p.target.name).toBe("Bluebird & Co., Inc.");
+    expect(p.acquirer.name).toBe("Crestline Midco, Inc.");
+    expect(p.pricePerShare).toBe(12.85);
+  });
+
   it("reads defined terms written with Windows-1252 quote entities (2018–2019 filings)", () => {
     const html = `<html><body><p>Item 1.01 Entry into a Material Definitive Agreement.</p><p>On January 5, 2019, Eli Lilly and Company, an Indiana corporation (&#147;Parent&#148;), Bowfin Acquisition Corporation, a Delaware corporation and a wholly owned subsidiary of Parent (&#147;Purchaser&#148;), and Loxo Oncology, Inc., a Delaware corporation (the &#147;Company&#148;), entered into an Agreement and Plan of Merger (the &#147;Merger Agreement&#148;). Purchaser will commence a tender offer to acquire all of the outstanding shares of common stock of the Company for $235.00 per share, net to the seller in cash, and Purchaser will then merge with and into the Company.</p><p>Item 9.01 Financial Statements and Exhibits.</p></body></html>`;
     const p = parseMergerItem(htmlToText(html), { filerName: "Loxo Oncology, Inc.", filerTickers: [] })!;

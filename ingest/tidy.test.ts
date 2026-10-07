@@ -78,6 +78,15 @@ describe("junkReason", () => {
     // An operating company with an industry code and a similar name stays.
     expect(junkReason(deal({ industry: "State Commercial Banks", target: { name: "Pinnacle Capital Corp", ticker: null, cik: "123" } }))).toBeNull();
   });
+
+  it("rejects SPACs buying private companies, and bare legal suffixes as names", () => {
+    const spac = deal({ privateTarget: true, industry: "Blank Checks", acquirer: { name: "Global Star Acquisition Inc.", ticker: "GLST", cik: "1922331" }, target: { name: "K Enter Holdings Inc.", ticker: null, cik: null } });
+    expect(junkReason(spac)).toMatch(/SPAC buyer/);
+    expect(junkReason({ ...spac, acquirer: { name: "Northern Star Investment Corp. II", ticker: null, cik: "1" } })).toMatch(/SPAC buyer/);
+    // A de-SPACed operating company can keep SIC 6770 for years.
+    expect(junkReason({ ...spac, acquirer: { name: "Infrastructure & Energy Alternatives, Inc.", ticker: "IEA", cik: "1" } })).toBeNull();
+    expect(junkReason(deal({ acquirer: { name: "Callodine Midco, Inc.", ticker: null, cik: null }, target: { name: "Corp", ticker: null, cik: null } }))).toMatch(/implausible/);
+  });
 });
 
 describe("sanitizeDeal", () => {

@@ -18,6 +18,11 @@ export function junkReason(d: StoredDeal): string | null {
   // Capital / Finance / Credit Corp" with no industry code (operating companies have one; BDCs usually don't).
   if (!d.privateTarget && (/\bBDC\b/.test(d.target.name) || (!d.industry && /\b(?:Investment|Capital|Finance|Credit|Lending)\s+(?:Corp(?:oration)?|Inc\.?|Company)$/i.test(d.target.name.trim()))))
     return `investment fund as target "${d.target.name}"`;
+  // A private company bought by a SPAC is a de-SPAC, out of scope ("Global Star Acquisition Inc." and K Enter: the
+  // "Acquisition Corp" name check misses "Acquisition Inc."). Its industry comes from the buyer's SIC 6770, which a
+  // de-SPACed operating company can keep for years (IEA in 2018), so the name must look like a SPAC too.
+  if (d.privateTarget && /^blank checks?$/i.test(d.industry ?? "") && (SPAC_NAME.test(d.acquirer.name) || /\bAcquisition\b|\bCorp\.?\s+[IVX]+$/i.test(d.acquirer.name)))
+    return `SPAC buyer "${d.acquirer.name}"`;
   // (A private target with a share price or premium is resolved against EDGAR during enrichment, not dropped here:
   // private banks quote per-share prices too.)
   return null;

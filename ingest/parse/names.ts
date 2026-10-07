@@ -144,6 +144,8 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
   !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco)$/i.test(s) &&
+  // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp.
+  !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.v|s\.a|ag|gmbh)\.?$/i.test(s.trim()) &&
   // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
   // "During the five-year period following the Closing".
   !/^(?:Item|Exhibit)\s+\d/i.test(s) &&
