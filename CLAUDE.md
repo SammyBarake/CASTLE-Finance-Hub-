@@ -18,7 +18,7 @@ The founder is a finance student building toward IB/PE. Design is set; the job i
 ## Hard constraints
 
 - **$0 to run.** Free tiers only: Next.js on Vercel, Supabase free Postgres, GitHub Actions, free SEC EDGAR data. No paid APIs or data vendors.
-- **Serious, modern finance aesthetic.** Monochrome, dense, calm. The castle appears **only** as the logo (`public/castle-logo.png`, a transparent PNG trimmed to the artwork, shown in `components/shell/AppShell.tsx`; never use a logo file with a baked-in background).
+- **Serious, modern finance aesthetic.** Monochrome, dense, calm. The castle appears **only** as the logo (`public/castle-logo.png`, a white crest + CASTLE wordmark on transparent, 1094 × 838, trimmed to the artwork; never use a logo file with a baked-in background). The sidebar draws it in `components/shell/BrandLogo.tsx` as the crest and six letters clipped from that one image (box coordinates in the file: update them if the artwork changes): they rise in on load; a click presses it with a sheen and a crest echo, and quick repeated clicks flip the letters like a departure board (every 3rd) and lift the crest with a wave of echoes (from the 6th). `app/favicon.ico` and `app/apple-icon.png` are the crest on a dark tile.
 - **Never commit secrets.** Real values go in `.env.local` (git-ignored). Document every variable in `.env.example` with no values. Supabase service-role keys stay server-side / in GitHub Actions secrets, never `NEXT_PUBLIC_`.
 - SEC EDGAR requires a descriptive `User-Agent` with contact info and has a rate limit of 10 requests/second.
 

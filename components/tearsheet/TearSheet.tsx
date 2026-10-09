@@ -8,7 +8,7 @@ export function TearSheet({ kind, asOf, children, sources }: { kind: string; asO
       <header className="sheet-head">
         {/* The cream logo is drawn dark on paper (CSS filter), keeping its transparent background. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="sheet-logo" src="/castle-logo.png" alt="Castle" width={64} height={63} />
+        <img className="sheet-logo" src="/castle-logo.png" alt="Castle" width={64} height={49} />
         <div className="sheet-head-meta">
           <span className="sheet-kind">{kind}</span>
           <span>Data as of {formatDateLong(asOf.slice(0, 10))}</span>
