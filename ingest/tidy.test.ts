@@ -173,6 +173,14 @@ describe("tidyDeals", () => {
     expect(right.status).toBe("Closed");
   });
 
+  it("drops the copy of a deal read with buyer and target swapped, keeping the one whose target filed the proxy", () => {
+    const right = deal({ id: "919864-2026-07-21", acquirer: { name: "First Financial Bancorp", ticker: "FFBC", cik: "708955" }, target: { name: "Finward Bancorp", ticker: "FNWD", cik: "919864" }, announcedDate: "2026-07-21", milestones: { path: "vote", firstFiling: { form: "DEFM14A", date: "2026-09-28" }, definitiveProxy: "2026-09-28", closed: null, terminated: null } });
+    const swapped = deal({ id: "708955-2026-07-21", acquirer: { name: "Finward Bancorp", ticker: "FNWD", cik: "919864" }, target: { name: "First Financial Bancorp", ticker: "FFBC", cik: "708955" }, announcedDate: "2026-07-21", milestones: { path: null, firstFiling: { form: "S-4", date: "2026-09-04" }, definitiveProxy: null, closed: null, terminated: null } });
+    const deals = [swapped, right];
+    tidyDeals(deals);
+    expect(deals.map((d) => d.id)).toEqual(["919864-2026-07-21"]);
+  });
+
   it("marks an earlier agreement superseded by a later buyer as terminated, even if the later closing marked it Closed", () => {
     // Lockheed / Aerojet (2020, fell through) and L3Harris / Aerojet (2022, closed 2023): the 2023 Form 25 is L3Harris's.
     const first = deal({ acquirer: { name: "Lockheed Martin Corp", ticker: "LMT", cik: "936468" }, announcedDate: "2020-12-21", status: "Closed", statusDate: "2023-07-28" });

@@ -188,6 +188,8 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/^(?:the\s+)?(?:Closing|Amendment|Effective Time|Transactions?|Business Combination|General Partner|Limited Partners?|First|Second|Third)$/i.test(s.trim()) &&
   // "Directors of the Company", "Merger and certain related contributions"
   !/^(?:the\s+)?Directors\b|\bof the Company$|^(?:Mergers?|Transactions?)\s+(?:and|of|with)\b/i.test(s.trim()) &&
+  // An agent named in an agreement: "American Stock Transfer & Trust Company, LLC, as Rights Agent".
+  !/\bas (?:Rights|Exchange|Paying|Escrow|Depositary|Administrative) Agent\b/i.test(s) &&
   !/\bAgreement$/.test(s.trim());
 
 const PLACES = [

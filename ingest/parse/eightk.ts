@@ -149,7 +149,8 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
 
   // Several mergers can be described (an operating partnership first, then the company): prefer the one into the filer.
   const found: { target: string; acquirerHint?: string }[] = [];
-  for (const m of section.matchAll(/\b(?:will|shall)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+/g)) {
+  // "Seller would merge with and into the Company" (First Financial / Finward) as well as "will" / "shall".
+  for (const m of section.matchAll(/\b(?:will|shall|would)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+/g)) {
     const raw = objectAt(m.index! + m[0].length);
     if (!raw) continue;
     const into = ref(raw);
@@ -182,7 +183,7 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
   if (acquiredBy) return { target: ref(acquiredBy[1]), acquirerHint: acquiredBy[2].trim() };
   // "Acquirer Sub will acquire the Company … pursuant to a scheme of arrangement" (Horizon); "the Purchaser will acquire
   // the issued and to be issued ordinary share capital of the Company" (Nielsen); "Banco Santander will acquire Webster".
-  for (const m of section.matchAll(/\b(?:will|shall)\s+acquire\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?(?:(?:issued|outstanding)[\w\s,]{0,60}?\bof\s+)?/g)) {
+  for (const m of section.matchAll(/\b(?:will|shall|would)\s+acquire\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?(?:(?:issued|outstanding)[\w\s,]{0,60}?\bof\s+)?/g)) {
     const raw = objectAt(m.index! + m[0].length);
     if (!raw) continue;
     const t = ref(raw);
@@ -274,10 +275,19 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   }
   if (!isPlausibleName(acquirerName) || sameCompany(acquirerName, targetName) || /^(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(acquirerName)) return null;
 
+  // An amendment to an agreement already announced ("First Amendment to Agreement and Plan of Merger. As previously
+  // announced, …") updates that deal and never creates one: Vista Outdoor's amendment listed Revelyst first, which
+  // made a second deal with Revelyst as the buyer.
+  const lead = section.slice(0, 400);
+  const kind =
+    /\b(?:(?:First|Second|Third|\w+)\s+Amendment|Amendment\s+No\.?\s*\d+)\s+to\s+(?:the\s+)?(?:Agreement and Plan of Merger|Merger Agreement|Transaction Agreement|Arrangement Agreement)\b/i.test(lead) ||
+    /\bAs previously (?:announced|reported|disclosed)\b/i.test(lead)
+      ? ("update" as const)
+      : ("announcement" as const);
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
   const value = extractValue(section);
   return {
-    kind: "announcement",
+    kind,
     headline: `${acquirerName} to acquire ${targetName} (8-K Item 1.01)`,
     acquirer: { name: acquirerName, ticker: null, exchange: null },
     target: { name: targetName, ticker: null, exchange: null },

@@ -124,6 +124,20 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     }
   }
 
+  // The same deal read both ways round (First Financial / Finward: the buyer's 8-K was read with the roles swapped).
+  // The target is the side that files the merger proxy or tender response; keep that record.
+  const proxyFirst = (d: StoredDeal) => /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T)$/.test(d.milestones?.firstFiling?.form ?? "");
+  for (const a of listed) {
+    for (const b of listed) {
+      if (a === b || !deals.includes(a) || !deals.includes(b) || !a.acquirer.cik || !b.acquirer.cik) continue;
+      if (a.target.cik !== b.acquirer.cik || a.acquirer.cik !== b.target.cik || Math.abs(days(a.announcedDate, b.announcedDate)) > 60) continue;
+      if (proxyFirst(a) && !proxyFirst(b)) {
+        drop(b, `same deal as ${a.id} with buyer and target swapped`);
+        result.merged++;
+      }
+    }
+  }
+
   // Group by target: the CIK for listed targets, the name for private ones.
   const byTarget = new Map<string, StoredDeal[]>();
   for (const d of deals) {
