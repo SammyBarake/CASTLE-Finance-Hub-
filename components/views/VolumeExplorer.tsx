@@ -308,9 +308,9 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
                 <tr>
                   <th scope="col">ANNOUNCED</th>
                   <th scope="col">TARGET</th>
-                  <th scope="col">BUYER</th>
+                  <th scope="col">ACQUIRER</th>
                   <th scope="col">SECTOR</th>
-                  <th scope="col" className="right">VALUE</th>
+                  <th scope="col" className="right">DEAL VALUE</th>
                   <th scope="col" className="right">PREMIUM</th>
                   <th scope="col">STATUS</th>
                 </tr>

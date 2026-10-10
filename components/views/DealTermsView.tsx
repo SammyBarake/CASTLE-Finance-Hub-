@@ -9,11 +9,11 @@ import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { bankShortName } from "@/lib/banks";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDate, formatUsd } from "@/lib/format";
+import { formatDate, formatPct, formatUsd } from "@/lib/format";
 import { feeLabel, feeUsd, financingLabel, financingShort, goShopLabel, termsInsights, termsRows, termsStats, type TermsRow } from "@/lib/terms";
 
 type Filter = "all" | "goshop" | "reverse" | "financed";
-const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
+const pct = (v: number | null) => formatPct(v);
 
 export function DealTermsView() {
   const { data } = useHubData();

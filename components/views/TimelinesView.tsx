@@ -124,7 +124,7 @@ export function TimelinesView() {
                 <thead>
                   <tr>
                     <th scope="col">TARGET</th>
-                    <th scope="col">BUYER</th>
+                    <th scope="col">ACQUIRER</th>
                     <th scope="col">ANNOUNCED</th>
                     <th scope="col">{list === "waiting" ? "STAGE" : "CLOSED"}</th>
                     <th scope="col" className="right">{list === "waiting" ? "WAITING" : "TOOK"}</th>

@@ -113,7 +113,7 @@ export function CompanyView({ id }: { id: string }) {
                 <th scope="col">ANNOUNCED</th>
                 <th scope="col">ROLE</th>
                 <th scope="col">COUNTERPARTY</th>
-                <th scope="col" className="right">VALUE</th>
+                <th scope="col" className="right">DEAL VALUE</th>
                 <th scope="col" className="right">PREMIUM</th>
                 <th scope="col">STATUS</th>
               </tr>
@@ -224,7 +224,7 @@ export function CompanyView({ id }: { id: string }) {
                 </span>
               </span>
               <span className="preview-value">
-                {s.percent != null ? `${s.percent.toFixed(1)}%` : "—"}
+                {formatPct(s.percent)}
                 <small>stake</small>
               </span>
             </a>

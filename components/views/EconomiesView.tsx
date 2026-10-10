@@ -7,10 +7,10 @@ import { Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPct } from "@/lib/format";
 import type { Economy, Region } from "@/lib/types";
 
-const pct = (v: number | null, digits = 1) => (v == null ? "—" : `${v.toFixed(digits)}%`);
+const pct = (v: number | null, digits = 1) => formatPct(v, digits);
 /** Policy rates keep their quarter-point precision (3.875%), trimmed of trailing zeros. */
 // Two decimals, or three when the rate needs them (the Fed's 3.875% midpoint): 6.50%, 1.00%, 3.875%.
 const rate = (v: number | null) => (v == null ? "—" : `${v.toFixed(Math.round(v * 1000) % 10 ? 3 : 2)}%`);

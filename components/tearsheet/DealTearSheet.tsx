@@ -63,8 +63,8 @@ function FootballField({ deal }: { deal: Deal }) {
             </span>
             <span className="sheet-ff-track">
               <i style={{ left: `${x(r.low)}%`, width: `${Math.max(0.8, x(r.high) - x(r.low))}%` }}>
-                <em className="lo">${r.low.toFixed(2)}</em>
-                <em className="hi">${r.high.toFixed(2)}</em>
+                <em className="lo">{formatPrice(r.low)}</em>
+                <em className="hi">{formatPrice(r.high)}</em>
               </i>
               {offer != null && <span className="sheet-ff-offer" style={{ left: `${x(offer)}%` }} />}
             </span>
@@ -176,9 +176,9 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
             <SheetRows
               rows={[
                 ["Comparable deals", `${ctx.n} in the prior 24 months`],
-                ["Premium", vs(deal.premiumPct, ctx.premium, (v) => `${v.toFixed(0)}%`)],
-                ["EV / EBITDA", vs(deal.evEbitda, ctx.evEbitda, (v) => `${v.toFixed(1)}x`)],
-                ["Break fee", vs(pctOf(t?.targetFeeUsd, deal.valueUsd), ctx.breakFee, (v) => `${v.toFixed(1)}%`)],
+                ["Premium", vs(deal.premiumPct, ctx.premium, (v) => formatPct(v))],
+                ["EV / EBITDA", vs(deal.evEbitda, ctx.evEbitda, (v) => formatMultiple(v))],
+                ["Break fee", vs(pctOf(t?.targetFeeUsd, deal.valueUsd), ctx.breakFee, (v) => formatPct(v))],
               ]}
             />
           </SheetSection>

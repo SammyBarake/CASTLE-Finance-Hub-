@@ -161,7 +161,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
                 <th scope="col">ANNOUNCED</th>
                 <th scope="col">TARGET</th>
                 <th scope="col">ACQUIRER</th>
-                <th scope="col" className="right">DEAL SIZE</th>
+                <th scope="col" className="right">DEAL VALUE</th>
                 <th scope="col" className="right">EV / EBITDA</th>
                 <th scope="col" className="right">EV / REVENUE</th>
                 <th scope="col" className="right">PREMIUM</th>

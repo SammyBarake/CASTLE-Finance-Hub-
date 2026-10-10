@@ -60,9 +60,9 @@ export function AdvisorFees() {
               <thead>
                 <tr>
                   <th scope="col">#</th>
-                  <th scope="col">BANK</th>
+                  <th scope="col">ADVISOR</th>
                   <th scope="col" className="right">TOTAL FEES</th>
-                  <th scope="col" className="right">DEALS</th>
+                  <th scope="col" className="right">DEALS ADVISED</th>
                   <th scope="col" className="right">MEDIAN % OF DEAL</th>
                 </tr>
               </thead>
@@ -114,7 +114,7 @@ export function AdvisorFees() {
             <caption className="sr-only">Largest disclosed fees</caption>
             <thead>
               <tr>
-                <th scope="col">BANK</th>
+                <th scope="col">ADVISOR</th>
                 <th scope="col">DEAL (TARGET)</th>
                 <th scope="col">ADVISED</th>
                 <th scope="col">ANNOUNCED</th>

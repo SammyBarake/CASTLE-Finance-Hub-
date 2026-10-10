@@ -94,7 +94,7 @@ export function CompanyTearSheet({ profile, data }: { profile: CompanyProfile; d
             <SheetRows
               rows={stakes.map((s) => [
                 s.investor.name,
-                `${s.percent != null ? `${s.percent.toFixed(1)}%` : "—"} · ${formatDateLong(s.filedDate)}${s.aims.length ? ` · ${s.aims.slice(0, 2).join(", ")}` : ""}`,
+                `${formatPct(s.percent)} · ${formatDateLong(s.filedDate)}${s.aims.length ? ` · ${s.aims.slice(0, 2).join(", ")}` : ""}`,
               ])}
             />
           ) : (

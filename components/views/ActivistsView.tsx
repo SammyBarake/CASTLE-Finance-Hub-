@@ -9,11 +9,11 @@ import { AboutData, Kpi, Kpis, PageHeading, PanelHead, Takeaways } from "@/compo
 import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { activistInsights, activistStats, laterDeal } from "@/lib/activists";
-import { formatDate, formatDateLong, formatUsd } from "@/lib/format";
+import { formatDate, formatDateLong, formatPct, formatUsd } from "@/lib/format";
 import type { ActivistStake, Deal } from "@/lib/types";
 
 const PAGE = 25;
-const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
+const pct = (v: number | null) => formatPct(v);
 
 function StakeBody({ stake, deal, onOpenDeal }: { stake: ActivistStake; deal: Deal | null; onOpenDeal: (d: Deal) => void }) {
   return (
