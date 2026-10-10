@@ -375,6 +375,18 @@ describe("term extractors", () => {
     const text = "Barclays is serving as exclusive financial advisor to the Special Committee. Moelis & Company LLC is acting as financial advisor to Parent.";
     expect(extractAdvisors(text, "Parent", "Target Co", "target", "TGT")).toEqual({ acquirerAdvisors: ["Moelis"], targetAdvisors: ["Barclays"] });
   });
+
+  it("reads possessives, lists, co-advisors and advisor headings", () => {
+    // "X's financial advisor", including a short form of the name ("Bel's" = BEL Fuse Inc.).
+    const possessive = "Advisors Evercore is serving as Bel's exclusive financial advisor and Citi is serving as exclusive financial advisor to Enercon for the transaction. Centerview Partners LLC is serving as Enercon's financial advisor.";
+    expect(extractAdvisors(possessive, "BEL Fuse Inc", "Enercon Technologies", null, null)).toEqual({ acquirerAdvisors: ["Evercore"], targetAdvisors: ["Citigroup", "Centerview"] });
+    const list = "Financial advisors to Clearlake include Morgan Stanley, Goldman Sachs, JP Morgan and Barclays. Kirkland & Ellis is legal counsel.";
+    expect(extractAdvisors(list, "Clearlake Capital Group", "Dun & Bradstreet", null, null).acquirerAdvisors).toEqual(["Morgan Stanley", "Goldman Sachs", "JPMorgan", "Barclays"]);
+    const co = "Lazard is acting as lead financial advisor with BofA Securities acting as co-advisor and Davis Polk & Wardwell LLP serving as legal counsel to Ferrero.";
+    expect(extractAdvisors(co, "Ferrero International S.A.", "WK Kellogg Co", null, null).acquirerAdvisors).toEqual(["Lazard", "BofA Securities"]);
+    const headed = "Herc Advisors Guggenheim Securities, LLC is serving as lead financial advisor for the transaction, and Credit Agricole Securities (USA) Inc is serving as co-financial advisor.";
+    expect(extractAdvisors(headed, "Herc Holdings Inc", "H&E Equipment Services, Inc.", null, null).acquirerAdvisors).toEqual(["Guggenheim", "Credit Agricole"]);
+  });
 });
 
 describe("termination headlines", () => {

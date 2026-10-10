@@ -86,7 +86,7 @@ export function definedEntities(s: string): Entity[] {
 /** The filer itself under its defined term: "the Company", or "the Partnership" / "the Registrant" / "the Trust" (MLPs, REITs). */
 const SELF = /^(?:Company|Partnership|Registrant|Trust)$/i;
 const SUB_NICK = /^(?:(?:Forward |Second |First )?Merger Sub(?:\s*(?:\d|I{1,3}))?|Purchaser|Merger Subsidiary|MergeCo|(?:Acquisition|Acquirer|Acquiror|Bidder) Sub|Bidco|BidCo|Sub)$/i;
-const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger (?:Corp|Co|LLC|Inc|Enterprises|Subsidiary)|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisition,? (?:Corp|Co|LLC|Inc))\b/;
+const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger (?:Corp|Co|LLC|Inc|Enterprises|Subsidiary)|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisitions?,? (?:Corp|Co|LLC|Inc))\b/;
 const BUYER_NICKS = ["Ultimate Parent", "Guarantor", "Parent", "Buyer", "Acquiror", "Acquirer", "Holdings", "Topco"];
 
 /** Price per target share: "right to receive $42.15 in cash", "for $10.50 per share, net to the seller in cash". */
@@ -148,9 +148,10 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
   const isSelf = (t: string) => SELF.test(t) || entities.some((e) => SELF.test(e.nick) && (e.alias === t || e.name === t)) || entities.some((e) => e.alias != null && SELF.test(e.alias) && (e.nick === t || e.name === t));
 
   // Several mergers can be described (an operating partnership first, then the company): prefer the one into the filer.
-  const found: { target: string; acquirerHint?: string }[] = [];
-  // "Seller would merge with and into the Company" (First Financial / Finward) as well as "will" / "shall".
-  for (const m of section.matchAll(/\b(?:will|shall|would)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+/g)) {
+  const found: { target: string; acquirerHint?: string; weak?: boolean }[] = [];
+  // "Seller would merge with and into the Company" (First Financial / Finward) as well as "will" / "shall", and with a
+  // clause in between: "Southern States will, subject to the terms and conditions set forth in the Agreement, merge …".
+  for (const m of section.matchAll(/\b(?:will|shall|would)(?:,[^,;.]{1,120},)?\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+/g)) {
     const raw = objectAt(m.index! + m[0].length);
     if (!raw) continue;
     const into = ref(raw);
@@ -168,13 +169,17 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
     const subAt = Math.max(...[...before.matchAll(/Merger Sub|Purchaser|MergeCo|Merger Subsidiary|Acquisition (?:Co|Corp|Sub)|Merger Corp/gi)].map((x) => x.index!), -1);
     const namedSubject = !!subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && !BUYER_NICKS.includes(subject.nick) && subjectAt > subAt;
     if (!namedSubject && subAt >= before.length - 160) {
-      found.push({ target: into });
+      // Read only thanks to the clause ("Merger Sub 1 will, upon the terms …, merge with and into Media General"): another
+      // merger described plainly wins (Media General / LIN, where a new holding company buys both).
+      found.push({ target: into, weak: m[0].includes(",") });
       continue;
     }
     // A named party merging directly into another (bank mergers): the named party is the target.
     if (subject && !sameCompany(subject.name, into) && subject.nick !== into) found.push({ target: subject.nick, acquirerHint: into });
   }
-  const pick = found.find((f) => isSelf(f.target)) ?? found[0];
+  // Only clause-split ones (Delek / Alon: "Parent Merger Sub will, upon …, merge with and into Delek …, Astro Merger Sub
+  // will, upon …, merge with and into Alon"): as with Media General / LIN, the second merger is the target's.
+  const pick = found.find((f) => isSelf(f.target)) ?? found.find((f) => !f.weak) ?? found[found.length - 1];
   if (pick) return pick;
   const mergerOf = /[Mm]erger of (?:the\s+)?(?:Merger Sub(?:sidiary)?|Purchaser|[A-Z][\w ]{1,30}?Sub)\s+with\s+and\s+into\s+/.exec(section);
   const mergerInto = mergerOf && objectAt(mergerOf.index + mergerOf[0].length);

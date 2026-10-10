@@ -427,6 +427,9 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
   const targetAdvisors: string[] = [];
   const re = /financial advis[oe]rs?\b/gi;
   let prevEnd = 0;
+  // An "Advisors" section heading names whom the lines under it advise: "Herc Advisors Guggenheim Securities, LLC is
+  // serving as lead financial advisor … Credit Agricole … is serving as co-financial advisor".
+  let heading: { name: string; at: number } | null = null;
   for (const m of t.matchAll(re)) {
     const i = m.index!;
     const pre = t.slice(Math.max(prevEnd, i - 260), i);
@@ -436,7 +439,11 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     // "<Bank> is serving as financial advisor to X" — banks precede the phrase.
     // Only the clause right before the phrase counts (after the last sentence break).
     const clause = pre.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|Mr|Ms|Dr|U\.S))[.;]\s+(?=[A-Z])/).pop() ?? pre;
-    let banks = findBanks(clause);
+    // "Citi is acting as Pfizer's financial advisor": the possessive names the recipient (not a bank).
+    const possessive = /((?:[A-Z][\w&.’-]*\s+){0,4}?[A-Z][\w&.’-]*)['’]s\s+(?:lead\s+|exclusive\s+|sole\s+|co-|joint\s+|independent\s+)*$/.exec(clause);
+    const headed = /(?:^|\s)((?:[A-Z][\w&.'’-]*\s){0,3}?[A-Z][\w&.'’-]*)\s+Advis[oe]rs\s*:?\s+(?=[A-Z])/.exec(clause);
+    if (headed && !findBanks(headed[1]).length) heading = { name: headed[1], at: i };
+    let banks = findBanks(possessive ? clause.slice(0, possessive.index) : clause);
     // Recipient: "... to Copart", "... and provided a fairness opinion to ACV", "... to H.I.G., and ..."
     const RECIPIENT = String.raw`(?:to|for)\s+(?:the\s+)?((?:[A-Z]\.)+[A-Z]?\.?[^,;]{0,60}?|[^,;.]{1,90}?)(?=[,;]|\.\s|\.$|\s+(?:and|in connection|on|with|in)\s|$)`;
     let recipientText = new RegExp(String.raw`^\s*(?:and [^,;]{0,90}?\s)?,?\s*(?:respectively\s*,?\s*)?${RECIPIENT}`).exec(post)?.[1] ?? "";
@@ -448,6 +455,16 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
       recipientText = all.at(-1)?.[1] ?? "";
     }
 
+    if (possessive && !findBanks(possessive[1]).length) recipientText = possessive[1];
+    // "Financial advisors to Clearlake include Morgan Stanley, Goldman Sachs, JP Morgan, …"
+    const listed = /^\s*(?:to|for)\s+(?:the\s+)?([^,;.]{1,60}?)\s+(?:include|includes|included|are|were)\s+([^.;]{2,300})/.exec(post);
+    if (!banks.length && listed && findBanks(listed[2]).length) {
+      banks = findBanks(listed[2]);
+      recipientText = listed[1];
+    }
+    // "Lazard is acting as lead financial advisor with BofA Securities acting as co-advisor …"
+    const co = /^\s*,?\s*(?:with|and)\s+([^,;.]{2,80}?)\s+(?:acting|serving)\s+as\s+(?:a\s+)?co-(?:financial\s+)?advis[oe]r/.exec(post);
+    if (banks.length && co) banks = [...banks, ...findBanks(co[1])];
     // "the Company and its financial advisor, BofA Securities, ..."
     if (!banks.length) {
       const after = /^\s*,?\s*([^,.;]{2,60})/.exec(post)?.[1] ?? "";
@@ -461,10 +478,17 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     // "ExxonMobil" is Exxon Mobil Corporation: compare without spaces too.
     const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
     const same = (a: string, b: string) => sameCompany(a, b) || (squash(a).length >= 4 && squash(a) === squash(b));
+    // A short form in a possessive: "Bel's financial advisor" (BEL Fuse Inc.), "ANB's" (ANB Holdings, Inc.).
+    const short = (a: string, full: string) => {
+      const [x, y] = [normalizeName(a), normalizeName(full)];
+      return !!possessive && x.length >= 3 && (y === x || y.startsWith(`${x} `));
+    };
     if (!r) role = /\bits\s*$/i.test(pre) ? issuerRole : null;
+    else if (r === possessive?.[1] && short(r, tgt) !== short(r, acq)) role = short(r, tgt) ? "target" : "acquirer";
     else if (same(r, tgt) || (tgtTicker && r.includes(tgtTicker)) || /special committee|transaction committee|independent directors/i.test(r)) role = "target";
     else if (same(r, acq) || /investor group|buyer|purchaser|parent\b/i.test(r)) role = "acquirer";
     else if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) role = issuerRole;
+    if (!role && heading && i - heading.at < 700) role = same(heading.name, tgt) ? "target" : same(heading.name, acq) ? "acquirer" : null;
     if (!role) continue;
     (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...banks);
   }

@@ -258,4 +258,16 @@ describe("parseMergerItem: structures the big-deal check found", () => {
     expect(p.target.name).toBe("Perrin Apparel International, Inc.");
     expect(p.acquirer.name).toBe("Feld Holdings LLC");
   });
+  it("reads a merger split by a clause, before the bank merger that follows", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. On March 31, 2025, Lakeshore Bancshares, Inc. ("Lakeshore"), the parent company of Lakeshore Bank ("Lakeshore Bank"), and Ridgeview Financial Corporation ("Ridgeview"), the parent company of RidgeBank ("RidgeBank"), entered into an Agreement and Plan of Merger (the "Agreement"), pursuant to which: (a) Lakeshore will, subject to the terms and conditions set forth in the Agreement, merge with and into Ridgeview (the "Corporate Merger"), with Ridgeview as the surviving corporation and (b) immediately following the Corporate Merger, Lakeshore Bank will merge with and into RidgeBank (the "Bank Merger"). Holders of Lakeshore common stock will have the right to receive 0.800 shares of Ridgeview common stock for each share.`;
+    const p = parseMergerItem(t, { filerName: "Lakeshore Bancshares, Inc.", filerTickers: ["LSBK"] })!;
+    expect(p.target.name).toBe("Lakeshore Bancshares, Inc.");
+    expect(p.acquirer.name).toBe("Ridgeview Financial Corporation");
+  });
+
+  it("keeps the target's merger when a new holding company buys both sides", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. On January 2, 2017, Delta Refining Holdings, Inc. ("Delta"), Atlas Energy Partners, Inc. ("Atlas"), Delta Holdco, Inc. ("Holdco"), Delta Merger Sub, Inc. ("Parent Merger Sub") and Atlas Mergeco, Inc. ("Atlas Merger Sub") entered into an Agreement and Plan of Merger (the "Merger Agreement") pursuant to which (i) Parent Merger Sub will, upon the terms and subject to the conditions thereof, merge with and into Delta (the "Parent Merger"), with Delta surviving as a wholly owned subsidiary of Holdco and (ii) Atlas Merger Sub will, upon the terms and subject to the conditions thereof, merge with and into Atlas (the "Atlas Merger"), with Atlas surviving as a wholly owned subsidiary of Holdco.`;
+    const p = parseMergerItem(t, { filerName: "Delta Refining Holdings, Inc.", filerTickers: ["DRH"] })!;
+    expect(p.target.name).toBe("Atlas Energy Partners, Inc.");
+  });
 });

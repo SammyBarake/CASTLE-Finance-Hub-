@@ -28,6 +28,30 @@ describe("extractProxyPremium", () => {
     const t = `Goldman Sachs reviewed a median premium of 44% over the closing price of targets. QXO proposed a premium of 20% to 30% over the undisturbed share price. The median premium of 30% to the unaffected price was noted.`;
     expect(extractProxyPremium(t)).toBeNull();
   });
+
+  it("reads the other ways proxies state the premium", () => {
+    // "N% premium over", bullet lists after "premium of approximately:", "(i) approximately N% to", "based on".
+    expect(extractProxyPremium(`the fact that the Offer Price represents (i) an approximately 61% premium over the closing price per Share on January 3, 2025, the last full trading day prior to the public announcement`)).toBe(61);
+    expect(extractProxyPremium(`$19.00 per share price of Company common stock to be paid in cash, which represented a premium of approximately: • 125% over the closing stock price on July 18, 2025, the last full trading day prior to the Board's approval of the merger; • 111% over the 60-day volume-weighted average trading price`)).toBe(125);
+    expect(extractProxyPremium(`A: The merger consideration represents a premium of (i) approximately 68% to Vimeo's closing stock price of company common stock on September 9, 2025, the last trading day before the announcement`)).toBe(68);
+    expect(extractProxyPremium(`• The proposed consideration is at a premium above TrueCar's stock price: • approximately 78% above the closing price per share of TrueCar's Common Stock on October 13, 2025 (the last trading day prior to the public announcement of the Merger);`)).toBe(78);
+    expect(extractProxyPremium(`the consideration to be paid pursuant to the Merger Agreement represented: • a premium of 36.0% based on the closing price per share of Common Stock on July 8, 2025 of $16.91`)).toBe(36);
+  });
+
+  it("skips bids, ranges and stale prices from the background", () => {
+    for (const t of [
+      `The March 28 Offer represented a 65% premium to the closing share price of the Company's common stock of $11.53 on March 27, 2025.`,
+      `Party A's March 26th Offer represented a 50% premium to the Company's $3.01 closing price per share on March 26, 2025.`,
+      `BDT was prepared to increase its offer price to $7.50 per Class A Share in cash, which represented a 49% premium to the closing price of the Class A Shares on October 24, 2022.`,
+      `Blackstone submitted a revised proposal to acquire all of our outstanding common stock for $63.00 per share in cash (representing an approximate 16% premium to the $54.41 per share closing price of the Company's common stock on March 24, 2022).`,
+      `a price of $3.00 - $3.75 per share (which represented a 121% - 176% premium to the closing share price of UpHealth Common Stock on August 21, 2023 of $1.36)`,
+      `On October 16, 2025, K-C delivered a revised proposal of 0.1586 shares plus $4.00 in cash per share, representing (i) an implied nominal value of $23.02 per share and (ii) a premium of approximately 41.6% over the $16.26 closing price of Kenvue common stock as of October 15, 2025.`,
+      `• a premium of approximately 42.4% to the closing price of Castlight's common stock on December 6, 2021, the trading date approximately one month prior to the Agreement Date;`,
+      `the per-share merger consideration constituted a premium of: • approximately 7% premium over the Company's all-time high closing stock price on August 28, 2025`,
+    ]) expect(extractProxyPremium(t), t.slice(0, 50)).toBeNull();
+    // A list item after one about the deal itself still counts ("the fact that the Offer Price offered a significant premium …").
+    expect(extractProxyPremium(`the fact that the Offer Price offered a significant premium to the Shares based on then-current and historical market prices, including: • a premium of approximately 26.5% to the closing price of Castlight's common stock on January 3, 2022, the trading date immediately prior to the Agreement Date; • a premium of approximately 42.4% to the closing price on December 6, 2021, the trading date approximately one month prior to the Agreement Date;`)).toBe(26.5);
+  });
 });
 
 describe("extractProxyAdvisors", () => {
