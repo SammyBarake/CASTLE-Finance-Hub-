@@ -376,6 +376,11 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // Skip non-USD currencies (e.g. C$) — we only report USD.
     if (/(?:^|\s)(?:C|CAD|A)\$/.test(m[0])) continue;
     if (NOT_DEAL_VALUE.test(valueContext(t, m.index!, m[0].length))) continue;
+    // The size of what the deal creates, not its price: "creating a premier … business, with an initial enterprise
+    // value over $35 billion" (EQT / Equitrans), "the resulting company will have …".
+    // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.
+    const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
+    if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting)\b/i.test(sentenceBefore)) continue;
     const usd = num(m[2]) * unitMult(m[3]);
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
     const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";

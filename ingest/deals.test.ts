@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
+import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, looksLikePressRelease, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -172,5 +172,20 @@ describe("namesUsExchange (an Item 3.01 delisting notice from a US exchange)", (
   it("accepts Nasdaq / NYSE notices and rejects OTC ones", () => {
     expect(namesUsExchange("Item 3.01. In connection with the Merger, the Company notified The Nasdaq Stock Market LLC that the Merger had been completed and requested that Nasdaq file a Form 25.")).toBe(true);
     expect(namesUsExchange("Item 3.01. The Company's common stock, which traded on the OTCQX, will no longer be quoted.")).toBe(false);
+  });
+});
+
+describe("values of the combined company are not deal values", () => {
+  it("skips 'creating … with an initial enterprise value', keeps a value stated after it in another sentence", () => {
+    const eqt = `PITTSBURGH, March 11, 2026 -- Atlas Energy (NYSE: ATL) and Ridge Midstream (NYSE: RDG) today announced that they have entered into a definitive merger agreement creating a premier vertically integrated natural gas business, with an initial enterprise value over $35 billion. Atlas will acquire Ridge in an all-stock transaction.`;
+    expect(releaseTerms(eqt, "Ridge Midstream Corp", "Atlas Energy Corp")).toBeNull();
+    const ok = `NEW YORK, February 3, 2026 -- Banco Iberico will acquire Weston Financial, creating a top-10 retail bank. Banco Iberico agreed to acquire Weston in a transaction valued at $12.3 billion under a definitive agreement.`;
+    expect(releaseTerms(ok, "Weston Financial Corp", "Banco Iberico, S.A.")?.valueUsd).toBe(12.3e9);
+  });
+  it("reads press releases, not slide decks, transcripts or reprinted articles", () => {
+    expect(looksLikePressRelease("Exhibit 99.1 FOR IMMEDIATE RELEASE Atlas to acquire Ridge")).toBe(true);
+    expect(looksLikePressRelease("PITTSBURGH, March 11, 2026 -- Atlas Energy and Ridge Midstream today announced a definitive agreement")).toBe(true);
+    expect(looksLikePressRelease("Filed pursuant to Rule 425. Investor Presentation. Merger Creates the Premier Company >$35 B Enterprise Value")).toBe(false);
+    expect(looksLikePressRelease("Filed pursuant to Rule 425. The following is a transcript of the investor call held on March 31, 2026.")).toBe(false);
   });
 });

@@ -662,12 +662,14 @@ async function* announcementReleases(deal: StoredDeal, subs: Submissions[]): Asy
     const filings = recentFilings(sub)
       .filter((f) => f.date >= lo && f.date <= hi && /^(?:8-K|425|DEFA14A)$/.test(f.form))
       .sort((a, b) => a.date.localeCompare(b.date) || Number(b.form === "8-K") - Number(a.form === "8-K"))
-      .slice(0, 6);
+      .slice(0, 10);
     for (const f of filings) {
       const docs = f.form === "8-K" ? (await filingDocuments(sub.cik, f.adsh)).filter((d) => /ex-?99|dex99/i.test(d) && /\.html?$/i.test(d)).slice(0, 3) : [f.primaryDocument];
       for (const doc of docs) {
         const text = htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, doc), 400_000));
-        if (announcesDeal(text, deal.target.name, deal.acquirer.name)) yield text;
+        // Press releases only: 425s also carry slide decks ("Merger Creates … >$35 B Enterprise Value ~$23 B Equity
+        // Value", the combined company), call transcripts and reprinted news articles.
+        if (looksLikePressRelease(text) && announcesDeal(text, deal.target.name, deal.acquirer.name)) yield text;
       }
     }
   }
@@ -717,6 +719,18 @@ export interface AnnouncedTerms {
   pricePerShare: number | null;
   premiumPct: number | null;
   consideration: StoredDeal["consideration"];
+}
+
+/**
+ * Not a slide deck, call transcript, FAQ, employee memo or reprinted article (425s carry all of these): those quote
+ * the combined company's size ("Merger Creates … >$35 B Enterprise Value ~$23 B Equity Value"). A document that names
+ * itself one of them near the top, with no newswire tag or "For Immediate Release", is skipped.
+ */
+export function looksLikePressRelease(text: string): boolean {
+  const top = flatten(text).slice(0, 1500);
+  const release = /\b(?:PR\s?Newswire|Business\s?Wire|GLOBE\s?NEWSWIRE|ACCESSWIRE|Newsfile|for immediate release|news release|press release)\b/i.test(top);
+  const other = /\b(?:transcript|presentation|slides?|webcast|conference call|investor call|town hall|frequently asked questions|FAQs?|the following (?:email|e-mail|memo|letter|article|message)|employees? (?:email|e-mail|memo|letter)|reprinted|Wall Street Journal|Reuters|Bloomberg)\b/i.test(top);
+  return release || !other;
 }
 
 /**
