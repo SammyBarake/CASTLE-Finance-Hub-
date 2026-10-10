@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, registrantMatches, stripDateline, tidyTargetName } from "./deals";
+import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -126,5 +126,44 @@ describe("expandAbbreviation", () => {
   it("finds the full name a release defines", () => {
     expect(expandAbbreviation("MMT", 'Perimeter Solutions has agreed to acquire Medical Manufacturing Technologies, LLC ("MMT") for $685 million.')).toBe("Medical Manufacturing Technologies, LLC");
     expect(expandAbbreviation("WBD", "Paramount to acquire WBD (NASDAQ: WBD).")).toBeNull();
+  });
+});
+
+describe("saysMergerTerminated (an 8-K Item 1.02 ending the deal)", () => {
+  it("reads the merger agreement itself being terminated", () => {
+    expect(saysMergerTerminated("On March 4, 2026, JetBlue and Spirit terminated the Agreement and Plan of Merger, dated July 28, 2022.")).toBe(true);
+    expect(saysMergerTerminated("On March 4, 2026, the parties mutually agreed to terminate the Merger Agreement.")).toBe(true);
+    expect(saysMergerTerminated("The Merger Agreement was terminated effective as of May 21, 2026.")).toBe(true);
+  });
+  it("ignores agreements ended at the closing and rights to terminate", () => {
+    expect(saysMergerTerminated("In connection with the consummation of the Merger pursuant to the Merger Agreement, the Company terminated its Credit Agreement.")).toBe(false);
+    expect(saysMergerTerminated("Item 1.02. On the Closing Date, in connection with the Merger Agreement, all commitments under the Credit Agreement were terminated.")).toBe(false);
+    expect(saysMergerTerminated("Parent has the right to terminate the Merger Agreement if the closing has not occurred.")).toBe(false);
+    expect(saysMergerTerminated("The Note becomes due and payable if the Merger Agreement is terminated in accordance with its terms.")).toBe(false);
+    expect(saysMergerTerminated("Item 1.02. The Company repaid its Credit Agreement. Forward-Looking Statements: risks include any event that could give rise to the right of Greenhill or Mizuho to terminate the Merger Agreement.")).toBe(false);
+    // A termination described under Item 1.01, with Item 1.02 pointing to it.
+    expect(saysMergerTerminated("Item 1.01. On March 4, 2026, the parties entered into a Termination Agreement, pursuant to which they agreed to terminate the Merger Agreement, effective immediately. Item 1.02. The information in Item 1.01 is incorporated by reference.")).toBe(true);
+  });
+});
+
+describe("releaseTerms (the value of a deal from its announcement release)", () => {
+  const release = `News Release FOR IMMEDIATE RELEASE OCTOBER 11, 2026
+Atlas Oil Announces Merger with Ridge Natural Resources in an All-Stock Transaction
+• Transforms Atlas's upstream portfolio
+SPRING, Texas - Atlas Oil Corporation (NYSE: ATL) and Ridge Natural Resources (NYSE: RDG) jointly announced a definitive agreement for Atlas to acquire Ridge. The merger is an all-stock transaction valued at $59.5 billion, or $253 per share, based on Atlas's closing price on October 5, 2026, an implied premium of 18% to Ridge's unaffected price.`;
+
+  it("reads the value of a release the full parser can't read (\"Announces Merger with\")", () => {
+    const t = releaseTerms(release, "Ridge Natural Resources Co", "Atlas Oil Corporation")!;
+    expect(t.valueUsd).toBe(59.5e9);
+    expect(t.valueKind).toBe("transaction");
+    expect(t.consideration).toBe("Stock");
+  });
+
+  it("needs both companies named, a signed agreement, and no completion or termination", () => {
+    expect(releaseTerms(release, "Ridge Natural Resources Co", "Summit Energy Inc.")).toBeNull();
+    expect(releaseTerms(release.replace("Announces Merger with", "Completes Merger with"), "Ridge Natural Resources Co", "Atlas Oil Corporation")).toBeNull();
+    expect(releaseTerms("Atlas Oil and Ridge Natural Resources announce record quarterly results. Revenue was $5.1 billion.", "Ridge Natural Resources Co", "Atlas Oil Corporation")).toBeNull();
+    // A shell buyer no release names: the target alone is enough.
+    expect(releaseTerms(release, "Ridge Natural Resources Co", "Bullseye Merger Sub, Inc.")?.valueUsd).toBe(59.5e9);
   });
 });

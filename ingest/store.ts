@@ -32,6 +32,10 @@ export interface StoredDeal extends Deal {
   termsParser?: number;
   /** Private targets: REGISTRANT_CHECK_VERSION of the EDGAR search for a listed registrant of that name. */
   registrantCheck?: number;
+  /** VALUE_CHECK_VERSION of the search for a headline value in the announcement releases (deals that had none). */
+  valueCheck?: number;
+  /** STATUS_RULE_VERSION a Closed status was last re-checked with (a termination before the delisting wins). */
+  statusRule?: number;
 }
 
 export interface StoredIpo extends Ipo {

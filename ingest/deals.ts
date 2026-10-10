@@ -31,11 +31,11 @@ import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
-import { displayName, parsePressRelease, type ParsedPress, type PartyMention } from "./parse/press";
+import { displayName, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
 import { SPAC_NAME, tidyDeals } from "./tidy";
-import { htmlToText } from "./text";
+import { flatten, htmlToText } from "./text";
 import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
 const QUERIES = [
@@ -572,10 +572,117 @@ const FAIRNESS_FORMS = ["DEFM14A", "SC 14D9", "SC14D9", "DEFM14C", "PREM14A"];
 const PROXY_FORMS =/^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
 const PENDING_FORMS =/^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|SC14D9|S-4|F-4)(\/A)?$/;
 
+/** Bump to re-check stored Closed deals for a termination filed before the delisting. */
+export const STATUS_RULE_VERSION = 2;
+/** Bump to look again for a headline value in the announcement releases of deals that have none. */
+export const VALUE_CHECK_VERSION = 1;
+
+/**
+ * A deal rebuilt from a merger 8-K often has no value: an all-stock agreement states an exchange ratio, not a dollar
+ * figure. The announcement release does ("valued at approximately $59.5 billion"), but it can sit in another filing
+ * (Pioneer filed its press release under a separate Item 7.01 8-K, Exxon its own). Read the target's and the
+ * buyer's 8-K exhibits and 425 / DEFA14A communications from five days before to three after the announcement, and
+ * take the first release that announces this deal with a value. Fills blanks only.
+ */
+export async function announcementTerms(deal: StoredDeal, subs: Submissions[]): Promise<AnnouncedTerms | null> {
+  // The stored date is often the 8-K's, filed up to four business days after the signing and its release.
+  const lo = shiftDate(deal.announcedDate, -5);
+  const hi = shiftDate(deal.announcedDate, 3);
+  for (const sub of subs) {
+    const filings = recentFilings(sub)
+      .filter((f) => f.date >= lo && f.date <= hi && /^(?:8-K|425|DEFA14A)$/.test(f.form))
+      .sort((a, b) => a.date.localeCompare(b.date) || Number(b.form === "8-K") - Number(a.form === "8-K"))
+      .slice(0, 6);
+    for (const f of filings) {
+      const docs = f.form === "8-K" ? (await filingDocuments(sub.cik, f.adsh)).filter((d) => /ex-?99|dex99/i.test(d) && /\.html?$/i.test(d)).slice(0, 3) : [f.primaryDocument];
+      for (const doc of docs) {
+        const terms = releaseTerms(htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, doc), 400_000)), deal.target.name, deal.acquirer.name);
+        if (terms) return terms;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The target's earlier 8-K Item 1.01 (up to 60 days before the stored date) that signs this deal with the same buyer,
+ * or null. Corrects dates taken from an amendment 8-K.
+ */
+async function earlierSigning(deal: StoredDeal, sub: Submissions): Promise<string | null> {
+  const lo = shiftDate(deal.announcedDate, -60);
+  const candidates = recentFilings(sub)
+    .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date < deal.announcedDate)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
+  for (const f of candidates) {
+    const section = item101(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))));
+    if (section && isSigningFor(section, deal.acquirer.name)) return f.date;
+  }
+  return null;
+}
+
+export interface AnnouncedTerms {
+  valueUsd: number;
+  valueKind: StoredDeal["valueKind"];
+  pricePerShare: number | null;
+  premiumPct: number | null;
+  consideration: StoredDeal["consideration"];
+}
+
+/** The distinctive start of a name, as a release would write it: "Pioneer", "Mr. Cooper", "First Bancshares". */
+function shortName(name: string): string | null {
+  const words = displayName(name).replace(/^the\s+/i, "").split(/[\s,]+/).filter(Boolean);
+  if (!words.length || words[0].length < 2) return null;
+  return /^(?:First|United|American|National|Global|General|International|New|Southern|Northern|Western|Eastern|Central|Community|Mr\.|St\.)$/i.test(words[0]) && words[1]
+    ? `${words[0]} ${words[1]}`
+    : words[0];
+}
+
+/**
+ * The headline terms of a release announcing the deal between `target` and `acquirer`: both are named near the top
+ * (the buyer may be a shell no release names), it reads as a signed agreement, not a completion or termination,
+ * and it states a value. Party extraction is not needed (the deal already has them), so releases the full parser
+ * can't read still count ("ExxonMobil Announces Merger with Pioneer").
+ */
+export function releaseTerms(text: string, target: string, acquirer: string): AnnouncedTerms | null {
+  const flat = flatten(text);
+  const top = flat.slice(0, 2500);
+  const named = (name: string) => {
+    const s = shortName(name);
+    return !!s && new RegExp(`\\b${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(top);
+  };
+  if (!named(target) || (!isPlaceholderBuyer(acquirer) && !named(acquirer))) return null;
+  if (!/definitive (?:merger |arrangement )?agreement|agreement and plan of merger|merger agreement|(?:will|to) acquire\b|to be acquired|to combine|to merge/i.test(top)) return null;
+  if (/\b(?:complet(?:es|ed|ion)|closes|closed|closing of|terminat)/i.test(splitHeadline(text).headline.slice(0, 200))) return null;
+  const value = extractValue(flat.slice(0, 6000));
+  if (!value) return null;
+  return { valueUsd: value.usd, valueKind: value.kind, pricePerShare: extractPrice(top), premiumPct: extractPremium(flat.slice(0, 6000)), consideration: extractConsideration(flat.slice(0, 6000)) };
+}
+
+/**
+ * An 8-K Item 1.02 saying the merger agreement itself was terminated ("terminated the Merger Agreement", "the Merger
+ * Agreement was terminated"), not another agreement ended "in connection with the Merger Agreement" at the closing,
+ * nor a party's right to terminate it.
+ */
+export function saysMergerTerminated(text: string): boolean {
+  // Rights and conditions are not events: "the right to terminate the Merger Agreement", "if the Merger Agreement is
+  // terminated".
+  // The forward-looking-statements boilerplate lists risks ("the right of Greenhill or Mizuho Americas to terminate the
+  // Merger Agreement", "the termination of the Merger Agreement"), not events: cut it off.
+  const t = text
+    .split(/\bforward[- ]looking statements?\b|\bcautionary (?:statement|note)/i)[0]
+    .replace(/\b(?:rights?|option|ability)\s+(?:of\s+[^.]{1,80}?\s+)?to\s+terminate\b/gi, "")
+    .replace(/\b(?:if|in the event(?: that)?|upon|should|unless|until|whether)\s+(?:the\s+)?(?:merger|arrangement|combination|transaction) agreement[^.]{0,80}?terminated/gi, "");
+  const deal = String.raw`(?:(?:merger|arrangement|combination|transaction) agreement|agreement and plan of (?:merger|arrangement))`;
+  // Nothing else called an "agreement" between the merger agreement and "terminated" ("… in connection with the Merger
+  // Agreement, all commitments under the Credit Agreement were terminated").
+  return new RegExp(String.raw`terminat(?:e|ed|es|ing|ion of)\s+(?:the\s+)?(?:[\w-]+\s+){0,3}${deal}|${deal}(?:(?!agreement)[^.]){0,80}?\b(?:was|has been|have been|is|were|had been)\s+(?:validly\s+|mutually\s+)?terminated`, "i").test(t);
+}
+
 async function isMergerTermination(cik: string, adsh: string, doc: string) {
   try {
-    const text = htmlToText(await getTextHead(archiveUrl(cik, adsh, doc), 120_000));
-    return /terminat\w*[^.]{0,160}(?:merger|arrangement|combination) agreement|(?:merger|arrangement|combination) agreement[^.]{0,160}terminat/i.test(text);
+    // The whole 8-K: Item 1.02 often just points to Item 1.01, where the termination agreement is described.
+    return saysMergerTerminated(flatten(htmlToText(await getTextHead(archiveUrl(cik, adsh, doc), 120_000))));
   } catch {
     return false;
   }
@@ -674,24 +781,42 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     deal.target.ticker ??= sub.tickers?.[0] ?? null;
     deal.sector = sectorForSic(sub.sic, sub.name);
     deal.industry = sub.sicDescription || null;
-    if (deal.status !== "Terminated" && deal.status !== "Closed") {
+    // A Closed status set before STATUS_RULE_VERSION is checked once more for an earlier termination.
+    const recheck = deal.status === "Closed" && deal.statusRule !== STATUS_RULE_VERSION;
+    if ((deal.status !== "Terminated" && deal.status !== "Closed") || recheck) {
       const after = recentFilings(sub)
         .filter((f) => f.date >= deal.announcedDate)
         .sort((a, b) => a.date.localeCompare(b.date));
       const closed = after.find((f) => isClosingFiling(after, f));
-      const termination8k = after.find((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate);
+      // Whichever came first: a merger termination before the delisting ends the deal (JetBlue / Spirit was
+      // terminated in March 2024; Spirit's Form 25 in 2026, after its bankruptcy, closed nothing).
+      // Not one filed around the closing (credit agreements are terminated "in connection with the Merger"), and not
+      // one the deal recovered from: a merger proxy or tender filed afterwards means it went on (CP's first agreement
+      // for Kansas City Southern ended in May 2021, was signed again in September and closed in 2023).
+      let terminated: (typeof after)[number] | undefined;
+      const ends = after.filter((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate && (!closed || f.date < shiftDate(closed.date, -30)));
+      for (const f of ends.slice(0, 3)) {
+        if (after.some((g) => PENDING_FORMS.test(g.form) && g.date > f.date && (!closed || g.date < closed.date))) continue;
+        if (await isMergerTermination(sub.cik, f.adsh, f.primaryDocument)) {
+          terminated = f;
+          break;
+        }
+      }
       const pending = after.find((f) => PENDING_FORMS.test(f.form));
-      if (closed) {
+      if (terminated) {
+        deal.status = "Terminated";
+        deal.statusDate = terminated.date;
+      } else if (recheck) {
+        // Stays Closed.
+      } else if (closed) {
         deal.status = "Closed";
         deal.statusDate = closed.date;
-      } else if (termination8k && (await isMergerTermination(sub.cik, termination8k.adsh, termination8k.primaryDocument))) {
-        deal.status = "Terminated";
-        deal.statusDate = termination8k.date;
       } else if (pending) {
         deal.status = "Pending";
         deal.statusDate = pending.date;
       }
     }
+    if (deal.status === "Closed") deal.statusRule = STATUS_RULE_VERSION;
     // Milestones come from the same filing index (no extra requests).
     deal.milestones = milestonesFrom(recentFilings(sub), deal.announcedDate, deal.status === "Terminated" ? deal.statusDate : null);
   }
@@ -788,6 +913,8 @@ export interface DealRunStats {
   privateDeals: number;
   /** Searches that still failed after retries; a rebuild must not prune when any occurred. */
   searchGaps: string[];
+  /** Deals that got a headline value from their announcement releases. */
+  valuesFound: number;
 }
 
 export async function ingestDeals(
@@ -805,7 +932,7 @@ export async function ingestDeals(
   },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
-  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [] };
+  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [], valuesFound: 0 };
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
   // Removed records are deleted from the store on save (an upsert alone would keep them).
@@ -1056,11 +1183,10 @@ export async function ingestDeals(
           deal = await accept(parsed, synthetic);
           if (deal) break;
         }
-        if (deal) {
-          touched.add(deal);
-          recovered++;
-          break;
-        }
+        // Keep reading the older candidates: the same deal's earlier 8-K moves its date back to the signing (Denbury's
+        // agreement was filed July 14; an amendment 8-K on July 31 came first in this newest-first list).
+        if (deal && !touched.has(deal)) recovered++;
+        if (deal) touched.add(deal);
       }
     } catch (err) {
       log(`  ! backstop ${cik}: ${(err as Error).message}`);
@@ -1078,6 +1204,8 @@ export async function ingestDeals(
         (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)
       : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
+      (d.status === "Closed" && d.statusRule !== STATUS_RULE_VERSION) ||
+      (d.valueUsd == null && d.valueCheck !== VALUE_CHECK_VERSION && d.status !== "Terminated") ||
       !d.financialsCheckedAt ||
       (!d.proxyCheckedAt && (d.premiumPct == null || !d.targetAdvisors.length)) ||
       (!opts.light && (!d.fairnessCheckedAt || d.fairnessParser !== FAIRNESS_PARSER_VERSION || d.termsParser !== TERMS_PARSER_VERSION)) ||
@@ -1135,6 +1263,23 @@ export async function ingestDeals(
           // Blank-check shell as target: drop.
           drop(deal);
           continue;
+        }
+        // No value yet: the announcement releases of the target and the buyer usually state one.
+        if (sub && deal.valueUsd == null && deal.valueCheck !== VALUE_CHECK_VERSION && deal.status !== "Terminated") {
+          // A date taken from a later 8-K (an amendment) moves back to the signing first, so the releases are found.
+          const signed = await earlierSigning(deal, sub);
+          if (signed) deal.announcedDate = signed;
+          const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
+          const p = await announcementTerms(deal, [sub, ...(acquirerSub ? [acquirerSub] : [])]);
+          if (p) {
+            deal.valueUsd = p.valueUsd;
+            deal.valueKind = p.valueKind;
+            deal.premiumPct ??= p.premiumPct;
+            deal.consideration ??= p.consideration;
+            deal.financialsCheckedAt = null; // EV and multiples from the new value
+            stats.valuesFound++;
+          }
+          deal.valueCheck = VALUE_CHECK_VERSION;
         }
         await enrichDeal(deal, sub, opts.today, directory, { light: opts.light });
       }
