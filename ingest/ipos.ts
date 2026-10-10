@@ -17,6 +17,7 @@ import {
   filingDocuments,
   fullTextSearch,
   getSubmissions,
+  getText,
   getTextHead,
   NotFoundError,
   recentFilings,
@@ -32,9 +33,26 @@ import type { State, StoredIpo } from "./store";
 import { htmlToText } from "./text";
 import type { Filing, IpoStage } from "../lib/types";
 
-const REG_FORMS = /^(S-1|F-1)(\/A)?$/;
+// S-11: REITs register on it (Lineage); non-traded REITs do too, and the exchange-listing test drops them.
+const REG_FORMS = /^(S-1|F-1|S-11)(\/A)?$/;
 export const PERIODIC = /^(10-K|10-Q|20-F|40-F|10-KT)(\/A)?$/;
-export const EXCLUDED_SIC = new Set(["6770", "6221", "6189", "6798"]); // SPACs, commodity pools, ABS, (non-traded) REITs
+export const EXCLUDED_SIC = new Set(["6770", "6189"]); // SPACs, ABS
+/**
+ * Commodity dealers (6221: commodity pools, but also Gemini, a crypto exchange) and REITs (6798: non-traded REITs, but
+ * also Lineage): an IPO only when the prospectus lists the shares on a US exchange.
+ */
+export const LISTING_SIC = new Set(["6221", "6798"]);
+export function listsOnExchange(text: string): boolean {
+  const t = text.slice(0, 80_000).replace(/\s+/g, " ");
+  if (/\b(?:do|does) not (?:currently )?(?:intend|expect|plan) to (?:apply to )?(?:list|have (?:our|the) shares listed)/i.test(t)) return false;
+  return /\b(?:approved|apply|applied|intend to|expect to|will be)\b[^.]{0,80}?\blist(?:ed|ing)?\b[^.]{0,120}?\b(?:New York Stock Exchange|NYSE|Nasdaq|Cboe)\b/i.test(t);
+}
+/**
+ * Already public: an annual / quarterly report or an IPO prospectus in the three years before. Older ones make it a
+ * re-IPO (Smithfield Foods: public until 2013, IPO again in January 2025).
+ */
+export const publicWithin = (filings: { form: string; date: string }[], date: string) =>
+  filings.some((f) => (PERIODIC.test(f.form) || f.form === "424B4") && f.date < date && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
 export const FUNDLIKE =
   /\b(ETF|Fund|Trust|Bitcoin|Ether(?:eum)?|Staked|Solana|XRP|Crypto(?:currency)?|Portfolio|Income Shares)\b|\bAcquisition (?:Corp|Company|Co)\b|\b(?:Holdings|Capital|Acquisition) (?:Corp\.?,? |Inc\.?,? )?[IVX]{1,4}\b/i;
 export const MIN_RAISE = 20e6;
@@ -47,7 +65,7 @@ const DAY = 86_400_000;
 async function discoverRegistrants(from: string, to: string, log: (s: string) => void) {
   const ciks = new Map<string, string>(); // cik -> latest filing date seen
   for (const [start, end] of monthWindows(from, to)) {
-    const hits = await fullTextSearch({ q: "", forms: ["S-1", "F-1"], from: start, to: end });
+    const hits = await fullTextSearch({ q: "", forms: ["S-1", "F-1", "S-11"], from: start, to: end });
     for (const h of hits) {
       if (h.sics.some((s) => EXCLUDED_SIC.has(s))) continue;
       if (FUNDLIKE.test(h.displayNames[0] ?? "")) continue;
@@ -90,7 +108,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   // report or IPO prospectus. A later S-1 is a follow-on or resale (WhiteHawk filed one three months after its IPO);
   // with nothing but those, the company was already public: not an IPO.
   const originals = regs.filter((f) => !f.form.endsWith("/A"));
-  const alreadyPublicBy = (date: string) => filings.some((f) => (PERIODIC.test(f.form) || f.form === "424B4") && f.date < date);
+  const alreadyPublicBy = (date: string) => publicWithin(filings, date);
   const initial = [...(originals.length ? originals : regs.slice(0, 1))].reverse().find((r) => !alreadyPublicBy(r.date));
   if (!initial) return null;
   // Registered a merger (S-4 / F-4) before this S-1 and left shell status (8-K Item 5.06, filed when a SPAC merger
@@ -124,13 +142,16 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   let terms: IpoTerms | null = null;
   if (!existing || existing.parsedAdsh !== docAdsh || existing.parser !== IPO_PARSER_VERSION) {
     const doc = priced ?? latestReg;
-    const text = htmlToText(await getTextHead(archiveUrl(sub.cik, doc.adsh, doc.primaryDocument), 700_000));
+    // A final prospectus is read whole: its underwriting table, near the end, names every bank.
+    const url = archiveUrl(sub.cik, doc.adsh, doc.primaryDocument);
+    const text = htmlToText(priced ? await getText(url) : await getTextHead(url, 700_000));
     terms = priced ? parseFinalProspectus(text) : parseRegistration(text, await feeExhibitText(sub.cik, doc.adsh));
     // A bank named in the company's own name isn't its bookrunner ("Baird Medical" is not Robert W. Baird).
     const own = ` ${normalizeName(sub.name)} `;
     terms.underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
     // A direct listing, or selling holders reselling with no underwriters: no IPO offering.
     if (isResaleOnly(text, terms.underwriters)) return null;
+    if (LISTING_SIC.has(sub.sic) && !listsOnExchange(text)) return null;
     // Amendments often omit the fee table; the original registration has it.
     if (!priced && terms.expectedRaiseUsd == null && doc.adsh !== initial.adsh) {
       terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { extractMaxAggregate, extractOfferPrice, extractUnderwriters, isResaleOnly, parseFinalProspectus, parseRegistration } from "./ipo";
+import { extractMaxAggregate, extractOfferPrice, extractUnderwriters, extractUnderwritingTable, isResaleOnly, parseFinalProspectus, parseRegistration } from "./ipo";
+import { listsOnExchange, publicWithin } from "../ipos";
 
 describe("isResaleOnly", () => {
   it("flags registrations where only selling holders sell", () => {
@@ -54,5 +55,35 @@ Table of Contents`;
   it("only reads underwriters from the cover", () => {
     const text = `Cover page ${"x".repeat(2000)} Citigroup TABLE OF CONTENTS ... later, Barclays appears in the underwriting section.`;
     expect(extractUnderwriters(text)).toEqual(["Citigroup"]);
+  });
+});
+
+describe("final prospectus wordings", () => {
+  it("reads the offer price however the cover states it", () => {
+    expect(extractOfferPrice(`Prior to this offering, there has been no public market for our Class A common stock. The initial public offering price per share of our Class A common stock is $ 33.00 . We have been approved to list`)).toBe(33);
+    expect(extractOfferPrice(`under the symbol "SAIL." PRICE $23.00 A SHARE Price to Public Underwriting Discounts and Commissions`)).toBe(23);
+  });
+
+  it("reads share counts with a class or 'Ordinary' between the number and 'Shares'", () => {
+    const klarna = `424B4 Registration No. 333-285826 34,311,274 Ordinary Shares Klarna Group plc This is the initial public offering. The initial public offering price per ordinary share is $40.00.`;
+    expect(parseFinalProspectus(klarna).expectedRaiseUsd).toBe(34_311_274 * 40);
+  });
+
+  it("takes every bank from the underwriting table, skipping compensation tables", () => {
+    const text = `Cover with logos only. RBC Capital Markets TABLE OF CONTENTS ${"x".repeat(3000)} Name Number of Shares Underlying RSUs Number of Shares Underlying Options Jane Director 69,638 ${"y".repeat(500)} Total 1,000 ${"z".repeat(3000)} Underwriting Name Number of Shares Morgan Stanley & Co. LLC 10,434,725 Goldman Sachs & Co. LLC 10,434,725 RBC Capital Markets, LLC 1,200,000 Total 22,069,450`;
+    expect(extractUnderwritingTable(text)).toEqual(["Morgan Stanley", "Goldman Sachs", "RBC Capital Markets"]);
+    expect(parseFinalProspectus(text).underwriters).toEqual(["Morgan Stanley", "Goldman Sachs", "RBC Capital Markets"]);
+  });
+});
+
+describe("IPO rules", () => {
+  it("lists on an exchange, or says it won't", () => {
+    expect(listsOnExchange(`Our Class A common stock has been approved for listing on the New York Stock Exchange under the symbol "GEMI".`)).toBe(true);
+    expect(listsOnExchange(`There is no public market for our shares and we do not intend to list our shares on the New York Stock Exchange or any other exchange.`)).toBe(false);
+  });
+
+  it("counts a re-IPO after years without reports", () => {
+    expect(publicWithin([{ form: "10-K", date: "2013-06-20" }, { form: "S-1", date: "2024-12-01" }], "2025-01-29")).toBe(false);
+    expect(publicWithin([{ form: "10-Q", date: "2024-11-05" }], "2025-01-29")).toBe(true);
   });
 });

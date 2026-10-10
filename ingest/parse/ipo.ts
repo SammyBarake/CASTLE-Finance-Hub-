@@ -33,8 +33,10 @@ export function extractPriceRange(text: string): { low: number; high: number } |
 export function extractSharesOffered(text: string): number | null {
   const t = flatten(text.slice(0, 40_000));
   const m =
-    /(\d{1,3}(?:,\d{3}){2,})\s+(?:Shares|shares|American Depositary Shares|ADSs|Units)\b/.exec(t) ??
-    /(?:we are|are) offering\s+(\d{1,3}(?:,\d{3}){2,})\s+(?:shares|American Depositary Shares|ADSs)/i.exec(t);
+    // "15,000,000 Shares", "34,311,274 Ordinary Shares" (Klarna), "11,923,018 Class A Common Shares" (eToro).
+    /(\d{1,3}(?:,\d{3}){2,})\s+(?:(?:Class [A-C]\s+)?(?:Ordinary|Common|ordinary|common)\s+)?(?:Shares|shares|American Depositary Shares|ADSs|Units)\b/.exec(t) ??
+    /(\d{1,3}(?:,\d{3}){2,})\s+Shares\s+of\s+(?:Class [A-C]\s+)?Common Stock\b/i.exec(t) ??
+    /(?:we are|are) offering\s+(\d{1,3}(?:,\d{3}){2,})\s+(?:(?:Class [A-C]\s+)?(?:ordinary|common)\s+)?(?:shares|American Depositary Shares|ADSs)/i.exec(t);
   if (!m) return null;
   const v = num(m[1]);
   return v >= 100_000 && v < 5e9 ? v : null;
@@ -45,6 +47,11 @@ export function extractOfferPrice(text: string): number | null {
   const t = flatten(text.slice(0, 60_000));
   const m =
     /(?:initial\s+)?public\s+offering\s+price\s+(?:is|of|per\s+(?:share|ADS))\s+\$\s?(\d{1,4}(?:\.\d{2}))/i.exec(t) ??
+    // "PRICE $23.00 A SHARE" and the fee table's "Price to Public … Per Share $23.00" (SailPoint).
+    /\bPRICE\s+\$\s?(\d{1,4}\.\d{2})\s+(?:A|PER)\s+(?:SHARE|ADS)\b/i.exec(t) ??
+    /Price to (?:the )?Public[^$]{0,250}?\bPer (?:Share|ADS)\s+\$\s?(\d{1,4}\.\d{2})/i.exec(t) ??
+    // "The initial public offering price per share of our Class A common stock is $33.00" (Figma, Reddit, Navan).
+    /public\s+offering\s+price\s+per\s+(?:share|ADS|ordinary share|common share)[^$.]{0,80}?\bis\s+\$\s?(\d{1,4}\.\d{2})/i.exec(t) ??
     /Public offering price\s+\$\s?(\d{1,4}(?:\.\d{2}))/i.exec(t) ??
     /at\s+\$\s?(\d{1,4}\.\d{2})\s+per\s+(?:share|ADS)/i.exec(t);
   if (!m) return null;
@@ -66,6 +73,20 @@ export function extractUnderwriters(text: string): string[] {
   return banks.length ? banks : findBanks(cover);
 }
 
+/**
+ * Every underwriter, from the "Underwriting" section's table ("Name  Number of Shares  Morgan Stanley & Co. LLC …"),
+ * leads first. Covers that show the lead banks as logos (Figma, Reddit, Hinge Health) name only the co-managers in
+ * text. The first such table naming a bank: compensation tables ("Name  Number of Shares Underlying RSUs") come earlier.
+ */
+export function extractUnderwritingTable(text: string): string[] {
+  const t = flatten(text);
+  for (const m of t.matchAll(/\b(?:Underwriters?|Name)\s+Number\s+of\s+(?:Shares|ADSs|Ordinary Shares|Class A|Common Shares|Units)\b/gi)) {
+    const banks = findBanks(t.slice(m.index!, m.index! + 3000).split(/\bTotal\b/)[0]);
+    if (banks.length) return banks;
+  }
+  return [];
+}
+
 /** First sentence of the prospectus summary "Overview". */
 export function extractDescription(text: string): string | null {
   const t = text.slice(0, 700_000);
@@ -80,7 +101,7 @@ export function extractDescription(text: string): string | null {
 }
 
 /** Bump after changing these parsers: stored pipeline records are then re-read on the next ingest. */
-export const IPO_PARSER_VERSION = 2;
+export const IPO_PARSER_VERSION = 3;
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or
@@ -138,7 +159,7 @@ export function parseFinalProspectus(text: string): IpoTerms {
   return {
     expectedRaiseUsd: price && shares ? price * shares : null,
     offerPrice: price,
-    underwriters: extractUnderwriters(text),
+    underwriters: extractUnderwritingTable(text).length ? extractUnderwritingTable(text) : extractUnderwriters(text),
     description: extractDescription(text),
   };
 }

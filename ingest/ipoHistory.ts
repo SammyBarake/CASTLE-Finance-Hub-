@@ -3,9 +3,9 @@
  * no periodic report or earlier 424B4 before it, an S-1 / F-1 on file, not a SPAC or fund, not a resale or direct
  * listing, not a company that came public through a SPAC merger. The same tests as the live pipeline (ingest/ipos.ts).
  */
-import { archiveUrl, filingsUntil, fullTextSearch, getSubmissions, getTextHead, nameOn, NotFoundError, trimCik, type Submissions } from "./edgar";
+import { archiveUrl, filingsUntil, fullTextSearch, getSubmissions, getText, nameOn, NotFoundError, trimCik, type Submissions } from "./edgar";
 import { monthWindows } from "./deals";
-import { EXCLUDED_SIC, FUNDLIKE, MIN_RAISE, PERIODIC } from "./ipos";
+import { EXCLUDED_SIC, FUNDLIKE, LISTING_SIC, listsOnExchange, MIN_RAISE, publicWithin } from "./ipos";
 import { normalizeName } from "./parse/names";
 import { isResaleOnly, parseFinalProspectus } from "./parse/ipo";
 import { displayName } from "./parse/press";
@@ -49,8 +49,8 @@ type Row = { adsh: string; date: string; form: string; primaryDocument: string; 
 /** Is the 424B4 filed on `date` this company's IPO? (Filings newest first, up to `date`.) */
 export function isIpoProspectus(filings: Row[], date: string, adsh: string): boolean {
   const before = filings.filter((f) => f.date < date || (f.date === date && f.adsh !== adsh && f.form !== "424B4"));
-  if (before.some((f) => PERIODIC.test(f.form) || f.form === "424B4")) return false;
-  const registered = before.some((f) => /^(?:S-1|F-1)(?:\/A)?$/.test(f.form) && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
+  if (publicWithin(before, date)) return false;
+  const registered = before.some((f) => /^(?:S-1|F-1|S-11)(?:\/A)?$/.test(f.form) && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
   // Came public through a SPAC merger: a merger registration and the 8-K that ends shell status.
   const deSpac = before.some((f) => /^(?:S-4|F-4)(?:\/A)?$/.test(f.form)) && before.some((f) => /^8-K/.test(f.form) && /\b5\.06\b/.test(f.items));
   return registered && !deSpac;
@@ -94,11 +94,12 @@ export async function backfillIpoHistory(
         if (!sub || EXCLUDED_SIC.has(sub.sic) || FUNDLIKE.test(sub.name)) continue;
         const filings = await filingsUntil(sub, h.fileDate);
         if (!isIpoProspectus(filings, h.fileDate, h.adsh)) continue;
-        const text = htmlToText(await getTextHead(url, 700_000));
+        const text = htmlToText(await getText(url)); // whole: the underwriting table is near the end
         const terms = parseFinalProspectus(text);
         const own = ` ${normalizeName(sub.name)} `;
         const underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
         if (isResaleOnly(text, underwriters)) continue;
+        if ((LISTING_SIC.has(sub.sic) || h.sics.some((s) => LISTING_SIC.has(s))) && !listsOnExchange(text)) continue;
         if ((terms.expectedRaiseUsd ?? 0) < MIN_RAISE && !underwriters.length) continue;
         const pricedDate = prospectusDate(text, h.fileDate) ?? h.fileDate;
         const shares = terms.offerPrice && terms.expectedRaiseUsd ? Math.round(terms.expectedRaiseUsd / terms.offerPrice) : null;

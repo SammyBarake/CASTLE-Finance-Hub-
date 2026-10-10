@@ -123,7 +123,16 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
                       by existing holders, like Innio, stays), and SPAC mergers (S-4/F-4 before the S-1 plus an
                       8-K Item 5.06, or no bookrunner). The tracked registration is the IPO's own S-1: a follow-on
                       S-1 after the IPO (WhiteHawk) no longer drops it. A bank in the company's own name isn't a
-                      bookrunner ("Baird Medical"). Bump IPO_PARSER_VERSION to re-read stored records
+                      bookrunner ("Baird Medical"). Bump IPO_PARSER_VERSION to re-read stored records.
+                      Rules shared with ipoHistory.ts: SPACs (6770) and ABS (6189) are out; commodity dealers (6221)
+                      and REITs (6798, registered on S-11) count only if the prospectus lists on the NYSE / Nasdaq /
+                      Cboe (`listsOnExchange`: Gemini, Lineage; not commodity pools or non-traded REITs); no 10-K /
+                      10-Q / 424B4 in the 3 years before makes a re-IPO (`publicWithin`: Smithfield, private 2013–25).
+                      A final prospectus is read whole: underwriters come from the Underwriting section's table
+                      (`extractUnderwritingTable`; covers that show the lead banks as logos name only co-managers in
+                      text, so Figma read as "RBC" alone), the price from "per share … is $33.00" / "PRICE $23.00 A
+                      SHARE", shares from "34,311,274 Ordinary Shares". `.scratch/known-ipos.mts` checks ~50 known
+                      IPOs and 11 non-IPOs (direct listings, SPAC mergers, an uplisting) against the history
   activists.ts        Schedule 13D activist stakes from the daily form index (stored in meta "activists")
   macro.ts            World Economies: IMF WEO (growth, inflation) + BIS policy rates; failure keeps last snapshot
   financials.ts       XBRL company facts → LTM revenue/EBITDA, debt, cash → EV multiples
