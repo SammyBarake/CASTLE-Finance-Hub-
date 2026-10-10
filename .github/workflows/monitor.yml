@@ -1,0 +1,29 @@
+name: Data monitor
+
+# Once a day: fails (and GitHub emails the repository owner) if the live data hasn't been updated for 8 hours or more
+# (full ingest runs every 6 hours, so the ingest has stopped) or if more than 3% of records trip a data-quality rule.
+# Read-only, about a minute of Actions time. Visitors see the same staleness as an amber "Delayed" pill in the top bar.
+on:
+  schedule:
+    - cron: "15 13 * * *" # 9:15am New York
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Freshness and data quality
+        run: npm run audit -- --max-age 8 --max-flagged 3

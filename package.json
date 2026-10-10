@@ -14,7 +14,8 @@
     "ripple": "tsx --env-file-if-exists=.env.local ingest/ripple.ts",
     "estimate": "tsx ingest/ripple.ts --export-handset && python research/estimate_links.py",
     "backtest": "tsx ingest/ripple.ts --export-handset && python -W ignore research/backtest.py && tsx ingest/backtest.ts",
-    "ingest:backfill": "tsx --env-file-if-exists=.env.local ingest/run.ts --from 2024-09-01"
+    "ingest:backfill": "tsx --env-file-if-exists=.env.local ingest/run.ts --from 2024-09-01",
+    "test:pages": "playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -25,6 +26,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.19.0",
     "@types/react": "^19",

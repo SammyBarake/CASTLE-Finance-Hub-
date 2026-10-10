@@ -29,14 +29,17 @@ function sourceConfig() {
   return {
     url: (clean(process.env.NEXT_PUBLIC_SUPABASE_URL) ?? env("NEXT_PUBLIC_SUPABASE_URL") ?? env("SUPABASE_URL"))?.replace(/\/+$/, ""),
     anonKey: clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? env("NEXT_PUBLIC_SUPABASE_ANON_KEY") ?? env("SUPABASE_ANON_KEY"),
-    // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present).
-    forceLocal: process.env.CASTLE_DATA_SOURCE === "local",
+    // CASTLE_DATA_SOURCE=local forces the local file (development with Supabase keys present); "sample" forces the
+    // sample data, as CI's page test sees it (no keys, no local file). Never on Vercel.
+    forceLocal: process.env.CASTLE_DATA_SOURCE === "local" || process.env.CASTLE_DATA_SOURCE === "sample",
+    forceSample: process.env.CASTLE_DATA_SOURCE === "sample" && !process.env.VERCEL,
   };
 }
 
 /** One deal with its full detail (fairness opinions), for the drawer. Same sources as getHubData. */
 export async function getDeal(id: string): Promise<Deal | null> {
-  const { url, anonKey, forceLocal } = sourceConfig();
+  const { url, anonKey, forceLocal, forceSample } = sourceConfig();
+  if (forceSample) return sampleHubData.deals.find((d) => d.id === id) ?? null;
   if (url && anonKey && !forceLocal) {
     const db = createClient(url, anonKey, { auth: { persistSession: false } });
     const { data, error } = await db.from("deals").select("data").eq("id", id).maybeSingle();
@@ -60,7 +63,8 @@ export async function latestAsOf(): Promise<string | null> {
 }
 
 async function loadHubData(): Promise<HubData> {
-  const { url, anonKey, forceLocal } = sourceConfig();
+  const { url, anonKey, forceLocal, forceSample } = sourceConfig();
+  if (forceSample) return sampleHubData;
   let dataError: string | undefined;
   if (url && anonKey && !forceLocal) {
     try {

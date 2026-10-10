@@ -48,6 +48,8 @@ npm run dev      # http://localhost:3000
 npm run build    # production build (also type-checks)
 npm run lint
 npm test                               # vitest: parsers, financials, aggregation
+npm run test:pages                     # after a build: every page in Chrome (Playwright), desktop + phone; CI runs it
+                                       # (CASTLE_DATA_SOURCE=sample npm run build first to test as CI does, on sample data)
 npm run ingest -- --local              # pull the last 5 days of EDGAR into .data/castle.json
 npm run ingest:backfill -- --local     # 24-month backfill (resumable; set EDGAR_CACHE_DIR=.data/cache)
 npm run ingest                         # same, but writes to Supabase when its env vars are set
@@ -57,6 +59,7 @@ npm run ingest -- --only deals --rebuild-deals --from 2024-09-01   # re-read all
 npm run ingest -- --only deals --backstop-only --from 2021-01-01   # only look up merger-proxy filers without a deal (after a backstop / 8-K parser change)
                                        # (also a "rebuild" checkbox on the GitHub Actions "Run workflow" form)
 npm run audit                          # data-quality audit of the live database (read-only); -- --local, -- --all
+npm run audit -- --max-flagged 3 --max-age 8   # exit 1 if >3% flagged or data >8h old (ingest.yml and monitor.yml run this)
 npm run history -- report              # history foundation (what-if engine): see "History foundation" below
 npm run ripple -- --shock Tech.valuation=10 --shock vix=10   # what-if ripple engine (read-only), see "Ripple engine" below
 npm run estimate                       # re-estimate the ripple links from the history (Python), see "Link estimation" below
@@ -175,6 +178,12 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 - Tailwind utilities and tokens (`bg-panel`, `border-line`, `text-muted`, `text-dim`, `text-up`, `text-down`) are fine for one-off layout tweaks.
 - Breakpoints mirror the design: ≤1280px, ≤1020px, ≤760px (phone), ≥1650px (wide). Responsive rules live at the bottom of `globals.css`.
 - Touch screens (`@media (pointer: coarse)`, last in `globals.css`): controls at least ~32–36px tall (segmented buttons, legend, view chips, icons, sort headers) and form fields at 16px, since iOS Safari zooms into smaller fields. The desktop layout stays dense. No page may scroll sideways at 375px.
+
+### Reliability
+
+- **Page smoke test** (`e2e/pages.e2e.ts`, `playwright.config.ts`, `npm run test:pages` after a build): every page in `ROUTES`, at 1366px and 375px, must load its data (skeleton gone, no load error), show a heading and content, not scroll sideways, and log no exceptions or console errors; plus a deal drawer, a company page, a tear sheet, the feed, freshness, sitemap, robots and preview image. It uses the installed Chrome (`channel: "chrome"`, preinstalled on GitHub's runners; installed with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, no browser download). CI runs it on sample data (`CASTLE_DATA_SOURCE=sample` reproduces that locally). Its first run caught a hydration error on every page: the top bar's "updated N min ago" was rendered with the build's clock (`LiveStatus` now starts its clock after hydration). Never render the current time on the server.
+- **Data quality and freshness:** `npm run audit -- --max-flagged 3 --max-age 8` exits 1 (with `::error::` annotations) past either limit. The ingest workflow runs it (quality) after every ingest, and `.github/workflows/monitor.yml` once a day (quality and freshness), so GitHub emails when quality slips or updates stop.
+- **Visible staleness:** data older than 8 hours (`STALE_AFTER_MS` in `LiveStatus.tsx`; full runs are every 6 hours) turns the top-bar pill amber: "Delayed · updated N h ago".
 
 ### Sharing and search
 

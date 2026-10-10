@@ -62,3 +62,7 @@ jobs:
           else
             npm run ingest
           fi
+      # Fails the run (and GitHub emails) if more than 3% of records trip a data-quality rule (ingest/audit-rules.ts).
+      # Read-only, no EDGAR requests, a few seconds.
+      - name: Data quality
+        run: npm run audit -- --max-flagged 3

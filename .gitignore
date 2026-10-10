@@ -46,3 +46,7 @@ Thumbs.db
 /.scratch/
 /.data/
 __pycache__/
+
+# Playwright
+/test-results/
+/playwright-report/

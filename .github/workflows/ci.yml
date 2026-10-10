@@ -22,3 +22,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Opens every page in Chrome (preinstalled on the runner) against the build, on sample data (no database keys
+      # here), and fails on errors, blank pages or sideways scrolling. See e2e/pages.e2e.ts.
+      - name: Page smoke test
+        run: npm run test:pages

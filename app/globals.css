@@ -201,6 +201,11 @@
   /* An update just landed: the pill glows green for a few seconds. */
   .live-status.updated { border-color: #2f5a46; background: #0c1712; color: #bfe3cf; }
   .live-status.updated span { color: #7fae96; }
+  /* Data older than 8 hours: the ingest has stopped updating (components/shell/LiveStatus.tsx). */
+  .live-status.stale { border-color: #5a4a26; background: #17120a; color: #e3cf9f; }
+  .live-status.stale i { background: #d9a441; }
+  .live-status.stale i::after { border-color: #d9a441; animation: none; }
+  .live-status.stale span { color: #ae9a6f; }
   /* Figures moving because of a live update tint while they count. */
   .num-tick { transition: color 0.6s; }
   .num-tick.up { color: #8fd6b2; }
