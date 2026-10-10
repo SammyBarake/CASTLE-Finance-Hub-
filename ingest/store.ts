@@ -36,6 +36,10 @@ export interface StoredDeal extends Deal {
   valueCheck?: number;
   /** STATUS_RULE_VERSION a Closed status was last re-checked with (a termination before the delisting wins). */
   statusRule?: number;
+  /** SPONSOR_CHECK_VERSION of the search for the real buyer behind an acquisition vehicle. */
+  sponsorCheck?: number;
+  /** ADVISOR_CHECK_VERSION of the search for the buyer's financial adviser in the announcement releases. */
+  advisorCheck?: number;
 }
 
 export interface StoredIpo extends Ipo {

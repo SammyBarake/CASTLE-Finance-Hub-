@@ -453,9 +453,12 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
 
     let role: "acquirer" | "target" | null = null;
     const r = recipientText.trim();
+    // "ExxonMobil" is Exxon Mobil Corporation: compare without spaces too.
+    const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+    const same = (a: string, b: string) => sameCompany(a, b) || (squash(a).length >= 4 && squash(a) === squash(b));
     if (!r) role = /\bits\s*$/i.test(pre) ? issuerRole : null;
-    else if (sameCompany(r, tgt) || (tgtTicker && r.includes(tgtTicker)) || /special committee|transaction committee|independent directors/i.test(r)) role = "target";
-    else if (sameCompany(r, acq) || /investor group|buyer|purchaser|parent\b/i.test(r)) role = "acquirer";
+    else if (same(r, tgt) || (tgtTicker && r.includes(tgtTicker)) || /special committee|transaction committee|independent directors/i.test(r)) role = "target";
+    else if (same(r, acq) || /investor group|buyer|purchaser|parent\b/i.test(r)) role = "acquirer";
     else if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) role = issuerRole;
     if (!role) continue;
     (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...banks);
