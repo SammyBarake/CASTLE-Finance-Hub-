@@ -198,7 +198,7 @@ app/api/deal/[id]/    Full record for one deal (fairness opinions); the page fee
 - **`Takeaways`** (primitives): 2–5 short, number-led lines (about 100 characters each) that add something the KPIs don't show. No textbook explanations there; those go in **`AboutData`** (a folded "About this data" disclosure), along with the methodology.
 - **Long tables** show `TABLE_PAGE` (25) rows plus `ShowMore` (`components/ui/table.tsx`).
 - **Missing values** are always "—" (from `lib/format.ts`).
-- **Numbers go through `lib/format.ts`** (`formatPct`, `formatPrice`, `formatMultiple`, `formatMoney`), never `toFixed` in a view or tear sheet, so a premium reads "34.2%" everywhere. A local helper may wrap them (`pct` in Activists / Deal Terms / Economies) but not re-implement them.
+- **Numbers go through `lib/format.ts`** (`formatPct`, `formatPrice`, `formatMultiple`, `formatUsd`), never `toFixed` in a view or tear sheet, so a premium reads "34.2%" everywhere. A local helper may wrap them (`pct` in Activists / Deal Terms / Economies) but not re-implement them.
 - **Column names are the same on every table:** ACQUIRER (not buyer), TARGET, DEAL VALUE (not value / size), ADVISOR (not bank), DEALS ADVISED.
 - **Company names** go through `displayCompanyName` (`lib/names.ts`) in `toPublicDeal` / `toPublicIpo`. It strips SEC state tags and title-cases all-capital names. The ingest uses the same `titleCaseCaps`.
 - **Controls:** keep a panel to a few visible controls; rarely used options go in a menu (`openMenu`), like the volume chart's ⚙ (chart style, period, gridlines). The volume legend doubles as the month-on-month scoreboard.
