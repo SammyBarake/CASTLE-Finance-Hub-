@@ -4,15 +4,38 @@
     {
       "name": "castle-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "castle-dev-local-data",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3001"],
-      "env": { "CASTLE_DATA_SOURCE": "local" },
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3001"
+      ],
+      "env": {
+        "CASTLE_DATA_SOURCE": "local"
+      },
       "port": 3001
+    },
+    {
+      "name": "castle-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--",
+        "--port",
+        "3002"
+      ],
+      "port": 3002
     }
   ]
 }

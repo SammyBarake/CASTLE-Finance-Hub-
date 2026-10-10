@@ -82,6 +82,8 @@ export interface Deal {
   fairness?: FairnessOpinion[];
   /** The page feed's stand-in for `fairness`: true when the full record has opinions. */
   hasFairness?: boolean;
+  /** Page feed only: how many filings the full record links (the feed carries just the first; /api/deal/[id] has all). */
+  filingCount?: number;
   milestones?: DealMilestones;
   /** Deal protections and financing from the merger agreement summary (public targets only). */
   terms?: DealTerms;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
+import { useFullDeal } from "@/components/data/useFullDeal";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { buyerType } from "@/lib/buyers";
@@ -24,6 +25,18 @@ function SourceNote({ isSample }: { isSample: boolean }) {
     <Note>
       {isSample ? "Sample data · No SEC filing linked." : "Extracted automatically from SEC EDGAR filings. Check the source documents before relying on any figure."}
     </Note>
+  );
+}
+
+/** The page feed carries a deal's first filing; the full list loads when the tab opens. */
+function DealFilings({ deal }: { deal: Deal }) {
+  const { full, failed } = useFullDeal(deal);
+  const more = !full && (deal.filingCount ?? 0) > deal.filings.length;
+  return (
+    <>
+      <Filings filings={full?.filings ?? deal.filings} />
+      {more && <p className="dim ff-intro">{failed ? "Couldn't load the other filings. Try again in a moment." : `Loading all ${deal.filingCount} filings…`}</p>}
+    </>
   );
 }
 
@@ -236,7 +249,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
         </div>
       )}
       {tab === "valuation" && <ValuationTab deal={deal} />}
-      {tab === "filings" && <Filings filings={deal.filings} />}
+      {tab === "filings" && <DealFilings deal={deal} />}
       {tab === "notes" && <NotesTab kind="deal" id={deal.id} />}
       <SourceNote isSample={data.isSample} />
     </>

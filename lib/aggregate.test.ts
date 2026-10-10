@@ -7,6 +7,16 @@ describe("toPublicDeal", () => {
     const pub = toPublicDeal({ ...deal({}), valueKind: "equity" });
     expect("valueKind" in pub).toBe(false);
   });
+
+  it("keeps only the first filing in the feed, all of them in the full record", () => {
+    const filings = [1, 2, 3].map((n) => ({ form: "8-K", filedDate: `2026-0${n}-01`, url: `https://www.sec.gov/${n}` }));
+    const feed = toPublicDeal({ ...deal({}), filings });
+    expect(feed.filings.map((f) => f.url)).toEqual(["https://www.sec.gov/1"]);
+    expect(feed.filingCount).toBe(3);
+    const full = toPublicDeal({ ...deal({}), filings }, { withFairness: true });
+    expect(full.filings).toHaveLength(3);
+    expect(full.filingCount).toBeUndefined();
+  });
 });
 
 const deal = (over: Partial<Deal>): Deal => ({

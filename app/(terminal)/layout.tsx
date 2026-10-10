@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { preload } from "react-dom";
 import { HubDataProvider } from "@/components/data/HubDataProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { UiProvider } from "@/components/ui/UiProvider";
@@ -14,6 +15,10 @@ export const revalidate = 900;
  * small boot copy of the data; the full dataset loads once per visit from /api/hub (see HubDataProvider).
  */
 export default async function TerminalLayout({ children }: { children: ReactNode }) {
+  // Start downloading the dataset with the page, in parallel with the JavaScript, instead of after it has run
+  // (HubDataProvider's fetch("/api/hub") then picks up the preloaded response). On a slow phone the two waits
+  // used to add up.
+  preload("/api/hub", { as: "fetch", crossOrigin: "anonymous" });
   const data = bootHubData(await getHubData());
   return (
     <HubDataProvider data={data}>

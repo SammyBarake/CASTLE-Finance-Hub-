@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
+import { fetchFullDeal } from "@/components/data/useFullDeal";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { Icon } from "@/components/ui/Icon";
 import { AboutData, CompanyMark, Kpi, Kpis, PageHeading, PageLink, PanelHead, StatusTag } from "@/components/ui/primitives";
@@ -10,7 +11,35 @@ import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { edgarCompanyUrl, findCompany, type CompanyBank } from "@/lib/companies";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import type { Filing } from "@/lib/types";
 import { formatDate, formatDateLong, formatPct, formatRaise, formatUsd } from "@/lib/format";
+
+/**
+ * The page feed carries each deal's first filing; fetch the full lists of this company's deals (a handful) and merge
+ * them into the profile's filings, newest first.
+ */
+function useCompanyFilings(profile: ReturnType<typeof findCompany>): Filing[] {
+  const [extra, setExtra] = useState<{ key: string; filings: Filing[] }>({ key: "", filings: [] });
+  const ids = (profile?.deals ?? []).filter((d) => (d.deal.filingCount ?? 0) > d.deal.filings.length).map((d) => d.deal.id).slice(0, 8);
+  const key = ids.join("|");
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    Promise.allSettled(key.split("|").map(fetchFullDeal)).then((results) => {
+      if (!live) return;
+      const filings = results.flatMap((r) => (r.status === "fulfilled" ? r.value.filings : []));
+      setExtra({ key, filings });
+    });
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  const base = profile?.filings ?? [];
+  if (extra.key !== key || !extra.filings.length) return base;
+  const byUrl = new Map(base.map((f) => [f.url, f]));
+  for (const f of extra.filings) byUrl.set(f.url, f);
+  return [...byUrl.values()].sort((a, b) => b.filedDate.localeCompare(a.filedDate));
+}
 
 const bankRoles = (b: CompanyBank) =>
   [b.buySide && `Buy side ×${b.buySide}`, b.sellSide && `Sell side ×${b.sellSide}`, b.ipo && `IPO ×${b.ipo}`].filter(Boolean).join(" · ");
@@ -20,6 +49,7 @@ export function CompanyView({ id }: { id: string }) {
   const { openDeal, openIpo, openAdvisorByName } = useDetails();
   const { toast } = useUi();
   const profile = useMemo(() => findCompany(data, id), [data, id]);
+  const filings = useCompanyFilings(profile);
 
   if (!profile) {
     return (
@@ -34,7 +64,7 @@ export function CompanyView({ id }: { id: string }) {
     );
   }
 
-  const { company, deals, ipos, banks, filings } = profile;
+  const { company, deals, ipos, banks } = profile;
   const stakes = (data.activists ?? []).filter((s) => company.cik && s.company.cik?.replace(/^0+/, "") === company.cik.replace(/^0+/, ""));
   const bought = deals.filter((d) => d.role === "Acquirer");
   const sold = deals.filter((d) => d.role === "Target");

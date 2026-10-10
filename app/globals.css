@@ -1406,3 +1406,23 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- touch screens ----------
+   Controls at least ~34px tall so a thumb hits them (the desktop layout stays dense), and form fields at 16px:
+   iOS Safari zooms the whole page into any field whose text is smaller. */
+@media (pointer: coarse) {
+  .segmented { padding: 2px; }
+  .segmented button { min-height: 32px; padding: 6px 11px; }
+  .tool-icon { width: 36px; height: 36px; }
+  .menu-toggle { padding: 9px; margin-left: -9px; }
+  .view-button { min-height: 34px; padding: 6px 10px; }
+  .row-icon { width: 34px; height: 34px; }
+  .whatif-preset { min-height: 34px; }
+  .small-link { min-height: 32px; }
+  .select-wrap select { min-height: 36px; }
+  .search-field { height: 36px; }
+  .legend button { min-height: 32px; padding-block: 6px; }
+  .sort-button { min-height: 32px; }
+  input[type="checkbox"] { width: 20px; height: 20px; }
+  input, select, textarea, .search input, .filter-search input, .select-wrap select { font-size: 16px; }
+}

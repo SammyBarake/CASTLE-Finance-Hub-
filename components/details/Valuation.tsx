@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
+import { useFullDeal } from "@/components/data/useFullDeal";
 import { DetailGrid, DetailItem, Note } from "@/components/ui/UiProvider";
 import { formatPrice, formatUsd } from "@/lib/format";
 import type { Deal, FairnessOpinion, ValuationRange } from "@/lib/types";
@@ -84,22 +85,10 @@ function OpinionFacts({ o }: { o: FairnessOpinion }) {
   );
 }
 
-/** The page feed leaves fairness opinions out; fetch the full record when the tab opens. */
+/** The page feed leaves fairness opinions out; the full record is fetched when the tab opens. */
 function useFairness(deal: Deal): { opinions: FairnessOpinion[] | null; failed: boolean } {
-  const [state, setState] = useState<{ id: string; opinions: FairnessOpinion[] | null; failed: boolean }>({ id: "", opinions: null, failed: false });
-  useEffect(() => {
-    if (deal.fairness) return;
-    let live = true;
-    fetch(`/api/deal/${encodeURIComponent(deal.id)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<Deal>) : Promise.reject(new Error(String(r.status)))))
-      .then((full) => live && setState({ id: deal.id, opinions: full.fairness ?? [], failed: false }))
-      .catch(() => live && setState({ id: deal.id, opinions: null, failed: true }));
-    return () => {
-      live = false;
-    };
-  }, [deal]);
-  if (deal.fairness) return { opinions: deal.fairness, failed: false };
-  return state.id === deal.id ? state : { opinions: null, failed: false };
+  const { full, failed } = useFullDeal(deal);
+  return { opinions: full ? (full.fairness ?? []) : null, failed };
 }
 
 export function ValuationTab({ deal }: { deal: Deal }) {

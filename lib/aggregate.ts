@@ -158,9 +158,10 @@ export function sectorValuations(deals: Deal[], asOf: string): SectorValuation[]
 }
 
 /**
- * Strip ingest-only fields so only the public contract reaches the browser. Fairness opinions are
- * heavy and only needed in one drawer tab, so the page feed carries a flag and /api/deal/[id]
- * serves the full record (`withFairness`).
+ * Strip ingest-only fields so only the public contract reaches the browser. Heavy detail stays out of the page feed
+ * and /api/deal/[id] serves the full record (`withFairness`): fairness opinions (one drawer tab; the feed carries
+ * `hasFairness`) and the filing list, a third of the feed's weight (the feed keeps the first filing, the source the
+ * row menu opens, and `filingCount`).
  */
 export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): Deal {
   return {
@@ -181,7 +182,8 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     evRevenue: d.evRevenue,
     acquirerAdvisors: d.acquirerAdvisors,
     targetAdvisors: d.targetAdvisors,
-    filings: d.filings,
+    filings: opts.withFairness ? d.filings : d.filings.slice(0, 1),
+    ...(opts.withFairness || d.filings.length <= 1 ? {} : { filingCount: d.filings.length }),
     ...(d.fairness?.length ? (opts.withFairness ? { fairness: d.fairness, hasFairness: true } : { hasFairness: true }) : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
     ...(d.terms ? { terms: d.terms } : {}),
