@@ -80,8 +80,9 @@ export function cleanPartyName(raw: string): string {
     /^(?:certain |an? )?(?:affiliates? of|entities (?:affiliated with|managed by)|funds? (?:managed|advised) by|an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by|an? subsidiary of|a wholly[- ]owned subsidiary of|an investor group led by|investment funds? (?:managed|advised) by)\s+/i,
     "",
   );
-  // A name never spans sentences: cut at ". Capital" unless the period ends an abbreviation (Inc., Co., J.P., H.I.G.).
-  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|L\.P|N\.V|S\.A|[A-Z]))\.\s+(?=[A-Z])/.exec(s);
+  // A name never spans sentences: cut at ". Capital" unless the period ends an abbreviation (Inc., Co., J.P., H.I.G.,
+  // Mr. Cooper, St. Joe).
+  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|[A-Z]))\.\s+(?=[A-Z])/.exec(s);
   if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
   // "AkzoNobel, that certain Joinder Agreement, dated ..." -> "AkzoNobel"
   s = s.replace(/,\s+(?:that certain|dated|pursuant|as amended)\b.*$/i, "");
@@ -146,7 +147,7 @@ export const isPlaceholderBuyer = (name: string) =>
  * ("RSC Topco" is Accession), and a registrant's SEC name is always real ("Frontier Communications Parent").
  */
 export const isMergerVehicle = (name: string) =>
-  /\b(?:Merger Sub(?:sidiary)?|MergerCo|MergeCo|Bidco|BidCo|Purchaser)\b/i.test(name) || /^(?:[A-Z][\w&.'-]* )+Parent(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name);
+  /\b(?:Merger ?Sub(?:sidiary)?|MergerCo|MergeCo|Bidco|BidCo|Purchaser)\b/i.test(name) || /^(?:[A-Z][\w&.'-]* )+Parent(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name);
 
 export const isPlausibleName =(s: string | null | undefined): s is string =>
   !!s &&
@@ -180,4 +181,21 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/^(?:the\s+)?(?:U\.?S\.?\s+)?subsidiary(?:\s+of)?$/i.test(s.trim()) &&
   !/^[A-Za-z.]+-based$/i.test(s.trim()) &&
   !/\bProduct$/.test(s.trim()) &&
-  !/^Non-operated\b/i.test(s);
+  !/^Non-operated\b/i.test(s) &&
+  // A jurisdiction or a defined agreement term read as a party: "Florida", "Nevada corporation", "Luxembourg",
+  // "Closing", "Amendment", "Business Combination Agreement", "Patent Sale Agreement".
+  !new RegExp(`^(?:${PLACES})(?:,\\s*(?:Canada|USA|United States))?(?:\\s+(?:corporation|company|limited liability company|limited partnership|partnership|trust|bank))?$`, "i").test(s.trim()) &&
+  !/^(?:the\s+)?(?:Closing|Amendment|Effective Time|Transactions?|Business Combination|General Partner|Limited Partners?|First|Second|Third)$/i.test(s.trim()) &&
+  // "Directors of the Company", "Merger and certain related contributions"
+  !/^(?:the\s+)?Directors\b|\bof the Company$|^(?:Mergers?|Transactions?)\s+(?:and|of|with)\b/i.test(s.trim()) &&
+  !/\bAgreement$/.test(s.trim());
+
+const PLACES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois",
+  "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri",
+  "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma",
+  "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+  "West Virginia", "Wisconsin", "Wyoming", "Puerto Rico", "U\\.?S\\.?A?\\.?", "United States", "Canada", "Ontario", "British Columbia", "Quebec",
+  "Bermuda", "Cayman Islands", "Jersey", "Guernsey", "Ireland", "England(?: and Wales)?", "United Kingdom", "Luxembourg", "Netherlands", "Germany",
+  "France", "Switzerland", "Israel", "Japan", "China", "Hong Kong", "Singapore", "Australia", "Thailand", "India", "Mexico", "Brazil",
+].join("|");

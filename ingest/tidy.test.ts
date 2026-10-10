@@ -157,6 +157,50 @@ describe("tidyDeals", () => {
     const deals = [deal({ announcedDate: "2021-01-01", status: "Terminated" }), deal({ acquirer: { name: "Other Co", ticker: null, cik: null }, announcedDate: "2024-01-01" })];
     const r = tidyDeals(deals);
     expect(r.topped + r.merged + r.dropped.length).toBe(0);
+    // Bought, relisted and bought again: the first deal closed before the second was announced.
+    const relisted = [deal({ announcedDate: "2018-01-01", status: "Closed", statusDate: "2018-06-01" }), deal({ acquirer: { name: "Other Co", ticker: null, cik: null }, announcedDate: "2024-01-01" })];
+    expect(tidyDeals(relisted).topped).toBe(0);
+    expect(relisted[0].status).toBe("Closed");
+  });
+
+  it("keeps the older registrant when the same deal was filed under a newer company of the same name", () => {
+    const wrong = deal({ id: "2030781-2022-04-11", target: { name: "SailPoint, Inc.", ticker: "SAIL", cik: "2030781" }, acquirer: { name: "Thoma Bravo", ticker: null, cik: null }, announcedDate: "2022-04-11", status: "Announced" });
+    const right = deal({ id: "1627857-2022-04-11", target: { name: "SailPoint Technologies Holdings, Inc.", ticker: null, cik: "1627857" }, acquirer: { name: "Thoma Bravo", ticker: null, cik: null }, announcedDate: "2022-04-11", status: "Closed", statusDate: "2022-08-16" });
+    const deals = [wrong, right];
+    const r = tidyDeals(deals);
+    expect(r.merged).toBe(1);
+    expect(deals.map((d) => d.id)).toEqual(["1627857-2022-04-11"]);
+    expect(right.status).toBe("Closed");
+  });
+
+  it("marks an earlier agreement superseded by a later buyer as terminated, even if the later closing marked it Closed", () => {
+    // Lockheed / Aerojet (2020, fell through) and L3Harris / Aerojet (2022, closed 2023): the 2023 Form 25 is L3Harris's.
+    const first = deal({ acquirer: { name: "Lockheed Martin Corp", ticker: "LMT", cik: "936468" }, announcedDate: "2020-12-21", status: "Closed", statusDate: "2023-07-28" });
+    const proxy = { path: "vote" as const, firstFiling: { form: "PREM14A", date: "2023-01-30" }, definitiveProxy: null, closed: "2023-07-28", terminated: null };
+    const second = deal({ acquirer: { name: "L3Harris Technologies, Inc.", ticker: "LHX", cik: "202058" }, announcedDate: "2022-12-19", status: "Closed", statusDate: "2023-07-28", milestones: proxy });
+    const r = tidyDeals([first, second]);
+    expect(r.topped).toBe(1);
+    expect(first.status).toBe("Terminated");
+    expect(first.statusDate).toBeNull();
+    expect(second.status).toBe("Closed");
+  });
+
+  it("leaves an earlier deal alone when the later record is the sale of one business, with no proxy of its own", () => {
+    // ICE / Black Knight (closed 2023) and Constellation buying Black Knight's Empower unit, filed under Black Knight.
+    const ice = deal({ acquirer: { name: "Intercontinental Exchange, Inc.", ticker: "ICE", cik: "1571949" }, announcedDate: "2022-05-04", status: "Closed", statusDate: "2023-09-05" });
+    const unit = deal({ acquirer: { name: "Constellation Software Inc.", ticker: null, cik: null }, announcedDate: "2023-07-17", status: "Closed", statusDate: "2023-09-05" });
+    expect(tidyDeals([ice, unit]).topped).toBe(0);
+    expect(ice.status).toBe("Closed");
+  });
+
+  it("removes SPAC deals by name but keeps mortgage REITs named \"… Investment Corp.\"", () => {
+    const spacTarget = deal({ target: { name: "Hudson Executive Investment Corp.", ticker: null, cik: "1803901" } });
+    const spacBuyer = deal({ acquirer: { name: "Vine Hill Capital Investment Corp.", ticker: null, cik: null }, target: { name: "CoinShares PLC", ticker: null, cik: "2087587" } });
+    const roman = deal({ target: { name: "FS Development Corp. II", ticker: null, cik: "1822711" } });
+    const reit = deal({ acquirer: { name: "UWM Holdings Corporation", ticker: null, cik: "1783398" }, target: { name: "Two Harbors Investment Corp.", ticker: "TWO", cik: "1465740" } });
+    const deals = [spacTarget, spacBuyer, roman, reit];
+    expect(tidyDeals(deals).dropped).toHaveLength(3);
+    expect(deals).toEqual([reit]);
   });
 
   it("removes junk records", () => {

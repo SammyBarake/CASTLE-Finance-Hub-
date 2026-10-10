@@ -138,3 +138,124 @@ Item 9.01 Financial Statements and Exhibits.`;
     expect(p.pricePerShare).toBe(235);
   });
 });
+
+// Shapes found by the October 2026 big-deal check (merger-proxy filers with no deal); synthetic text in their style.
+describe("parseMergerItem: structures the big-deal check found", () => {
+  const item = (body: string) => `Item 1.01 Entry into a Material Definitive Agreement.\n${body}\nItem 9.01 Financial Statements and Exhibits.`;
+
+  it("reads a bank merger where the named target merges into the buyer", () => {
+    const p = parseMergerItem(
+      item(`On April 18, 2026, Harbor Bancorp, a Delaware corporation ("Harbor"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Lighthouse Financial Corporation, a Delaware corporation ("Lighthouse"). The Merger Agreement provides that, upon the terms and subject to the conditions set forth therein, Harbor will merge with and into Lighthouse (the "Merger"), with Lighthouse as the surviving corporation. Following the Merger, Harbor's wholly-owned subsidiary, Harbor National Bank, will merge with and into Lighthouse's wholly-owned subsidiary, Lighthouse Bank (the "Bank Merger").`),
+      { filerName: "Harbor Bancorp", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Harbor Bancorp");
+    expect(p.acquirer.name).toBe("Lighthouse Financial Corporation");
+  });
+
+  it('reads a defined term between the verb and "with and into", and a dash in the heading', () => {
+    const p = parseMergerItem(
+      `Item 1.01 - Entry into a Material Definitive Agreement Merger Agreement On October 10, 2026, Ridge Natural Resources Company, a Delaware corporation (the "Company" or "Ridge"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Atlas Oil Corporation, a New Jersey corporation ("Parent" or "Atlas"), and SPQR, LLC, a wholly-owned subsidiary of Parent ("Merger Sub"). Merger Sub will merge (the "Merger") with and into the Company, with the Company surviving the Merger as a wholly owned subsidiary of Parent. Item 9.01 Exhibits.`,
+      { filerName: "RIDGE NATURAL RESOURCES CO", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Ridge Natural Resources Company");
+    expect(p.acquirer.name).toBe("Atlas Oil Corporation");
+  });
+
+  it("reads an Irish scheme of arrangement under a Transaction Agreement", () => {
+    const p = parseMergerItem(
+      item(`On December 11, 2026, Meadow Therapeutics plc, a public limited company incorporated under the laws of Ireland (the "Company"), entered into a Transaction Agreement (the "Transaction Agreement") by and among the Company, Summit Inc., a Delaware corporation ("Parent"), and Pillar Limited, a wholly owned subsidiary of Parent ("Acquirer Sub"). Under the terms of the Transaction Agreement, Acquirer Sub will acquire the Company (the "Acquisition") pursuant to a scheme of arrangement under the Companies Act 2014 of Ireland (the "Scheme"). Holders of the ordinary shares of the Company will be entitled to receive $116.50 in cash per Share (the "Consideration").`),
+      { filerName: "Meadow Therapeutics plc", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Meadow Therapeutics plc");
+    expect(p.acquirer.name).toBe("Summit Inc.");
+    expect(p.pricePerShare).toBe(116.5);
+  });
+
+  it("names the consortium behind newly formed buyers in a UK scheme", () => {
+    const p = parseMergerItem(
+      item(`On March 28, 2026, Orbit Holdings plc, a public limited company formed under the laws of England and Wales (the "Company" or "Orbit"), entered into a Transaction Agreement (the "Transaction Agreement") by and among the Company, Neptune Intermediate Jersey Limited, a private limited company ("Parent"), and Neptune BidCo US Inc., a Delaware corporation and a wholly owned subsidiary of Parent ("Purchaser"), pursuant to which the Purchaser will acquire the issued and to be issued ordinary share capital of the Company by way of a scheme of arrangement (the "Scheme"). Parent and Purchaser are newly-formed entities established by a consortium of private investment funds led by funds affiliated with Elliott Investment Management L.P. and Brookfield Asset Management (the "Consortium").`),
+      { filerName: "Orbit Holdings plc", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Orbit Holdings plc");
+    expect(p.acquirer.name).toBe("Elliott Investment Management L.P. and Brookfield Asset Management");
+  });
+
+  it('keeps a name with an honorific period and a second defined term ("Mr. Cooper" or the "Company")', () => {
+    const p = parseMergerItem(
+      item(`On March 31, 2026, Rocket Companies, Inc. ("Rocket") entered into an Agreement and Plan of Merger (the "Merger Agreement") by and among Rocket, Maverick Merger Sub, Inc., a newly formed Delaware corporation and a direct, wholly owned subsidiary of Rocket ("Maverick Merger Sub"), Maverick Merger Sub 2, LLC, a direct wholly owned subsidiary of Rocket ("Forward Merger Sub"), and Mr. Cooper Group Inc., a Delaware corporation ("Mr. Cooper" or the "Company"). Maverick Merger Sub will merge with and into Mr. Cooper (the "Maverick Merger"), with Mr. Cooper surviving, and immediately following, Mr. Cooper will merge with and into Forward Merger Sub.`),
+      { filerName: "Mr. Cooper Group Inc.", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Mr. Cooper Group Inc.");
+    expect(p.acquirer.name).toBe("Rocket Companies, Inc.");
+  });
+
+  it("reads a partnership name followed by its listing, and prefers the merger into the filer over an OpCo merger", () => {
+    const mlp = parseMergerItem(
+      item(`On May 14, 2026, Otter Midstream Partners, L.P. (NYSE: OMP), a Delaware limited partnership ("Otter"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Plains Gas, Inc., an Oklahoma corporation (NYSE: PGI) ("Plains"), and River Merger Sub, LLC, a wholly owned subsidiary of Plains ("Merger Sub"). Merger Sub will merge with and into Otter (the "Merger"), with Otter continuing as a wholly owned subsidiary of Plains.`),
+      { filerName: "Otter Midstream Partners, L.P.", filerTickers: [] },
+    )!;
+    expect(mlp.target.name).toBe("Otter Midstream Partners, L.P.");
+    expect(mlp.acquirer.name).toBe("Plains Gas, Inc.");
+    const opco = parseMergerItem(
+      item(`On March 1, 2026, Radial Infrastructure, Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with APW OpCo LLC ("OpCo"), Chord Parent, Inc. ("Parent"), Chord Merger Sub I, Inc. ("Merger Sub I"), and Chord Merger Sub II, LLC ("Merger Sub II"). (a) Merger Sub II will be merged with and into OpCo (the "OpCo Merger"), and (b) Merger Sub I will be merged with and into the Company (the "Company Merger"). Each share will be converted into the right to receive $15.00 in cash.`),
+      { filerName: "Radial Infrastructure, Inc.", filerTickers: [] },
+    )!;
+    expect(opco.target.name).toBe("Radial Infrastructure, Inc.");
+    expect(opco.pricePerShare).toBe(15);
+  });
+
+  it('reads a two-step bank deal ("will acquire Weston in two steps")', () => {
+    const p = parseMergerItem(
+      item(`On February 3, 2026, Weston Financial Corporation, a Delaware corporation ("Weston"), entered into a Transaction Agreement (the "Transaction Agreement") with Banco Iberico, S.A., a Spanish sociedad anónima ("Banco Iberico"), and a wholly owned subsidiary of Weston (the "Weston Subsidiary"). The Transaction Agreement provides that Banco Iberico will acquire Weston in two steps. First, Weston will merge with and into the Weston Subsidiary (the "Merger"). Second, Banco Iberico will acquire all outstanding shares of the Weston Subsidiary through a statutory share exchange.`),
+      { filerName: "WESTON FINANCIAL CORP", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Weston Financial Corporation");
+    expect(p.acquirer.name).toBe("Banco Iberico, S.A.");
+  });
+
+  it('names the sponsor from "acquisition of the Company by affiliates of …" and reads "by and among the Company, X"', () => {
+    const p = parseMergerItem(
+      item(`On February 4, 2026, CoreMap, Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement"), dated February 4, 2026, by and among the Company, Celestial-Saturn Parent Inc., a Delaware corporation ("Parent"), and Celestial-Saturn Merger Sub Inc., a Delaware corporation ("Acquisition Sub"), providing for the acquisition of the Company by affiliates of Stone Point Capital Partners and Insight Partners, subject to the terms and conditions set forth therein (the "Merger"). The Board approved the Merger of Acquisition Sub with and into the Company. Each share will be converted into the right to receive $80.00 in cash.`),
+      { filerName: "CoreMap, Inc.", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("CoreMap, Inc.");
+    expect(p.acquirer.name).toBe("Stone Point Capital Partners");
+    expect(p.pricePerShare).toBe(80);
+  });
+
+  it("takes the other side, not its merger sub, as buyer when the filer merges into that sub; ignores defined agreements", () => {
+    const moe = parseMergerItem(
+      item(`On May 20, 2026, Valley Communities, Inc., a Maryland corporation ("Valley"), Summit Residential, a Maryland real estate investment trust ("Summit Residential"), and Canopy Merger Sub LLC, a direct wholly owned subsidiary of Summit Residential ("Merger Sub"), entered into an Agreement and Plan of Merger (the "Merger Agreement"). At the Effective Time, Valley will merge with and into Merger Sub, with Merger Sub being the surviving entity (the "Merger").`),
+      { filerName: "VALLEY COMMUNITIES INC", filerTickers: [] },
+    )!;
+    expect(moe.target.name).toBe("Valley Communities, Inc.");
+    expect(moe.acquirer.name).toBe("Summit Residential");
+    const endo = parseMergerItem(
+      item(`On March 13, 2026, Indo, Inc. (the "Company" or "Indo"), entered into a Transaction Agreement (the "Transaction Agreement"), with Mallard plc, an Irish public limited company ("Mallard"), and Salvare Merger Sub LLC, a wholly owned subsidiary of Mallard ("Merger Sub"). The Transaction Agreement provides that Merger Sub will merge with and into the Company.`),
+      { filerName: "Indo, Inc.", filerTickers: [] },
+    )!;
+    expect(endo.acquirer.name).toBe("Mallard plc");
+  });
+
+  it("reads a buyer whose description holds a parenthesis, and a lower-case web name", () => {
+    const dutch = parseMergerItem(
+      item(`On June 10, 2026, Grubby Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger with Fast Eat Takeaway.com N.V., a public limited liability company (naamloze vennootschap) incorporated under the laws of the Netherlands ("Parent"), and Checkers Merger Sub I, Inc. ("Merger Sub I"). Merger Sub I will merge with and into the Company.`),
+      { filerName: "Grubby Inc.", filerTickers: [] },
+    )!;
+    expect(dutch.acquirer.name).toBe("Fast Eat Takeaway.com N.V.");
+    const web = parseMergerItem(
+      item(`On June 9, 2026, Tableau Lab, Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger with salesforce.com, inc., a Delaware corporation ("Parent"), and Sausalito Acquisition Corp., a wholly owned subsidiary of Parent ("Merger Sub"). Merger Sub will merge with and into the Company.`),
+      { filerName: "Tableau Lab, Inc.", filerTickers: [] },
+    )!;
+    expect(web.acquirer.name).toMatch(/^salesforce\.com, inc/);
+  });
+
+  it("strips an earlier party's defined term from the front of the next name", () => {
+    const p = parseMergerItem(
+      item(`On June 15, 2026, Perrin Apparel International, Inc. ("Perrin" or the "Company") entered into an Agreement and Plan of Merger, by and among Perrin, Feld Holdings LLC, a Delaware limited liability company ("Parent"), and GF Merger Sub, Inc., a wholly-owned subsidiary of Parent ("Merger Sub"), providing for the merger of Merger Sub with and into the Company. Each share will be converted into the right to receive $27.50 in cash.`),
+      { filerName: "Perrin Apparel International, Inc.", filerTickers: [] },
+    )!;
+    expect(p.target.name).toBe("Perrin Apparel International, Inc.");
+    expect(p.acquirer.name).toBe("Feld Holdings LLC");
+  });
+});

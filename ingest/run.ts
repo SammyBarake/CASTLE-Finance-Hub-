@@ -8,6 +8,7 @@
  *   npm run ingest -- --skip macro,activists               leave pipelines out (quick hourly runs)
  *   npm run ingest -- --only activists --from 2025-01-01   backfill activist 13Ds
  *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
+ *   npm run ingest -- --only deals --backstop-only --from 2021-01-01   only look up merger-proxy filers without a deal
  */
 import { ingestActivists } from "./activists";
 import { buildDirectory, ingestDeals } from "./deals";
@@ -77,7 +78,7 @@ async function main() {
   try {
     if (runs("deals")) {
       log("deals: discovering announcements");
-      const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint });
+      const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint, backstopOnly: flag("backstop-only") });
       log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched`);
       if (s.searchGaps.length) {
         complete = false;

@@ -26,6 +26,15 @@ describe("descriptions, tails and fragments read as names", () => {
     ])
       expect(isPlausibleName(s), s).toBe(false);
     expect(isPlausibleName("U.S. Subsidiary")).toBe(false);
+    // Jurisdictions and defined agreement terms read as parties by the 8-K parser.
+    for (const s of ["Florida", "Nevada corporation", "North Carolina", "Luxembourg", "Delaware limited liability company", "British Columbia, Canada", "Closing", "Amendment", "Business Combination Agreement", "Patent Sale Agreement", "General Partner", "Second", "Directors of the Company", "Merger and certain related contributions"])
+      expect(isPlausibleName(s), s).toBe(false);
+    for (const s of ["Washington Federal, Inc.", "Texas Roadhouse", "Virginia National Financial", "First Ohio Bank"]) expect(isPlausibleName(s), s).toBe(true);
+  });
+
+  it("does not cut a name at an honorific's period", () => {
+    expect(cleanPartyName("Mr. Cooper Group Inc.")).toBe("Mr. Cooper Group Inc.");
+    expect(cleanPartyName("The St. Joe Company")).toBe("The St. Joe Company");
     for (const s of ["Air Products and Chemicals, Inc.", "Premier, Inc.", "Premier NYC", "Leidos Holdings, Inc."]) expect(isPlausibleName(s), s).toBe(true);
   });
 });

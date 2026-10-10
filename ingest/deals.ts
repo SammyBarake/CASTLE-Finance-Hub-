@@ -25,7 +25,7 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, getTargetFinancials } from "./financials";
-import { item101, parseMergerItem } from "./parse/eightk";
+import { definedEntities, item101, parseMergerItem } from "./parse/eightk";
 import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
@@ -117,18 +117,31 @@ export async function discoverDealDocs(from: string, to: string, log: (s: string
 }
 
 /** Companies that filed a merger proxy or tender-offer response: the "answer key" for the backstop. */
-export async function discoverMergerFilers(from: string, to: string, gaps: string[] = [], log: (s: string) => void = () => {}) {
+export async function discoverMergerFilers(
+  from: string,
+  to: string,
+  gaps: string[] = [],
+  log: (s: string) => void = () => {},
+  opts: { allParties?: boolean; byYear?: boolean } = {},
+) {
   const out = new Map<string, { firstDate: string; hit: FtsHit }>();
   for (const [start, end] of monthWindows(from, to)) {
     for (const form of ["PREM14A", "DEFM14A", "SC 14D9", "SC 13E3"]) {
       const hits = await searchOrGap({ q: "", forms: [form], from: start, to: end }, gaps, log);
       for (const h of hits) {
         if (h.form !== form || h.sics.includes("6770")) continue;
-        const f = parseDisplayName(h.displayNames[0]);
-        if (/\b(?:Fund|Trust|Portfolio|ETF)\b/i.test(f.name)) continue;
-        const cik = f.cik ?? trimCik(h.ciks[0]);
-        const prev = out.get(cik);
-        if (!prev || h.fileDate < prev.firstDate) out.set(cik, { firstDate: h.fileDate, hit: h });
+        // A joint proxy is filed under both companies (AvalonBay and Equity Residential): with `allParties`, each
+        // filer counts, not just the first listed (which may be the buyer).
+        for (const [i, display] of (opts.allParties ? h.displayNames : h.displayNames.slice(0, 1)).entries()) {
+          const f = parseDisplayName(display);
+          if (/\b(?:Fund|Trust|Portfolio|ETF)\b/i.test(f.name)) continue;
+          const cik = f.cik ?? trimCik(h.ciks[i] ?? h.ciks[0]);
+          // `byYear`: one entry per company per year ("cik|2023"), so a later deal's proxy isn't hidden behind an
+          // earlier one's (Aerojet: Lockheed's in 2021, L3Harris's in 2023).
+          const key = opts.byYear ? `${cik}|${h.fileDate.slice(0, 4)}` : cik;
+          const prev = out.get(key);
+          if (!prev || h.fileDate < prev.firstDate) out.set(key, { firstDate: h.fileDate, hit: h });
+        }
       }
     }
   }
@@ -200,6 +213,10 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     // (Vonage's "VG" is now Venture Global's, CoreSite's "COR" is Cencora's). The names must agree; otherwise
     // fall through to the filers and the name directory.
     if (listed && sameCompany(listed.name, p.name)) {
+      // The same name and ticker reused by a newer registrant (SailPoint, bought in 2022, relisted in 2025 under a new
+      // CIK): the document's own filer of that name is the company meant.
+      const self = filers.find((x) => x.cik && x.cik !== listed.cik && identicalNames(x.name, p.name));
+      if (self?.cik) return { cik: self.cik, ticker, listedInUs: pressUs || listedThen(self.cik) };
       return { cik: listed.cik, ticker, listedInUs: pressUs || US_LISTED.test(listed.exchange ?? "") };
     }
     if (f?.cik) return { cik: f.cik, ticker, listedInUs: pressUs || listedThen(f.cik) };
@@ -238,9 +255,14 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
  * Bump when the private-target registrant check changes: stored private deals are then checked again.
  * 2: every private target is looked up (not just ones quoting a share price), spacing-insensitive names.
  */
-export const REGISTRANT_CHECK_VERSION = 2;
+export const REGISTRANT_CHECK_VERSION = 3;
 
 const shiftDate = (date: string, days: number) => new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
+
+/** How far before its merger proxy the backstop looks for a company's signing 8-K. */
+const BACKSTOP_DAYS = 400;
+/** `seen` key for a backstop lookup (company + proxy year). Bump to look every filer up again after a parser change. */
+const BACKSTOP_KEY = "backstop2";
 const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
 
 /**
@@ -313,7 +335,8 @@ export function registrantMatches(registrant: string, target: string): boolean {
   if (r.length < 3 || t.length < 3) return false;
   if (r === t || r.replace(/ /g, "") === t.replace(/ /g, "")) return true; // "Hill Rom" = "Hillrom"
   if (!r.startsWith(t + " ")) return false;
-  return r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w));
+  // "Interpublic" = "Interpublic Group of Companies"
+  return r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w) || /^(?:group|companies|of|the)$/.test(w));
 }
 
 /** The name minus trailing descriptors, so "Enable Midstream Energy" can be looked up as "Enable Midstream". */
@@ -515,8 +538,8 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
   if (prefer && hit.fileDate < deal.announcedDate) deal.announcedDate = hit.fileDate;
   // Longer names are usually the legal names ("ACV" -> "ACV Auctions Inc.").
   if (parsed.target.name.length > deal.target.name.length) deal.target.name = parsed.target.name;
-  if (isPlaceholderBuyer(deal.acquirer.name) && !isPlaceholderBuyer(parsed.acquirer.name)) {
-    // Replace a shell / defined-term buyer ("Anchor Parent, LLC", "Parent") with the real name.
+  if ((isPlaceholderBuyer(deal.acquirer.name) || !isPlausibleName(deal.acquirer.name)) && !isPlaceholderBuyer(parsed.acquirer.name)) {
+    // Replace a shell / defined-term buyer ("Anchor Parent, LLC", "Parent"), or a junk one ("Netherlands"), with the real name.
     deal.acquirer = company(parsed.acquirer, acquirer);
   } else if (parsed.acquirer.name.length > deal.acquirer.name.length && sameCompany(parsed.acquirer.name, deal.acquirer.name)) {
     deal.acquirer.name = parsed.acquirer.name;
@@ -769,7 +792,17 @@ export interface DealRunStats {
 
 export async function ingestDeals(
   state: State,
-  opts: { from: string; to: string; directory: Directory; log: (s: string) => void; today: string; checkpoint?: () => Promise<void>; light?: boolean },
+  opts: {
+    from: string;
+    to: string;
+    directory: Directory;
+    log: (s: string) => void;
+    today: string;
+    checkpoint?: () => Promise<void>;
+    light?: boolean;
+    /** Skip the document search: only look up merger-proxy filers that have no deal (after a backstop change). */
+    backstopOnly?: boolean;
+  },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
   const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [] };
@@ -800,9 +833,14 @@ export async function ingestDeals(
     // EDGAR's lookup wants the start of the registered name: "ENABLE MIDSTREAM Energy" finds nothing,
     // "Enable Midstream" finds Enable Midstream Partners. The match is then checked against that core name.
     const core = coreName(name);
+    // …and without the legal suffix: "Equitrans Midstream Corporation" finds nothing, "Equitrans Midstream" finds
+    // EQUITRANS MIDSTREAM CORP.
+    const bare = q.replace(/\s+(?:Corporation|Corp|Incorporated|Inc|Company|Co|Limited|Ltd|plc|LLC|LP|L P|NV|SA|AG)$/i, "");
+    // "MidWest One Financial Group" is registered as MIDWESTONE: join a camel-case first word to the next.
+    const joined = bare.replace(/^(\w*[a-z][A-Z]\w*) (\w+)/, "$1$2");
     let found: Resolved | null = null;
     try {
-      search: for (const query of core !== q ? [q, core] : [q]) {
+      search: for (const query of [...new Set([q, core, bare, joined])]) {
         const candidates = (await lookupCompanies(query))
           .filter((c) => registrantMatches(c.name, query) || sameCompany(c.name, query))
           .sort((a, b) => Number(registrantMatches(b.name, query)) - Number(registrantMatches(a.name, query)))
@@ -905,7 +943,7 @@ export async function ingestDeals(
     return null;
   };
 
-  const docs = (await discoverDealDocs(opts.from, opts.to, log, stats.searchGaps)).filter((h) => !state.seen.has(h.id));
+  const docs = opts.backstopOnly ? [] : (await discoverDealDocs(opts.from, opts.to, log, stats.searchGaps)).filter((h) => !state.seen.has(h.id));
   log(`  ${docs.length} new documents to read (${docs.filter((d) => d.via === "item101").length} merger 8-Ks)`);
 
   for (const hit of docs) {
@@ -932,23 +970,40 @@ export async function ingestDeals(
     }
   }
 
-  // Backstop: companies that filed a merger proxy / tender response but have no deal yet.
-  // Find their announcement 8-K (Item 1.01, within ~7 months before) and parse it.
-  const filers = await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log);
-  const knownTargets = new Set(state.deals.map((d) => d.target.cik));
-  const todo = [...filers].filter(([cik]) => !knownTargets.has(cik) && !state.seen.has(`backstop:${cik}`));
+  // Backstop: companies that filed a merger proxy / tender response but have no deal for it yet.
+  // Find their announcement 8-K (within ~13 months before: Terminix's proxy came 9 months after signing) and parse it.
+  const filers = await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log, { allParties: true, byYear: true });
+  // A deal for the same company announced before this proxy covers it; an older one doesn't (Aerojet's 2020 deal with
+  // Lockheed, which fell through, used to hide its 2022 deal with L3Harris).
+  const hasDealFor = (cik: string, proxyDate: string) =>
+    state.deals.some(
+      (d) =>
+        (d.target.cik === cik || d.acquirer.cik === cik) &&
+        d.announcedDate <= proxyDate &&
+        d.announcedDate >= shiftDate(proxyDate, -BACKSTOP_DAYS) &&
+        // A record with a junk party ("Pennsylvania corporation" as TriState's buyer) is dropped by tidy: look again.
+        isPlausibleName(d.acquirer.name) &&
+        isPlausibleName(d.target.name),
+    );
+  const todo = [...filers]
+    .map(([key, f]) => [key.split("|")[0], f] as const)
+    .filter(([cik, f]) => !hasDealFor(cik, f.firstDate) && !state.seen.has(`${BACKSTOP_KEY}:${cik}:${f.firstDate.slice(0, 4)}`));
   log(`  backstop: ${filers.size} merger-proxy filers, ${todo.length} without a deal to look up`);
   let recovered = 0;
   for (const [cik, { firstDate, hit: proxyHit }] of todo) {
     try {
-      state.seen.add(`backstop:${cik}`);
+      state.seen.add(`${BACKSTOP_KEY}:${cik}:${firstDate.slice(0, 4)}`);
       const sub = await submissions(cik);
       if (!sub || sub.sic === "6770") continue;
-      const lo = new Date(Date.parse(firstDate) - 210 * 86_400_000).toISOString().slice(0, 10);
-      const announcements = recentFilings(sub)
-        .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= firstDate)
+      const lo = shiftDate(firstDate, -BACKSTOP_DAYS);
+      const filings = recentFilings(sub).filter((f) => f.date >= lo && f.date <= firstDate);
+      // The signing 8-K normally carries Item 1.01. Some announce under Item 8.01 or 7.01 only (GW Pharmaceuticals):
+      // those are the 8-Ks filed the day the company's first deal communication (DEFA14A / 425 / 14D-9C) went out.
+      const firstCommunication = filings.filter((f) => /^(?:DEFA14A|425|SC14D9C|SC 14D9-C|SC TO-C)$/.test(f.form)).map((f) => f.date).sort()[0];
+      const announcements = filings
+        .filter((f) => /^8-K/.test(f.form) && (/\b1\.01\b/.test(f.items) || f.date === firstCommunication))
         .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 3);
+        .slice(0, 6);
       for (const f of announcements) {
         // The filer as it was then: its name at the time (Resolute Energy, not today's Cimarex Resolute), and listed
         // then if it filed periodic reports and was on an exchange or delisted afterwards (today it has no ticker).
@@ -964,10 +1019,14 @@ export async function ingestDeals(
           ...exhibits.map((ex) => ({
             file: ex,
             parse: async () => {
-              const p = parsePressRelease(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, ex))), ctx);
-              // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), never
-              // as the buyer (that would be an acquirer's own vote). Use its registered name so it resolves to it.
-              if (!p || p.kind !== "announcement" || !isFiler(p.target.name) || isFiler(p.acquirer.name)) return null;
+              const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, ex)));
+              const p = parsePressRelease(text, ctx);
+              // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), or by
+              // a name the release defines for it ("BTRS Holdings Inc. ("Billtrust")"), never as the buyer (that
+              // would be an acquirer's own vote). Use its registered name so it resolves to it.
+              const aliases = new Set(definedEntities(text.slice(0, 8000)).filter((e) => isFiler(e.name)).flatMap((e) => [e.nick, e.alias ?? ""]));
+              const namesFiler = (name: string) => isFiler(name) || aliases.has(name);
+              if (!p || p.kind !== "announcement" || !namesFiler(p.target.name) || namesFiler(p.acquirer.name)) return null;
               return { ...p, target: { ...p.target, name: displayName(nameThen) } };
             },
           })),

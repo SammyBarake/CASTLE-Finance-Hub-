@@ -19,24 +19,39 @@ interface Entity {
 /** The Item 1.01 section, or null if the 8-K doesn't describe a merger agreement. */
 export function item101(text: string): string | null {
   const t = flatten(text);
-  const start = t.search(/Item\s*1\.01\.?\s*Entry into (?:a )?Material Definitive Agreement/i);
+  // "Item 1.01 Entry into…", "Item 1.01. Entry…", "Item 1.01 - Entry…"
+  const start = t.search(/Item\s*1\.01[\s.:\-–—]*Entry into (?:a )?Material Definitive Agreement/i);
   if (start < 0) return null;
   const rest = t.slice(start + 20);
   const end = rest.search(/Item\s*(?:1\.02|2\.0\d|3\.0\d|5\.0\d|7\.01|8\.01|9\.01)\b/i);
   // EDGAR HTML often pads defined terms: (the " Company ") -> (the "Company").
-  const section = t.slice(start, start + 20 + (end > 0 ? end : 12_000)).replace(/["“]\s+([A-Z][^"”]{0,39}?)\s+["”]/g, '"$1"');
-  if (!/Agreement and Plan of Merger|Merger Agreement|Arrangement Agreement|Plan of Arrangement/i.test(section)) return null;
-  if (!/merge[ds]? with and into|merger of .{1,60} with and into|tender offer|exchange offer|plan of arrangement|amalgamat|be acquired by/i.test(section)) return null;
+  const section = t
+    .slice(start, start + 20 + (end > 0 ? end : 12_000))
+    .replace(/["“]\s+([A-Z][^"”]{0,39}?)\s+["”]/g, '"$1"')
+    .replace(/(\w) \.(?=[\s,])/g, "$1.")
+    // "Merger Sub will merge (the "Merger") with and into the Company": the defined term splits the verb from its object.
+    .replace(/\b(merge[ds]?)\s*\([^()]{1,60}\)\s*(?=with\s+and\s+into)/gi, "$1 ")
+    // "Magellan Midstream Partners, L.P. (NYSE: MMP), a Delaware limited partnership": a listing between a name and its
+    // description hides the name from the defined-term pattern.
+    .replace(/\s*\((?:NYSE|NASDAQ|Nasdaq|NYSE American|Cboe|CBOE)(?:\s?[A-Z]{1,3})?\s?:\s?[A-Z.]{1,6}\)/g, "");
+  // UK / Irish targets are bought under a "Transaction Agreement" by a scheme of arrangement (Horizon, Nielsen).
+  if (!/Agreement and Plan of Merger|Merger Agreement|Arrangement Agreement|Plan of Arrangement|Transaction Agreement|Implementation Agreement|scheme of arrangement/i.test(section)) return null;
+  if (!/merge[ds]? with and into|merger of .{1,60} with and into|tender offer|exchange offer|plan of arrangement|scheme of arrangement|amalgamat|be acquired by|(?:will|shall) acquire\s+(?:all\s+of\s+)?(?:the\s+)?(?:issued\b|outstanding\b|[A-Z])/i.test(section)) return null;
   return section;
 }
 
 /** Legal phrasing that shows a capture is a clause, not a company name. */
 const CLAUSE = /\b(?:will|shall|with and into|Merger Agreement|Pursuant|Section|approved|effective time|continuing|surviving|thereof|thereunder|commence|if any|converted|Act of)\b/i;
 
-/** Defined parties: `Acme Corp., a Delaware corporation ("Parent")`. */
+/**
+ * Defined parties: `Acme Corp., a Delaware corporation ("Parent")`. The description may hold one short parenthesis:
+ * `Just Eat Takeaway.com N.V., a public limited liability company (naamloze vennootschap) incorporated under the laws
+ * of the Netherlands ("Parent")`, which used to leave "Netherlands" as the name.
+ */
 export function definedEntities(s: string): Entity[] {
   const out: Entity[] = [];
-  const re = /([A-Z][A-Za-z0-9&.,'’\- ]{1,90}?)(?:,\s*(?:an?|the)\s+[^()"“]{2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?["“]([^"”]{1,40})["”](?:\s+or\s+["“]([^"”]+)["”])?\s*\)/g;
+  // A name starts with a capital, or is a lower-case web name ("salesforce.com, inc.").
+  const re = /([A-Z][A-Za-z0-9&.,'’\- ]{1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\([^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?["“]([^"”]{1,40})["”](?:\s+or\s+(?:the\s+)?["“]([^"”]+)["”])?\s*\)/g;
   for (const m of s.matchAll(re)) {
     // "Eli Lilly and Company" is one name: keep its "and" away from the clause-word stripping below, which would
     // otherwise cut at it and leave just "Company".
@@ -46,10 +61,14 @@ export function definedEntities(s: string): Entity[] {
     name = name.replace(/^.*\b(?:19|20)\d{2},\s+(?=[A-Z])/, "");
     name = name.replace(/^.*\b(?:Agreement|thereof|hereof|Offer),\s+(?=[A-Z])/, "");
     name = name.replace(/^(?:the\s+)?(?:Company|Parent|Purchaser|Merger Sub),\s+(?=[A-Z])/, "");
-    name = name.replace(/^(?:.*\b(?:with|and|among|between|by|of|that is affiliated with|affiliated with|subsidiary of)\s+)(?=[A-Z])/, "");
+    // "dated February 4, 2021, by and among the Company, Celestial-Saturn Parent Inc." -> "Celestial-Saturn Parent Inc."
+    name = name.replace(/^.*\b(?:among|between|with)\s+the\s+(?:Company|Partnership|Registrant|Trust)\s*,\s*(?:and\s+)?(?=[A-Z])/, "");
+    name = name.replace(/^(?:.*\b(?:with|and|among|between|by|of|that is affiliated with|affiliated with|subsidiary of)\s+)(?=[A-Z]|[a-z][\w-]*\.(?:com|net|io|ai)\b)/, "");
     // "Soleno Therapeutics, Inc. a Delaware corporation" -> "Soleno Therapeutics, Inc."
     name = name.replace(/,?\s+an?\s+[A-Z][\w.]*(?:\s[\w.]+){0,3}\s+(?:corporation|company|limited liability company|limited partnership|partnership|trust|société anonyme|public limited company)$/i, "");
     name = cleanPartyName(name.replace(/,$/, "").replace(/\u0001/g, " and ").replace(/\u0002/g, " & "));
+    // "by and among Perry Ellis, Feldenkreis Holdings LLC": an earlier party's defined term in front of this one's name.
+    for (const prev of out) for (const term of [prev.nick, prev.alias]) if (term && name.startsWith(`${term}, `)) name = name.slice(term.length + 2);
     if (!isPlausibleName(name) || name.length > 70 || CLAUSE.test(name)) continue;
     if (/^(?:the )?(?:Company|Partnership|Registrant|Trust|Parent|Merger Sub|Purchaser|Board|Effective Time|Offer|Merger|Share|Delaware)$/i.test(name)) continue;
     // "RTB's certificate of incorporation", "the Company's common stock": a possessive then lowercase words is a
@@ -58,7 +77,7 @@ export function definedEntities(s: string): Entity[] {
     // Defined securities are not parties: holders of RTB's preferred stock (the "RTB Preferred Stock").
     if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price)$/i.test(m[2].trim())) continue;
     // Nor are defined terms for the deal itself: ... merge with and into RTB (the "Merger").
-    if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger )?Agreement|Surviving Corporation)$/i.test(m[2].trim())) continue;
+    if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger |Transaction |Arrangement |Implementation |Combination )?Agreement|Surviving Corporation|Scheme)$/i.test(m[2].trim())) continue;
     out.push({ name, nick: m[2].trim(), alias: m[3]?.trim(), index: m.index! });
   }
   return out;
@@ -66,8 +85,8 @@ export function definedEntities(s: string): Entity[] {
 
 /** The filer itself under its defined term: "the Company", or "the Partnership" / "the Registrant" / "the Trust" (MLPs, REITs). */
 const SELF = /^(?:Company|Partnership|Registrant|Trust)$/i;
-const SUB_NICK = /^(?:Merger Sub(?:\s*\d)?|Purchaser|Merger Subsidiary|MergeCo|Acquisition Sub|Sub)$/i;
-const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger Corp|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/;
+const SUB_NICK = /^(?:(?:Forward |Second |First )?Merger Sub(?:\s*(?:\d|I{1,3}))?|Purchaser|Merger Subsidiary|MergeCo|(?:Acquisition|Acquirer|Acquiror|Bidder) Sub|Bidco|BidCo|Sub)$/i;
+const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger (?:Corp|Co|LLC|Inc|Enterprises|Subsidiary)|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisition,? (?:Corp|Co|LLC|Inc))\b/;
 const BUYER_NICKS = ["Ultimate Parent", "Guarantor", "Parent", "Buyer", "Acquiror", "Acquirer", "Holdings", "Topco"];
 
 /** Price per target share: "right to receive $42.15 in cash", "for $10.50 per share, net to the seller in cash". */
@@ -77,7 +96,7 @@ export const CONTINGENT = /contingent value right|\bCVRs?\b|milestones?|earn-?ou
 export function extractMergerPrice(s: string): number | null {
   const found: { v: number; at: number }[] = [];
   const patterns = [
-    /right to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/gi,
+    /(?:right|entitled) to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/gi,
     // "for (i) $8.50 per Share, net to the seller in cash"
     /(?:for|at a price of|offer price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
   ];
@@ -102,28 +121,83 @@ export function extractMergerPrice(s: string): number | null {
  */
 function mechanics(section: string, entities: Entity[]): { target: string; acquirerHint?: string } | null {
   const ref = (s: string) => s.replace(/^the\s+/i, "").replace(/[.,;]+$/, "").trim();
-  for (const m of section.matchAll(/\b(?:will|shall)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+(?:the\s+)?"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)"?(?=[\s,.(;])/g)) {
-    const into = ref(m[1]);
+  const terms = (e: Entity) => [e.nick, e.alias, e.name].filter((n): n is string => !!n);
+  // The defined party written at `pos`, longest first: "Mr. Cooper", which the word pattern below would cut at its period.
+  const partyAt = (pos: number) => {
+    let best: string | null = null;
+    for (const n of entities.flatMap(terms))
+      if (section.startsWith(n, pos) && !/^[A-Za-z0-9]/.test(section.slice(pos + n.length, pos + n.length + 1)) && n.length > (best?.length ?? 0)) best = n;
+    return best;
+  };
+  // The object of "… with and into (the) X": a defined party, else up to four capitalised words.
+  const objectAt = (pos: number) => {
+    const at = pos + (/^the\s+/.exec(section.slice(pos))?.[0].length ?? 0) + (section[pos] === '"' ? 1 : 0);
+    return partyAt(at) ?? (/^"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)"?(?=[\s,.(;])/.exec(section.slice(at))?.[1] ?? null);
+  };
+  // The defined party written last before `end`: the subject of "Sterling will merge with and into Webster".
+  const subjectBefore = (end: number) => {
+    const window = section.slice(Math.max(0, end - 140), end);
+    let best: { e: Entity; at: number } | null = null;
+    for (const e of entities)
+      for (const n of terms(e)) {
+        const at = window.lastIndexOf(n);
+        if (at >= 0 && at + n.length > (best?.at ?? -1)) best = { e, at: at + n.length };
+      }
+    return best?.e ?? null;
+  };
+  const isSelf = (t: string) => SELF.test(t) || entities.some((e) => SELF.test(e.nick) && (e.alias === t || e.name === t)) || entities.some((e) => e.alias != null && SELF.test(e.alias) && (e.nick === t || e.name === t));
+
+  // Several mergers can be described (an operating partnership first, then the company): prefer the one into the filer.
+  const found: { target: string; acquirerHint?: string }[] = [];
+  for (const m of section.matchAll(/\b(?:will|shall)\s+(?:be\s+)?merge[ds]?\s+with\s+and\s+into\s+/g)) {
+    const raw = objectAt(m.index! + m[0].length);
+    if (!raw) continue;
+    const into = ref(raw);
     const before = section.slice(Math.max(0, m.index! - 260), m.index!);
     // "the Company will merge with and into Corp Merger Sub": the Company merging into a merger subsidiary is the target.
-    const intoShell = /^\s*(?:Merger Sub(?:sidiary)?|Sub)\b/.test(section.slice(m.index! + m[0].length)) || SHELL_NAME.test(into);
-    if (intoShell && /\b(?:Company|Partnership|Registrant|Trust)["”]?\s*$/.test(before)) return { target: "Company" };
-    if (/Merger Sub|Purchaser|MergeCo|Merger Subsidiary|Acquisition (?:Co|Corp|Sub)|Merger Corp/i.test(before.slice(-160))) return { target: into };
+    const intoShell = /^\s*(?:Merger Sub(?:sidiary)?|Sub)\b/.test(section.slice(m.index! + m[0].length + raw.length)) || SHELL_NAME.test(into);
+    if (intoShell && /\b(?:Company|Partnership|Registrant|Trust)["”]?\s*$/.test(before)) {
+      found.push({ target: "Company" });
+      continue;
+    }
+    // A named party (not a merger sub or a "Parent") written after the last mention of a merger sub is the one merging:
+    // "… ("Merger Sub") … At the Effective Time, Valley will merge with and into Merger Sub" makes Valley the target.
+    const subject = subjectBefore(m.index!);
+    const subjectAt = subject ? Math.max(...terms(subject).map((n) => before.lastIndexOf(n))) : -1;
+    const subAt = Math.max(...[...before.matchAll(/Merger Sub|Purchaser|MergeCo|Merger Subsidiary|Acquisition (?:Co|Corp|Sub)|Merger Corp/gi)].map((x) => x.index!), -1);
+    const namedSubject = !!subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && !BUYER_NICKS.includes(subject.nick) && subjectAt > subAt;
+    if (!namedSubject && subAt >= before.length - 160) {
+      found.push({ target: into });
+      continue;
+    }
     // A named party merging directly into another (bank mergers): the named party is the target.
-    const subject = [...entities].reverse().find((e) => before.slice(-140).includes(e.nick) || before.slice(-140).includes(e.name));
-    if (subject && !sameCompany(subject.name, into) && subject.nick !== into) return { target: subject.nick, acquirerHint: into };
+    if (subject && !sameCompany(subject.name, into) && subject.nick !== into) found.push({ target: subject.nick, acquirerHint: into });
   }
-  const mergerOf = /merger of (?:the\s+)?(?:Merger Sub|Purchaser|[A-Z][\w ]{1,30}?Sub)\s+with\s+and\s+into\s+(?:the\s+)?"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)"?(?=[\s,.(;])/.exec(section);
-  if (mergerOf) return { target: ref(mergerOf[1]) };
+  const pick = found.find((f) => isSelf(f.target)) ?? found[0];
+  if (pick) return pick;
+  const mergerOf = /[Mm]erger of (?:the\s+)?(?:Merger Sub(?:sidiary)?|Purchaser|[A-Z][\w ]{1,30}?Sub)\s+with\s+and\s+into\s+/.exec(section);
+  const mergerInto = mergerOf && objectAt(mergerOf.index + mergerOf[0].length);
+  if (mergerInto) return { target: ref(mergerInto) };
   const acquiredBy = /(?:the\s+)?(Company|[A-Z][\w&.'’\-]+)\s+will\s+be\s+acquired\s+by\s+([A-Z][^(,]{1,60}?)(?=\s*\(|,)/.exec(section);
   if (acquiredBy) return { target: ref(acquiredBy[1]), acquirerHint: acquiredBy[2].trim() };
+  // "Acquirer Sub will acquire the Company … pursuant to a scheme of arrangement" (Horizon); "the Purchaser will acquire
+  // the issued and to be issued ordinary share capital of the Company" (Nielsen); "Banco Santander will acquire Webster".
+  for (const m of section.matchAll(/\b(?:will|shall)\s+acquire\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?(?:(?:issued|outstanding)[\w\s,]{0,60}?\bof\s+)?/g)) {
+    const raw = objectAt(m.index! + m[0].length);
+    if (!raw) continue;
+    const t = ref(raw);
+    if (!isSelf(t) && !entities.some((e) => e.nick === t || e.alias === t)) continue;
+    const subject = subjectBefore(m.index!);
+    const hint = subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && !isSelf(subject.nick) ? subject.nick : undefined;
+    return { target: t, ...(hint ? { acquirerHint: hint } : {}) };
+  }
   if (/tender offer|exchange offer/i.test(section)) {
     // "...to acquire all of Bluebird's outstanding shares" / "...all of the outstanding shares of common stock ... of the Company"
     const owner =
       /(?:acquire|purchase)\s+(?:any and\s+)?all\s+(?:of\s+)?(?:the\s+)?(?:issued and\s+)?(?:outstanding\s+)?(?:shares\b[^.;]{0,120}?\bof\s+(?:the\s+)?)?"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)(?:['’]s)?"?(?=[\s,.(;])/.exec(section);
     const t = owner ? ref(owner[1].replace(/['’]s$/, "")) : "";
     if (t && (SELF.test(t) || entities.some((e) => e.nick === t || e.alias === t || sameCompany(e.name, t)))) return { target: t };
-    if (entities.some((e) => SELF.test(e.nick))) return { target: "Company" };
+    if (entities.some((e) => SELF.test(e.nick) || (e.alias != null && SELF.test(e.alias)))) return { target: "Company" };
   }
   return null;
 }
@@ -138,7 +212,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
 
   const mech = mechanics(section, entities);
   if (!mech) return null;
-  const companyEntity = entities.find((e) => SELF.test(e.nick));
+  const companyEntity = entities.find((e) => SELF.test(e.nick) || (e.alias != null && SELF.test(e.alias)));
   let targetName = SELF.test(mech.target) ? (companyEntity?.name ?? ctx.filerName) : (byRef(mech.target)?.name ?? (isPlausibleName(mech.target) ? mech.target : null));
   if (!targetName) return null;
   // A merger subsidiary is never the target: the mechanics were read backwards, so the Company is.
@@ -153,12 +227,16 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   // Buyer: an explicit hint from the mechanics, else the entity defined as (Ultimate) Parent / Buyer,
   // else the first named party that isn't the target or a merger subsidiary, else the filer.
   let buyer: Entity | undefined;
+  // "AvalonBay will merge with and into Merger Sub" (a subsidiary of Equity Residential): the buyer is the parent, found below.
+  if (mech.acquirerHint && (SUB_NICK.test(mech.acquirerHint) || SHELL_NAME.test(mech.acquirerHint))) mech.acquirerHint = undefined;
   if (mech.acquirerHint) buyer = byRef(mech.acquirerHint) ?? { name: cleanPartyName(mech.acquirerHint), nick: mech.acquirerHint, index: 0 };
   for (const nick of BUYER_NICKS) {
     if (buyer) break;
     buyer = entities.find((e) => e.nick.toLowerCase() === nick.toLowerCase() && !isTarget(e));
   }
-  buyer ??= entities.find((e) => !isTarget(e) && !SUB_NICK.test(e.nick) && !SHELL_NAME.test(e.name) && !SELF.test(e.nick));
+  // An "Investor" is buying shares, not the company (NovaGold's arrangement with Paulson as "the Investor").
+  const investor = (e: Entity) => /^Investors?$/i.test(e.nick) || /^Investors?$/i.test(e.alias ?? "");
+  buyer ??= entities.find((e) => !isTarget(e) && !SUB_NICK.test(e.nick) && !SHELL_NAME.test(e.name) && !SELF.test(e.nick) && !investor(e));
   if (!buyer && !sameCompany(ctx.filerName, targetName)) buyer = { name: ctx.filerName, nick: "Company", index: 0 };
   if (!buyer) return null;
 
@@ -166,16 +244,32 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   let acquirerName = buyer.name;
   const ultimate = entities.find((e) => /^(?:Ultimate Parent|Guarantor)$/i.test(e.nick) && !isTarget(e));
   if (ultimate && ultimate !== buyer) acquirerName = ultimate.name;
-  else if (SHELL_NAME.test(buyer.name) || /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Purchaser|Holdings|Buyer|Bidco|BidCo)\b/.test(buyer.name)) {
+  else if (
+    SHELL_NAME.test(buyer.name) ||
+    /^(?:[A-Z][A-Za-z\-]+ )+(?:Parent|Purchaser|Holdings|Buyer|Bidco|BidCo)\b/.test(buyer.name) ||
+    // "Parent and Purchaser are newly-formed entities established by a consortium … led by funds affiliated with Elliott"
+    new RegExp(`\\b${buyer.nick.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^.]{0,60}\\b(?:are|is) (?:a |an )?newly[- ]formed`).test(section)
+  ) {
     const after = section.slice(buyer.index, buyer.index + 400);
-    const lead = /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by)\s+(?:(?:investment )?funds? (?:managed|advised) by\s+)?/.exec(after) ?? /(?:investment )?funds? (?:managed|advised) by\s+/.exec(section);
-    if (lead) {
-      const src = lead.input;
-      const rest = src.slice(lead.index + lead[0].length);
+    const leads = [
+      /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by)\s+(?:(?:investment )?funds? (?:managed|advised) by\s+)?/.exec(after),
+      /(?:investment )?funds? (?:managed|advised|sponsored) by\s+|funds? affiliated with\s+|(?:acquisition|purchase) of the Company by (?:affiliates of |funds (?:managed|advised) by )?(?=[A-Z])/.exec(section),
+    ];
+    // "a subsidiary of Parent" names a defined term, not a sponsor.
+    const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim());
+    for (const lead of leads) {
+      if (!lead) continue;
+      const rest = lead.input.slice(lead.index + lead[0].length);
       const sponsor = /^([A-Z][^()"“;]{1,80}?)\s*\(/.exec(rest) ?? /^([A-Z][A-Za-z0-9&.'’\- ]{1,80}?)(?=,|\.\s|;|\s(?:and|or)\s)/.exec(rest);
-      // "a subsidiary of Parent" names a defined term, not a sponsor.
-      const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim());
-      if (sponsor && !CLAUSE.test(sponsor[1]) && !isTerm(sponsor[1])) acquirerName = cleanPartyName(sponsor[1]);
+      // "the acquisition of the Company by Parent in an all cash transaction" names a defined term too.
+      // ("Oracle Corporation" defined as "Oracle" is fine: it starts with its own name.)
+      const startsWithTerm =
+        (!!sponsor && entities.some((e) => sponsor[1].startsWith(`${e.nick} `) && !sponsor[1].startsWith(e.name))) || /^(?:Parent|Purchaser|Buyer|Merger Sub)\b/.test(sponsor?.[1] ?? "");
+      const candidate = sponsor ? cleanPartyName(sponsor[1]) : "";
+      if (sponsor && !CLAUSE.test(sponsor[1]) && !isTerm(sponsor[1]) && !startsWithTerm && isPlausibleName(candidate)) {
+        acquirerName = candidate;
+        break;
+      }
     }
   }
   if (!isPlausibleName(acquirerName) || sameCompany(acquirerName, targetName) || /^(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(acquirerName)) return null;

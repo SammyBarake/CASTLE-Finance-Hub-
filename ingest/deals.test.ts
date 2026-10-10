@@ -67,6 +67,8 @@ describe("registrant name matching", () => {
   it("ignores spacing and trailing descriptors", () => {
     expect(registrantMatches("Hill-Rom Holdings, Inc.", "HILLROM")).toBe(true);
     expect(registrantMatches("Enable Midstream Partners, LP", "Enable Midstream")).toBe(true);
+    expect(registrantMatches("INTERPUBLIC GROUP OF COMPANIES, INC.", "Interpublic")).toBe(true);
+    expect(registrantMatches("Fortune Brands Innovations, Inc.", "Fortune")).toBe(false);
     expect(registrantMatches("First American Financial Corp", "First American")).toBe(false);
     expect(coreName("ENABLE MIDSTREAM Energy")).toBe("ENABLE MIDSTREAM");
     expect(coreName("Aerie Pharmaceuticals")).toBe("Aerie Pharmaceuticals");
