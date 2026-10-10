@@ -262,7 +262,7 @@ const shiftDate = (date: string, days: number) => new Date(Date.parse(date) + da
 /** How far before its merger proxy the backstop looks for a company's signing 8-K. */
 const BACKSTOP_DAYS = 400;
 /** `seen` key for a backstop lookup (company + proxy year). Bump to look every filer up again after a parser change. */
-const BACKSTOP_KEY = "backstop2";
+const BACKSTOP_KEY = "backstop3";
 const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
 
 /**
@@ -276,6 +276,29 @@ export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: 
   const listed = (sub.exchanges ?? []).some((e) => US_LISTED.test(e ?? "")) || filings.some((f) => /^25(?:-NSE)?$/.test(f.form) && f.date >= shiftDate(date, -30));
   return reporting && listed;
 }
+
+/**
+ * `listedOn`, or else delisted by an 8-K Item 3.01 that names a US exchange (Endo left Nasdaq with a Form 15 and its
+ * closing 8-K, no Form 25 under its own CIK). OTC companies file the same Items 2.01 / 3.01 / 5.01 at a closing
+ * (Kentucky Bancshares, OTCQX), so the notice's text must say Nasdaq, NYSE or Cboe.
+ */
+export async function listedThen(sub: Submissions, date: string): Promise<boolean> {
+  if (listedOn(sub, date)) return true;
+  const filings = recentFilings(sub);
+  if (!filings.some((f) => PERIODIC.test(f.form) && f.date >= shiftDate(date, -450) && f.date <= shiftDate(date, 30))) return false;
+  const notice = filings.find((f) => /^8-K/.test(f.form) && /\b3\.01\b/.test(f.items) && f.date >= shiftDate(date, -30));
+  if (!notice) return false;
+  try {
+    const text = flatten(htmlToText(await getTextHead(archiveUrl(sub.cik, notice.adsh, notice.primaryDocument), 200_000)));
+    const at = text.search(/Item\s*3\.01/i);
+    return at >= 0 && namesUsExchange(text.slice(at, at + 1500));
+  } catch {
+    return false;
+  }
+}
+
+/** A US exchange named in a delisting notice, not an OTC market. */
+export const namesUsExchange = (s: string) => /\b(?:Nasdaq|NASDAQ|New York Stock Exchange|NYSE(?! Arca)|Cboe|CBOE)\b/.test(s) && !/\bOTC(?:QX|QB| Markets| Pink)\b/.test(s.slice(0, 600));
 
 /** Forms only a company being bought files (its merger proxy, tender response, deal communications, delisting). */
 const TAKEOVER_FORMS = /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC14D9C|SC 14D9-C|SC TO-C|SC TO-T|SC 13E3|425|25-NSE|DEFA14A)(?:\/A)?$/;
@@ -976,7 +999,7 @@ export async function ingestDeals(
           const sub = await submissions(c.cik);
           // Checked against the name it had then ("Beacon" in 2025 was not Berkshire Hills Bancorp), and it must
           // have been listed and in the middle of being bought.
-          if (sub && sub.sic !== "6770" && registrantMatches(nameOn(sub, date), query) && listedOn(sub, date) && takenOverAround(sub, date)) {
+          if (sub && sub.sic !== "6770" && registrantMatches(nameOn(sub, date), query) && takenOverAround(sub, date) && (await listedThen(sub, date))) {
             found = { cik: c.cik, ticker: sub.tickers?.[0] ?? null, listedInUs: true };
             break search;
           }
@@ -1125,10 +1148,11 @@ export async function ingestDeals(
       const lo = shiftDate(firstDate, -BACKSTOP_DAYS);
       const filings = recentFilings(sub).filter((f) => f.date >= lo && f.date <= firstDate);
       // The signing 8-K normally carries Item 1.01. Some announce under Item 8.01 or 7.01 only (GW Pharmaceuticals):
-      // those are the 8-Ks filed the day the company's first deal communication (DEFA14A / 425 / 14D-9C) went out.
-      const firstCommunication = filings.filter((f) => /^(?:DEFA14A|425|SC14D9C|SC 14D9-C|SC TO-C)$/.test(f.form)).map((f) => f.date).sort()[0];
+      // those are 8-Ks filed on a day a deal communication (DEFA14A / 425 / 14D-9C) went out. Any such day, not just
+      // the first: GW's first DEFA14A in the window was a 2020 annual-meeting supplement.
+      const communicationDays = new Set(filings.filter((f) => /^(?:DEFA14A|425|SC14D9C|SC 14D9-C|SC TO-C)$/.test(f.form)).map((f) => f.date));
       const announcements = filings
-        .filter((f) => /^8-K/.test(f.form) && (/\b1\.01\b/.test(f.items) || f.date === firstCommunication))
+        .filter((f) => /^8-K/.test(f.form) && (/\b1\.01\b/.test(f.items) || communicationDays.has(f.date)))
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 6);
       for (const f of announcements) {
@@ -1138,7 +1162,7 @@ export async function ingestDeals(
         const displayNames = [`${nameThen}${sub.tickers?.length ? `  (${sub.tickers.join(", ")})` : ""}  (CIK ${cik.padStart(10, "0")})`];
         const ctx = { filerName: displayName(nameThen), filerTickers: sub.tickers ?? [] };
         const isFiler = (name: string) => namesCompany(name, nameThen) || namesCompany(name, sub.name);
-        const listedCiks = listedOn(sub, f.date) ? [cik] : [];
+        const listedCiks = (await listedThen(sub, f.date)) ? [cik] : [];
         const docsIn = await filingDocuments(sub.cik, f.adsh);
         const exhibits = docsIn.filter((d) => /ex-?99|dex99/i.test(d) && /\.htm/i.test(d));
         // Press-release exhibits first (they carry premiums and advisors), then the 8-K's own Item 1.01.

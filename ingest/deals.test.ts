@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
+import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
@@ -165,5 +165,12 @@ SPRING, Texas - Atlas Oil Corporation (NYSE: ATL) and Ridge Natural Resources (N
     expect(releaseTerms("Atlas Oil and Ridge Natural Resources announce record quarterly results. Revenue was $5.1 billion.", "Ridge Natural Resources Co", "Atlas Oil Corporation")).toBeNull();
     // A shell buyer no release names: the target alone is enough.
     expect(releaseTerms(release, "Ridge Natural Resources Co", "Bullseye Merger Sub, Inc.")?.valueUsd).toBe(59.5e9);
+  });
+});
+
+describe("namesUsExchange (an Item 3.01 delisting notice from a US exchange)", () => {
+  it("accepts Nasdaq / NYSE notices and rejects OTC ones", () => {
+    expect(namesUsExchange("Item 3.01. In connection with the Merger, the Company notified The Nasdaq Stock Market LLC that the Merger had been completed and requested that Nasdaq file a Form 25.")).toBe(true);
+    expect(namesUsExchange("Item 3.01. The Company's common stock, which traded on the OTCQX, will no longer be quoted.")).toBe(false);
   });
 });

@@ -173,6 +173,14 @@ describe("tidyDeals", () => {
     expect(right.status).toBe("Closed");
   });
 
+  it("drops a holding-company reorganization of a buyer read as a takeover", () => {
+    const reorg = deal({ acquirer: { name: "Maui HoldCo, Inc.", ticker: null, cik: null }, target: { name: "Marvell Technology Group Ltd", ticker: "MRVL", cik: "1058057" }, announcedDate: "2020-10-30" });
+    const real = deal({ acquirer: { name: "Marvell Technology, Inc.", ticker: "MRVL", cik: "1058057" }, target: { name: "Inphi Corp", ticker: "IPHI", cik: "1160958" }, announcedDate: "2020-10-29" });
+    const deals = [reorg, real];
+    tidyDeals(deals);
+    expect(deals).toEqual([real]);
+  });
+
   it("drops the copy of a deal read with buyer and target swapped, keeping the one whose target filed the proxy", () => {
     const right = deal({ id: "919864-2026-07-21", acquirer: { name: "First Financial Bancorp", ticker: "FFBC", cik: "708955" }, target: { name: "Finward Bancorp", ticker: "FNWD", cik: "919864" }, announcedDate: "2026-07-21", milestones: { path: "vote", firstFiling: { form: "DEFM14A", date: "2026-09-28" }, definitiveProxy: "2026-09-28", closed: null, terminated: null } });
     const swapped = deal({ id: "708955-2026-07-21", acquirer: { name: "Finward Bancorp", ticker: "FNWD", cik: "919864" }, target: { name: "First Financial Bancorp", ticker: "FFBC", cik: "708955" }, announcedDate: "2026-07-21", milestones: { path: null, firstFiling: { form: "S-4", date: "2026-09-04" }, definitiveProxy: null, closed: null, terminated: null } });

@@ -124,6 +124,14 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     }
   }
 
+  // A shell "buying" a company that is itself buying another at the same time is that company's new holding company
+  // (Marvell merging into "Maui HoldCo" to buy Inphi), not a takeover of it.
+  for (const d of listed) {
+    if (!deals.includes(d) || !isPlaceholderBuyer(d.acquirer.name)) continue;
+    const buying = deals.find((e) => e !== d && e.acquirer.cik === d.target.cik && Math.abs(days(e.announcedDate, d.announcedDate)) <= 30);
+    if (buying) drop(d, `holding-company reorganization of ${d.target.name} for its deal ${buying.id}`);
+  }
+
   // The same deal read both ways round (First Financial / Finward: the buyer's 8-K was read with the roles swapped).
   // The target is the side that files the merger proxy or tender response; keep that record.
   const proxyFirst = (d: StoredDeal) => /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T)$/.test(d.milestones?.firstFiling?.form ?? "");
