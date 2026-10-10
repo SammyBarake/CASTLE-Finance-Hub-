@@ -3,7 +3,8 @@
  * Pure functions so they're testable and identical wherever they run.
  */
 import { matchDeal } from "./search";
-import type { Consideration, Deal, DealStatus, Sector } from "./types";
+import { DEAL_STATUSES, SECTORS, type Consideration, type Deal, type DealStatus, type Sector } from "./types";
+import type { Spec } from "./urlState";
 
 export type DateWindow = "all" | "week" | "month" | "quarter";
 export type DealSort = "date" | "value" | "premium";
@@ -39,6 +40,24 @@ export const DEFAULT_SCREEN: DealScreen = {
   targetType: "all",
   watchOnly: false,
   sort: "date",
+};
+
+/**
+ * What a shared link carries (`lib/urlState.ts`): every filter but the watchlist, which is the viewer's own.
+ * "/deal-flow?sector=Tech&min=1&sort=value" opens Tech deals over $1B, largest first.
+ */
+export const DEAL_SCREEN_SPEC: Spec<DealScreen> = {
+  query: { kind: "text" },
+  sector: { kind: "enum", values: ["all", ...SECTORS] },
+  status: { kind: "enum", values: ["all", ...DEAL_STATUSES] },
+  date: { kind: "enum", values: ["all", "week", "month", "quarter"] },
+  min: { kind: "number" },
+  max: { kind: "number" },
+  premium: { kind: "number" },
+  advisor: { kind: "text" },
+  consideration: { kind: "enum", values: ["all", "Cash", "Stock", "Mixed"] },
+  targetType: { kind: "enum", values: ["all", "public", "private"] },
+  sort: { kind: "enum", values: ["date", "value", "premium"] },
 };
 
 const DAY = 86_400_000;

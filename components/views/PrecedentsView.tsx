@@ -1,10 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import { Icon } from "@/components/ui/Icon";
 import { AboutData, FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
@@ -14,6 +15,7 @@ import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } 
 import {
   dealSize,
   DEFAULT_PRECEDENTS,
+  PRECEDENT_SPEC,
   screenForDeal,
   screenPrecedents,
   SUMMARY_ROWS,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/precedents";
 import { CONSIDERATION_OPTIONS } from "@/lib/screen";
 import { SECTORS } from "@/lib/types";
+import { decodeState, encodeState, replaceQuery } from "@/lib/urlState";
 
 const range = (s: Summary, fmt: (v: number | null) => string) => (s.n >= 4 ? `25th–75th: ${fmt(s.p25)} – ${fmt(s.p75)}` : `${s.n} data point${s.n === 1 ? "" : "s"}`);
 
@@ -39,9 +42,17 @@ function Precedents({ dealId }: { dealId: string | null }) {
   const { toast } = useUi();
   const subject = useMemo(() => data.deals.find((d) => d.id === dealId) ?? null, [data.deals, dealId]);
 
-  // Seeded once from ?deal=; the user's edits take over after that.
-  const [screen, setScreen] = useState<PrecedentScreen>(() => (subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS));
-  const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
+  // Seeded once from the link (?deal= and any screen fields, ?x= the unticked outliers); edits take over after that
+  // and are written back, so the screen is always a link someone else can open.
+  const params = useSearchParams();
+  const [screen, setScreen] = useState<PrecedentScreen>(() => decodeState(params, subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+  const [excluded, setExcluded] = useState<Set<string>>(() => new Set((params.get("x") ?? "").split(",").filter((id) => /^[\w.-]{3,80}$/.test(id)).slice(0, 200)));
+  useEffect(() => {
+    const query = new URLSearchParams(encodeState(screen, DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+    if (dealId) query.set("deal", dealId);
+    if (excluded.size) query.set("x", [...excluded].join(","));
+    replaceQuery(query.toString());
+  }, [screen, excluded, dealId]);
   const [shown, setShown] = useState(TABLE_PAGE);
   const edit = (patch: Partial<PrecedentScreen>) => (setScreen((s) => ({ ...s, ...patch })), setShown(TABLE_PAGE));
 
@@ -81,6 +92,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
         subtitle={subject ? `Comparables for ${subject.acquirer.name} → ${subject.target.name}` : "Comparable U.S. M&A · Transaction multiples"}
         onExport={included.length ? exportRows : undefined}
         exportLabel="Export the comps table as CSV"
+        extra={<CopyLinkButton label="Copy a link to this precedent set" />}
       />
 
       <Kpis label="Precedent summary">

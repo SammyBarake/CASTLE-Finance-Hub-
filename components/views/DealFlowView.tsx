@@ -1,9 +1,11 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, SectorLabel, Select, StatusTag } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
@@ -19,6 +21,7 @@ import {
   DATE_OPTIONS,
   DEAL_COLUMNS,
   DEFAULT_COLUMNS,
+  DEAL_SCREEN_SPEC,
   DEFAULT_SCREEN,
   screenDeals,
   type DealColumn,
@@ -26,6 +29,7 @@ import {
   type DealSort,
 } from "@/lib/screen";
 import { DEAL_STATUSES, SECTORS, type Deal } from "@/lib/types";
+import { decodeState, encodeState, replaceQuery } from "@/lib/urlState";
 
 const PAGE_SIZE = 25;
 type ViewKey = "all" | "large" | "tech" | "watch" | "custom" | `saved:${number}`;
@@ -91,8 +95,11 @@ export function DealFlowView() {
   const { openRowMenu } = useRecordActions();
   const { openCompare, openSaveView, openManageViews } = useWorkspaceDialogs();
 
-  const [screen, setScreen] = useState<DealScreen>(DEFAULT_SCREEN);
-  const [view, setView] = useState<ViewKey>("all");
+  // The screen lives in the URL too, so a screened list is a link ("/deal-flow?sector=Tech&min=1").
+  const params = useSearchParams();
+  const [screen, setScreen] = useState<DealScreen>(() => decodeState(params, DEFAULT_SCREEN, DEAL_SCREEN_SPEC));
+  const [view, setView] = useState<ViewKey>(() => (encodeState(screen, DEFAULT_SCREEN, DEAL_SCREEN_SPEC) ? "custom" : "all"));
+  useEffect(() => replaceQuery(encodeState(screen, DEFAULT_SCREEN, DEAL_SCREEN_SPEC)), [screen]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -173,7 +180,7 @@ export function DealFlowView() {
 
   return (
     <>
-      <PageHeading title="Deal Flow" subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`} onExport={() => exportRows(rows)} />
+      <PageHeading title="Deal Flow" subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`} onExport={() => exportRows(rows)} extra={<CopyLinkButton />} />
 
       <Kpis label="Filtered transaction summary">
         <Kpi label="Transactions" value={rows.length} note="Current selection" />

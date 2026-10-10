@@ -65,8 +65,17 @@ type Tab = "overview" | "valuation" | "advisors" | "filings" | "notes";
 function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo }) {
   const { isWatched, selected } = useWorkspace();
   const { toggleWatch, copySummary, toggleCompare } = useRecordActions();
-  const { closeDialog } = useUi();
+  const { closeDialog, toast } = useUi();
   const watched = isWatched(kind, record.id);
+  // A deal's shareable page is its tear sheet: server-rendered, with a link preview of the parties and figures.
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/tearsheet/deal/${encodeURIComponent(record.id)}`);
+      toast("Link to this deal copied");
+    } catch {
+      toast("Couldn't copy the link");
+    }
+  };
   return (
     <div className="drawer-actions">
       <button type="button" className="button" aria-pressed={watched} onClick={() => toggleWatch(kind, record.id)}>
@@ -86,6 +95,11 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
         </Link>
       )}
       <span className="drawer-actions-spacer" />
+      {kind === "deal" && (
+        <button type="button" className="tool-icon" aria-label="Copy a link to this deal" title="Copy a link to this deal" onClick={copyLink}>
+          <Icon name="link" />
+        </button>
+      )}
       <button type="button" className="tool-icon" aria-label="Copy summary" title="Copy summary" onClick={() => copySummary(kind, record)}>
         <Icon name="copy" />
       </button>

@@ -15,7 +15,10 @@ type Props = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const id = decodeURIComponent((await params).id);
   const profile = findCompany(await getHubData(), id);
-  return { title: `${profile?.company.name ?? "Company"} · Castle` };
+  if (!profile) return { title: "Company · Castle" };
+  const bought = profile.deals.filter((d) => d.role === "Acquirer").length;
+  const description = [profile.company.ticker, profile.sector, `${bought} acquisition${bought === 1 ? "" : "s"} tracked`, profile.latestActivity?.label].filter(Boolean).join(" · ");
+  return { title: `${profile.company.name} · Castle`, description, openGraph: { title: profile.company.name, description }, twitter: { card: "summary_large_image", title: profile.company.name, description } };
 }
 
 export default async function Page({ params }: Props) {

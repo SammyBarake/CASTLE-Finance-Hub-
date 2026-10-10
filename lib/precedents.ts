@@ -2,7 +2,8 @@
  * Precedent transactions: pick comparable deals and summarise their multiples the way a
  * comps page does (high / 75th / mean / median / 25th / low). Pure and testable.
  */
-import type { Consideration, Deal, Sector } from "./types";
+import { SECTORS, type Consideration, type Deal, type Sector } from "./types";
+import type { Spec } from "./urlState";
 
 export type PrecedentWindow = "12m" | "24m" | "all";
 
@@ -19,6 +20,18 @@ export interface PrecedentScreen {
   withMultiples: boolean;
   includeTerminated: boolean;
 }
+
+/** What a shared precedents link carries (`lib/urlState.ts`), next to ?deal= and the unticked outliers (?x=). */
+export const PRECEDENT_SPEC: Spec<PrecedentScreen> = {
+  sector: { kind: "enum", values: ["all", ...SECTORS] },
+  industry: { kind: "text" },
+  min: { kind: "number" },
+  max: { kind: "number" },
+  window: { kind: "enum", values: ["12m", "24m", "all"] },
+  consideration: { kind: "enum", values: ["all", "Cash", "Stock", "Mixed"] },
+  withMultiples: { kind: "bool" },
+  includeTerminated: { kind: "bool" },
+};
 
 export const DEFAULT_PRECEDENTS: PrecedentScreen = {
   sector: "all",

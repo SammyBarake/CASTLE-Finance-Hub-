@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { DealTearSheet } from "@/components/tearsheet/DealTearSheet";
 import { SheetToolbar } from "@/components/tearsheet/SheetToolbar";
 import { getDeal, getHubData } from "@/lib/data";
+import { formatDateLong, formatPct, formatUsd } from "@/lib/format";
 
 export const revalidate = 900;
 
@@ -15,7 +16,17 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const deal = await getDeal(decodeURIComponent((await params).id));
-  return { title: deal ? `${deal.target.name} · Tear sheet · Castle` : "Tear sheet · Castle" };
+  if (!deal) return { title: "Tear sheet · Castle" };
+  const title = `${deal.acquirer.name} → ${deal.target.name}`;
+  const description = [
+    `Announced ${formatDateLong(deal.announcedDate)}`,
+    deal.valueUsd != null ? `${formatUsd(deal.valueUsd)} deal value` : null,
+    deal.premiumPct != null ? `${formatPct(deal.premiumPct)} premium` : null,
+    deal.status,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { title: `${deal.target.name} · Tear sheet · Castle`, description, openGraph: { title, description }, twitter: { card: "summary_large_image", title, description } };
 }
 
 export default async function Page({ params }: Props) {

@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
+const DESCRIPTION = "A free terminal tracking M&A, IPOs, advisors and valuations from public SEC EDGAR filings.";
+
+// Link previews (LinkedIn, iMessage, Slack, X): absolute URLs from SITE_URL, a large card image (app/opengraph-image.tsx,
+// overridden by deal tear sheets and company pages).
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Castle: Investment Banking Intelligence",
-  description: "A free terminal tracking M&A, IPOs, advisors and valuations from public SEC EDGAR filings.",
+  description: DESCRIPTION,
+  openGraph: { siteName: "Castle", type: "website", description: DESCRIPTION },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
