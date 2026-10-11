@@ -38,6 +38,16 @@ describe("extractProxyPremium", () => {
     expect(extractProxyPremium(`the consideration to be paid pursuant to the Merger Agreement represented: • a premium of 36.0% based on the closing price per share of Common Stock on July 8, 2025 of $16.91`)).toBe(36);
   });
 
+  it("keeps the board's reasons, whatever their introduction says", () => {
+    // The list's introduction ("… be submitted to the shareholders …") is not a bid; a later VWAP figure isn't this one's.
+    const faro = `The Board unanimously (iii) directed that the Merger Agreement be submitted to the shareholders of FARO for its approval and (iv) recommended that FARO's shareholders vote to adopt the Merger Agreement: • the fact that the Merger Consideration represents an implied premium of approximately 40% over the closing price of FARO common stock on May 5, 2025, the latest trading day before the Merger Agreement was entered into, and approximately 61% over the 30-day average;`;
+    expect(extractProxyPremium(faro)).toBe(40);
+    // "the proposed Cash Consideration" is the deal's own consideration.
+    expect(extractProxyPremium(`• the fact that the proposed Cash Consideration of $3.25 per Share represented a premium of approximately 213% over the closing price of $1.04 per Share on October 27, 2023, the last full day of trading before the Company announced the transaction;`)).toBe(213);
+    // Two trading days before the announcement is still the unaffected price.
+    expect(extractProxyPremium(`the $1.14 per share to be received in the merger represents a premium of approximately 20% over the closing price per share as of February 2, 2024, two trading days before the public announcement of the merger`)).toBe(20);
+  });
+
   it("skips bids, ranges and stale prices from the background", () => {
     for (const t of [
       `The March 28 Offer represented a 65% premium to the closing share price of the Company's common stock of $11.53 on March 27, 2025.`,
@@ -49,6 +59,8 @@ describe("extractProxyPremium", () => {
       `• a premium of approximately 42.4% to the closing price of Castlight's common stock on December 6, 2021, the trading date approximately one month prior to the Agreement Date;`,
       `the per-share merger consideration constituted a premium of: • approximately 7% premium over the Company's all-time high closing stock price on August 28, 2025`,
     ]) expect(extractProxyPremium(t), t.slice(0, 50)).toBeNull();
+    // A bid named by its amount (HNI's successive proposals for Kimball).
+    expect(extractProxyPremium(`The $11.00 transaction consideration represented a premium of approximately 49% over the November 16, 2022 closing sale price of Kimball common stock.`)).toBeNull();
     // A list item after one about the deal itself still counts ("the fact that the Offer Price offered a significant premium …").
     expect(extractProxyPremium(`the fact that the Offer Price offered a significant premium to the Shares based on then-current and historical market prices, including: • a premium of approximately 26.5% to the closing price of Castlight's common stock on January 3, 2022, the trading date immediately prior to the Agreement Date; • a premium of approximately 42.4% to the closing price on December 6, 2021, the trading date approximately one month prior to the Agreement Date;`)).toBe(26.5);
   });

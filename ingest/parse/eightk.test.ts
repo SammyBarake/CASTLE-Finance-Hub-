@@ -270,4 +270,16 @@ describe("parseMergerItem: structures the big-deal check found", () => {
     const p = parseMergerItem(t, { filerName: "Delta Refining Holdings, Inc.", filerTickers: ["DRH"] })!;
     expect(p.target.name).toBe("Atlas Energy Partners, Inc.");
   });
+  it("reads a signing 8-K that opens 'As previously announced' as an announcement, with its signing date", () => {
+    const signing = `Item 1.01 Entry into a Material Definitive Agreement. As previously announced, on April 26, 2021, Granite Coatings Co. ("Granite" or the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Gibraltar Parent LLC ("Parent"), a wholly owned subsidiary of Standard Materials Holdings Inc. ("Standard"), and Gibraltar Merger Sub Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company (the "Merger"). Each share will be converted into the right to receive $70.00 in cash.`;
+    const p = parseMergerItem(signing, { filerName: "Granite Coatings Co.", filerTickers: ["GRC"] })!;
+    expect(p.kind).toBe("announcement");
+    expect(p.signedOn).toBe("2021-04-26");
+    // No date stated: no telling a restatement from the signing, so it stays an update.
+    const undated = signing.replace("on April 26, 2021, ", "");
+    expect(parseMergerItem(undated, { filerName: "Granite Coatings Co.", filerTickers: ["GRC"] })!.kind).toBe("update");
+    // An amendment is always an update.
+    const amendment = `Item 1.01 Entry into a Material Definitive Agreement. First Amendment to Agreement and Plan of Merger. As previously announced, on April 26, 2021, Granite Coatings Co. (the "Company") entered into an Agreement and Plan of Merger with Gibraltar Parent LLC ("Parent") and Gibraltar Merger Sub Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company.`;
+    expect(parseMergerItem(amendment, { filerName: "Granite Coatings Co.", filerTickers: ["GRC"] })!.kind).toBe("update");
+  });
 });

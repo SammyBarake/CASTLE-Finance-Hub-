@@ -157,8 +157,14 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
     const into = ref(raw);
     const before = section.slice(Math.max(0, m.index! - 260), m.index!);
     // "the Company will merge with and into Corp Merger Sub": the Company merging into a merger subsidiary is the target.
+    // "the First Surviving Company will merge with and into Merger Sub II" is the second step of a two-step merger; the
+    // first step ("Merger Sub I will merge with and into Endeavor") names the target. Read as "the Company", it made
+    // Diamondback the target of its own purchase of Endeavor.
+    if (/\b(?:Surviving|Successor)\s+(?:Company|Corporation|Entity|Partnership|Corp)["”]?\s*$/i.test(before)) continue;
     const intoShell = /^\s*(?:Merger Sub(?:sidiary)?|Sub)\b/.test(section.slice(m.index! + m[0].length + raw.length)) || SHELL_NAME.test(into);
-    if (intoShell && /\b(?:Company|Partnership|Registrant|Trust)["”]?\s*$/.test(before)) {
+    // Not "the First Surviving Company will merge with and into Merger Sub II": the second step of a two-step merger, whose
+    // first step merged a sub into the target (Diamondback / Endeavor read as Endeavor buying Diamondback).
+    if (intoShell && /\b(?<!Surviving\s)(?<!Successor\s)(?:Company|Partnership|Registrant|Trust)["”]?\s*$/.test(before)) {
       found.push({ target: "Company" });
       continue;
     }
@@ -283,12 +289,20 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   // An amendment to an agreement already announced ("First Amendment to Agreement and Plan of Merger. As previously
   // announced, …") updates that deal and never creates one: Vista Outdoor's amendment listed Revelyst first, which
   // made a second deal with Revelyst as the buyer.
+  // "As previously announced" alone is not enough: the signing 8-K itself, filed days after the press release, often
+  // opens "As previously announced, on April 26, 2021, W. R. Grace & Co. … entered into an Agreement and Plan of Merger".
   const lead = section.slice(0, 400);
-  const kind =
-    /\b(?:(?:First|Second|Third|\w+)\s+Amendment|Amendment\s+No\.?\s*\d+)\s+to\s+(?:the\s+)?(?:Agreement and Plan of Merger|Merger Agreement|Transaction Agreement|Arrangement Agreement)\b/i.test(lead) ||
-    /\bAs previously (?:announced|reported|disclosed)\b/i.test(lead)
-      ? ("update" as const)
-      : ("announcement" as const);
+  const amendment = /\b(?:(?:First|Second|Third|\w+)\s+Amendment|Amendment\s+No\.?\s*\d+)\s+to\s+(?:the\s+)?(?:Agreement and Plan of Merger|Merger Agreement|Transaction Agreement|Arrangement Agreement)\b/i.test(lead);
+  const signing = /\bentered\s+into\s+(?:an?|the)\s+(?:(?:Amended and Restated|definitive)\s+)?(?:Agreement and Plan of (?:Merger|Reorganization)|Merger Agreement|Transaction Agreement|Arrangement Agreement|Business Combination Agreement)\b/i.test(lead);
+  // The restated signing date: a later 8-K restating it (an extension, a vote) is an update (applyParsed in deals.ts).
+  // Without a date there is no telling, so it stays an update.
+  const previously = /\bAs previously (?:announced|reported|disclosed)\b/i.test(lead);
+  const signedText = signing && previously
+    ? /\bon\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})/.exec(lead)?.[1]
+    : undefined;
+  const signedMs = signedText ? Date.parse(`${signedText} UTC`) : NaN;
+  const signedOn = Number.isNaN(signedMs) ? undefined : new Date(signedMs).toISOString().slice(0, 10);
+  const kind = amendment || (previously && !signedOn) ? ("update" as const) : ("announcement" as const);
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
   const value = extractValue(section);
   return {
@@ -303,5 +317,6 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     consideration,
     acquirerAdvisors: [],
     targetAdvisors: [],
+    ...(signedOn ? { signedOn } : {}),
   };
 }

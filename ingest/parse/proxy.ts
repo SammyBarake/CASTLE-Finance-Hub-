@@ -25,6 +25,10 @@ const PREMIUM_RES = [
   // "a 32% premium over the $52.00 closing price", "an approximately 61% premium over the closing price".
   new RegExp(String.raw`(?:approximately |about )?${PCT}\s+premium\s+(?:to|over|above|based on)\s+(?:the\s+)?${CTX}`, "gi"),
 ];
+// Words of the "Background of the Merger" (bids, proposals, talks), not of the deal itself. "The proposed (cash)
+// consideration" / "proposed merger" in the board's reasons is the deal.
+const BACKGROUND =
+  /\bpropos(?:ed|al)\b(?!\s+(?:(?:cash|stock|per[- ]share|merger|offer)\s+)?(?:merger|transaction|consideration|acquisition|price))|\binitial\b|\bindication\b|\b(?:submitted|countered|revised|stated|reiterated)\b|\bcounter-?(?:offer|proposal)\b|\bon that date\b|\bwould\b|\bindicative\b|\bprepared to\b|\b(?:increase|raise)[sd]? (?:its|the|their) (?:offer|bid|price)\b/i;
 const MONTH = "January|February|March|April|May|June|July|August|September|October|November|December";
 
 /** Every premium over a closing price the filing states, with how strongly it reads as the deal's own (for debugging). */
@@ -34,24 +38,29 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     const before = t.slice(Math.max(0, m.index! - 900), m.index!);
     // The sentence, or the list item ("…; • the fact that …"), the premium is in.
     const sentenceStart = before.split(/\.\s+(?=[A-Z•·▪○◌■])|;\s*(?:and\s+)?[•·▪○◌■]/).pop() ?? before;
-    // This premium's own clause: up to the next bullet (the regex) or the next "premium".
-    const ctx = m[2].split(/\bpremium\b/i)[0];
+    // Background words are looked for close by, in this list item only: a board's-reasons list runs on through its
+    // bullets, and its introduction ("… be submitted to the shareholders …: • the fact that …") is not a bid.
+    const near = (sentenceStart.split(/[•·▪○◌■]/).pop() ?? sentenceStart).slice(-250);
+    // This premium's own clause: up to the next bullet (the regex), the next "premium", or the next figure ("…, and
+    // approximately 85% over the 30-day average": that VWAP isn't this premium's).
+    const ctx = m[2].split(/\bpremium\b|\(ii\)|,?\s+and\s+(?:a\s+|an\s+)?(?:approximately\s+|about\s+)?\d/i)[0];
     // Precedent-transaction statistics and ranges: "median premium of 44%", "premiums of 20% to 30%".
     if (/\b(?:median|mean|average|percentile|range|selected|precedent)\b[^.]{0,40}$/i.test(before)) continue;
     // Earlier, rejected proposals in the "Background of the Merger": "The proposed price represented a premium of 21% over
     // ... on such date", "The March 28 Offer represented a 65% premium …", "Party A offered $9.00, which represented …".
     // "The proposed consideration" / "proposed merger" in the board's reasons is the deal itself.
-    if (/\bpropos(?:ed|al)\b(?!\s+(?:merger|transaction|consideration|acquisition))|\binitial\b|\bindication\b|\b(?:submitted|countered|revised|stated|reiterated)\b|\bcounter-?(?:offer|proposal)\b|\bon that date\b|\bwould\b|\bindicative\b|\bprepared to\b|\b(?:increase|raise)[sd]? (?:its|the|their) (?:offer|bid|price)\b/i.test(sentenceStart)) continue;
+    if (BACKGROUND.test(near)) continue;
     // Named bidders and dated offers: "Party A's March 26th Offer", "Bidder 2", "the $4.50 per share offer".
-    if (/\b(?:Party|Bidder|Sponsor|Company) [A-Z0-9]\b(?![\w.])|\$[\d.,]+ (?:in cash )?per share (?:cash )?(?:offer|bid)\b|\b\d{1,2}(?:st|nd|rd|th) (?:Offer|Proposal|Bid)\b/.test(sentenceStart)) continue;
-    if (new RegExp(String.raw`\b(?:${MONTH})\s+\d{1,2}(?:,\s*\d{4})?\s+(?:Offer|Bid|Letter|Proposal)\b|\b\d{1,2}\s?(?:st|nd|rd|th)\s+(?:offer|proposal|bid)\b`, "i").test(sentenceStart)) continue;
+    if (/\b(?:Party|Bidder|Sponsor|Company) [A-Z0-9]\b(?![\w.])|\$[\d.,]+ (?:in cash )?per share (?:cash )?(?:offer|bid)\b|\b\d{1,2}(?:st|nd|rd|th) (?:Offer|Proposal|Bid)\b/.test(near)) continue;
+    if (new RegExp(String.raw`\b(?:${MONTH})\s+\d{1,2}(?:,\s*\d{4})?\s+(?:Offer|Bid|Letter|Proposal)\b|\b\d{1,2}\s?(?:st|nd|rd|th)\s+(?:offer|proposal|bid)\b`, "i").test(near)) continue;
     // The "Background of the Merger" narrates by date: "On October 16, 2025, K-C … representing … a premium of 41.6% …".
     if (new RegExp(String.raw`^\s*(?:On|As of|Later on|Also on|By)\s+(?:${MONTH})\s+\d`).test(sentenceStart)) continue;
     // A range from a bid ("a 121% - 176% premium"), or the price when talks began ("preceding the discussion between …").
     if (/\d\s?%\s*(?:-|–|to)\s*$/.test(before)) continue;
     if (/\b(?:such|that) date\b|\bproposal\b|\binitial indication\b|\b(?:discussions?|meeting) between\b/i.test(ctx)) continue;
     // A price some time before signing ("one month prior to the Agreement Date", "90 days prior"), not the last close.
-    if (/\b(?:\d+|one|two|three|six|twelve)\s+(?:calendar\s+|trading\s+)?(?:days?|weeks?|months?|years?)\s+(?:prior|before)\b/i.test(ctx.slice(0, 160))) continue;
+    // "two trading days before the public announcement" is still the unaffected price (ZeroFox).
+    if (/\b(?:\d+|one|two|three|six|twelve)\s+(?:calendar\s+|trading\s+)?(?:days?|weeks?|months?|years?)\s+(?:prior|before)\b(?!\s+(?:to\s+)?the\s+(?:public\s+)?announcement)/i.test(ctx.slice(0, 160))) continue;
     const closing = /\b(?:closing|close|unaffected|undisturbed)\b[^.;]{0,40}\b(?:price|share price|stock price|trading price)\b|\bunaffected\b/i.test(ctx);
     if (!closing) continue;
     if (/volume[- ]weighted|VWAP|average|\b\d+[- ](?:trading[- ]|calendar[- ])?day\b|\bhighest\b|\ball-time high\b|52\)?[- ]week|fifty-two|\d+-month/i.test(ctx)) continue;
@@ -62,7 +71,13 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
       (/merger consideration|offer price|per share consideration/i.test(sentenceStart) ? 1 : 0);
     // With no announcement / trading-day reference, the sentence must at least be about the deal itself (background
     // bids and stale prices are worded like this too: "for $63.00 per share in cash (representing an approximate 16% …").
-    if (!score && !/merger agreement|arrangement agreement|transaction agreement|merger consideration|exchange ratio|offer price|per share consideration|pursuant to the (?:merger|offer)/i.test(sentenceStart)) continue;
+    // Unanchored (no announcement / trading-day reference): the whole list item must be free of background words too
+    // (Kenvue's "K-C delivered a revised proposal …, representing … a premium of 41.6%", 300 characters back).
+    if (!score && BACKGROUND.test(sentenceStart.split(/[•·▪○◌■]/).pop() ?? sentenceStart)) continue;
+    // A bid named by its amount: "The $11.00 transaction consideration represented a premium of 49% over the November 16,
+    // 2022 closing sale price" (HNI's successive proposals for Kimball), not "the Merger Consideration".
+    if (!score && /\$\d[\d.,]*\s+(?:(?:per[- ]share|aggregate)\s+)?(?:transaction\s+)?consideration\b/i.test(sentenceStart)) continue;
+    if (!score && !/merger agreement|arrangement agreement|transaction agreement|consideration|exchange ratio|offer price|purchase price|acquisition price|pursuant to the (?:merger|offer)/i.test(sentenceStart)) continue;
     found.push({ pct, score, index: m.index!, text: (sentenceStart + m[0]).slice(-320) });
   }
   return found.sort((a, b) => b.score - a.score || a.index - b.index);

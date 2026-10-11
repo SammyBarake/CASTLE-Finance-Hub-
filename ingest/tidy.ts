@@ -127,9 +127,30 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
   // A shell "buying" a company that is itself buying another at the same time is that company's new holding company
   // (Marvell merging into "Maui HoldCo" to buy Inphi), not a takeover of it.
   for (const d of listed) {
-    if (!deals.includes(d) || !isPlaceholderBuyer(d.acquirer.name)) continue;
+    // Or a "New <target>" ("New R1" over R1 RCM, buying Cloudmed).
+    const firstWord = d.target.name.split(/\s+/)[0]?.toLowerCase();
+    const newSelf = /^New\s/i.test(d.acquirer.name) && d.acquirer.name.split(/\s+/)[1]?.toLowerCase() === firstWord;
+    if (!deals.includes(d) || !(isPlaceholderBuyer(d.acquirer.name) || newSelf)) continue;
     const buying = deals.find((e) => e !== d && e.acquirer.cik === d.target.cik && Math.abs(days(e.announcedDate, d.announcedDate)) <= 30);
     if (buying) drop(d, `holding-company reorganization of ${d.target.name} for its deal ${buying.id}`);
+  }
+
+  // Two open records for the same listed target announced the same day are one deal named two ways (Heska: Mars, and
+  // its subsidiary Antech from Heska's earnings release). Keep the better-documented one.
+  for (const d of listed) {
+    if (!deals.includes(d) || d.status === "Terminated") continue;
+    const twin = listed.find(
+      (e) => e !== d && deals.includes(e) && e.status !== "Terminated" && e.target.cik === d.target.cik && e.announcedDate === d.announcedDate,
+    );
+    if (!twin) continue;
+    const score = (x: StoredDeal) => x.sources.length + (x.valueUsd != null ? 2 : 0) + (x.premiumPct != null ? 1 : 0) + (x.acquirer.cik ? 1 : 0);
+    const [keep, extra] = score(d) >= score(twin) ? [d, twin] : [twin, d];
+    // The kept record's buyer stands (merge would take the longer name: "Company entity" over TeraWulf for Ikonics).
+    const buyer = { ...keep.acquirer };
+    merge(keep, extra);
+    keep.acquirer = buyer;
+    drop(extra, `same deal as ${keep.id}, announced the same day with buyer "${extra.acquirer.name}"`);
+    result.merged++;
   }
 
   // The same deal read both ways round (First Financial / Finward: the buyer's 8-K was read with the roles swapped).

@@ -39,7 +39,7 @@ import { SPAC_NAME, tidyDeals } from "./tidy";
 import { flatten, htmlToText } from "./text";
 import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
-const QUERIES = [
+export const QUERIES = [
   '"represents a premium"',
   // All-stock deals quote neither a cash price nor "exchange ratio": "Capital One to Acquire Discover … in an all-stock
   // transaction … representing a premium of 26.6%".
@@ -52,19 +52,19 @@ const QUERIES = [
   '"all of the outstanding shares" "definitive agreement"',
   '"take private" OR "go private" "definitive agreement"',
 ];
-const FORMS = ["8-K", "DEFA14A", "425", "SC TO-C", "SC14D9C"];
+export const FORMS = ["8-K", "DEFA14A", "425", "SC TO-C", "SC14D9C"];
 
 /**
  * US-listed companies buying private companies (most M&A by count). Buyer-filed 8-K press exhibits;
  * the parser decides whether the target is a private company (see `isPrivateTarget`).
  */
-const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of"', '"definitive agreement to acquire"', '"completes acquisition of"', "acquired privately held"];
+export const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of"', '"definitive agreement to acquire"', '"completes acquisition of"', "acquired privately held"];
 
 /**
  * Target-side 8-K language: "Merger Sub will merge with and into the Company" only appears when the
  * filer is the company being acquired. Parsed from the Item 1.01 text, so no press release is needed.
  */
-const ITEM_QUERIES = ['"merge with and into the Company"', '"merged with and into the Company"', '"commence a tender offer" "Agreement and Plan of Merger"'];
+export const ITEM_QUERIES = ['"merge with and into the Company"', '"merged with and into the Company"', '"commence a tender offer" "Agreement and Plan of Merger"'];
 
 /** Only press-release-like documents: EX-99.x exhibits, or the main document of communication forms. */
 function isPressDoc(h: FtsHit): boolean {
@@ -234,7 +234,11 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   // Also accept a filer whose registered name appears inside a run-on parsed name
   // ("America's First Transcontinental Railroad Union Pacific" contains "Union Pacific").
   const pn = normalizeName(p.name);
-  const f = filers.find((x) => sameCompany(x.name, p.name)) ?? filers.find((x) => normalizeName(x.name).length >= 5 && pn.includes(normalizeName(x.name)));
+  // Spacing aside: "MidWest One Financial Group" in Nicolet's 8-K is the filer MIDWESTONE FINANCIAL GROUP.
+  const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+  const f =
+    filers.find((x) => sameCompany(x.name, p.name) || (squash(x.name).length >= 8 && squash(x.name) === squash(p.name))) ??
+    filers.find((x) => normalizeName(x.name).length >= 5 && pn.includes(normalizeName(x.name)));
   if (f?.cik) {
     const listed = dir.byCik.get(f.cik);
     // Had a ticker when it filed but is no longer in the listed-company file: delisted after the deal closed.
@@ -246,8 +250,16 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     };
   }
   const byName = dir.byName.get(normalizeName(p.name));
+  // Names normalise without "Group", "Holdings" …: "Independent Bank Group" (delisted since) would become today's
+  // Independent Bank Corp. A distinguishing word the parsed name has and the listed one lacks means another company.
+  const words = (s: string) => new Set(s.toLowerCase().match(/[a-z]+/g) ?? []);
+  const DISTINCT = ["group", "holdings", "bancorp", "bancshares", "financial", "partners", "trust"];
+  const differs = (listedName: string) => {
+    const [pw, lw] = [words(p.name), words(listedName)];
+    return DISTINCT.some((w) => pw.has(w) && !lw.has(w));
+  };
   // A short name can belong to another company: Emerson's "NI (NASDAQ: NATI)" is National Instruments, not NI Holdings.
-  if (byName && (!ticker || !pressUs || byName.ticker.toUpperCase() === ticker))
+  if (byName && !differs(byName.name) && (!ticker || !pressUs || byName.ticker.toUpperCase() === ticker))
     return { cik: byName.cik, ticker: ticker ?? byName.ticker, listedInUs: pressUs || US_LISTED.test(byName.exchange ?? "") };
   return { cik: null, ticker, listedInUs: pressUs };
 }
@@ -259,6 +271,9 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
 export const REGISTRANT_CHECK_VERSION = 4;
 
 const shiftDate = (date: string, days: number) => new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
+
+/** A blank-check company's name ("Roth CH Acquisition V Co.", "Forum Merger III Corp", "Genesis Unicorn Capital Corp"). */
+const SPAC_FILER = /\bAcquisitions?\b|\bMerger\b|\bCapital Corp\b|\s[IVX]+,?\s+(?:Corp(?:oration)?|Inc|Ltd|Co)\.?$|\b(?:Corp(?:oration)?|Inc)\.?\s+[IVX]+$|\bBlank Check\b/i;
 
 /** How far before its merger proxy the backstop looks for a company's signing 8-K. */
 const BACKSTOP_DAYS = 400;
@@ -504,15 +519,31 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
     .filter((d) => (isPrivate ? d.privateTarget && sameCompany(d.target.name, parsed.target.name) : d.target.cik === target.cik))
     .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+  // A merger 8-K restating an older signing (an extension, a vote, financing) only updates that deal: Genworth's
+  // 2017–2020 extension 8-Ks each open "As previously reported, on October 21, 2016, … entered into …". The signing 8-K
+  // itself is due within four business days (ZeroFox's note-repurchase 8-K, 29 days after, created a deal for its lender).
+  if (parsed.kind === "announcement" && parsed.signedOn && daysApart(parsed.signedOn, hit.fileDate) > 10) parsed = { ...parsed, kind: "update" };
   let deal =
     candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik)) ??
     // The same signing often reaches us as an 8-K naming a shell buyer and a press release naming the sponsor.
-    (parsed.kind === "announcement" ? candidates.find((d) => daysApart(d.announcedDate, hit.fileDate) <= 14) : undefined) ??
+    // Never two different listed buyers, though: a rival bid comes within days (MKS on February 8, II-VI days later, both
+    // for Coherent).
+    (parsed.kind === "announcement"
+      ? candidates.find((d) => daysApart(d.announcedDate, hit.fileDate) <= 14 && !(acquirer.cik && d.acquirer.cik && acquirer.cik !== d.acquirer.cik))
+      : undefined) ??
     // A later filing naming only the acquisition vehicle belongs to the live deal it implements.
     (parsed.kind === "announcement" && isPlaceholderBuyer(parsed.acquirer.name)
       ? candidates.find((d) => d.status !== "Terminated" && daysApart(d.announcedDate, hit.fileDate) <= 365)
       : undefined) ??
-    (parsed.kind !== "announcement" ? candidates.find((d) => OPEN.includes(d.status)) : undefined);
+    // An update or completion joins the open deal it's about. One naming another real buyer is about another agreement:
+    // II-VI's filings for its winning bid for Coherent used to fold into MKS's open, losing bid (then marked Closed).
+    (parsed.kind !== "announcement"
+      ? candidates.find(
+          (d) =>
+            OPEN.includes(d.status) &&
+            (isPlaceholderBuyer(d.acquirer.name) || isPlaceholderBuyer(parsed.acquirer.name) || !isPlausibleName(parsed.acquirer.name) || candidates.filter((c) => OPEN.includes(c.status)).length === 1),
+        )
+      : undefined);
 
   if (!deal) {
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
@@ -1093,9 +1124,12 @@ export async function ingestDeals(
     };
     try {
       search: for (const query of [...new Set([q, core, bare, joined])]) {
+        // The exact name first: "Independent Bank Group" is INDEPENDENT BANK GROUP (Texas), which "Independent Bank" plus
+        // the descriptor "Group" would also let INDEPENDENT BANK CORP (Massachusetts) match.
+        const rank = (name: string) => (identicalNames(name, query) ? 3 : sameCompany(name, query) ? 2 : registrantMatches(name, query) ? 1 : 0);
         const candidates = (await lookupCompanies(query))
-          .filter((c) => registrantMatches(c.name, query) || sameCompany(c.name, query))
-          .sort((a, b) => Number(registrantMatches(b.name, query)) - Number(registrantMatches(a.name, query)))
+          .filter((c) => rank(c.name) > 0)
+          .sort((a, b) => rank(b.name) - rank(a.name))
           .slice(0, 3);
         for (const c of candidates) {
           const sub = await accepts(c.cik, query);
@@ -1153,9 +1187,28 @@ export async function ingestDeals(
     const rawTarget = parsed.target.name;
     parsed = {
       ...parsed,
-      acquirer: { ...parsed.acquirer, name: titleCaseCaps(stripDateline(parsed.acquirer.name)) },
+      acquirer: { ...parsed.acquirer, name: titleCaseCaps(cleanPartyName(stripDateline(parsed.acquirer.name))) },
       target: { ...parsed.target, name: titleCaseCaps(rawTarget) },
     };
+    // A party described in prose but listed in the text ("Berry is a publicly traded … (NASDAQ: BRY)", "Rumble, the
+    // popular video-sharing platform") is that listed company, when the prose starts with its name (a reused ticker
+    // won't: Vonage's old "VG" is Venture Global's now).
+    // The document's own filer counts too, under its name then ("Rumble Inc.", since renamed RUM Group; Berry Corp,
+    // since delisted).
+    const listedName = (p: ParsedPress["acquirer"]) => {
+      const listed = p.ticker ? directory.byTicker.get(p.ticker.toUpperCase()) : undefined;
+      const names = [...(listed ? [listed.name] : []), ...hit.displayNames.map((n) => parseDisplayName(n).name)];
+      const pn = normalizeName(p.name);
+      const match = names.find((n) => {
+        const first = normalizeName(n).split(" ")[0];
+        return first.length >= 3 && pn.startsWith(`${first} `);
+      });
+      return match ? displayName(match) : null;
+    };
+    for (const side of ["acquirer", "target"] as const) {
+      const name = !isPlausibleName(parsed[side].name) ? listedName(parsed[side]) : null;
+      if (name) parsed = { ...parsed, [side]: { ...parsed[side], name } };
+    }
     // Headline fragments and deal paperwork are not parties ("Entry into a Material Definitive Agreement").
     if (!isPlausibleName(parsed.target.name) || !isPlausibleName(parsed.acquirer.name)) return null;
     const target = resolveParty(parsed.target, hit, directory);
@@ -1172,7 +1225,8 @@ export async function ingestDeals(
     // A public deal that closed or ended over a month earlier isn't this one: the same name can be bought again
     // (Hampton Roads bought Xenith in 2016 and took its name; Union Bankshares bought that Xenith in 2017).
     const over = (d: StoredDeal) => (d.status === "Closed" || d.status === "Terminated") && !!d.statusDate && (Date.parse(hit.fileDate) - Date.parse(d.statusDate)) / 86_400_000 > 30;
-    const knownPublic = () => state.deals.some((d) => !d.privateTarget && sameCompany(d.target.name, name) && !over(d));
+    // The same name, not a loose match: "Apex Crypto" is not Apex Global Brands, "Bank Leumi USA" not Bank of Commerce Holdings.
+    const knownPublic = () => state.deals.some((d) => !d.privateTarget && identicalNames(d.target.name, name) && !over(d));
     if (
       !target.cik &&
       !target.ticker &&
@@ -1214,14 +1268,35 @@ export async function ingestDeals(
     if (stats.documents && stats.documents % 250 === 0) await opts.checkpoint?.();
     stats.documents++;
     try {
+      // A blank-check company's own filing is a SPAC combination, out of scope: their signing 8-Ks ("As previously
+      // announced, on …, Roth CH Acquisition V Co. entered into an Agreement and Plan of Merger …") read like deals.
+      // The name must look like a SPAC too: a de-SPACed operating company can keep SIC 6770 for years (Infrastructure and
+      // Energy Alternatives, bought by MasTec in 2022).
       const filer = parseDisplayName(hit.displayNames[0]);
+      if (hit.sics.includes("6770") && SPAC_FILER.test(filer.name)) {
+        state.seen.add(hit.id);
+        continue;
+      }
       const cik = filer.cik ?? trimCik(hit.ciks[0]);
       const text = htmlToText(await getText(archiveUrl(cik, hit.adsh, hit.file)));
+      // …or the filing talks like one (Aimei Health Technology Co., Ltd.): the trust account, the initial business combination.
+      if (hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) {
+        state.seen.add(hit.id);
+        continue;
+      }
       const ctx = { filerName: displayName(filer.name), filerTickers: filer.tickers };
       const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : parsePressRelease(text, ctx);
       state.seen.add(hit.id);
       if (!parsed) continue;
-      const deal = await accept(parsed, hit, text);
+      // A filer delisted since (bought: Chase Corp, Cowen, MidWestOne) isn't in today's directory: as in the backstop,
+      // it counts as listed if it was on an exchange then. Otherwise its own release reads as a private target, and a
+      // quoted premium then drops it as OTC.
+      let docHit: FtsHit = hit;
+      if (!directory.byCik.has(cik)) {
+        const sub = await submissions(cik);
+        if (sub && (await listedThen(sub, hit.fileDate))) docHit = { ...hit, listedCiks: [cik] };
+      }
+      const deal = await accept(parsed, docHit, text);
       if (deal) touched.add(deal);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -1240,7 +1315,9 @@ export async function ingestDeals(
   const hasDealFor = (cik: string, proxyDate: string) =>
     state.deals.some(
       (d) =>
-        (d.target.cik === cik || d.acquirer.cik === cik) &&
+        // As the buyer only in a public-target deal (both sides file a joint proxy): a company's own purchase of a private
+        // business needs no vote, and hid Cowen's and Star Equity's sales (Portico; Alliance Drilling Tools).
+        (d.target.cik === cik || (d.acquirer.cik === cik && !d.privateTarget)) &&
         d.announcedDate <= proxyDate &&
         d.announcedDate >= shiftDate(proxyDate, -BACKSTOP_DAYS) &&
         // A record with a junk party ("Pennsylvania corporation" as TriState's buyer) is dropped by tidy: look again.
@@ -1263,10 +1340,13 @@ export async function ingestDeals(
       // those are 8-Ks filed on a day a deal communication (DEFA14A / 425 / 14D-9C) went out. Any such day, not just
       // the first: GW's first DEFA14A in the window was a 2020 annual-meeting supplement.
       const communicationDays = new Set(filings.filter((f) => /^(?:DEFA14A|425|SC14D9C|SC 14D9-C|SC TO-C)$/.test(f.form)).map((f) => f.date));
-      const announcements = filings
-        .filter((f) => /^8-K/.test(f.form) && (/\b1\.01\b/.test(f.items) || communicationDays.has(f.date)))
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 6);
+      // Item 1.01 8-Ks first, then the communication-day ones: Piedmont filed six 8-Ks of deal news after its signing, which
+      // pushed the signing 8-K itself out of a newest-first list of six.
+      const eightKs = filings.filter((f) => /^8-K/.test(f.form)).sort((a, b) => b.date.localeCompare(a.date));
+      const announcements = [
+        ...eightKs.filter((f) => /\b1\.01\b/.test(f.items)),
+        ...eightKs.filter((f) => !/\b1\.01\b/.test(f.items) && communicationDays.has(f.date)),
+      ].slice(0, 8);
       for (const f of announcements) {
         // The filer as it was then: its name at the time (Resolute Energy, not today's Cimarex Resolute), and listed
         // then if it filed periodic reports and was on an exchange or delisted afterwards (today it has no ticker).

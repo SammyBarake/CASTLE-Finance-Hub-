@@ -84,6 +84,8 @@ export function cleanPartyName(raw: string): string {
   // Mr. Cooper, St. Joe).
   const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|[A-Z]))\.\s+(?=[A-Z])/.exec(s);
   if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
+  // "Standard General L.P., a Delaware limited partnership" -> "Standard General L.P."
+  s = s.replace(/,\s+an?\s+(?:[A-Z][\w.]*\s+){1,3}(?:limited\s+(?:liability\s+)?(?:company|partnership)|(?:public\s+)?(?:limited\s+)?company|corporation|partnership|statutory trust|exempted company)\b.*$/, "");
   // "AkzoNobel, that certain Joinder Agreement, dated ..." -> "AkzoNobel"
   s = s.replace(/,\s+(?:that certain|dated|pursuant|as amended)\b.*$/i, "");
   // "Delaware corporation, American Family Mutual" -> "American Family Mutual"
@@ -182,6 +184,15 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   // A description, a place or a product, not a company: "Leading Social Media & Technology", "Texas-based",
   // "EnvisionTEC's Category-leading Product", "Non-operated Oil and Gas" (working interests).
   !/^Leading\s/.test(s) &&
+  // Prose, not a name: "Additionally, all options to purchase Ordinary Shares", "The Company received the required …",
+  // "Equify Financial, LLC, as lender", "Third Amendment". Names keep their small words to "of", "and", "the" …
+  !/^(?:Additionally|In addition|Also|However|Further(?:more)?),?\s|^(?:First|Second|Third|Fourth|Fifth)\s+(?:Amendment|Merger|Effective Time|Closing)\b|^The Company\s+[a-z]|,\s*as\s+(?:lender|agent|administrative agent|collateral agent|trustee|borrower|guarantor)\b/.test(s) &&
+  // A numbered company with its number cut off: "1501016 B.C. Ltd." read as "B.C. Ltd".
+  !/^(?:B\.?\s?C\.?|Ontario|Alberta|Canada|Nova Scotia)\s+(?:Ltd|Inc|Corp|ULC|Limited)\.?$/i.test(s.trim()) &&
+  // A date run into the name: "Thoma Bravo March 10".
+  !/\s(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/.test(s.trim()) &&
+  // A lower-case brand is a name ("bluebird bio, Inc.", "eBay", "salesforce.com").
+  (/^[a-z]/.test(s) || (s.match(/(?:^|\s)(?!(?:of|and|the|de|du|la|le|del|der|des|di|for|in|on|at|by|a|an|y|et|und|van|von|e|inc|corp|co|llc|ltd|plc|lp|com)\b)(?![a-z'’-]*\.[a-z])[a-z][a-z'’-]+\b/g) ?? []).length < 2) &&
   !/^(?:the\s+)?(?:U\.?S\.?\s+)?subsidiary(?:\s+of)?$/i.test(s.trim()) &&
   !/^[A-Za-z.]+-based$/i.test(s.trim()) &&
   !/\bProduct$/.test(s.trim()) &&

@@ -282,3 +282,17 @@ describe("SPAC_NAME", () => {
     expect(SPAC_NAME.test("Main Street Capital Corp")).toBe(false);
   });
 });
+
+describe("same-day records for one target", () => {
+  it("merges them, keeping the better-documented record and its buyer", () => {
+    const mars = deal({ acquirer: { name: "Mars, Incorporated", ticker: null, cik: null }, target: { name: "Heska Corp", ticker: "HSKA", cik: "1038133" }, announcedDate: "2023-04-03", sources: ["a", "b", "c"] });
+    const antech = deal({ acquirer: { name: "Antech Holdings Group LLC", ticker: null, cik: null }, target: { name: "Heska Corp", ticker: "HSKA", cik: "1038133" }, announcedDate: "2023-04-03", sources: ["d"], premiumPct: null });
+    const r = tidyDeals([mars, antech]);
+    expect(r.dropped.map((x) => x.id)).toEqual([antech.id]);
+    expect(mars.acquirer.name).toBe("Mars, Incorporated");
+    // A rival bid a few weeks later is a different agreement, not a duplicate.
+    const lumentum = deal({ acquirer: { name: "Lumentum Holdings Inc.", ticker: "LITE", cik: "1633978" }, target: { name: "Coherent Inc", ticker: "COHR", cik: "21510" }, announcedDate: "2021-01-19" });
+    const mks = deal({ acquirer: { name: "MKS Instruments", ticker: "MKSI", cik: "1049502" }, target: { name: "Coherent Inc", ticker: "COHR", cik: "21510" }, announcedDate: "2021-02-08" });
+    expect(tidyDeals([lumentum, mks]).dropped.filter((x) => /announced the same day/.test(x.reason))).toEqual([]);
+  });
+});

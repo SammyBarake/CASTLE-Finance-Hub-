@@ -32,6 +32,8 @@ export interface ParsedPress {
   targetAdvisors: string[];
   /** The release calls the target privately held (only then may an unlisted target become a deal). */
   privateTarget?: boolean;
+  /** Merger 8-K: the signing date it restates ("As previously announced, on April 26, 2021, … entered into …"). */
+  signedOn?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -369,13 +371,21 @@ export function extractPremium(t: string): number | null {
 
 export function extractValue(t: string): { usd: number; kind: ParsedPress["valueKind"] } | null {
   const re =
-    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|valued at|valuing\b[\w\s,]{0,40}?\bat|value of|values? [\w\s']{0,40}? at)[^$.;]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
+    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|valued at|valuing\b[\w\s,]{0,40}?\bat|value of|values? [\w\s']{0,40}? at)[^$.;•]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
   for (const m of t.matchAll(re)) {
     const lead = m[1].toLowerCase();
     if (/per share/i.test(t.slice(m.index!, m.index! + m[0].length + 12))) continue;
     // Skip non-USD currencies (e.g. C$) — we only report USD.
     if (/(?:^|\s)(?:C|CAD|A)\$/.test(m[0])) continue;
     if (NOT_DEAL_VALUE.test(valueContext(t, m.index!, m[0].length))) continue;
+    // "$200 million of run-rate cost synergies" is not a price.
+    // Nor a later instalment: "Thermo Fisher has agreed to pay $125 million in January 2027".
+    const after = t.slice(m.index! + m[0].length, m.index! + m[0].length + 60);
+    if (/^\s*(?:of|in)?\s*(?:(?:annual|annualized|run-rate|cost|revenue|pre-tax|net)\s+)*synerg/i.test(after)) continue;
+    if (/^\s*in\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/.test(after)) continue;
+    // Nor costs or "value creation": "$2.8 billion in value creation …, net of ~$400 million in expected one-time
+    // transaction and integration costs" (Aon / NFP).
+    if (/^\s*(?:in|of)\s+(?:(?:expected|estimated|one-time|total)\s+)*(?:value creation|transaction|integration|restructuring|financing)\b/i.test(after)) continue;
     // The size of what the deal creates, not its price: "creating a premier … business, with an initial enterprise
     // value over $35 billion" (EQT / Equitrans), "the resulting company will have …".
     // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.

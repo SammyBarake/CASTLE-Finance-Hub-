@@ -406,3 +406,12 @@ describe("termination headlines", () => {
     expect(p?.kind).toBe("termination");
   });
 });
+describe("extractValue: figures that are not the price", () => {
+  it("skips synergies, costs, value creation and later instalments", () => {
+    expect(extractValue(`• II-VI proposal represents 24.0% premium over implied value of MKS Instruments' acquisition proposal • $200 million of run-rate cost synergies expected within 36 months`)).toBeNull();
+    expect(extractValue(`The transaction is expected to generate more than $2.8 billion in value creation from synergies, net of ~$400 million in expected one-time transaction and integration costs. The transaction values NFP at $13.4 billion.`)?.usd).toBe(13.4e9);
+    expect(extractValue(`In addition to the initial cash purchase price at closing, Thermo Fisher has agreed to pay $125 million in January 2027.`)).toBeNull();
+    // Costs mentioned before the figure don't matter.
+    expect(extractValue(`$30 million of cash and certain other transaction costs, which implies a value of $150 million based upon a 15-day VWAP.`)?.usd).toBe(150e6);
+  });
+});
