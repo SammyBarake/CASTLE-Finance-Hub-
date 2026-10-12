@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedAround, isSigningFor, listedOn, registrantMatches, takenOverAround } from "./deals";
+import { completedAround, isSigningFor, listedOn, provablyUnlistedOn, registrantMatches, takenOverAround } from "./deals";
 import { nameOn } from "./edgar";
 import { junkReason, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
 import type { StoredDeal } from "./store";
@@ -287,6 +287,16 @@ describe("listing and role checks", () => {
     // Deregistered long ago: its old Form 25 and 10-Ks don't count.
     const bremer = { exchanges: [], filings: filings([["15-12G", "2004-03-01"], ["25-NSE", "2004-02-01"], ["10-K", "2003-03-01"]]) };
     expect(listedOn(bremer, "2025-01-27")).toBe(false);
+  });
+
+  it("provablyUnlistedOn: listed today but not reporting when the deal was announced", () => {
+    // Figma: a Form D in 2013, an IPO in 2025; Adobe's agreement was in 2022.
+    const figma = { filings: filings([["10-Q", "2025-09-10"], ["424B4", "2025-07-31"], ["S-1", "2025-07-01"], ["D", "2013-05-01"]]) };
+    expect(provablyUnlistedOn(figma, "2022-09-15")).toBe(true);
+    expect(provablyUnlistedOn(figma, "2025-10-01")).toBe(false);
+    // A heavy filer whose index doesn't reach back that far: unknown, so not "unlisted".
+    const heavy = { filings: { ...filings([["10-Q", "2026-08-01"], ["424B2", "2025-01-01"]]), files: [{ name: "older.json", filingFrom: "2019-01-01", filingTo: "2024-12-31" }] } };
+    expect(provablyUnlistedOn(heavy as never, "2022-09-15")).toBe(false);
   });
 
   it("takenOverAround: the registrant filed takeover forms around the deal date", () => {

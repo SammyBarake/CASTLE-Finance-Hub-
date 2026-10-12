@@ -9,21 +9,28 @@ import { extractAdvisors } from "./press";
 export interface ParsedProxy {
   premiumPct: number | null;
   targetAdvisors: string[];
+  /** A stock or mixed deal's value per target share at announcement (`extractImpliedPerShare`). */
+  impliedPerShare: number | null;
 }
 
 /** Premium over the target's unaffected / last closing price, never an average, VWAP or precedent statistic. */
-const PCT = String.raw`(\d{1,3}(?:\.\d{1,2})?)\s?%(?!\s*(?:to|-|–)\s*\d)`;
-const CTX = String.raw`((?:[^.;•]|\.(?=\d)){0,240})`;
+// "47%" or "47 percent" (Poly: "a premium of approximately 47 percent to the closing price").
+const PCT = String.raw`(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent\b)(?!\s*(?:to|-|–)\s*\d)`;
+const CTX = String.raw`((?:[^.;•◾■]|\.(?=\d)){0,240})`;
+// "to", "over", "above", "based on", "(as) compared to", "relative to", "in excess of".
+const VERSUS = String.raw`(?:to|over|above|based on|(?:as\s+)?compared (?:to|with)|relative to|in excess of)`;
 const PREMIUM_RES = [
   // "a premium of approximately 32% over the closing price", "a premium of (i) approximately 68% to …", "a premium of
   // approximately: • 125% over the closing stock price", "at a premium above X's stock price: • approximately 78% above …",
-  // "a premium of 36% based on the closing price".
+  // "a premium of 36% based on the closing price", "a premium of: • approximately 20.4% above the closing price" (Veritiv),
+  // "a premium of approximately (i) 34% compared to the closing price" (Potbelly), "a premium of 28% per share, based on".
   new RegExp(
-    String.raw`premium\s+(?:of\s+)?(?:(?:approximately|about)\s*)?(?:above\s+[^:.;•]{0,60}?)?:?\s*(?:[•·▪]\s*|\((?:i|1|a)\)\s*)?(?:approximately |about )?${PCT}\s+(?:premium\s+)?(?:to|over|above|based on)\s+(?:the\s+)?${CTX}`,
+    String.raw`premium\s+(?:of\s*)?(?:(?:approximately|about)\s*)?(?:above\s+[^:.;•]{0,60}?)?:?\s*(?:[•·▪◾■]\s*|\((?:i|1|a)\)\s*)?(?:approximately |about )?(?:\((?:i|1|a)\)\s*)?${PCT}\s+(?:per share,?\s+)?(?:premium\s+)?${VERSUS}\s+(?:the\s+)?${CTX}`,
     "gi",
   ),
-  // "a 32% premium over the $52.00 closing price", "an approximately 61% premium over the closing price".
-  new RegExp(String.raw`(?:approximately |about )?${PCT}\s+premium\s+(?:to|over|above|based on)\s+(?:the\s+)?${CTX}`, "gi"),
+  // "a 32% premium over the $52.00 closing price", "an approximately 61% premium over the closing price", "a 17% premium
+  // as compared to the closing price" (ChampionX).
+  new RegExp(String.raw`(?:approximately |about )?${PCT}\s+premium\s+${VERSUS}\s+(?:the\s+)?${CTX}`, "gi"),
 ];
 // Words of the "Background of the Merger" (bids, proposals, talks), not of the deal itself. "The proposed (cash)
 // consideration" / "proposed merger" in the board's reasons is the deal.
@@ -37,10 +44,10 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
   for (const re of PREMIUM_RES) for (const m of t.matchAll(re)) {
     const before = t.slice(Math.max(0, m.index! - 900), m.index!);
     // The sentence, or the list item ("…; • the fact that …"), the premium is in.
-    const sentenceStart = before.split(/\.\s+(?=[A-Z•·▪○◌■])|;\s*(?:and\s+)?[•·▪○◌■]/).pop() ?? before;
+    const sentenceStart = before.split(/\.\s+(?=[A-Z•·▪○◌■◾])|;\s*(?:and\s+)?[•·▪○◌■◾]/).pop() ?? before;
     // Background words are looked for close by, in this list item only: a board's-reasons list runs on through its
     // bullets, and its introduction ("… be submitted to the shareholders …: • the fact that …") is not a bid.
-    const near = (sentenceStart.split(/[•·▪○◌■]/).pop() ?? sentenceStart).slice(-250);
+    const near = (sentenceStart.split(/[•·▪○◌■◾]/).pop() ?? sentenceStart).slice(-250);
     // This premium's own clause: up to the next bullet (the regex), the next "premium", or the next figure ("…, and
     // approximately 85% over the 30-day average": that VWAP isn't this premium's).
     const ctx = m[2].split(/\bpremium\b|\(ii\)|,?\s+and\s+(?:a\s+|an\s+)?(?:approximately\s+|about\s+)?\d/i)[0];
@@ -61,7 +68,7 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     // A price some time before signing ("one month prior to the Agreement Date", "90 days prior"), not the last close.
     // "two trading days before the public announcement" is still the unaffected price (ZeroFox).
     if (/\b(?:\d+|one|two|three|six|twelve)\s+(?:calendar\s+|trading\s+)?(?:days?|weeks?|months?|years?)\s+(?:prior|before)\b(?!\s+(?:to\s+)?the\s+(?:public\s+)?announcement)/i.test(ctx.slice(0, 160))) continue;
-    const closing = /\b(?:closing|close|unaffected|undisturbed)\b[^.;]{0,40}\b(?:price|share price|stock price|trading price)\b|\bunaffected\b/i.test(ctx);
+    const closing = /\b(?:closing|close|unaffected|undisturbed)\b[^.;]{0,40}\b(?:price|share price|stock price|trading price)s?\b|\bunaffected\b/i.test(ctx);
     if (!closing) continue;
     if (/volume[- ]weighted|VWAP|average|\b\d+[- ](?:trading[- ]|calendar[- ])?day\b|\bhighest\b|\ball-time high\b|52\)?[- ]week|fifty-two|\d+-month/i.test(ctx)) continue;
     const pct = Number(m[1]);
@@ -73,7 +80,7 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     // bids and stale prices are worded like this too: "for $63.00 per share in cash (representing an approximate 16% …").
     // Unanchored (no announcement / trading-day reference): the whole list item must be free of background words too
     // (Kenvue's "K-C delivered a revised proposal …, representing … a premium of 41.6%", 300 characters back).
-    if (!score && BACKGROUND.test(sentenceStart.split(/[•·▪○◌■]/).pop() ?? sentenceStart)) continue;
+    if (!score && BACKGROUND.test(sentenceStart.split(/[•·▪○◌■◾]/).pop() ?? sentenceStart)) continue;
     // A bid named by its amount: "The $11.00 transaction consideration represented a premium of 49% over the November 16,
     // 2022 closing sale price" (HNI's successive proposals for Kimball), not "the Merger Consideration".
     if (!score && /\$\d[\d.,]*\s+(?:(?:per[- ]share|aggregate)\s+)?(?:transaction\s+)?consideration\b/i.test(sentenceStart)) continue;
@@ -103,5 +110,31 @@ export function extractProxyAdvisors(t: string, targetName: string): string[] {
 }
 
 export function parseMergerProxy(text: string, targetName: string): ParsedProxy {
-  return { premiumPct: extractProxyPremium(text), targetAdvisors: extractProxyAdvisors(text, targetName) };
+  return { premiumPct: extractProxyPremium(text), targetAdvisors: extractProxyAdvisors(text, targetName), impliedPerShare: extractImpliedPerShare(text) };
+}
+
+/** "the last (full) trading day before the (first) public announcement" (not the latest practicable date). */
+const ANNOUNCE_DAY = /\b(?:last|final)\s+(?:full\s+|completed\s+)?(?:trading\s+)?day\s+(?:immediately\s+)?(?:before|prior\s+to|preceding)\s+(?:the\s+)?(?:first\s+)?(?:public\s+)?announcement/i;
+
+/**
+ * A stock deal's value per target share at announcement, as the merger proxy states it: "Based on the closing price of
+ * Extra Space common stock of $… on March 31, 2023, the last trading day before public announcement of the proposed
+ * transaction, the exchange ratio represented approximately $145.82 in Extra Space common stock for each share of Life
+ * Storage common stock"; "… the value of the per share merger consideration payable to holders of Prudential shares was
+ * $17.52". Only figures tied to the announcement day (the latest practicable date's value is another); null unless every
+ * statement agrees.
+ */
+export function extractImpliedPerShare(t: string): number | null {
+  const found: number[] = [];
+  for (const m of t.matchAll(/[^.]*(?:\.\d[^.]*)*\./g)) {
+    const s = m[0];
+    if (s.length > 900 || !ANNOUNCE_DAY.test(s) || /latest practicable|range of|ranging from|average|volume[- ]weighted/i.test(s)) continue;
+    const v =
+      /\b(?:exchange ratio|merger consideration|per share (?:merger )?consideration|stock consideration)\s+(?:represented|represents|had|has|was|equaled|equates to)\s+(?:an?\s+)?(?:implied\s+)?(?:value\s+of\s+)?(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+(?:in\s+(?:value|[A-Z][\w&.'’ -]{0,40}?common (?:stock|shares))\s+)?(?:for|per)\s+(?:each\s+)?(?:outstanding\s+)?share\b/i.exec(s) ??
+      /\b(?:implied\s+)?value of the (?:per share )?(?:merger|stock|transaction) consideration\b[^$]{0,120}?\b(?:was|is|of)\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\b(?!\s*(?:million|billion))/i.exec(s) ??
+      /\bimplied (?:per share )?value of (?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+(?:[A-Z][\w&.'’ -]{0,40}?\s+)?share\b/i.exec(s);
+    if (v) found.push(Number(v[1]));
+  }
+  if (!found.length) return null;
+  return found.every((x) => Math.abs(x / found[0] - 1) < 0.005) && found[0] > 0 ? found[0] : null;
 }

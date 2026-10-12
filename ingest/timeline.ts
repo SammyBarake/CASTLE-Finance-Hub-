@@ -23,10 +23,19 @@ const PERIODIC = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
  * preferred series and keep reporting, so a 10-Q / 10-K more than 60 days later rules it out.
  */
 export function isClosingFiling(filings: FilingRef[], f: FilingRef): boolean {
-  if (!(CLOSED.test(f.form) || (/^8-K/.test(f.form) && /\b5\.01\b/.test(f.items)))) return false;
+  const eightK = /^8-K/.test(f.form);
+  if (!(CLOSED.test(f.form) || (eightK && /\b5\.01\b/.test(f.items)))) return false;
   const limit = new Date(Date.parse(f.date) + 60 * 86_400_000).toISOString().slice(0, 10);
-  return !filings.some((g) => PERIODIC.test(g.form) && g.date > limit);
+  if (!filings.some((g) => PERIODIC.test(g.form) && g.date > limit)) return true;
+  // Still reporting afterwards for its bonds or preferred shares (Athene, Continental Resources, STORE Capital, Triton):
+  // a closing when the filings agree. One 8-K reports the merger's completion and the change of control (Item 2.01 and
+  // 5.01), or the common stock's delisting (Form 25) comes within days of an 8-K reporting either. A Form 25 for one
+  // preferred series comes with an 8-K Item 3.01 only (II-VI, 2023).
+  if (eightK) return /\b2\.01\b/.test(f.items) || filings.some((g) => /^25(?:-NSE)?$/.test(g.form) && near(g, f));
+  return /^25(?:-NSE)?$/.test(f.form) && filings.some((g) => /^8-K/.test(g.form) && /\b(?:2\.01|5\.01)\b/.test(g.items) && near(g, f));
 }
+
+const near = (a: FilingRef, b: FilingRef) => Math.abs(Date.parse(a.date) - Date.parse(b.date)) <= 5 * 86_400_000;
 
 /**
  * `terminated` is passed in because deciding it needs the 8-K text (an Item 1.02 can end any

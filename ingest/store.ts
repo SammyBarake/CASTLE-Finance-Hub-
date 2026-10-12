@@ -21,6 +21,8 @@ export interface StoredDeal extends Deal {
   financialsCheckedAt: string | null;
   /** Set once the target's merger proxy / 14D-9 was read for premium and advisors. */
   proxyCheckedAt?: string | null;
+  /** PROXY_PARSER_VERSION it was read with; a newer reader looks again at deals still missing what it reads. */
+  proxyParser?: number;
   /** Proxy the fairness opinions were read from, and when the search finished (final proxy read or deal over). */
   fairnessAdsh?: string | null;
   fairnessCheckedAt?: string | null;

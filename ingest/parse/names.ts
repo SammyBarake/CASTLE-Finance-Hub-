@@ -111,6 +111,8 @@ export function cleanPartyName(raw: string): string {
   // "Wavedash Leading Online Ticket Marketplace …", "Community Bancorporation Company Release".
   s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
   s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances|Executes|Executed|Signs|Signed)\b.*$/, "");
+  // An adverb before the verb: "Amryt Successfully Completes Acquisition of Chiasma".
+  s = s.replace(/\s+(?:Successfully|Officially|Formally)$/, "");
   // Two buyers take the plural verb: "SD Biosensor and SJL Partners Complete Transaction".
   s = s.replace(/\s+(?:Complete|Close|Finalize)\s+(?:the\s+)?(?:Transaction|Acquisition|Merger|Sale|Purchase)\b.*$/, "");
   // "BioLife Solutions Exhibit 99.2" -> "BioLife Solutions"
@@ -212,6 +214,8 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   // A date run into the name: "Thoma Bravo March 10"; a moment in the deal: "Tenax at the Closing".
   !/\s(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/.test(s.trim()) &&
   !/\sat\s+(?:the\s+)?(?:Closing|Effective Time)$/i.test(s.trim()) &&
+  // A document or its heading: "Definitive Proxy Statement on Schedule 14A", "Transaction Details F5".
+  !/\b(?:Proxy Statement|Information Statement|Schedule (?:14A|14C|TO|13E-3)|Form 8-K|Transaction Details)\b/i.test(s) &&
   // A lower-case brand is a name ("bluebird bio, Inc.", "eBay", "salesforce.com").
   (/^[a-z]/.test(s) || (s.match(/(?:^|\s)(?!(?:of|and|the|de|du|la|le|del|der|des|di|for|in|on|at|by|a|an|y|et|und|van|von|e|inc|corp|co|llc|ltd|plc|lp|com)\b)(?![a-z'’-]*\.[a-z])[a-z][a-z'’-]+\b/g) ?? []).length < 2) &&
   !/^(?:the\s+)?(?:U\.?S\.?\s+)?subsidiary(?:\s+of)?$/i.test(s.trim()) &&

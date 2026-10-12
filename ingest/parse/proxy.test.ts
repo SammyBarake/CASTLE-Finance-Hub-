@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractProxyAdvisors, extractProxyPremium } from "./proxy";
+import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare } from "./proxy";
 
 describe("extractProxyPremium", () => {
   it("reads the premium over the last closing price", () => {
@@ -75,5 +75,26 @@ describe("extractProxyAdvisors", () => {
   it("skips the other side's advisor heading and reads the board's opinion", () => {
     const t = `Opinion of Viper's Financial Advisor\nOpinion of Sitio's Financial Advisor. The Sitio Board considered the opinion of J.P. Morgan, dated June 2, 2025.`;
     expect(extractProxyAdvisors(t, "Sitio Royalties Corp.")).toEqual(["JPMorgan"]);
+  });
+});
+
+describe("premium wordings", () => {
+  it("reads 'percent', a colon list, 'compared to', 'relative to' and 'per share, based on'", () => {
+    expect(extractProxyPremium("Q: How does the per share price compare to the market price? A: This amount constitutes (1) a premium of approximately 47 percent to the closing price of our common stock on March 24, 2022, the last full trading day prior to the public announcement of the merger.")).toBe(47);
+    expect(extractProxyPremium("• The attractive value of the Merger Consideration, which constitutes a premium of: • approximately 20.4% above the closing price per share of Common Stock on August 4, 2023 (the last trading day prior to public announcement of the Merger); and • approximately 30.9% above the 30-day volume weighted average price.")).toBe(20.4);
+    expect(extractProxyPremium("The $17.12 per Share represents a compelling premium of approximately (i) 34% compared to the closing price of the Company common stock of $12.78 on September 9, 2025, the last trading day before the public announcement of the merger agreement.")).toBe(34);
+    expect(extractProxyPremium("The merger consideration payable to our shareholders represents a premium of approximately 19% relative to the unaffected closing price for shares of our common stock on December 4, 2023.")).toBe(19);
+    expect(extractProxyPremium("• that the per share merger consideration represents a premium of 28% per share, based on the closing prices of Spirit common stock on November 17, 2021, the last trading day before the public announcement of the merger;")).toBe(28);
+  });
+});
+
+describe("extractImpliedPerShare", () => {
+  it("reads a stock deal's value per share at announcement", () => {
+    expect(extractImpliedPerShare("Based on the closing price of Extra Space common stock of $156.93 on March 31, 2023, the last trading day before public announcement of the proposed transaction, the exchange ratio represented approximately $145.82 in Extra Space common stock for each share of Life Storage common stock.")).toBe(145.82);
+    expect(extractImpliedPerShare("Based on the closing price of Fulton common stock on March 1, 2022, the last trading day before the public announcement of the signing of the merger agreement, the value of the per share merger consideration payable to holders of Prudential shares was $17.52. Based on the closing price of Fulton common stock on May 2, 2022, the latest practicable trading day before the date of this proxy statement/prospectus, the value of the per share merger consideration was $16.10.")).toBe(17.52);
+  });
+  it("ignores the latest practicable date and ranges", () => {
+    expect(extractImpliedPerShare("Based on the closing price of Acme common stock on May 2, 2022, the latest practicable trading day before the date of this proxy statement, the exchange ratio represented approximately $16.10 for each share of Widget common stock.")).toBeNull();
+    expect(extractImpliedPerShare("Based on the range of trading prices of Acme common stock during the period after March 31, 2023, the last trading day before the public announcement, the exchange ratio represented a market value ranging from $128.31 to $147.20 for each share.")).toBeNull();
   });
 });

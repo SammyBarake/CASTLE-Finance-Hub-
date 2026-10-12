@@ -172,6 +172,7 @@ describe("isPlausibleName: deal moments", () => {
 describe("cleanPartyName: two buyers' headline verb", () => {
   it("cuts 'Complete Transaction' after a pair of buyers", () => {
     expect(cleanPartyName("SD Biosensor and SJL Partners Complete Transaction")).toBe("SD Biosensor and SJL Partners");
+    expect(cleanPartyName("Amryt Successfully Completes Acquisition of Chiasma")).toBe("Amryt");
   });
 });
 
@@ -194,5 +195,13 @@ describe("cleanPartyName keeps names with description-like words", () => {
     expect(cleanPartyName("Pacific Premier Bancorp Inc")).toBe("Pacific Premier Bancorp Inc");
     expect(cleanPartyName("e.l.f. Beauty, Inc.")).toBe("e.l.f. Beauty, Inc.");
     expect(cleanPartyName("Punchh Inc., a Premier Loyalty Platform")).toBe("Punchh Inc.");
+  });
+});
+
+describe("isPlausibleName: documents and headings", () => {
+  it("rejects a document or a heading read as a party", () => {
+    expect(isPlausibleName("Definitive Proxy Statement on Schedule 14A")).toBe(false);
+    expect(isPlausibleName("Transaction Details F5")).toBe(false);
+    expect(isPlausibleName("F5 Networks, Inc.")).toBe(true);
   });
 });
