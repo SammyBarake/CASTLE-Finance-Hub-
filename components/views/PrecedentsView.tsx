@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import { AboutData, FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
+import { PrecedentsDcf } from "@/components/views/PrecedentsDcf";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import {
@@ -245,10 +246,16 @@ function Precedents({ dealId }: { dealId: string | null }) {
           <span>Deal size = enterprise value, else headline value</span>
         </div>
       </section>
+      <PrecedentsDcf deals={included} onOpen={openDeal} />
       <AboutData>
         <p>
           Multiples use the target&apos;s last-twelve-month revenue and EBITDA from its XBRL filings. EV is the stated enterprise value, or equity value plus debt
           minus cash. A dash means not disclosed; blanks are left out of the statistics, never counted as zero.
+        </p>
+        <p>
+          The DCF panel reads the target board&apos;s bank: the discounted cash flow range of value per share in its fairness opinion, as the merger proxy
+          summarises it, with the discount rate and terminal growth it used. An offer above the range means the bank&apos;s own cash-flow view valued the company
+          below the price paid.
         </p>
       </AboutData>
     </>

@@ -2,7 +2,7 @@
  * Precedent transactions: pick comparable deals and summarise their multiples the way a
  * comps page does (high / 75th / mean / median / 25th / low). Pure and testable.
  */
-import { SECTORS, type Consideration, type Deal, type Sector } from "./types";
+import { SECTORS, type Consideration, type DcfSummary, type Deal, type FairnessOpinion, type Sector } from "./types";
 import type { Spec } from "./urlState";
 
 export type PrecedentWindow = "12m" | "24m" | "all";
@@ -149,4 +149,45 @@ export const summarizeComps = (deals: Deal[]): CompsSummary => ({
   evEbitda: summarize(deals.map((d) => d.evEbitda)),
   evRevenue: summarize(deals.map((d) => d.evRevenue)),
   premium: summarize(deals.map((d) => d.premiumPct)),
+});
+
+/**
+ * The target bank's DCF from its fairness opinions: the first target-side opinion with a discounted cash flow range (the
+ * buyer's bank values the buyer's shares). Implausible ranges (non-positive, or a high over five times the low) are left out.
+ */
+export function dcfOf(fairness: FairnessOpinion[] | undefined): DcfSummary | null {
+  for (const o of fairness ?? []) {
+    if (o.side !== "target") continue;
+    const r = o.ranges.find((x) => x.method === "Discounted cash flow");
+    if (!r || !(r.low > 0) || r.high < r.low || r.high > r.low * 5) continue;
+    return { bank: o.bank, low: r.low, high: r.high, discountRatePct: o.discountRatePct, perpetuityGrowthPct: o.perpetuityGrowthPct };
+  }
+  return null;
+}
+
+export interface DcfRow {
+  deal: Deal;
+  dcf: DcfSummary;
+  /** The offer against the DCF midpoint, % (+12 = 12% above). Null without an offer price. */
+  vsMid: number | null;
+  discountMid: number | null;
+  growthMid: number | null;
+}
+
+const mid = (r: [number, number] | null) => (r ? (r[0] + r[1]) / 2 : null);
+
+/** Precedents whose target's bank ran a DCF, with the offer placed against it. */
+export function dcfRows(deals: Deal[]): DcfRow[] {
+  return deals
+    .filter((d): d is Deal & { dcf: DcfSummary } => !!d.dcf)
+    .map((d) => {
+      const m = (d.dcf.low + d.dcf.high) / 2;
+      return { deal: d, dcf: d.dcf, vsMid: d.pricePerShare != null ? (d.pricePerShare / m - 1) * 100 : null, discountMid: mid(d.dcf.discountRatePct), growthMid: mid(d.dcf.perpetuityGrowthPct) };
+    });
+}
+
+export const summarizeDcf = (rows: DcfRow[]) => ({
+  vsMid: summarize(rows.map((r) => r.vsMid)),
+  discount: summarize(rows.map((r) => r.discountMid)),
+  growth: summarize(rows.map((r) => r.growthMid)),
 });

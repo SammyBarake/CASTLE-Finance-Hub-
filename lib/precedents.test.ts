@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PRECEDENTS, percentile, screenForDeal, screenPrecedents, summarize, summarizeComps } from "./precedents";
+import { dcfOf, dcfRows, DEFAULT_PRECEDENTS, percentile, screenForDeal, screenPrecedents, summarize, summarizeComps, summarizeDcf } from "./precedents";
 import type { Deal } from "./types";
 
 const deal = (over: Partial<Deal>): Deal => ({
@@ -71,5 +71,37 @@ describe("screenPrecedents", () => {
     expect(s.evEbitda.median).toBe(12);
     expect(s.premium.n).toBe(1);
     expect(s.size.median).toBe(1e9);
+  });
+});
+
+describe("DCF from fairness opinions", () => {
+  const opinion = (side: "target" | "acquirer", low: number, high: number) => ({
+    bank: side === "target" ? "Goldman Sachs" : "Lazard",
+    side,
+    ranges: [{ method: "Trading comparables", low: 10, high: 20 }, { method: "Discounted cash flow", low, high }],
+    feeUsd: null,
+    discountRatePct: [9, 11] as [number, number],
+    perpetuityGrowthPct: [2, 3] as [number, number],
+    terminalMultiple: null,
+  });
+
+  it("takes the target bank's DCF and skips the buyer's and implausible ranges", () => {
+    expect(dcfOf([opinion("acquirer", 50, 60), opinion("target", 30, 40)])).toEqual({ bank: "Goldman Sachs", low: 30, high: 40, discountRatePct: [9, 11], perpetuityGrowthPct: [2, 3] });
+    expect(dcfOf([opinion("target", 0, 40)])).toBeNull();
+    expect(dcfOf([opinion("target", 5, 40)])).toBeNull();
+    expect(dcfOf(undefined)).toBeNull();
+  });
+
+  it("places each offer against its DCF midpoint and summarises the assumptions", () => {
+    const deal = (id: string, price: number | null, low: number, high: number) =>
+      ({ id, pricePerShare: price, dcf: { bank: "Citi", low, high, discountRatePct: [9, 11], perpetuityGrowthPct: [2, 3] } }) as unknown as Deal;
+    const rows = dcfRows([deal("a", 42, 30, 40), deal("b", null, 10, 14), { id: "c", pricePerShare: 5 } as unknown as Deal]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].vsMid).toBeCloseTo(20);
+    expect(rows[1].vsMid).toBeNull();
+    const s = summarizeDcf(rows);
+    expect(s.discount.median).toBe(10);
+    expect(s.growth.median).toBe(2.5);
+    expect(s.vsMid.n).toBe(1);
   });
 });

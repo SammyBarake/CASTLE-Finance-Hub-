@@ -82,6 +82,8 @@ export interface Deal {
   fairness?: FairnessOpinion[];
   /** The page feed's stand-in for `fairness`: true when the full record has opinions. */
   hasFairness?: boolean;
+  /** The feed's compact stand-in for the target bank's DCF (`dcfOf` in lib/precedents.ts): for the Precedents tool. */
+  dcf?: DcfSummary;
   /** Page feed only: how many filings the full record links (the feed carries just the first; /api/deal/[id] has all). */
   filingCount?: number;
   milestones?: DealMilestones;
@@ -147,6 +149,15 @@ export interface ValuationRange {
   method: string;
   low: number;
   high: number;
+}
+
+/** The target bank's discounted cash flow analysis, from its fairness opinion: value per target share and assumptions. */
+export interface DcfSummary {
+  bank: string | null;
+  low: number;
+  high: number;
+  discountRatePct: [number, number] | null;
+  perpetuityGrowthPct: [number, number] | null;
 }
 
 /** A bank's fairness opinion as summarised in the merger proxy / Schedule 14D-9. */

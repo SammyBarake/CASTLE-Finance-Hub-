@@ -2,6 +2,7 @@ import type { IconName } from "@/components/ui/Icon";
 
 export type RouteId =
   | "hub"
+  | "coverage"
   | "deal-flow"
   | "deal-volume"
   | "ipo-pipeline"
@@ -36,6 +37,7 @@ export interface SectionDef {
 
 export const ROUTES: RouteDef[] = [
   { id: "hub", href: "/", title: "Hub", tab: "Hub", section: "hub" },
+  { id: "coverage", href: "/coverage", title: "Data Coverage", tab: "Coverage", section: "hub" },
   { id: "deal-flow", href: "/deal-flow", title: "Deal Flow", tab: "Deal Flow", section: "ma" },
   { id: "deal-volume", href: "/deal-volume", title: "Deal Volume", tab: "Volume", section: "ma" },
   { id: "deal-terms", href: "/deal-terms", title: "Deal Terms", tab: "Deal Terms", section: "ma" },

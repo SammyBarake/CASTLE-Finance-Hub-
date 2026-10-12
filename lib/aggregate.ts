@@ -4,6 +4,7 @@
  */
 import { feeRows } from "./fees";
 import { median } from "./metrics";
+import { dcfOf } from "./precedents";
 import { displayCompanyName } from "./names";
 import { SECTORS, type ActivistStake, type Deal, type HubData, type Ipo, type LeagueTableEntry, type Macro, type MonthlySectorVolume, type SectorValuation } from "./types";
 
@@ -185,6 +186,8 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     filings: opts.withFairness ? d.filings : d.filings.slice(0, 1),
     ...(opts.withFairness || d.filings.length <= 1 ? {} : { filingCount: d.filings.length }),
     ...(d.fairness?.length ? (opts.withFairness ? { fairness: d.fairness, hasFairness: true } : { hasFairness: true }) : {}),
+    // The target bank's DCF in a few numbers, for the Precedents tool (the full opinions stay out of the feed).
+    ...(dcfOf(d.fairness) ? { dcf: dcfOf(d.fairness)! } : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
     ...(d.terms ? { terms: d.terms } : {}),
     ...(d.privateTarget ? { privateTarget: true } : {}),

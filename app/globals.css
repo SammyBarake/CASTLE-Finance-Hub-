@@ -858,6 +858,32 @@
   .comps-summary tr:first-child th, .comps-summary tr:first-child td { border-top: 1px solid #3a3a3a; }
   .comps-summary th { text-align: left; font-weight: 450; letter-spacing: 0.02em; }
   .comps-summary .comps-median th, .comps-summary .comps-median td { color: #f2f2f2; font-weight: 500; }
+
+  /* ---------- data coverage (CoverageView) ---------- */
+  .coverage-table tbody th[scope="row"] { background: transparent; border-top: 0; border-bottom: 1px solid var(--color-soft); color: #dcdcdc; font-size: 11px; font-weight: 450; letter-spacing: 0; white-space: normal; min-width: 170px; }
+  .coverage-table tbody th[scope="row"] small { display: block; margin-top: 3px; color: #6f6f6f; font-size: 9px; font-weight: 400; }
+  .coverage-table .cov-cell { background: linear-gradient(90deg, rgba(255, 255, 255, 0.055) var(--pct), transparent var(--pct)); }
+  .coverage-table .cov-all { color: #f2f2f2; font-weight: 500; }
+  .coverage-table tfoot th, .coverage-table tfoot td { border-top: 1px solid #2a2a2a; border-bottom: 0; background: #0b0b0b; color: #8a8a8a; font-size: 10px; }
+  .coverage-table tfoot th { text-align: left; font-weight: 450; letter-spacing: 0; }
+
+  /* ---------- precedents: the target banks' DCFs (PrecedentsDcf) ---------- */
+  .dcf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid #1a1a1a; }
+  .dcf-stats > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-right: 1px solid #1a1a1a; min-width: 0; }
+  .dcf-stats > div:last-child { border-right: 0; }
+  .dcf-stats span { font-size: 10px; color: #8a8a8a; }
+  .dcf-stats strong { font: 500 18px var(--font-mono); color: #f2f2f2; }
+  .dcf-stats small { font-size: 9px; color: #6f6f6f; }
+  .dcf-bar-col { width: 150px; min-width: 120px; }
+  .dcf-bar { position: relative; display: block; height: 12px; }
+  .dcf-range { position: absolute; top: 2px; height: 8px; left: var(--lo); width: max(calc(var(--hi) - var(--lo)), 2px); background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 2px; }
+  .dcf-bar.within .dcf-range { background: #3b3b3b; border-color: #8a8a8a; }
+  .dcf-bar.above .dcf-range { background: #1c1c1c; border-color: #3a3a3a; }
+  .dcf-offer { position: absolute; top: -2px; bottom: -2px; left: var(--offer); border-left: 1px dashed #e8e8e8; }
+  @media (max-width: 760px) {
+    .dcf-stats > div { padding: 10px 10px; }
+    .dcf-stats strong { font-size: 15px; }
+  }
   .filing-link { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #252525; padding: 10px 0; font-size: 11px; color: #ccc; }
   .filing-link:hover { color: #fff; }
   .filing-link .icon { width: 12px; height: 12px; }
