@@ -231,8 +231,9 @@ const BODY_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
   },
 ];
 
+// A dual listing names the home exchange first or last: "(TSX: SSL; NYSE: SAND)", "(NYSE: SAND; TSX: SSL)".
 const TICKER_RE =
-  /([A-Z][A-Za-z0-9&.,'’\- ]{1,70}?)\s*\((?:"[^"]*"\)?\s*\()?(?:the\s+)?(NYSE American|NYSE Arca|NYSE|NASDAQ|Nasdaq|Cboe|OTCQX|OTCQB|OTC|TSXV|TSX|LSE|ASX)(?:\s+and\s+[A-Za-z]+)?\s*:\s*([A-Z][A-Z0-9.\-]{0,6})\s*\)/g;
+  /([A-Z][A-Za-z0-9&.,'’\- ]{1,70}?)\s*\((?:"[^"]*"\)?\s*\()?(?:the\s+)?(?:(?:TSXV|TSX|LSE|ASX|AIM)\s*:\s*[A-Z][A-Z0-9.\-]{0,6}\s*[;,]\s*)?(NYSE American|NYSE Arca|NYSE|NASDAQ|Nasdaq|Cboe|OTCQX|OTCQB|OTC|TSXV|TSX|LSE|ASX)(?:\s+and\s+[A-Za-z]+)?\s*:\s*([A-Z][A-Z0-9.\-]{0,6})(?:\s*[;,]\s*(?:TSXV|TSX|LSE|ASX|AIM)\s*:\s*[A-Z][A-Z0-9.\-]{0,6})?\s*\)/g;
 
 function tickerMentions(text: string): PartyMention[] {
   const out: PartyMention[] = [];
@@ -249,7 +250,13 @@ function tickerMentions(text: string): PartyMention[] {
 
 const US_EXCHANGES = new Set(["NYSE", "NASDAQ", "NYSE American", "NYSE Arca", "Cboe", "OTCQX", "OTCQB", "OTC"]);
 
-function withTicker(name: string, mentions: PartyMention[]): PartyMention {
+function withTicker(name: string, all: PartyMention[], other?: string): PartyMention {
+  // A listing whose name runs both parties together ("Tamboran Resources and Falcon Oil & Gas Ltd. (TSXV: FO)", "SKF and
+  // Kaydon Corporation") belongs to neither alone; "Infinity Property and Casualty Corporation" is one name.
+  const mentions = all.filter((m) => {
+    const after = m.name.split(/\s+and\s+/).slice(1).join(" and ");
+    return !after || /\sand\s/.test(name) || !other || !sameCompany(after, other);
+  });
   // A party written as its own ticker ("UWMC Announces Strategic Acquisition of TWO"): the mention listing that ticker
   // carries the name ("UWM Holdings Corporation (NYSE: UWMC)"). Written exactly as the ticker ("Land" is not LAND), and
   // the name starts with the ticker's letter: a mention run can carry page furniture ("About Dell Dell Inc.", "Page 5 …").
@@ -698,8 +705,23 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   }
   parties.acq = parties.acq.replace(/\s+(?:Shareholders|Stockholders)$/, "");
 
-  const acquirer = withTicker(parties.acq, mentions);
-  const target = withTicker(parties.tgt, mentions);
+  const acquirer = withTicker(parties.acq, mentions, parties.tgt);
+  let target = withTicker(parties.tgt, mentions, parties.acq);
+  // Two targets in one headline ("Royal Gold to Acquire Sandstorm Gold and Horizon Copper"): the one the release lists on
+  // a US exchange ("Sandstorm Gold Ltd. (TSX: SSL; NYSE: SAND)"); Horizon trades over the counter.
+  // The listed company's name must start with the part: "Golar LNG Partners" is not Golar LNG Limited, and "AIG Star"
+  // (a carve-out of AIG's Japanese life insurers) is not AIG.
+  if (!target.ticker && /\s(?:and|&)\s/.test(target.name)) {
+    for (const part of target.name.split(/\s+(?:and|&)\s+/)) {
+      const p = normalizeName(part);
+      if (p.length < 4) continue;
+      const m = mentions.find((x) => x.ticker && x.exchange && /^(?:NYSE|NASDAQ|NYSE American|Cboe)$/.test(x.exchange) && (normalizeName(x.name) === p || normalizeName(x.name).startsWith(`${p} `)));
+      if (m) {
+        target = { name: m.name, ticker: m.ticker, exchange: m.exchange };
+        break;
+      }
+    }
+  }
   // Buying a division or assets of a named company is not buying that company.
   if (isCarveOut(headline, intro, target.name)) return null;
 

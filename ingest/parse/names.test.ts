@@ -215,5 +215,7 @@ describe("cleanPartyName: longer descriptions", () => {
     expect(cleanPartyName("Hunter Fan Company")).toBe("Hunter Fan Company");
     expect(cleanPartyName("Browser Company of New York")).toBe("Browser Company of New York");
     expect(cleanPartyName("Carlisle Management Company SCA")).toBe("Carlisle Management Company SCA");
+    expect(cleanPartyName("Thoma Bravo Fund XV, L.P.")).toBe("Thoma Bravo");
+    expect(cleanPartyName("American Industrial Partners Capital Fund VII, L.P.")).toBe("American Industrial Partners");
   });
 });

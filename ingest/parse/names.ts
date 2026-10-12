@@ -111,6 +111,8 @@ export function cleanPartyName(raw: string): string {
   // "Wavedash Leading Online Ticket Marketplace …", "Community Bancorporation Company Release".
   s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
   s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances|Executes|Executed|Signs|Signed)\b.*$/, "");
+  // A sponsor's numbered fund is the sponsor: "Thoma Bravo Fund XV, L.P." -> "Thoma Bravo".
+  s = s.replace(/\s+(?:Capital\s+)?Fund\s+[IVXL]+(?:,?\s+L\.?\s?P\.?)?$/, "");
   // An adverb before the verb: "Amryt Successfully Completes Acquisition of Chiasma".
   s = s.replace(/\s+(?:Successfully|Officially|Formally)$/, "");
   // Two buyers take the plural verb: "SD Biosensor and SJL Partners Complete Transaction".

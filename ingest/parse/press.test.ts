@@ -471,4 +471,22 @@ Prairie Oil Corp. Announces Strategic Acquisition of Cash-Flow-Positive Producti
 CALGARY, November 4, 2025 - Prairie Oil Corp. (NYSE American: PROC) today announced that it has acquired producing wells in Saskatchewan.`;
     expect(parsePressRelease(t, { filerName: "Prairie Oil Corp.", filerTickers: ["PROC"] })).toBeNull();
   });
+
+  it("takes the US-listed one of two targets, reading a dual listing", () => {
+    const t = `Exhibit 99.1
+Granite Royalty to Acquire Sandpiper Gold and Horizon Metals and Reinforce its Position
+DENVER, COLORADO. JULY 7, 2025: GRANITE ROYALTY, INC. (NASDAQ: GRYL) announced today its entry into agreements to acquire each of Sandpiper Gold Ltd. (TSX: SPG; NYSE: SPGD) ("Sandpiper") and Horizon Metals Corp. (TSXV: HZM; OTCQB: HZMCF) ("Horizon"). Under the terms of the agreement with Sandpiper, Granite will acquire 100% of the issued share capital of Sandpiper for Granite shares, representing a premium of 17% based on the closing price of Sandpiper shares.`;
+    const p = parsePressRelease(t, { filerName: "Granite Royalty, Inc.", filerTickers: ["GRYL"] })!;
+    expect(p.target.name).toBe("Sandpiper Gold Ltd.");
+    expect(p.target.ticker).toBe("SPGD");
+  });
+
+  it("never takes a listing that runs both parties together for one of them", () => {
+    const t = `Exhibit 99.1
+SKX to Acquire Kayden Corporation for $1.25 Billion
+GOTHENBURG, Sweden, September 6, 2013 - SKX and Kayden Corporation (NYSE: KDN) today announced a definitive agreement under which SKX will acquire Kayden Corporation for $50.00 per share in cash.`;
+    const p = parsePressRelease(t, { filerName: "Kayden Corporation", filerTickers: ["KDN"] })!;
+    expect(p.acquirer.name).toBe("SKX");
+    expect(p.target.name).toBe("Kayden Corporation");
+  });
 });
