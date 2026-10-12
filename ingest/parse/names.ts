@@ -41,6 +41,15 @@ export function identicalNames(a: string, b: string): boolean {
   return s === l || l.startsWith(s + " ");
 }
 
+/** One name shortening the other word by word: "Rotron Aero" / "Rotron Aerospace Ltd." (each word a prefix). */
+export function namesExtend(a: string, b: string): boolean {
+  const x = normalizeName(a).split(" ").filter(Boolean);
+  const y = normalizeName(b).split(" ").filter(Boolean);
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  if (s.length < 2 || s.join(" ").length < 6) return false;
+  return s.every((w, i) => !!l[i]?.startsWith(w));
+}
+
 /** A party written as another party's ticker: "UWMC" for UWM Holdings Corp (ticker UWMC). */
 export function isTickerOf(name: string, party: { ticker?: string | null }): boolean {
   return !!party.ticker && party.ticker.length >= 2 && name.trim().toUpperCase() === party.ticker.toUpperCase();
@@ -87,7 +96,8 @@ export function cleanPartyName(raw: string): string {
   );
   // A name never spans sentences: cut at ". Capital" unless the period ends an abbreviation (Inc., Co., J.P., H.I.G.,
   // Mr. Cooper, St. Joe).
-  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|[A-Z]))\.\s+(?=[A-Z])/.exec(s);
+  // (Lower-case initials too: "e.l.f. Beauty".)
+  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|[A-Z])|\.[a-z])\.\s+(?=[A-Z])/.exec(s);
   if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
   // "Standard General L.P., a Delaware limited partnership" -> "Standard General L.P."
   s = s.replace(/,\s+an?\s+(?:[A-Z][\w.]*\s+){1,3}(?:limited\s+(?:liability\s+)?(?:company|partnership)|(?:public\s+)?(?:limited\s+)?company|corporation|partnership|statutory trust|exempted company)\b.*$/, "");
@@ -118,19 +128,22 @@ export function cleanPartyName(raw: string): string {
     /^(?:an?\s+)?(?:Leading|Premier)\s+(?:[A-Z][\w&.'-]*\s+(?:(?:and|&)\s+)?){0,6}?(?:Provider|Supplier|Manufacturer|Maker|Firm|Company|Developer|Distributor|Operator|Platform|Specialist|Leader)\s+(?=[A-Z])/,
     "",
   );
-  s = s.replace(/\s+(?:a\s+)?(?:Leading|Premier)\s+[A-Z].*$/, "");
+  // ("Premier" only after "a": Pacific Premier Bancorp is a name.)
+  s = s.replace(/\s+(?:a\s+)?Leading\s+[A-Z].*$|\s+a\s+Premier\s+[A-Z].*$/, "");
   // "SHUSA via an all-cash tender offer" -> "SHUSA" (lower-case "via" only: ViaSat and Via Renewables are names).
   s = s.replace(/\s+via\s+.*$/, "");
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
   // A description glued in front of a one-word brand: "Antibody and Reagent Leader BioLegend" -> "BioLegend",
-  // "Sports Betting Company Openbet" -> "Openbet".
-  const described = /^(?:[A-Z][\w-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform)\s+([A-Z][\w.-]{2,})$/.exec(s);
+  // "Sports Betting Company Openbet" -> "Openbet", "Brazilian Collagen Producer Gelnex" -> "Gelnex".
+  const described = /^(?:[A-Z][\w-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor)\s+([A-Z][\w.-]{2,})$/.exec(s);
   // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
   if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
   s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based|(?:Nasdaq|NYSE|NYSE American|publicly)[- ](?:listed|traded))\s+(?=\S)/i, "");
+  // An all-capitals headline run into the dateline's listing: "ROTRON AERO NASDAQ: ONDS" -> "ROTRON AERO".
+  s = s.replace(/\s+(?:NASDAQ|NYSE|Nasdaq)$/, "");
   s = s.replace(/['’]s$/, "");
   // A connector left at the end: "Corlieve Therapeutics and" -> "Corlieve Therapeutics".
   s = s.replace(/\s+(?:and|&|of|for|with)$/i, "");

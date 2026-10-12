@@ -454,4 +454,21 @@ PONTIAC, Mich., December 17, 2025 - Northwest Mortgage Holdings Corporation (NYS
     expect(p.acquirer.name).toBe("Northwest Mortgage Holdings Corporation");
     expect(p.acquirer.ticker).toBe("NWMC");
   });
+
+  it("takes the name after a description where the headline stops", () => {
+    const t = `Exhibit 99.1
+Contacts: Investor Relations 650-628-0255
+Northbeam Games Completes Acquisition of Mobile Game Creator
+Playdemic from Granite Media
+REDWOOD CITY, California - September 20, 2021 - Today, Northbeam Games Inc. (NASDAQ: NBGM) completed its acquisition of mobile game creator Playdemic from Granite Media for $1.4 billion in cash. Northbeam Games Completes Acquisition of Mobile Game Creator Playdemic from Granite Media.`;
+    const p = parsePressRelease(t, { filerName: "Northbeam Games Inc.", filerTickers: ["NBGM"] })!;
+    expect(p.target.name).toBe("Playdemic");
+  });
+
+  it("skips production bought in a region", () => {
+    const t = `Exhibit 99.1
+Prairie Oil Corp. Announces Strategic Acquisition of Cash-Flow-Positive Production in Saskatchewan
+CALGARY, November 4, 2025 - Prairie Oil Corp. (NYSE American: PROC) today announced that it has acquired producing wells in Saskatchewan.`;
+    expect(parsePressRelease(t, { filerName: "Prairie Oil Corp.", filerTickers: ["PROC"] })).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 describe("descriptions, tails and fragments read as names", () => {
   it("strips a 'Leading … Provider' description, a 'via …' tail, a listing prefix and a dangling connector", () => {
@@ -172,5 +172,27 @@ describe("isPlausibleName: deal moments", () => {
 describe("cleanPartyName: two buyers' headline verb", () => {
   it("cuts 'Complete Transaction' after a pair of buyers", () => {
     expect(cleanPartyName("SD Biosensor and SJL Partners Complete Transaction")).toBe("SD Biosensor and SJL Partners");
+  });
+});
+
+describe("namesExtend and descriptions", () => {
+  it("matches a name shortened word by word", () => {
+    expect(namesExtend("Rotron Aero", "Rotron Aerospace Ltd.")).toBe(true);
+    expect(namesExtend("Radisson Hotel Americas", "Radisson Hotels Americas")).toBe(true);
+    expect(namesExtend("Data Foundry", "Data Center Product Manufacturer Central Steel Fabricators")).toBe(false);
+    expect(namesExtend("Rotron", "Rotron Aerospace")).toBe(false);
+  });
+  it("drops a description in front of a one-word name, and a listing run into the name", () => {
+    expect(cleanPartyName("Brazilian Gelatin and Collagen Producer Gelnex")).toBe("Gelnex");
+    expect(cleanPartyName("Mobile Game Creator Playdemic")).toBe("Playdemic");
+    expect(cleanPartyName("ROTRON AERO NASDAQ")).toBe("ROTRON AERO");
+  });
+});
+
+describe("cleanPartyName keeps names with description-like words", () => {
+  it("keeps Pacific Premier and e.l.f.", () => {
+    expect(cleanPartyName("Pacific Premier Bancorp Inc")).toBe("Pacific Premier Bancorp Inc");
+    expect(cleanPartyName("e.l.f. Beauty, Inc.")).toBe("e.l.f. Beauty, Inc.");
+    expect(cleanPartyName("Punchh Inc., a Premier Loyalty Platform")).toBe("Punchh Inc.");
   });
 });

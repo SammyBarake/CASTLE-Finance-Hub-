@@ -9,6 +9,7 @@ describe("isPrivateTargetName", () => {
     expect(isPrivateTargetName("Williston Basin", "Chord Energy")).toBe(false);
     expect(isPrivateTargetName("Eagle Ford Oil & Gas Corp", "Crescent Energy Co")).toBe(true);
     expect(isPrivateTargetName("Technology Enabled Health Assessment Company", "Almost Family")).toBe(false);
+    expect(isPrivateTargetName("Cash-Flow-Positive", "Trio Petroleum Corp")).toBe(false);
   });
 
   it("accepts real company names", () => {

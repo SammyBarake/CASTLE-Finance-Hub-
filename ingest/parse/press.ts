@@ -579,7 +579,7 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // The headline goes on with an asset word right after the name (or a list of them): "… Acquisition of Producing
   // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
   // Properties Reports … Results" names the company.
-  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights)\\b`, "i").test(headline)) return true;
+  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies))\\b`, "i").test(headline)) return true;
   return new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(intro.slice(0, 1200));
 }
 
@@ -679,6 +679,15 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     if (extends_(bodyParties.tgt, parties.tgt)) parties.tgt = bodyParties.tgt;
   }
   parties.tgt = withApostrophe(parties.tgt, headline);
+  // A headline cut after a description ("… Acquisition of Mobile Game Creator" / "Playdemic from AT&T"): the name
+  // follows it in the text, and the description goes (cleanPartyName).
+  // Only a mixed-case word that runs on into lower case ("Playdemic from AT&T"): what follows a cut headline is
+  // usually the dateline ("CLEVELAND, Ohio", "London, UK") or the first sentence ("The …", "Energy Steel & Supply").
+  if (/\s(?:Leader|Provider|Maker|Developer|Specialist|Producer|Creator|Manufacturer|Supplier|Distributor)$/.test(parties.tgt)) {
+    const named = new RegExp(`${escapeRx(parties.tgt)}\\s+([A-Z](?=[\\w.&'’-]*[a-z])[\\w.&'’-]{2,})(?=\\s+[a-z])`).exec(flatten(text).slice(0, 5000));
+    if (named && isPlausibleName(named[1]) && !/^(?:The|This|That|These|Today|Its|Our)$/.test(named[1]) && !sameCompany(named[1], parties.acq))
+      parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
+  }
 
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
   const tgtFirst = parties.tgt.replace(/^The\s+/, "").split(/[\s,]+/)[0];

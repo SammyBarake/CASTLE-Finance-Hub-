@@ -31,7 +31,7 @@ import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
@@ -406,8 +406,9 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   const n = name.trim();
   if (n.length < 3 || n.length > 70 || sameCompany(n, acquirerName)) return false;
   if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
-  // A basin is an asset purchase: "Eagle Ford" (Crescent Energy buying Devon's Eagle Ford assets).
-  if (BASIN_NAME.test(n)) return false;
+  // A basin is an asset purchase: "Eagle Ford" (Crescent Energy buying Devon's Eagle Ford assets). A run of hyphenated
+  // words is a description: "Cash-Flow-Positive" (production).
+  if (BASIN_NAME.test(n) || /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
   if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|propert(?:y|ies)|facility|facilities|plant|mine|refinery|project|fleet|vessels?|patents?|product line|division|business line|stake|interest|ownership)\b/i.test(n)) return false;
@@ -517,12 +518,14 @@ export const MAX_PRIVATE_DEAL_VALUE = 40e9;
 
 function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
-  // Private targets have no CIK: they are matched by name (and buyer below), strictly and within two years. A shared
-  // first word joined Live Ventures' 2024 purchase of Central Steel Fabricators to Switch's 2021 one of Data Foundry.
+  // Private targets have no CIK: they are matched by name (and buyer below), within two years. A looser name match
+  // ("Rotron Aero" / "Rotron Aerospace Ltd.", a shared first word) needs the same buyer: on its own it joined Live
+  // Ventures' 2024 purchase of Central Steel Fabricators to Switch's 2021 one of Data Foundry.
+  const sameBuyerAs = (d: StoredDeal) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (!!acquirer.cik && d.acquirer.cik === acquirer.cik);
+  const privateMatch = (d: StoredDeal) =>
+    identicalNames(d.target.name, parsed.target.name) || namesExtend(d.target.name, parsed.target.name) || (sameCompany(d.target.name, parsed.target.name) && sameBuyerAs(d));
   const candidates = state.deals
-    .filter((d) =>
-      isPrivate ? d.privateTarget && identicalNames(d.target.name, parsed.target.name) && daysApart(d.announcedDate, hit.fileDate) <= 730 : d.target.cik === target.cik,
-    )
+    .filter((d) => (isPrivate ? d.privateTarget && privateMatch(d) && daysApart(d.announcedDate, hit.fileDate) <= 730 : d.target.cik === target.cik))
     .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
   // A merger 8-K restating an older signing (an extension, a vote, financing) only updates that deal: Genworth's
   // 2017–2020 extension 8-Ks each open "As previously reported, on October 21, 2016, … entered into …". The signing 8-K

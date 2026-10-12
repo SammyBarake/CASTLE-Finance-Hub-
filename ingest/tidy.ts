@@ -2,7 +2,7 @@
  * Final consistency pass over every stored deal, run at the end of each deal ingest. Pure (no EDGAR requests), so
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, normalizeName, sameCompany } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, sameCompany } from "./parse/names";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -14,6 +14,7 @@ export function junkReason(d: StoredDeal): string | null {
   for (const c of [d.acquirer, d.target]) if (!isPlausibleName(c.name) && !isPlaceholderBuyer(c.name)) return `implausible name "${c.name}"`;
   if (!d.target.cik && isMergerVehicle(d.target.name)) return `merger vehicle as target "${d.target.name}"`;
   if (d.privateTarget && BASIN_NAME.test(d.target.name.trim())) return `asset purchase in a basin "${d.target.name}"`;
+  if (d.privateTarget && /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(d.target.name.trim())) return `description as target "${d.target.name}"`;
   if (d.acquirer.cik && d.acquirer.cik === d.target.cik) return "acquirer and target are the same registrant";
   // The same company on both sides once names are cleaned ("Nasdaq-listed Gryphon Digital Mining" buying
   // "Gryphon Digital Mining, Inc." was a reverse merger read as a self-deal).
@@ -29,6 +30,9 @@ export function junkReason(d: StoredDeal): string | null {
   // de-SPACed operating company can keep for years (IEA in 2018), so the name must look like a SPAC too.
   if (d.privateTarget && /^blank checks?$/i.test(d.industry ?? "") && (SPAC_NAME.test(d.acquirer.name) || /\bAcquisition\b|\bCorp\.?\s+[IVX]+$/i.test(d.acquirer.name)))
     return `SPAC buyer "${d.acquirer.name}"`;
+  // A SPAC's name alone, once its industry code has changed with the business it bought ("Rice Acquisition Corp."
+  // became Archaea Energy): no operating company buys a private business under an "… Acquisition Corp." name.
+  if (d.privateTarget && SPAC_NAME.test(d.acquirer.name)) return `SPAC buyer "${d.acquirer.name}"`;
   // SPAC deals by name (the stored industry is today's SIC, which a de-SPACed company changes): a SPAC as the target
   // ("Hudson Executive Investment Corp.", "FS Development Corp. II"), or a SPAC, its sponsor or a fund as the buyer
   // ("Vine Hill Capital Investment Corp.", "HEC Sponsor LLC", "Tenor Opportunity Master Fund").
@@ -167,6 +171,23 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         drop(b, `same deal as ${a.id} with buyer and target swapped`);
         result.merged++;
       }
+    }
+  }
+
+  // The same buyer's private purchase recorded twice, months apart: its announcement and its completion under two
+  // spellings ("Rotron Aero" / "Rotron Aerospace Ltd.", Gelnex once its description is cleaned off). Private deals
+  // can take half a year to close, past the 60-day window below.
+  const privates = deals.filter((d) => d.privateTarget).sort((a, b) => a.announcedDate.localeCompare(b.announcedDate));
+  for (let i = 0; i < privates.length; i++) {
+    for (let j = i + 1; j < privates.length && days(privates[i].announcedDate, privates[j].announcedDate) <= 365; j++) {
+      const [a, b] = [privates[i], privates[j]];
+      if (!deals.includes(a) || !deals.includes(b) || a.status === "Terminated") continue;
+      if (!(identicalNames(a.target.name, b.target.name) || namesExtend(a.target.name, b.target.name))) continue;
+      if (!(sameCompany(a.acquirer.name, b.acquirer.name) || (!!a.acquirer.cik && a.acquirer.cik === b.acquirer.cik))) continue;
+      if (b.target.name.length > a.target.name.length) a.target.name = b.target.name;
+      merge(a, b);
+      drop(b, `same purchase as ${a.id}`);
+      result.merged++;
     }
   }
 

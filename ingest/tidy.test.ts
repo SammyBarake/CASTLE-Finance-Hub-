@@ -51,6 +51,16 @@ describe("nameOn", () => {
 });
 
 describe("junkReason", () => {
+  it("drops a private purchase by a SPAC-named buyer whatever its industry", () => {
+    expect(junkReason(deal({ privateTarget: true, industry: "Gas & Other Services Combined", acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null }, target: { name: "Aria Energy LLC", ticker: null, cik: null } }))).toMatch(/SPAC/);
+    expect(junkReason(deal({ acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null } }))).toBeNull();
+  });
+
+  it("drops a run of hyphenated words as a private target", () => {
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Cash-Flow-Positive", ticker: null, cik: null } }))).toMatch(/description/);
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Mercedes-Benz Trucks", ticker: null, cik: null } }))).toBeNull();
+  });
+
   it("drops a private 'target' named only for an oil and gas basin, and a buyer run into 'at the Closing'", () => {
     expect(junkReason(deal({ privateTarget: true, target: { name: "Eagle Ford", ticker: null, cik: null } }))).toMatch(/basin/);
     expect(junkReason(deal({ privateTarget: true, target: { name: "Permian Basin Assets", ticker: null, cik: null } }))).toMatch(/basin/);
@@ -138,6 +148,20 @@ describe("sanitizeDeal", () => {
 });
 
 describe("tidyDeals", () => {
+  it("merges the same buyer's private purchase recorded at announcement and completion under two spellings", () => {
+    const buyer = { name: "Ondas Inc.", ticker: "ONDS", cik: "1646188" };
+    const ann = deal({ privateTarget: true, acquirer: buyer, target: { name: "Rotron Aero", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Announced", statusDate: null });
+    const done = deal({ privateTarget: true, acquirer: buyer, target: { name: "Rotron Aerospace Ltd.", ticker: null, cik: null }, announcedDate: "2026-03-16", status: "Closed", statusDate: "2026-03-16" });
+    const deals = [ann, done];
+    expect(tidyDeals(deals).merged).toBe(1);
+    expect(deals).toEqual([ann]);
+    expect(ann.target.name).toBe("Rotron Aerospace Ltd.");
+    expect(ann.status).toBe("Closed");
+    // Another buyer's purchase of a similarly named company stays separate.
+    const other = [deal({ privateTarget: true, target: { name: "Data Foundry", ticker: null, cik: null }, announcedDate: "2021-05-03" }), deal({ privateTarget: true, acquirer: { name: "Live Ventures", ticker: null, cik: null }, target: { name: "Data Foundry Holdings", ticker: null, cik: null }, announcedDate: "2021-09-03" })];
+    expect(tidyDeals(other).merged).toBe(0);
+  });
+
   it("treats a buyer written as its ticker as the same buyer, not a rival (UWMC / UWM Holdings)", () => {
     const first = deal({ acquirer: { name: "UWM Holdings Corp", ticker: "UWMC", cik: "1783398" }, announcedDate: "2025-12-17", status: "Pending" });
     const second = deal({ acquirer: { name: "UWMC", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Closed", statusDate: "2026-08-25" });
