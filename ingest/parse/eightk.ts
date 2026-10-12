@@ -51,11 +51,14 @@ const CLAUSE = /\b(?:will|shall|with and into|Merger Agreement|Pursuant|Section|
 export function definedEntities(s: string): Entity[] {
   const out: Entity[] = [];
   // A name starts with a capital, or is a lower-case web name ("salesforce.com, inc.").
-  const re = /([A-Z][A-Za-z0-9&.,'’\- ]{1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\([^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?["“]([^"”]{1,40})["”](?:\s+or\s+(?:the\s+)?["“]([^"”]+)["”])?\s*\)/g;
-  for (const m of s.matchAll(re)) {
+  // The usual terms also count without quote marks: some filings print `(the Company)`, `(Parent)` (EQT / Equitrans),
+  // or `(the Company or Icosavax)`. A description never runs on across another party's definition.
+  const re = /([A-Z][A-Za-z0-9&.,'’\- ]{1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\((?!\s*(?:the\s+)?(?:Company|Parent|Merger Sub|Purchaser|Buyer)\b)[^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?(?:["“]([^"”]{1,40})["”]|(Company|Parent|Ultimate Parent|Merger Sub|Purchaser|Buyer|Acquir[eo]r|Partnership|Registrant|Guarantor))(?:\s+or\s+(?:the\s+)?(?:["“]([^"”]+)["”]|([A-Z][\w&.'’\-]*(?: [A-Z][\w&.'’\-]*){0,3})))?\s*\)/g;
+  for (const m0 of s.matchAll(re)) {
+    const m = [m0[0], m0[1], m0[2] ?? m0[3], m0[4] ?? m0[5]] as const;
     // "Eli Lilly and Company" is one name: keep its "and" away from the clause-word stripping below, which would
-    // otherwise cut at it and leave just "Company".
-    let name = m[1].trim().replace(/\s(and|&)\s(Company|Co\.?)(?=\W|$)/g, (_, join: string, co: string) => (join === "&" ? "\u0002" : "\u0001") + co);
+    // otherwise cut at it and leave just "Company" ("AstraZeneca Finance and Holdings Inc." left "Holdings Inc.").
+    let name = m[1].trim().replace(/\s(and|&)\s(Company|Co\.?|Holdings|Partners|Sons)(?=\W|$)/g, (_, join: string, co: string) => (join === "&" ? "\u0002" : "\u0001") + co);
     // Drop leading clause words captured before the name:
     // "Merger On December 1, 2025, Keystone" -> "Keystone"; "with Copart" -> "Copart"; "Company, GlaxoSmithKline LLC" -> "GlaxoSmithKline LLC".
     name = name.replace(/^.*\b(?:19|20)\d{2},\s+(?=[A-Z])/, "");
@@ -74,11 +77,12 @@ export function definedEntities(s: string): Entity[] {
     // "RTB's certificate of incorporation", "the Company's common stock": a possessive then lowercase words is a
     // document or security, never a company.
     if (/['’]s\s+[a-z]/.test(name)) continue;
-    // Defined securities are not parties: holders of RTB's preferred stock (the "RTB Preferred Stock").
-    if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price)$/i.test(m[2].trim())) continue;
+    // Defined securities and holders are not parties: holders of RTB's preferred stock (the "RTB Preferred Stock"), the
+    // holders of Tenax's membership interests (the "Tenax Members").
+    if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price|Members|Holders|Stockholders|Shareholders|Unitholders|Equityholders)$/i.test(m[2].trim())) continue;
     // Nor are defined terms for the deal itself: ... merge with and into RTB (the "Merger").
     if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger |Transaction |Arrangement |Implementation |Combination )?Agreement|Surviving Corporation|Scheme)$/i.test(m[2].trim())) continue;
-    out.push({ name, nick: m[2].trim(), alias: m[3]?.trim(), index: m.index! });
+    out.push({ name, nick: m[2].trim(), alias: m[3]?.trim(), index: m0.index! });
   }
   return out;
 }
@@ -104,6 +108,9 @@ export function extractMergerPrice(s: string): number | null {
     for (const m of s.matchAll(re)) {
       const dollar = m.index! + m[0].indexOf("$");
       if (CONTINGENT.test(s.slice(Math.max(0, dollar - 120), dollar))) continue;
+      // Cash on top of shares is part of the price, not all of it: "the right to receive one ListCo Share and $5.00 in
+      // cash" (WestRock) read as a $5.00 deal.
+      if (/\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|units?)\s+and\s*$/.test(m[0].slice(0, m[0].indexOf("$")))) continue;
       const v = Number(m[1]);
       if (v >= 0.05 && v < 10_000) found.push({ v, at: m.index! });
     }

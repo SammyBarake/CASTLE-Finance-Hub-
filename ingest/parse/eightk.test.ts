@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { htmlToText } from "../text";
 import { extractMergerPrice, item101, parseMergerItem } from "./eightk";
+import { extractConsideration } from "./press";
 
 // Synthetic Item 1.01 sections in the style of real merger 8-Ks.
 const TARGET_SIDE = `UNITED STATES SECURITIES AND EXCHANGE COMMISSION FORM 8-K
@@ -281,5 +282,32 @@ describe("parseMergerItem: structures the big-deal check found", () => {
     // An amendment is always an update.
     const amendment = `Item 1.01 Entry into a Material Definitive Agreement. First Amendment to Agreement and Plan of Merger. As previously announced, on April 26, 2021, Granite Coatings Co. (the "Company") entered into an Agreement and Plan of Merger with Gibraltar Parent LLC ("Parent") and Gibraltar Merger Sub Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company.`;
     expect(parseMergerItem(amendment, { filerName: "Granite Coatings Co.", filerTickers: ["GRC"] })!.kind).toBe("update");
+  });
+
+  it("reads defined terms printed without quote marks", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. On March 10, 2024, Cobalt Midstream Corporation, a Pennsylvania corporation (the Company), Ridgeline Energy Corporation, a Pennsylvania corporation (Parent), Humpty Merger Sub Inc., a Delaware corporation and an indirect wholly owned subsidiary of Parent (Merger Sub), and Humpty Merger Sub LLC, a Delaware limited liability company (LLC Sub), entered into an Agreement and Plan of Merger (the Merger Agreement), pursuant to which Merger Sub will merge with and into the Company (the First Merger), with the Company surviving the First Merger (the First Step Surviving Corporation) and the First Step Surviving Corporation will merge with and into LLC Sub (the Second Merger). Each share will be converted into the right to receive 0.3504 shares of Parent common stock.`;
+    const p = parseMergerItem(t, { filerName: "Cobalt Midstream Corporation", filerTickers: [] })!;
+    expect(p.target.name).toBe("Cobalt Midstream Corporation");
+    expect(p.acquirer.name).toBe("Ridgeline Energy Corporation");
+  });
+
+  it("reads an unquoted alias, and keeps 'Finance and Holdings' in one name", () => {
+    const t = `Item 1.01 Entry Into a Material Definitive Agreement. On December 11, 2023, Isotope Bio, Inc., a Delaware corporation (the Company or Isotope), entered into an Agreement and Plan of Merger (the Merger Agreement) with Northgate Finance and Holdings Inc., a Delaware corporation (Parent), and Isochrone Merger Sub Inc., a Delaware corporation and a wholly owned subsidiary of Parent (Merger Sub), pursuant to which Merger Sub will conduct a cash tender offer (the Offer) to acquire any and all of the outstanding shares of the Company for $15.00 in cash per Share. Following the Offer, Merger Sub will merge with and into the Company.`;
+    const p = parseMergerItem(t, { filerName: "Isotope Bio, Inc.", filerTickers: [] })!;
+    expect(p.target.name).toBe("Isotope Bio, Inc.");
+    expect(p.acquirer.name).toBe("Northgate Finance and Holdings Inc.");
+  });
+
+  it("never takes a defined group of holders for a party", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. On February 16, 2026, Skyward Industries Group, a Nevada corporation ("SKY"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Falcon Aero Acquisition, LLC, a Delaware limited liability company ("Falcon"), and Transitory Sub LLC, a Delaware limited liability company and wholly owned Subsidiary of SKY ("Merger Sub"), pursuant to which Merger Sub will merge with and into Falcon, with Falcon continuing as the surviving company in such merger (the "Merger") and a wholly owned Subsidiary of SKY. SKY will issue 94,400,000 shares of SKY Common Stock (the "Merger Consideration") to the holders of the membership interests of Falcon at the Closing (the "Falcon Members").`;
+    const p = parseMergerItem(t, { filerName: "Skyward Industries Group", filerTickers: [] });
+    expect(p?.acquirer.name ?? "").not.toMatch(/at the Closing/);
+  });
+
+  it("does not take the cash part of a cash-and-shares price for the price", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. On September 12, 2023, Willow Paper Company (the "Company") entered into a Transaction Agreement with Sun Packaging plc ("Sun"), Cepheid Holdings Limited ("ListCo") and Sun Merger Sub, LLC ("Merger Sub"). Merger Sub will merge with and into the Company. Each share of Company Common Stock will be converted into the right to receive one ListCo Share and $5.00 in cash (the "Merger Consideration").`;
+    expect(extractMergerPrice(t)).toBeNull();
+    expect(extractConsideration(t)).toBe("Mixed");
+    expect(extractMergerPrice("Each share will be converted into the right to receive $42.15 in cash.")).toBe(42.15);
   });
 });

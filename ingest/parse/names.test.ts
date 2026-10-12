@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 describe("descriptions, tails and fragments read as names", () => {
   it("strips a 'Leading … Provider' description, a 'via …' tail, a listing prefix and a dangling connector", () => {
@@ -150,5 +150,27 @@ describe("namesCompany (a release's short name for a known company)", () => {
     expect(namesCompany("Encana", "NEWFIELD EXPLORATION CO /DE/")).toBe(false);
     expect(namesCompany("NV", "NVIDIA CORP")).toBe(false);
     expect(namesCompany("EFX", "ELECTRONICS FOR IMAGING INC")).toBe(false);
+  });
+});
+
+describe("isTickerOf", () => {
+  it("matches a party written as another party's ticker", () => {
+    expect(isTickerOf("UWMC", { ticker: "UWMC" })).toBe(true);
+    expect(isTickerOf("uwmc ", { ticker: "UWMC" })).toBe(true);
+    expect(isTickerOf("UWM Holdings Corp", { ticker: "UWMC" })).toBe(false);
+    expect(isTickerOf("UWMC", { ticker: null })).toBe(false);
+  });
+});
+
+describe("isPlausibleName: deal moments", () => {
+  it("rejects a name run into 'at the Closing'", () => {
+    expect(isPlausibleName("Tenax at the Closing")).toBe(false);
+    expect(isPlausibleName("Tenax Aerospace Acquisition, LLC")).toBe(true);
+  });
+});
+
+describe("cleanPartyName: two buyers' headline verb", () => {
+  it("cuts 'Complete Transaction' after a pair of buyers", () => {
+    expect(cleanPartyName("SD Biosensor and SJL Partners Complete Transaction")).toBe("SD Biosensor and SJL Partners");
   });
 });

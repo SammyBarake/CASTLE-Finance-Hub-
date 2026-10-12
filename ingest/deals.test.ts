@@ -4,6 +4,13 @@ import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPri
 import type { StoredDeal } from "./store";
 
 describe("isPrivateTargetName", () => {
+  it("rejects a basin and a described company", () => {
+    expect(isPrivateTargetName("Eagle Ford", "Crescent Energy Co")).toBe(false);
+    expect(isPrivateTargetName("Williston Basin", "Chord Energy")).toBe(false);
+    expect(isPrivateTargetName("Eagle Ford Oil & Gas Corp", "Crescent Energy Co")).toBe(true);
+    expect(isPrivateTargetName("Technology Enabled Health Assessment Company", "Almost Family")).toBe(false);
+  });
+
   it("accepts real company names", () => {
     expect(isPrivateTargetName("Kashiv Specialty Pharmaceuticals", "Amneal")).toBe(true);
     expect(isPrivateTargetName("Acme Company, Inc.", "Widget Corp")).toBe(true);

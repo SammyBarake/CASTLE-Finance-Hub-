@@ -100,9 +100,13 @@ const DEAL_TERMS = /\bdefinitive (?:merger )?agreement|\bmerger agreement|\btend
 const CONTINUES_ABOVE = /^(?:and|or|of|for|to|with|by|in|at|agreement|definitive|merger|acquisition|combination|transaction|signs|agrees?|enters|announces?|completes?)\b/i;
 /** Words that can't start a sub-headline: the headline goes on ("… Enters into Definitive Merger" / "Agreement to be …"). */
 const CONTINUES_HEADLINE = /^(?:and|or|of|for|to|by|in|at|agreement|acquired|definitive)\b/i;
+/** One adjective before "acquisition of": "EQT Announces Transformative Acquisition of Equitrans Midstream". Not "proposed" (often a hostile bid). */
+const DEAL_ADJ = String.raw`(?:(?:transformative|transformational|strategic|accretive|landmark|compelling|all-stock|all-cash)\s+)?`;
 /** A headline that announces a new deal. */
-const ANNOUNCES_DEAL =
-  /\b(?:to acquire|to be acquired|agree(?:s|ment)? to (?:acquire|merge|combine|be acquired)|announces? (?:the )?(?:acquisition|agreement|merger|definitive)|definitive (?:merger )?agreement|to merge|to combine)\b/i;
+const ANNOUNCES_DEAL = new RegExp(
+  String.raw`\b(?:to acquire|to be acquired|agree(?:s|ment)? to (?:acquire|merge|combine|be acquired)|announces? (?:the )?${DEAL_ADJ}(?:acquisition|agreement|merger|definitive)|definitive (?:merger )?agreement|to merge|to combine)\b`,
+  "i",
+);
 /** "<Company> Reports / Announces … Results / Earnings". */
 const RESULTS_LINE = /^(.{2,80}?)\s+(?:Reports|Announces|Posts|Releases|Delivers)\b.*\b(?:Results|Earnings)\b/i;
 const allCaps = (l: string) => /[A-Z]/.test(l) && !/[a-z]/.test(l);
@@ -151,7 +155,7 @@ const STOP = String.raw`(?=['’]s\b|\s*(?:[,;:(]|$)|\.(?:\s|$)|\s(?i:for|in|at|
 /** A capitalized word followed by a lowercase one (not a name connector): the start of a sub-headline. */
 const SUBHEAD_STOP = String.raw`(?=\s[A-Z][a-z]+\s(?!(?:of|and|de|du|la|for|the|by)\b)[a-z])`;
 /** Headline words that follow the target, never part of its name ("… BankWyse Subject to …", "… DBM Global Transaction …"). */
-const TAIL_STOP = String.raw`(?=\s(?:Subject|Transaction|Deal|Acquisition|Agreement|Following|Pending|Upon|After|Expanding|Adding|Creating|Strengthening|Establishing|Accelerating|Enhancing|Broadening|Extending)\b)`;
+const TAIL_STOP = String.raw`(?=\s(?:Subject|Transaction|Deal|Acquisition|Agreement|Following|Pending|Upon|After|Expanding|Adding|Creating|Strengthening|Establishing|Accelerating|Enhancing|Broadening|Extending|SUBJECT|TRANSACTION|DEAL|ACQUISITION|AGREEMENT|FOLLOWING|PENDING|EXPANDING|ADDING|CREATING|STRENGTHENING|ESTABLISHING|ACCELERATING|ENHANCING|BROADENING|EXTENDING)\b)`;
 
 const rx = (src: string) => new RegExp(src);
 
@@ -177,7 +181,7 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
   // (SUBHEAD_STOP also ends the target where a glued-on sub-headline starts: "… Valve Systems Expands flow-control portfolio".)
   {
     // ("TowerBrook and Further Global Announce Acquisition of …": two buyers, one target.)
-    re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces? (?:the |its |their )?acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
+    re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces? (?:the |its |their )?${DEAL_ADJ}acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
     roles: ["acq", "tgt"],
   },
   {
@@ -246,6 +250,13 @@ function tickerMentions(text: string): PartyMention[] {
 const US_EXCHANGES = new Set(["NYSE", "NASDAQ", "NYSE American", "NYSE Arca", "Cboe", "OTCQX", "OTCQB", "OTC"]);
 
 function withTicker(name: string, mentions: PartyMention[]): PartyMention {
+  // A party written as its own ticker ("UWMC Announces Strategic Acquisition of TWO"): the mention listing that ticker
+  // carries the name ("UWM Holdings Corporation (NYSE: UWMC)"). Written exactly as the ticker ("Land" is not LAND), and
+  // the name starts with the ticker's letter: a mention run can carry page furniture ("About Dell Dell Inc.", "Page 5 …").
+  const byTicker = mentions.find(
+    (m) => m.ticker === name.trim() && m.name.length > name.length && isPlausibleName(m.name) && !/^(?:About|Page|Links)\b/.test(m.name) && m.name.replace(/^The\s+/, "")[0]?.toUpperCase() === m.ticker?.[0],
+  );
+  if (byTicker && !mentions.some((m) => sameCompany(m.name, name))) return { name: byTicker.name, ticker: byTicker.ticker, exchange: byTicker.exchange };
   let matches = mentions.filter((m) => sameCompany(m.name, name));
   // A description in front of the name: "Specialty Insurance Company ProSight Global" is "ProSight Global, Inc.".
   if (!matches.length) {
@@ -411,8 +422,9 @@ function classifyConsideration(t: string): Consideration | null {
   const cash = /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per share\s*)?in cash|cash consideration|in cash for each/i.test(t);
   const stock =
     /all[- ]stock|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(t) ||
-    // "one Union Pacific common share and $88.82 in cash", "0.5 Acme ADSs" (a count of shares, not a $ price per share)
-    /(?<![$\d.,]\s?)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:shares?|ADSs?)\b(?!\s+(?:outstanding|repurchase))/.test(t);
+    // "one Union Pacific common share and $88.82 in cash", "0.5 Acme ADSs", "one ListCo Share and $5.00 in cash" (a count
+    // of shares, not a $ price per share)
+    /(?<![$\d.,]\s?)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?)\b(?!\s+(?:outstanding|repurchase))/.test(t);
   const mixed = /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)|stock and cash|combination of cash and|cash-and-stock|cash and stock/i.test(t);
   if (mixed || (cash && stock)) return "Mixed";
   if (stock) return "Stock";
@@ -551,7 +563,7 @@ export function isPrivateTarget(targetName: string, intro: string, targetTicker:
 
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const PART_WORDS =
-  /^(?:\s+[\w&.-]+){0,4}?\s+(?:business(?:es)?|division|unit|assets|operations|segments?|portfolio|subsidiar(?:y|ies)|product lines?|products|brands?|plants?|facilit(?:y|ies)|stake|interest|properties|rights)\b/i;
+  /^(?:\s+[\w&.,-]+){0,4}?\s+(?:business(?:es)?|division|unit|assets|operations|segments?|portfolio|subsidiar(?:y|ies)|product lines?|products|brands?|plants?|facilit(?:y|ies)|stake|interest|properties|rights)\b/i;
 /** After a possessive: a part of the company ("'s valve unit", "'s Environmental Solutions Business"). */
 const PART_OF = { test: (rest: string) => /^\s+[a-z]/.test(rest) || PART_WORDS.test(rest) };
 
@@ -564,6 +576,10 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   if (own && PART_OF.test(own[1])) return true;
   const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
   if (possessive && PART_OF.test(possessive[1])) return true;
+  // The headline goes on with an asset word right after the name (or a list of them): "… Acquisition of Producing
+  // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
+  // Properties Reports … Results" names the company.
+  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights)\\b`, "i").test(headline)) return true;
   return new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(intro.slice(0, 1200));
 }
 
@@ -614,7 +630,7 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     /^(?:completion|closing) of (?:the )?(?:acquisition|merger)/i.test(headline) ||
     // "Acme Acquires Widget" / "Acme Has Acquired Widget": signed and closed at once (typical for private targets).
     /^.{0,90}?\b(?:acquires|has acquired)\b/i.test(headline) ||
-    (/^.{0,90}?\bannounces (?:the |its )?acquisition of\b/i.test(headline) && /\b(?:has|have) (?:completed|closed|acquired)\b|\b(?:completed|closed) (?:its|the) acquisition\b/i.test(intro.slice(0, 900)))
+    (new RegExp(String.raw`^.{0,90}?\bannounces (?:the |its )?${DEAL_ADJ}acquisition of\b`, "i").test(headline) && /\b(?:has|have) (?:completed|closed|acquired)\b|\b(?:completed|closed) (?:its|the) acquisition\b/i.test(intro.slice(0, 900)))
   ) {
     kind = "completion";
   }
@@ -644,7 +660,7 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   // The buyer filed this 8-K: "RBC bearings Incorporated Acquires …", "The Arena Group d/b/a Paradium.AI Acquires …"
   // have buyer names the patterns can't read, so take the filer as the buyer when it's named in the headline.
   if (!parties) {
-    const buy = new RegExp(String.raw`^(.{2,90}?)\s+(?i:acquires|has acquired|completes (?:the |its )?acquisition of|announces (?:the |its )?acquisition of|to acquire|agrees to acquire|announces (?:a )?(?:definitive )?agreement to acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`).exec(headline);
+    const buy = new RegExp(String.raw`^(.{2,90}?)\s+(?i:acquires|has acquired|completes (?:the |its )?acquisition of|announces (?:the |its )?${DEAL_ADJ}acquisition of|to acquire|agrees to acquire|announces (?:a )?(?:definitive )?agreement to acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`).exec(headline);
     const filerWord = filerDisplay.split(/[\s,.]+/).find((w) => w.length >= 3)?.toLowerCase();
     const namesFiler = buy && ((filerWord && buy[1].toLowerCase().includes(filerWord)) || ctx.filerTickers.some((t) => new RegExp(`\\b${t}\\b`).test(buy[1])));
     if (buy && namesFiler) {

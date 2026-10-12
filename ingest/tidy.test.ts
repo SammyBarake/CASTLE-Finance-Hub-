@@ -51,6 +51,13 @@ describe("nameOn", () => {
 });
 
 describe("junkReason", () => {
+  it("drops a private 'target' named only for an oil and gas basin, and a buyer run into 'at the Closing'", () => {
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Eagle Ford", ticker: null, cik: null } }))).toMatch(/basin/);
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Permian Basin Assets", ticker: null, cik: null } }))).toMatch(/basin/);
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Eagle Ford Oil & Gas Corp", ticker: null, cik: null } }))).toBeNull();
+    expect(junkReason(deal({ acquirer: { name: "Tenax at the Closing", ticker: null, cik: null } }))).toMatch(/implausible/);
+  });
+
   it("rejects paperwork names and self-deals", () => {
     expect(junkReason(deal({ target: { name: "Entry into a Material Definitive Agreement", ticker: null, cik: null } }))).toMatch(/implausible/);
     expect(junkReason(deal({ acquirer: { name: "Widget", ticker: null, cik: "200" } }))).toMatch(/same registrant/);
@@ -131,6 +138,23 @@ describe("sanitizeDeal", () => {
 });
 
 describe("tidyDeals", () => {
+  it("treats a buyer written as its ticker as the same buyer, not a rival (UWMC / UWM Holdings)", () => {
+    const first = deal({ acquirer: { name: "UWM Holdings Corp", ticker: "UWMC", cik: "1783398" }, announcedDate: "2025-12-17", status: "Pending" });
+    const second = deal({ acquirer: { name: "UWMC", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Closed", statusDate: "2026-08-25" });
+    const deals = [first, second];
+    const r = tidyDeals(deals);
+    expect(r.topped).toBe(0);
+    expect(deals).toEqual([first]);
+    expect(first.status).toBe("Closed");
+    // Already marked topped by the old rule: the merge takes the real outcome and drops the stale timeline.
+    const topped = deal({ acquirer: { name: "UWM Holdings Corp", ticker: "UWMC", cik: "1783398" }, announcedDate: "2025-12-17", status: "Terminated", statusDate: "2026-02-02", milestones: { terminated: "2026-02-02" } as StoredDeal["milestones"] });
+    const again = [topped, deal({ acquirer: { name: "UWMC", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Closed", statusDate: "2026-08-25" })];
+    tidyDeals(again);
+    expect(again).toEqual([topped]);
+    expect(topped.status).toBe("Closed");
+    expect(topped.milestones).toBeUndefined();
+  });
+
   it("merges the same buyer's second record (H&F / Hellman & Friedman)", () => {
     const a = deal({ acquirer: { name: "Hellman & Friedman", ticker: null, cik: null }, announcedDate: "2021-05-06", premiumPct: null });
     const b = deal({ acquirer: { name: "H&F", ticker: null, cik: null }, announcedDate: "2021-06-16", premiumPct: 25, status: "Closed", statusDate: "2021-07-23" });

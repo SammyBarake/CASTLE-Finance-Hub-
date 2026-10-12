@@ -415,3 +415,43 @@ describe("extractValue: figures that are not the price", () => {
     expect(extractValue(`$30 million of cash and certain other transaction costs, which implies a value of $150 million based upon a 15-day VWAP.`)?.usd).toBe(150e6);
   });
 });
+
+describe("deal adjectives and asset headlines", () => {
+  it("reads 'Announces Transformative Acquisition of'", () => {
+    const t = `Exhibit 99.1
+Ridgeline Energy Announces Transformative Acquisition of Cobalt Midstream
+PITTSBURGH, March 11, 2024 -- Ridgeline Energy Corporation ("Ridgeline") (NYSE: RDGE) and Cobalt Midstream Corporation ("Cobalt") (NYSE: CBMD) today announced that they have entered into a definitive merger agreement. Under the terms of the merger agreement, Ridgeline will acquire Cobalt in an all-stock transaction.`;
+    const p = parsePressRelease(t, { filerName: "Ridgeline Energy Corporation", filerTickers: ["RDGE"] })!;
+    expect(p.kind).toBe("announcement");
+    expect(p.acquirer.name).toMatch(/^Ridgeline Energy/);
+    expect(p.target.name).toMatch(/^Cobalt Midstream/);
+  });
+
+  it("skips assets named right after a cut-off name", () => {
+    const props = `Exhibit 99.1
+Harbor Offshore Announces Accretive Acquisition of Producing Properties in the Gulf of Mexico
+HOUSTON, May 1, 2024 - Harbor Offshore, Inc. (NYSE: HBO) today announced that it has entered into a definitive agreement to acquire producing properties for $70 million.`;
+    expect(parsePressRelease(props, { filerName: "Harbor Offshore, Inc.", filerTickers: ["HBO"] })).toBeNull();
+    const list = `Exhibit 99.1
+Alder Metals Announces Strategic Acquisition of Kestrel's Bauxite, Alumina, and Aluminum Assets for $4.1 billion
+PITTSBURGH, January 5, 2024 - Alder Metals Corporation (NYSE: ALD) today announced a definitive agreement to acquire the assets.`;
+    expect(parsePressRelease(list, { filerName: "Alder Metals Corporation", filerTickers: ["ALD"] })).toBeNull();
+  });
+
+  it("ends an all-capitals target before the sub-headline", () => {
+    const t = `Exhibit 99.1
+BANK9 CORP. TO ACQUIRE LANTERN BANK ACQUISITION ADDS CORE FUNDING TO BANK9'S DEPOSIT BASE
+OKLAHOMA CITY, October 7, 2021 - Bank9 Corp. (NASDAQ: BKNN) today announced that it has entered into a definitive agreement to acquire Lantern Bank.`;
+    const p = parsePressRelease(t, { filerName: "Bank9 Corp.", filerTickers: ["BKNN"] })!;
+    expect(p.target.name.toUpperCase()).toBe("LANTERN BANK");
+  });
+
+  it("names a party written as its ticker from the release's own listing", () => {
+    const t = `Exhibit 99.1
+NWMC Announces Strategic Acquisition of HBR
+PONTIAC, Mich., December 17, 2025 - Northwest Mortgage Holdings Corporation (NYSE: NWMC) and Harbor Residential Investment Corp. (NYSE: HBR) today announced a definitive merger agreement under which NWMC will acquire HBR in an all-stock transaction valued at approximately $1.3 billion.`;
+    const p = parsePressRelease(t, { filerName: "Northwest Mortgage Holdings Corporation", filerTickers: ["NWMC"] })!;
+    expect(p.acquirer.name).toBe("Northwest Mortgage Holdings Corporation");
+    expect(p.acquirer.ticker).toBe("NWMC");
+  });
+});

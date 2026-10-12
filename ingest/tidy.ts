@@ -2,7 +2,7 @@
  * Final consistency pass over every stored deal, run at the end of each deal ingest. Pure (no EDGAR requests), so
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, normalizeName, sameCompany } from "./parse/names";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -13,6 +13,7 @@ const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / DAY;
 export function junkReason(d: StoredDeal): string | null {
   for (const c of [d.acquirer, d.target]) if (!isPlausibleName(c.name) && !isPlaceholderBuyer(c.name)) return `implausible name "${c.name}"`;
   if (!d.target.cik && isMergerVehicle(d.target.name)) return `merger vehicle as target "${d.target.name}"`;
+  if (d.privateTarget && BASIN_NAME.test(d.target.name.trim())) return `asset purchase in a basin "${d.target.name}"`;
   if (d.acquirer.cik && d.acquirer.cik === d.target.cik) return "acquirer and target are the same registrant";
   // The same company on both sides once names are cleaned ("Nasdaq-listed Gryphon Digital Mining" buying
   // "Gryphon Digital Mining, Inc." was a reverse merger read as a self-deal).
@@ -81,6 +82,8 @@ function merge(keep: StoredDeal, later: StoredDeal) {
   keep.sources = [...new Set([...keep.sources, ...later.sources])];
   // The later record may have seen the outcome (a completion, a termination).
   if (later.status === "Closed" || later.status === "Terminated") {
+    // A changed outcome needs its timeline re-derived (the next run does it from the filing index).
+    if (keep.status !== later.status) keep.milestones = undefined;
     keep.status = later.status;
     keep.statusDate = later.statusDate;
   }
@@ -182,7 +185,12 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         const earlier = group[j];
         if (!deals.includes(earlier)) continue;
         const gap = days(earlier.announcedDate, later.announcedDate);
-        const sameBuyer = sameCompany(earlier.acquirer.name, later.acquirer.name) || (!!earlier.acquirer.cik && earlier.acquirer.cik === later.acquirer.cik);
+        // Also the same when one names the other by its ticker ("UWMC" = UWM Holdings Corp): not a rival bid.
+        const sameBuyer =
+          sameCompany(earlier.acquirer.name, later.acquirer.name) ||
+          (!!earlier.acquirer.cik && earlier.acquirer.cik === later.acquirer.cik) ||
+          isTickerOf(earlier.acquirer.name, later.acquirer) ||
+          isTickerOf(later.acquirer.name, earlier.acquirer);
         if (sameBuyer && gap <= 60) {
           merge(earlier, later);
           drop(later, `duplicate of ${earlier.id}`);
@@ -222,3 +230,7 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
 /** Acquirer name of a SPAC (blank-check company), out of scope as a buyer. */
 export const SPAC_NAME =
   /\b(?:Acquisition|Merger|Growth Opportunit(?:y|ies))\s+(?:Corp(?:oration)?|Co|Company|Ltd|Limited|Inc)\b|\bCapital Corp\.?\s+[IVX]+\b|\bBlank Check\b/i;
+
+/** A "private target" named only for an oil and gas basin is an asset purchase: "Crescent Energy to Acquire Eagle Ford Assets from Devon". */
+export const BASIN_NAME =
+  /^(?:the\s+)?(?:Eagle Ford|Permian|Delaware|Midland|Bakken|Williston|Marcellus|Utica|Haynesville|DJ|Denver-Julesburg|Uinta|Powder River|Anadarko|San Juan|Barnett|Austin Chalk|Gulf of Mexico|Appalachia|Appalachian|SCOOP|STACK)(?:\s+(?:Basin|Shale|Play|Region|Acreage|Assets|Properties|Position))*$/i;

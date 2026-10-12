@@ -31,11 +31,11 @@ import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
-import { SPAC_NAME, tidyDeals } from "./tidy";
+import { BASIN_NAME, SPAC_NAME, tidyDeals } from "./tidy";
 import { flatten, htmlToText } from "./text";
 import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
@@ -406,6 +406,8 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   const n = name.trim();
   if (n.length < 3 || n.length > 70 || sameCompany(n, acquirerName)) return false;
   if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
+  // A basin is an asset purchase: "Eagle Ford" (Crescent Energy buying Devon's Eagle Ford assets).
+  if (BASIN_NAME.test(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
   if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|propert(?:y|ies)|facility|facilities|plant|mine|refinery|project|fleet|vessels?|patents?|product line|division|business line|stake|interest|ownership)\b/i.test(n)) return false;
@@ -416,7 +418,7 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (
     /\b(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|specialist)$/i.test(n) &&
     !/\b(?:Inc|LLC|Ltd|Corp|L\.?P)\.?$/i.test(n) &&
-    (/\b\w+-\w+\b/.test(n) || /\b(?:leading|innovative|premier|global|independent|specialty|next|emerging|fast-growing|privately)\b/i.test(n))
+    (/\b\w+-\w+\b/.test(n) || /\b(?:leading|innovative|premier|global|independent|specialty|next|emerging|fast-growing|privately|enabled|focused|driven)\b/i.test(n))
   )
     return false;
   // A count of things, not a company: "Two Toyota and Two Lexus Dealerships", "FOUR DOMINANT ENCLOSED REGIONAL MALLS",
@@ -514,17 +516,21 @@ export const FUND_TARGET = /\b(?:Fund|Funds|ETF|Municipal)\b/i;
 export const MAX_PRIVATE_DEAL_VALUE = 40e9;
 
 function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
-  // Private targets have no CIK: they are matched by name (and buyer below).
-  const candidates = state.deals
-    .filter((d) => (isPrivate ? d.privateTarget && sameCompany(d.target.name, parsed.target.name) : d.target.cik === target.cik))
-    .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+  // Private targets have no CIK: they are matched by name (and buyer below), strictly and within two years. A shared
+  // first word joined Live Ventures' 2024 purchase of Central Steel Fabricators to Switch's 2021 one of Data Foundry.
+  const candidates = state.deals
+    .filter((d) =>
+      isPrivate ? d.privateTarget && identicalNames(d.target.name, parsed.target.name) && daysApart(d.announcedDate, hit.fileDate) <= 730 : d.target.cik === target.cik,
+    )
+    .sort((a, b) => b.announcedDate.localeCompare(a.announcedDate));
   // A merger 8-K restating an older signing (an extension, a vote, financing) only updates that deal: Genworth's
   // 2017–2020 extension 8-Ks each open "As previously reported, on October 21, 2016, … entered into …". The signing 8-K
   // itself is due within four business days (ZeroFox's note-repurchase 8-K, 29 days after, created a deal for its lender).
   if (parsed.kind === "announcement" && parsed.signedOn && daysApart(parsed.signedOn, hit.fileDate) > 10) parsed = { ...parsed, kind: "update" };
   let deal =
-    candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik)) ??
+    // The same buyer, also when written as its ticker (Two Harbors' earnings release: "UWMC", for UWM Holdings).
+    candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik) || isTickerOf(parsed.acquirer.name, d.acquirer)) ??
     // The same signing often reaches us as an 8-K naming a shell buyer and a press release naming the sponsor.
     // Never two different listed buyers, though: a rival bid comes within days (MKS on February 8, II-VI days later, both
     // for Coherent).
