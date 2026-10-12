@@ -24,7 +24,7 @@ import {
   type ListedCompany,
   type Submissions,
 } from "./edgar";
-import { computeMultiples, getTargetFinancials } from "./financials";
+import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
 import { definedEntities, item101, parseMergerItem } from "./parse/eightk";
 import { sponsorFromText } from "./parse/sponsor";
 import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
@@ -658,11 +658,12 @@ const PENDING_FORMS =/^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|
 /**
  * Bump when the merger-proxy reader (`parse/proxy.ts`) changes: deals still missing what it reads are read again.
  * 2: "47 percent", "premium of: • …", "compared / relative to", and a stock deal's implied value per share.
+ * 3: the buyer's banks from a joint proxy's "Opinion of <buyer>'s Financial Advisor".
  */
-export const PROXY_PARSER_VERSION = 2;
+export const PROXY_PARSER_VERSION = 3;
 /** The target's merger proxy is (re-)read: never read, or read with an older reader and still missing what it gives. */
 const proxyWanted = (d: StoredDeal) =>
-  (d.premiumPct == null || !d.targetAdvisors.length || (d.pricePerShare == null && d.consideration !== "Cash")) &&
+  (d.premiumPct == null || !d.targetAdvisors.length || !d.acquirerAdvisors.length || (d.pricePerShare == null && d.consideration !== "Cash")) &&
   (!d.proxyCheckedAt || d.proxyParser !== PROXY_PARSER_VERSION);
 /** A terminated deal that came back files a new merger proxy or tender document (originals only). */
 const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|SC 13E3)$/;
@@ -1045,9 +1046,18 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     if (proxy) {
       try {
         const text = htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 900_000));
-        const p = parseMergerProxy(text, deal.target.name);
+        const p = parseMergerProxy(text, deal.target.name, deal.acquirer);
         deal.premiumPct ??= p.premiumPct;
         if (!deal.targetAdvisors.length) deal.targetAdvisors = p.targetAdvisors;
+        // A joint proxy also has the buyer's opinion ("Opinion of Nicolet's Financial Advisor"). Where the target's own heading
+        // names its banks, one named only under the buyer's leaves the target list (Morgan Stanley and Wells Fargo advised
+        // Union Pacific, not Norfolk Southern). Otherwise a bank stays on the target's side.
+        if (p.targetHeadingAdvisors.length) {
+          const moved = p.acquirerAdvisors.filter((b) => deal.targetAdvisors.includes(b) && !p.targetHeadingAdvisors.includes(b));
+          deal.targetAdvisors = deal.targetAdvisors.filter((b) => !moved.includes(b));
+          deal.acquirerAdvisors = [...new Set([...deal.acquirerAdvisors, ...moved])];
+        }
+        if (!deal.acquirerAdvisors.length) deal.acquirerAdvisors = p.acquirerAdvisors.filter((b) => !deal.targetAdvisors.includes(b));
         // The value then follows from the target's share count (financials, below): NextEra / Dominion, II-VI / Coherent.
         if (deal.pricePerShare == null && deal.consideration !== "Cash" && p.impliedPerShare != null) {
           deal.pricePerShare = p.impliedPerShare;
@@ -1108,7 +1118,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     }
   }
 
-  if (!deal.financialsCheckedAt && deal.target.cik) {
+  if ((!deal.financialsCheckedAt || deal.financialsVersion !== FINANCIALS_VERSION) && deal.target.cik) {
     const fin = await getTargetFinancials(deal.target.cik, deal.announcedDate);
     const m = computeMultiples(deal, fin, { sic: sub?.sic, name: deal.target.name });
     deal.enterpriseValueUsd = m.enterpriseValueUsd;
@@ -1119,6 +1129,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       deal.valueKind = "equity";
     }
     deal.financialsCheckedAt = today;
+    deal.financialsVersion = FINANCIALS_VERSION;
   }
 }
 
@@ -1172,6 +1183,44 @@ export async function ingestDeals(
   const submissions = async (cik: string) => {
     if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
     return subs.get(cik)!;
+  };
+
+  /**
+   * A record read backwards: its "target" filed no target's document (merger proxy, 14D-9, 13E-3) in the 18 months after,
+   * but registered shares or launched a tender (S-4, F-4, SC TO-T), and the "buyer" filed the target's documents
+   * (MorphoSys's 14D-9 for Novartis's tender, DISH's information statement for EchoStar). The roles are swapped, or the
+   * record dropped when the deal is already tracked the right way round.
+   */
+  const reverseRoles = async (deal: StoredDeal, sub: Submissions): Promise<"swapped" | "dropped" | null> => {
+    const TARGET_SIDE = /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC 13E3)(?:\/A)?$/;
+    const BUYER_SIDE = /^(?:S-4|F-4|SC TO-T)(?:\/A)?$/;
+    const within = (f: { date: string }) => f.date >= deal.announcedDate && f.date <= shiftDate(deal.announcedDate, 550);
+    const own = recentFilings(sub).filter(within);
+    if (own.some((f) => TARGET_SIDE.test(f.form)) || !own.some((f) => BUYER_SIDE.test(f.form))) return null;
+    const otherCik = deal.acquirer.cik ?? (await resolveRegistrant(cleanPartyName(deal.acquirer.name), deal.announcedDate))?.cik ?? null;
+    if (!otherCik || otherCik === deal.target.cik) return null;
+    const other = await submissions(otherCik);
+    if (!other || !recentFilings(other).some((f) => within(f) && TARGET_SIDE.test(f.form))) return null;
+    const near = (d: StoredDeal) => Math.abs(Date.parse(d.announcedDate) - Date.parse(deal.announcedDate)) < 60 * 86_400_000;
+    if (state.deals.some((d) => d !== deal && d.target.cik === otherCik && near(d))) {
+      drop(deal);
+      return "dropped";
+    }
+    dropped.add(deal.id);
+    const base = `${otherCik}-${deal.announcedDate}`;
+    let id = base;
+    for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
+    const [buyer, seller] = [deal.target, deal.acquirer];
+    deal.id = id;
+    deal.acquirer = { name: buyer.name, cik: buyer.cik, ticker: buyer.ticker };
+    deal.target = { name: displayName(nameOn(other, deal.announcedDate)), cik: otherCik, ticker: other.tickers?.[0] ?? seller.ticker ?? null };
+    [deal.acquirerAdvisors, deal.targetAdvisors] = [deal.targetAdvisors, deal.acquirerAdvisors];
+    deal.status = "Announced";
+    deal.statusDate = null;
+    deal.premiumPct = null;
+    deal.milestones = deal.terms = deal.fairness = undefined;
+    deal.statusCheckedAt = deal.financialsCheckedAt = deal.proxyCheckedAt = deal.fairnessCheckedAt = deal.termsCheckedAt = null;
+    return "swapped";
   };
 
   /**
@@ -1508,6 +1557,7 @@ export async function ingestDeals(
       (isPlaceholderBuyer(d.acquirer.name) && d.sponsorCheck !== SPONSOR_CHECK_VERSION) ||
       (!d.acquirerAdvisors.length && d.advisorCheck !== ADVISOR_CHECK_VERSION) ||
       !d.financialsCheckedAt ||
+      d.financialsVersion !== FINANCIALS_VERSION ||
       proxyWanted(d) ||
       (!opts.light && (!d.fairnessCheckedAt || d.fairnessParser !== FAIRNESS_PARSER_VERSION || d.termsParser !== TERMS_PARSER_VERSION)) ||
       // Unsettled terms (no proxy yet) are looked for once a day, not every run.
@@ -1581,11 +1631,21 @@ export async function ingestDeals(
         enrichPrivateDeal(deal, acquirerSub, opts.today, directory);
         if (deal.status === "Announced" && acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
       } else {
-        const sub = await submissions(deal.target.cik!);
+        let sub = await submissions(deal.target.cik!);
         if (sub && sub.sic === "6770") {
           // Blank-check shell as target: drop.
           drop(deal);
           continue;
+        }
+        // Still open months on: read backwards, or a foreign target whose end only the buyer reports.
+        if (sub && OPEN.includes(deal.status) && Date.parse(opts.today) - Date.parse(deal.announcedDate) > 120 * 86_400_000) {
+          const turned = await reverseRoles(deal, sub);
+          if (turned === "dropped") continue;
+          if (turned === "swapped") sub = await submissions(deal.target.cik!);
+          // A foreign private issuer files 6-Ks, never an 8-K Item 1.02: the buyer's 8-K says the agreement ended (Intel / Tower).
+          const acquirerSub = deal.acquirer.cik && sub && recentFilings(sub).some((f) => /^6-K/.test(f.form)) ? await submissions(deal.acquirer.cik) : null;
+          if (acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
+          if (deal.status === "Terminated") deal.milestones = undefined;
         }
         // No value yet: the announcement releases of the target and the buyer usually state one.
         if (sub && deal.valueUsd == null && deal.valueCheck !== VALUE_CHECK_VERSION && deal.status !== "Terminated") {

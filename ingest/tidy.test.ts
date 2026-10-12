@@ -51,6 +51,10 @@ describe("nameOn", () => {
 });
 
 describe("junkReason", () => {
+  it("drops a national bank subsidiary as the buyer", () => {
+    expect(junkReason(deal({ acquirer: { name: "Citibank, N.A.", ticker: null, cik: null } }))).toMatch(/lender/);
+  });
+
   it("drops a private purchase by a SPAC-named buyer whatever its industry", () => {
     expect(junkReason(deal({ privateTarget: true, industry: "Gas & Other Services Combined", acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null }, target: { name: "Aria Energy LLC", ticker: null, cik: null } }))).toMatch(/SPAC/);
     expect(junkReason(deal({ acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null } }))).toBeNull();
@@ -148,6 +152,38 @@ describe("sanitizeDeal", () => {
 });
 
 describe("tidyDeals", () => {
+  it("keeps the right way round of a listed / private pair recorded both ways", () => {
+    // MGP Ingredients bought Luxco: the listed record has no merger proxy of MGP's, so the private one stays.
+    const back = deal({ id: "835011-2021-01-25", acquirer: { name: "Luxco", ticker: null, cik: null }, target: { name: "MGP Ingredients Inc", ticker: "MGPI", cik: "835011" }, announcedDate: "2021-01-25", valueUsd: 475e6, status: "Announced", statusDate: null });
+    const right = deal({ id: "p-luxco-2021-04-01", privateTarget: true, acquirer: { name: "MGP Ingredients Inc", ticker: "MGPI", cik: "835011" }, target: { name: "Luxco", ticker: null, cik: null }, announcedDate: "2021-04-01", valueUsd: null, status: "Closed", statusDate: "2021-04-01" });
+    const deals = [back, right];
+    tidyDeals(deals);
+    expect(deals).toEqual([right]);
+    expect(right.acquirer.name).toBe("MGP Ingredients Inc");
+    expect(right.valueUsd).toBe(475e6);
+    // Commure bought Augmedix, which filed the merger proxy: the listed record stays.
+    const listed = deal({ id: "1769804-2024-07-19", acquirer: { name: "Commure, Inc.", ticker: null, cik: null }, target: { name: "Augmedix, Inc.", ticker: "AUGX", cik: "1769804" }, announcedDate: "2024-07-19", milestones: { firstFiling: { form: "PREM14A", date: "2024-08-01" } } as StoredDeal["milestones"] });
+    const wrong = deal({ id: "p-commure-2024-10-02", privateTarget: true, acquirer: { name: "Augmedix, Inc.", ticker: "AUGX", cik: "1769804" }, target: { name: "Commure", ticker: null, cik: null }, announcedDate: "2024-10-02" });
+    const pair = [listed, wrong];
+    tidyDeals(pair);
+    expect(pair).toEqual([listed]);
+  });
+
+  it("drops a swapped copy whose buyer has no CIK, and rival bids read as a deal between the bidders", () => {
+    const right = deal({ id: "1255474-2022-03-08", acquirer: { name: "Oasis Petroleum Inc.", ticker: null, cik: null }, target: { name: "Whiting Petroleum Corp", ticker: "WLL", cik: "1255474" }, announcedDate: "2022-03-08", milestones: { firstFiling: { form: "DEFM14A", date: "2022-05-01" } } as StoredDeal["milestones"] });
+    const swapped = deal({ id: "1486159-2022-03-07", acquirer: { name: "Whiting Petroleum Corporation", ticker: null, cik: null }, target: { name: "Oasis Petroleum Inc.", ticker: "OAS", cik: "1486159" }, announcedDate: "2022-03-07", milestones: { firstFiling: { form: "S-4", date: "2022-04-28" } } as StoredDeal["milestones"] });
+    const deals = [right, swapped];
+    tidyDeals(deals);
+    expect(deals).toEqual([right]);
+    const won = deal({ acquirer: { name: "II-VI Inc", ticker: "IIVI", cik: "820318" }, target: { name: "Coherent Inc", ticker: "COHR", cik: "21510" }, announcedDate: "2021-02-12" });
+    const lost = deal({ acquirer: { name: "MKS Inc", ticker: "MKSI", cik: "1049502" }, target: { name: "Coherent Inc", ticker: "COHR", cik: "21510" }, announcedDate: "2021-02-08", status: "Terminated" });
+    const misread = deal({ acquirer: { name: "MKS Inc", ticker: "MKSI", cik: "1049502" }, target: { name: "II-VI Inc", ticker: "IIVI", cik: "820318" }, announcedDate: "2021-02-08" });
+    const bids = [won, lost, misread];
+    tidyDeals(bids);
+    expect(bids).not.toContain(misread);
+    expect(bids).toContain(won);
+  });
+
   it("merges the same buyer's private purchase recorded at announcement and completion under two spellings", () => {
     const buyer = { name: "Ondas Inc.", ticker: "ONDS", cik: "1646188" };
     const ann = deal({ privateTarget: true, acquirer: buyer, target: { name: "Rotron Aero", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Announced", statusDate: null });

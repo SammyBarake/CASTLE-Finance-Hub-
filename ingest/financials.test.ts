@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMultiples, latestInstant, ltm, series } from "./financials";
+import { computeMultiples, ebitdaOf, financialsFrom, latestInstant, ltm, series } from "./financials";
 
 const f = (start: string | undefined, end: string, val: number) => ({ start, end, val, form: "10-Q", filed: end });
 
@@ -77,5 +77,42 @@ describe("computeMultiples", () => {
 
   it("ignores an implausibly small share count", () => {
     expect(computeMultiples({ valueUsd: null, valueKind: null, pricePerShare: 5.02 }, { ...fin, sharesOutstanding: 1000 }).impliedEquityUsd).toBeNull();
+  });
+});
+
+describe("EBITDA fallbacks and freshness", () => {
+  const year = (val: number, y = 2025) => f(`${y}-01-01`, `${y}-12-31`, val);
+  const facts = (tags: Record<string, ReturnType<typeof f>[]>) => ({ facts: { "us-gaap": Object.fromEntries(Object.entries(tags).map(([k, rows]) => [k, { units: { USD: rows } }])) } });
+
+  it("adds depreciation and intangibles amortization reported apart (Perficient)", () => {
+    const cf = facts({ OperatingIncomeLoss: [year(116e6)], Depreciation: [year(8.7e6)], AmortizationOfIntangibleAssets: [year(19.7e6)] });
+    expect(ebitdaOf(cf, "2026-05-06")).toBeCloseTo(144.4e6, -3);
+    // Amortization reported but no full year of it: unknown, not zero.
+    const partial = facts({ OperatingIncomeLoss: [year(116e6)], Depreciation: [year(8.7e6)], AmortizationOfIntangibleAssets: [f("2025-10-01", "2025-12-31", 5e6)] });
+    expect(ebitdaOf(partial, "2026-05-06")).toBeNull();
+  });
+
+  it("builds EBIT from pre-tax income and interest when there is no operating-income line (ChampionX)", () => {
+    const cf = facts({
+      OperatingIncomeLoss: [year(300e6, 2017)],
+      IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest: [year(424e6)],
+      InterestExpense: [year(50e6)],
+      DepreciationDepletionAndAmortization: [year(236e6)],
+    });
+    expect(ebitdaOf(cf, "2026-04-02")).toBe(424e6 + 50e6 + 236e6);
+  });
+
+  it("ignores a figure from a fiscal year over 15 months old", () => {
+    expect(ltm([year(800, 2022)], "2026-04-02")).toBeNull();
+    expect(latestInstant([f(undefined, "2020-12-31", 1.9e9)], false, "2026-04-02")).toBeNull();
+  });
+
+  it("reads convertible notes as debt, and has no EV when debt can't be read but interest is paid (AES)", () => {
+    const fin = financialsFrom(facts({ ConvertibleLongTermNotesPayable: [f(undefined, "2025-12-31", 556e6)], ConvertibleNotesPayableCurrent: [f(undefined, "2025-12-31", 451e6)] }), "2026-03-08");
+    expect(fin.debt).toBe(1007e6);
+    const aes = { revenueLtm: 12e9, ebitdaLtm: 2.9e9, debt: null, cash: 1.5e9, sharesOutstanding: 712e6, interestLtm: 1.4e9 };
+    expect(computeMultiples({ valueUsd: 10.8e9, valueKind: "equity", pricePerShare: null }, aes).enterpriseValueUsd).toBeNull();
+    // A stated enterprise value still stands.
+    expect(computeMultiples({ valueUsd: 38e9, valueKind: "enterprise", pricePerShare: null }, aes).evEbitda).toBe(13.1);
   });
 });

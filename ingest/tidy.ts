@@ -19,7 +19,9 @@ export function junkReason(d: StoredDeal): string | null {
   // The same company on both sides once names are cleaned ("Nasdaq-listed Gryphon Digital Mining" buying
   // "Gryphon Digital Mining, Inc." was a reverse merger read as a self-deal).
   // The exact same name ignoring legal suffixes ("Viking Global Technologies" and "Viking Energy" are not).
-  if (!(d.acquirer.cik && d.target.cik) && normalizeName(cleanPartyName(d.acquirer.name)) === normalizeName(cleanPartyName(d.target.name)))
+  // (Not a private target bought by a registrant: in a reverse merger the buyer takes the target's name, and enrichment
+  // gives it the name it had then: Blackboxstocks for REalloys, Sigma Additive for NextTrip.)
+  if (!(d.acquirer.cik && d.target.cik) && !(d.privateTarget && d.acquirer.cik) && normalizeName(cleanPartyName(d.acquirer.name)) === normalizeName(cleanPartyName(d.target.name)))
     return "acquirer and target are the same company";
   // Business development companies are investment funds, out of scope: "BDC" in the name, or an "… Investment /
   // Capital / Finance / Credit Corp" with no industry code (operating companies have one; BDCs usually don't).
@@ -40,6 +42,8 @@ export function junkReason(d: StoredDeal): string | null {
   const spacLike = /\b(?:Executive|Strategic|Growth|Opportunit(?:y|ies)|Acquisition|Capital)\s+Investment\s+Corp(?:oration)?\b|\bCorp\.?\s+[IVX]+$/i;
   if (!d.privateTarget && (SPAC_NAME.test(d.target.name) || spacLike.test(d.target.name.trim()))) return `SPAC as target "${d.target.name}"`;
   if (spacLike.test(d.acquirer.name) || /\bSponsor\b|\bMaster Fund\b/i.test(d.acquirer.name)) return `SPAC or fund as buyer "${d.acquirer.name}"`;
+  // A national bank subsidiary is a lender, not a buyer ("Citibank, N.A." in Synnex's financing for Tech Data).
+  if (/,?\s+N\.\s?A\.?$/.test(d.acquirer.name.trim())) return `a bank (lender) as buyer "${d.acquirer.name}"`;
   // (A private target with a share price or premium is resolved against EDGAR during enrichment, not dropped here:
   // private banks quote per-share prices too.)
   return null;
@@ -163,14 +167,48 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
   // The same deal read both ways round (First Financial / Finward: the buyer's 8-K was read with the roles swapped).
   // The target is the side that files the merger proxy or tender response; keep that record.
   const proxyFirst = (d: StoredDeal) => /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T)$/.test(d.milestones?.firstFiling?.form ?? "");
+  // A side without a CIK is matched by name (Whiting Petroleum as the unresolved "buyer" of Oasis, its own buyer).
+  const isSide = (party: StoredDeal["acquirer"], other: StoredDeal["target"]) => (party.cik ? party.cik === other.cik : sameCompany(party.name, other.name));
   for (const a of listed) {
     for (const b of listed) {
-      if (a === b || !deals.includes(a) || !deals.includes(b) || !a.acquirer.cik || !b.acquirer.cik) continue;
-      if (a.target.cik !== b.acquirer.cik || a.acquirer.cik !== b.target.cik || Math.abs(days(a.announcedDate, b.announcedDate)) > 60) continue;
+      if (a === b || !deals.includes(a) || !deals.includes(b)) continue;
+      if (!isSide(b.acquirer, a.target) || !isSide(a.acquirer, b.target) || Math.abs(days(a.announcedDate, b.announcedDate)) > 60) continue;
       if (proxyFirst(a) && !proxyFirst(b)) {
         drop(b, `same deal as ${a.id} with buyer and target swapped`);
         result.merged++;
       }
+    }
+  }
+
+  // A listed company and an unlisted one recorded both ways round, once as a listed target and once as a private one. The
+  // listed record is right when its target filed the target's merger proxy or tender response (Commure bought Augmedix);
+  // otherwise the listed company was the buyer (MGP Ingredients bought Luxco). Only figures are carried over, never parties.
+  for (const x of listed) {
+    if (!deals.includes(x) || x.acquirer.cik) continue;
+    const back = deals.find((y) => deals.includes(y) && y.privateTarget && y.acquirer.cik === x.target.cik && sameCompany(y.target.name, x.acquirer.name) && Math.abs(days(y.announcedDate, x.announcedDate)) <= 120);
+    if (!back) continue;
+    const [keep, extra] = proxyFirst(x) ? [x, back] : [back, x];
+    for (const k of ["valueUsd", "consideration"] as const) if (keep[k] == null && extra[k] != null) (keep as unknown as Record<string, unknown>)[k] = extra[k];
+    if (keep.valueKind == null) keep.valueKind = extra.valueKind;
+    // The other record may already know the outcome (CohBar's termination of its Morphogenesis merger).
+    if ((keep.status === "Announced" || keep.status === "Pending") && (extra.status === "Closed" || extra.status === "Terminated")) {
+      keep.status = extra.status;
+      keep.statusDate = extra.statusDate;
+    }
+    keep.sources = [...new Set([...keep.sources, ...extra.sources])];
+    drop(extra, `same deal as ${keep.id} read backwards`);
+    result.merged++;
+  }
+
+  // A rival bid read as a deal between the rivals: MKS and II-VI both bid for Coherent within days, and one filing made
+  // "MKS → II-VI". A → B is dropped when B → C and A → C were announced within 30 days of it.
+  for (const x of listed) {
+    if (!deals.includes(x) || !x.target.cik) continue;
+    const near = (d: StoredDeal) => Math.abs(days(d.announcedDate, x.announcedDate)) <= 30;
+    const bBuys = deals.filter((d) => d !== x && near(d) && d.acquirer.cik === x.target.cik && d.target.cik);
+    if (bBuys.some((y) => deals.some((z) => z !== x && z !== y && near(z) && z.target.cik === y.target.cik && isSide(x.acquirer, z.acquirer)))) {
+      drop(x, `rival bids for the same target read as a deal between the bidders`);
+      result.merged++;
     }
   }
 

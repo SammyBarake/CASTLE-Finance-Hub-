@@ -101,7 +101,7 @@ export function extractDescription(text: string): string | null {
 }
 
 /** Bump after changing these parsers: stored pipeline records are then re-read on the next ingest. */
-export const IPO_PARSER_VERSION = 3;
+export const IPO_PARSER_VERSION = 4;
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or

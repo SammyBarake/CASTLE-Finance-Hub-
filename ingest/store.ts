@@ -19,6 +19,8 @@ export interface StoredDeal extends Deal {
   statusCheckedAt: string | null;
   /** Set once XBRL financials were looked up (whether or not they were found). */
   financialsCheckedAt: string | null;
+  /** FINANCIALS_VERSION the multiples were computed with; a newer one recomputes them. */
+  financialsVersion?: number;
   /** Set once the target's merger proxy / 14D-9 was read for premium and advisors. */
   proxyCheckedAt?: string | null;
   /** PROXY_PARSER_VERSION it was read with; a newer reader looks again at deals still missing what it reads. */

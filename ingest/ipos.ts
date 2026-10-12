@@ -45,7 +45,8 @@ export const LISTING_SIC = new Set(["6221", "6798"]);
 export function listsOnExchange(text: string): boolean {
   const t = text.slice(0, 80_000).replace(/\s+/g, " ");
   if (/\b(?:do|does) not (?:currently )?(?:intend|expect|plan) to (?:apply to )?(?:list|have (?:our|the) shares listed)/i.test(t)) return false;
-  return /\b(?:approved|apply|applied|intend to|expect to|will be)\b[^.]{0,80}?\blist(?:ed|ing)?\b[^.]{0,120}?\b(?:New York Stock Exchange|NYSE|Nasdaq|Cboe)\b/i.test(t);
+  // "We expect our common stock to be listed on …", "… to list on a national securities exchange" (a first filing).
+  return /\b(?:approved|apply|applied|intend|expect|plan|will be|has been|have been|seek)\b[^.]{0,80}?\blist(?:ed|ing)?\b[^.]{0,120}?\b(?:New York Stock Exchange|NYSE|Nasdaq|Cboe|national securities exchange)\b/i.test(t);
 }
 /**
  * Already public: an annual / quarterly report or an IPO prospectus in the three years before. Older ones make it a
@@ -151,7 +152,9 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     terms.underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
     // A direct listing, or selling holders reselling with no underwriters: no IPO offering.
     if (isResaleOnly(text, terms.underwriters)) return null;
-    if (LISTING_SIC.has(sub.sic) && !listsOnExchange(text)) return null;
+    // Commodity pools and non-traded REITs, and any filing with no known bookrunner (a shell quoted over the counter, or
+    // never at all: Pharmaceutical Resource Technology), are IPOs only if the shares will list on a US exchange.
+    if ((LISTING_SIC.has(sub.sic) || !terms.underwriters.length) && !listsOnExchange(text)) return null;
     // Amendments often omit the fee table; the original registration has it.
     if (!priced && terms.expectedRaiseUsd == null && doc.adsh !== initial.adsh) {
       terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };

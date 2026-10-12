@@ -140,6 +140,17 @@ export function cleanPartyName(raw: string): string {
   const described = /^(?:[A-Z][\w-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor)\s+([A-Z][\w.-]{2,})$/.exec(s);
   // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
   if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
+  // …or a longer name: "U.K. Firefighter Turnout Gear Manufacturer Bristol Uniforms" -> "Bristol Uniforms", "Specialist
+  // M&A Advisor Portico Capital Advisors" -> "Portico Capital Advisors", "Existing Strategic Partner Adlumin". The role word
+  // sits between the two; a name ending in it ("Hunter Fan Company") or going on with "of …" ("Browser Company of New
+  // York") has nothing after it to take.
+  const describedLong =
+    /^(?:[A-Z][\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor)\s+([A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
+  // (Not a bare acronym: "Carlisle Management Company SCA" ends in a legal form, "… Provider API" is ambiguous.)
+  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Holdings|Group|International|Of|And|The|Business|Segment)\b/i.test(describedLong[1])) s = describedLong[1];
+  // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".
+  const nameThenRole = /^(.{3,60}?\b(?:LLP|LLC|Inc\.?|Ltd\.?|Corp\.?))\s+(?:[A-Z][\w&-]*\s+){1,4}(?:Firm|Company|Provider|Platform|Business)$/.exec(s);
+  if (nameThenRole) s = nameThenRole[1];
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself

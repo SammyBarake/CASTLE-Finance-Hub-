@@ -4,6 +4,7 @@
  * deals first seen in an 8-K, which usually has neither.
  */
 import { findBanks } from "../../lib/banks";
+import { namesCompany, sameCompany } from "./names";
 import { extractAdvisors } from "./press";
 
 export interface ParsedProxy {
@@ -11,6 +12,10 @@ export interface ParsedProxy {
   targetAdvisors: string[];
   /** A stock or mixed deal's value per target share at announcement (`extractImpliedPerShare`). */
   impliedPerShare: number | null;
+  /** The buyer's banks, from a joint proxy's "Opinion of <buyer>'s Financial Advisor" (`sideAdvisors`). */
+  acquirerAdvisors: string[];
+  /** The target's banks as its own heading names them (empty when the proxy has no per-side headings). */
+  targetHeadingAdvisors: string[];
 }
 
 /** Premium over the target's unaffected / last closing price, never an average, VWAP or precedent statistic. */
@@ -109,8 +114,37 @@ export function extractProxyAdvisors(t: string, targetName: string): string[] {
   return [...new Set(banks)].slice(0, 4);
 }
 
-export function parseMergerProxy(text: string, targetName: string): ParsedProxy {
-  return { premiumPct: extractProxyPremium(text), targetAdvisors: extractProxyAdvisors(text, targetName), impliedPerShare: extractImpliedPerShare(text) };
+export function parseMergerProxy(text: string, targetName: string, acquirer?: { name: string; ticker?: string | null }): ParsedProxy {
+  const sides = acquirer ? sideAdvisors(text, { name: targetName }, acquirer) : { acquirer: [], target: [] };
+  // A joint proxy labels each side's opinion; otherwise the "Opinion of <bank>" headings are the target's, less any bank
+  // the buyer's heading named.
+  const targetAdvisors = sides.target.length ? sides.target : extractProxyAdvisors(text, targetName).filter((b) => !sides.acquirer.includes(b));
+  return { premiumPct: extractProxyPremium(text), targetAdvisors, impliedPerShare: extractImpliedPerShare(text), acquirerAdvisors: sides.acquirer, targetHeadingAdvisors: sides.target };
+}
+
+/** The heading's party is this company: its name, a short form or acronym ("AGM", "AHL"), or its ticker ("MSGE"). */
+function isParty(party: string, company: { name: string; ticker?: string | null }): boolean {
+  return sameCompany(party, company.name) || namesCompany(party, company.name) || (!!company.ticker && party.toUpperCase() === company.ticker.toUpperCase());
+}
+
+/**
+ * Each side's banks in a joint proxy: "Opinion of Nicolet's Financial Advisor", "Opinion of the Financial Advisors to the
+ * MSGE Special Committee", "Opinion of AGM's Financial Advisor" — the bank named first under the heading. A heading
+ * whose party is neither company is skipped, and a bank under both is the target's.
+ */
+export function sideAdvisors(t: string, target: { name: string; ticker?: string | null }, acquirer: { name: string; ticker?: string | null }): { acquirer: string[]; target: string[] } {
+  const acq: string[] = [];
+  const tgt: string[] = [];
+  const re = /\bOpinions? of (?:the )?(?:Financial Advis[eo]rs? to (?:the )?([A-Z][\w.&'’ -]{1,40}?)|([A-Z][\w.&'’ -]{1,40}?)\s?['’]\s?s?\s+Financial Advis[eo]rs?)\b/g;
+  for (const m of t.matchAll(re)) {
+    const party = (m[1] ?? m[2]).replace(/\s+(?:Special|Conflicts|Transaction|Independent|Strategic)\s+(?:Review\s+)?Committee$|\s+Board(?: of Directors)?$/i, "").trim();
+    const side = isParty(party, acquirer) && !isParty(party, target) ? acq : isParty(party, target) && !isParty(party, acquirer) ? tgt : null;
+    if (!side) continue;
+    const bank = findBanks(t.slice(m.index! + m[0].length, m.index! + m[0].length + 1500))[0];
+    if (bank) side.push(bank);
+  }
+  const target_ = [...new Set(tgt)];
+  return { acquirer: [...new Set(acq)].filter((b) => !target_.includes(b)), target: target_ };
 }
 
 /** "the last (full) trading day before the (first) public announcement" (not the latest practicable date). */

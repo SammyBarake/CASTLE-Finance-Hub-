@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare } from "./proxy";
+import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare, parseMergerProxy, sideAdvisors } from "./proxy";
 
 describe("extractProxyPremium", () => {
   it("reads the premium over the last closing price", () => {
@@ -96,5 +96,25 @@ describe("extractImpliedPerShare", () => {
   it("ignores the latest practicable date and ranges", () => {
     expect(extractImpliedPerShare("Based on the closing price of Acme common stock on May 2, 2022, the latest practicable trading day before the date of this proxy statement, the exchange ratio represented approximately $16.10 for each share of Widget common stock.")).toBeNull();
     expect(extractImpliedPerShare("Based on the range of trading prices of Acme common stock during the period after March 31, 2023, the last trading day before the public announcement, the exchange ratio represented a market value ranging from $128.31 to $147.20 for each share.")).toBeNull();
+  });
+});
+
+describe("sideAdvisors", () => {
+  const joint = `Opinion of Nicolet's Financial Advisor. Nicolet retained Stifel, Nicolaus & Company, Incorporated ("Stifel") to act as its financial advisor in connection with the merger. Opinion of County's Financial Advisor. County retained Piper Sandler & Co. ("Piper Sandler") to render a fairness opinion to its board.`;
+  it("reads each side's bank under its own heading", () => {
+    const s = sideAdvisors(joint, { name: "County Bancorp, Inc." }, { name: "Nicolet Bankshares, Inc.", ticker: "NIC" });
+    expect(s.acquirer).toEqual(["Stifel"]);
+    expect(s.target).toEqual(["Piper Sandler"]);
+  });
+  it("matches a heading by acronym or ticker, and skips a party that is neither company", () => {
+    const t = `Opinion of AGM's Financial Advisor. Barclays Capital Inc. delivered its opinion. Opinion of the Financial Advisors to the MSGE Special Committee. Moelis & Company LLC rendered its opinion. Opinion of Party A's Financial Advisor. Goldman Sachs & Co. LLC advised Party A.`;
+    expect(sideAdvisors(t, { name: "Athene Holding Ltd" }, { name: "Apollo Global Management, Inc." }).acquirer).toEqual(["Barclays"]);
+    expect(sideAdvisors(t, { name: "MSG Networks Inc." }, { name: "MSG Entertainment", ticker: "MSGE" }).acquirer).toEqual(["Moelis"]);
+    expect(sideAdvisors(t, { name: "Widget Inc." }, { name: "Acme Corp" }).acquirer).toEqual([]);
+  });
+  it("keeps the buyer's bank off the target list", () => {
+    const p = parseMergerProxy(joint, "County Bancorp, Inc.", { name: "Nicolet Bankshares, Inc." });
+    expect(p.acquirerAdvisors).toEqual(["Stifel"]);
+    expect(p.targetAdvisors).toEqual(["Piper Sandler"]);
   });
 });

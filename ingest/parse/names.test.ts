@@ -205,3 +205,15 @@ describe("isPlausibleName: documents and headings", () => {
     expect(isPlausibleName("F5 Networks, Inc.")).toBe(true);
   });
 });
+
+describe("cleanPartyName: longer descriptions", () => {
+  it("keeps the name after a description, and leaves names that end in the role word", () => {
+    expect(cleanPartyName("U.K. Firefighter Turnout Gear Manufacturer Bristol Uniforms")).toBe("Bristol Uniforms");
+    expect(cleanPartyName("Specialist M&A Advisor Portico Capital Advisors")).toBe("Portico Capital Advisors");
+    expect(cleanPartyName("Existing Strategic Partner Adlumin")).toBe("Adlumin");
+    expect(cleanPartyName("Marks Paneth LLP NYC Accounting Firm")).toBe("Marks Paneth LLP");
+    expect(cleanPartyName("Hunter Fan Company")).toBe("Hunter Fan Company");
+    expect(cleanPartyName("Browser Company of New York")).toBe("Browser Company of New York");
+    expect(cleanPartyName("Carlisle Management Company SCA")).toBe("Carlisle Management Company SCA");
+  });
+});
