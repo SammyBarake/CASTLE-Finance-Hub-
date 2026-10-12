@@ -549,8 +549,13 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
     // Private deals are often signed and closed at once ("Acme has acquired Widget"): a completion creates them.
     if (parsed.kind !== "announcement" && !(isPrivate && parsed.kind === "completion")) return null;
+    // Ids are unique: two rival buyers for one target can announce the same day (they stay separate deals), and a
+    // repeated id made a Supabase save fail mid-rebuild ("ON CONFLICT DO UPDATE command cannot affect row a second time").
+    const baseId = isPrivate ? `p-${normalizeName(parsed.target.name).replace(/\s+/g, "-")}-${hit.fileDate}` : `${target.cik}-${hit.fileDate}`;
+    let id = baseId;
+    for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${baseId}-${n}`;
     deal = {
-      id: isPrivate ? `p-${normalizeName(parsed.target.name).replace(/\s+/g, "-")}-${hit.fileDate}` : `${target.cik}-${hit.fileDate}`,
+      id,
       ...(isPrivate ? { privateTarget: true } : {}),
       announcedDate: hit.fileDate,
       acquirer: company(parsed.acquirer, acquirer),

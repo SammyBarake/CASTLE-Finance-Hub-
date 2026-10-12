@@ -159,10 +159,12 @@ export class SupabaseStore implements Store {
   }
 
   async save(state: State, opts: { prune?: boolean } = {}) {
+    // One row per id (the last wins): a repeated id fails the whole upsert.
+    const byId = new Map(state.deals.map((d) => [d.id, d]));
     await upsertChunks(
       this.db,
       "deals",
-      state.deals.map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d })),
+      [...byId.values()].map((d) => ({ id: d.id, announced_date: d.announcedDate, status: d.status, data: d })),
     );
     const live = new Set(state.deals.map((d) => d.id));
     const dropped = [...(state.dropped ?? [])].filter((id) => !live.has(id));

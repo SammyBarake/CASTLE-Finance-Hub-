@@ -67,10 +67,15 @@ async function main() {
   if (only !== "macro") log(`company directory: ${directory.byTicker.size} listed tickers`);
 
   // Save progress periodically and at the end (even on failure), so long backfills can resume.
+  // A failed progress save doesn't stop the run: the final save below tries again (a rebuild died an hour in).
   const checkpoint = async () => {
     state.asOf = new Date().toISOString();
-    await store.save(state);
-    log(`  checkpoint saved (${state.deals.length} deals)`);
+    try {
+      await store.save(state);
+      log(`  checkpoint saved (${state.deals.length} deals)`);
+    } catch (err) {
+      log(`  ! checkpoint not saved, carrying on: ${(err as Error).message}`);
+    }
   };
   let succeeded = false;
   // A rebuild only deletes stale deals when every search worked; a skipped month would otherwise lose its deals.
