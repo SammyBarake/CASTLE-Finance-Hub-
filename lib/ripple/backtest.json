@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-13T05:51:20Z",
+ "generatedAt": "2026-10-13T19:36:33Z",
  "origins": {
   "from": "2019Q1",
   "to": "2026Q3",
@@ -9,7 +9,7 @@
  "horizon": 4,
  "chosen": {
   "linkSet": "estimated",
-  "priorScale": "f0.25/s0.5/m0.5",
+  "priorScale": "f0.25/s1/m0.5",
   "rounds": 3,
   "lambda": {
    "valuation": 1,
@@ -18,76 +18,76 @@
    "ipoCount": 0.7
   },
   "history": 2,
-  "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks"
+  "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks"
  },
  "summary": {
   "chosen": {
-   "score": 0.158,
+   "score": 0.163,
    "all": {
     "n": 1805,
     "skill": 0.05,
     "hitRate": 0.64,
-    "slope": 0.93
+    "slope": 0.9
    },
    "flows": {
     "n": 1370,
     "skill": 0.05,
     "hitRate": 0.61,
-    "slope": 0.94
+    "slope": 0.91
    },
    "valuation": {
     "n": 435,
     "skill": 0.32,
     "hitRate": 0.71,
-    "slope": 0.86
+    "slope": 0.85
    }
   },
   "previous": {
    "label": "estimated (priors ×1), direct effects, fade 0.7/0.7/0.7/0.7, this quarter's shocks",
-   "score": 0.086,
+   "score": 0.087,
    "all": {
     "n": 1805,
     "skill": 0.01,
     "hitRate": 0.58,
-    "slope": 0.79
+    "slope": 0.77
    },
    "flows": {
     "n": 1370,
     "skill": 0.01,
     "hitRate": 0.54,
-    "slope": 0.71
+    "slope": 0.7
    }
   },
   "handSet": {
    "label": "hand-set, direct effects, fade 0.7/0.7/0.7/0.7, this quarter's shocks",
-   "score": 0.088,
+   "score": 0.089,
    "all": {
     "n": 1805,
     "skill": 0.01,
     "hitRate": 0.59,
-    "slope": 0.89
+    "slope": 0.91
    },
    "flows": {
     "n": 1370,
     "skill": 0.01,
     "hitRate": 0.55,
-    "slope": 0.82
+    "slope": 0.84
    }
   },
   "thisQuarterOnly": {
-   "label": "estimated (priors ×0.5), 3 rounds, fade 0.85/1/0.7/0.7, this quarter's shocks",
-   "score": 0.118,
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
+   "score": 0.12,
    "all": {
     "n": 1805,
     "skill": 0.02,
     "hitRate": 0.61,
-    "slope": 0.92
+    "slope": 0.84
    },
    "flows": {
     "n": 1370,
     "skill": 0.02,
-    "hitRate": 0.58,
-    "slope": 0.89
+    "hitRate": 0.57,
+    "slope": 0.81
    }
   },
   "noLinks": {
@@ -113,22 +113,22 @@
     "k": 2,
     "n": 150,
     "skill": 0.37,
-    "hitRate": 0.73,
-    "slope": 0.77
+    "hitRate": 0.72,
+    "slope": 0.76
    },
    {
     "k": 3,
     "n": 145,
     "skill": 0.36,
     "hitRate": 0.72,
-    "slope": 0.92
+    "slope": 0.91
    },
    {
     "k": 4,
     "n": 140,
     "skill": 0.26,
     "hitRate": 0.67,
-    "slope": 0.91
+    "slope": 0.89
    }
   ],
   "dealCount": [
@@ -136,29 +136,29 @@
     "k": 1,
     "n": 111,
     "skill": 0.05,
-    "hitRate": 0.55,
-    "slope": 0.72
+    "hitRate": 0.54,
+    "slope": 0.68
    },
    {
     "k": 2,
     "n": 102,
-    "skill": 0.2,
-    "hitRate": 0.68,
-    "slope": 1.04
+    "skill": 0.21,
+    "hitRate": 0.69,
+    "slope": 1.02
    },
    {
     "k": 3,
     "n": 93,
     "skill": 0.24,
     "hitRate": 0.65,
-    "slope": 1.12
+    "slope": 1.09
    },
    {
     "k": 4,
     "n": 84,
     "skill": 0.2,
-    "hitRate": 0.68,
-    "slope": 1.07
+    "hitRate": 0.67,
+    "slope": 1.03
    }
   ],
   "dealValue": [
@@ -166,59 +166,59 @@
     "k": 1,
     "n": 111,
     "skill": 0.02,
-    "hitRate": 0.54,
-    "slope": 0.8
+    "hitRate": 0.55,
+    "slope": 0.77
    },
    {
     "k": 2,
     "n": 102,
     "skill": -0.01,
     "hitRate": 0.52,
-    "slope": 0.4
+    "slope": 0.37
    },
    {
     "k": 3,
     "n": 93,
-    "skill": 0.02,
+    "skill": 0.01,
     "hitRate": 0.57,
-    "slope": 0.74
+    "slope": 0.63
    },
    {
     "k": 4,
     "n": 84,
     "skill": 0.02,
-    "hitRate": 0.6,
-    "slope": 0.95
+    "hitRate": 0.61,
+    "slope": 0.78
    }
   ],
   "ipoCount": [
    {
     "k": 1,
     "n": 155,
-    "skill": 0.17,
-    "hitRate": 0.64,
+    "skill": 0.19,
+    "hitRate": 0.63,
     "slope": 1.31
    },
    {
     "k": 2,
     "n": 150,
-    "skill": 0.2,
-    "hitRate": 0.67,
+    "skill": 0.22,
+    "hitRate": 0.68,
     "slope": 1.32
    },
    {
     "k": 3,
     "n": 145,
-    "skill": 0.06,
-    "hitRate": 0.64,
-    "slope": 0.9
+    "skill": 0.08,
+    "hitRate": 0.65,
+    "slope": 0.97
    },
    {
     "k": 4,
     "n": 140,
-    "skill": 0.04,
-    "hitRate": 0.59,
-    "slope": 1.22
+    "skill": 0.05,
+    "hitRate": 0.6,
+    "slope": 1.27
    }
   ]
  },
@@ -226,23 +226,23 @@
   {
    "from": "2019Q1",
    "to": "2022Q4",
-   "chosen": 0.21,
-   "previous": 0.102,
-   "handSet": 0.101
+   "chosen": 0.212,
+   "previous": 0.105,
+   "handSet": 0.102
   },
   {
    "from": "2023Q1",
    "to": "2026Q3",
-   "chosen": 0.096,
-   "previous": 0.061,
+   "chosen": 0.098,
+   "previous": 0.06,
    "handSet": 0.066
   }
  ],
  "candidates": [
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
+   "priorScale": "f0.25/s1/m0.5",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
@@ -251,12 +251,32 @@
     "ipoCount": 0.7
    },
    "history": 2,
-   "score": 0.159,
+   "score": 0.163,
    "perFeature": {
     "valuation": 0.33,
+    "dealCount": 0.175,
+    "dealValue": 0.01,
+    "ipoCount": 0.135
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m0.5",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.162,
+   "perFeature": {
+    "valuation": 0.327,
     "dealCount": 0.173,
     "dealValue": 0.013,
-    "ipoCount": 0.118
+    "ipoCount": 0.135
    }
   },
   {
@@ -271,36 +291,16 @@
     "ipoCount": 0.7
    },
    "history": 2,
-   "score": 0.158,
+   "score": 0.161,
    "perFeature": {
     "valuation": 0.327,
-    "dealCount": 0.167,
+    "dealCount": 0.165,
     "dealValue": 0.018,
-    "ipoCount": 0.118
+    "ipoCount": 0.133
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m0.5",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 2,
-   "score": 0.158,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.175,
-    "dealValue": 0.01,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/1/0.55, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "0.25",
    "rounds": 2,
@@ -308,55 +308,15 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.55
+    "ipoCount": 0.7
    },
    "history": 2,
-   "score": 0.157,
+   "score": 0.16,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.167,
     "dealValue": 0.018,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.157,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.17,
-    "dealValue": 0.008,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.155,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.165,
-    "dealValue": 0.008,
-    "ipoCount": 0.115
+    "ipoCount": 0.128
    }
   },
   {
@@ -371,12 +331,32 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.155,
+   "score": 0.16,
    "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.165,
+    "valuation": 0.32,
+    "dealCount": 0.167,
     "dealValue": 0.013,
-    "ipoCount": 0.12
+    "ipoCount": 0.138
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 2,
+   "score": 0.16,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.168,
+    "dealValue": 0.008,
+    "ipoCount": 0.135
    }
   },
   {
@@ -391,12 +371,12 @@
     "ipoCount": 0.7
    },
    "history": 2,
-   "score": 0.155,
+   "score": 0.16,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.168,
     "dealValue": 0.005,
-    "ipoCount": 0.118
+    "ipoCount": 0.138
    }
   },
   {
@@ -411,32 +391,32 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.155,
+   "score": 0.16,
    "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.167,
+    "valuation": 0.32,
+    "dealCount": 0.17,
     "dealValue": 0.01,
-    "ipoCount": 0.12
+    "ipoCount": 0.14
    }
   },
   {
-   "label": "estimated (priors ×0.5), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
-   "priorScale": "0.5",
+   "priorScale": "f0.25/s0.5/m0.5",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
+    "dealValue": 1,
+    "ipoCount": 0.7
    },
    "history": 2,
-   "score": 0.154,
+   "score": 0.159,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.158,
+    "dealCount": 0.165,
     "dealValue": 0.008,
-    "ipoCount": 0.118
+    "ipoCount": 0.133
    }
   },
   {
@@ -451,12 +431,12 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.154,
+   "score": 0.159,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.167,
     "dealValue": 0.005,
-    "ipoCount": 0.118
+    "ipoCount": 0.135
    }
   },
   {
@@ -471,112 +451,12 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.154,
+   "score": 0.158,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.163,
+    "dealCount": 0.16,
     "dealValue": 0.005,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.154,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.16,
-    "dealValue": 0.003,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m0.5",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.153,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.148,
-    "dealValue": 0.013,
-    "ipoCount": 0.12
-   }
-  },
-  {
-   "label": "estimated (priors ×0.75), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.75",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.153,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.155,
-    "dealValue": 0.01,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.153,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.16,
-    "dealValue": -0.002,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.153,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.16,
-    "dealValue": 0.01,
-    "ipoCount": 0.12
+    "ipoCount": 0.135
    }
   },
   {
@@ -591,38 +471,78 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.153,
+   "score": 0.158,
    "perFeature": {
     "valuation": 0.323,
-    "dealCount": 0.162,
+    "dealCount": 0.16,
     "dealValue": 0.005,
-    "ipoCount": 0.123
+    "ipoCount": 0.143
    }
   },
   {
-   "label": "estimated (priors ×0.25), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.25",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.152,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.143,
-    "dealValue": 0.017,
-    "ipoCount": 0.12
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5), 2 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 2,
+   "score": 0.157,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.158,
+    "dealValue": 0.008,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m0.5",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.157,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.148,
+    "dealValue": 0.013,
+    "ipoCount": 0.135
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 2,
+   "score": 0.157,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.158,
+    "dealValue": 0.003,
+    "ipoCount": 0.138
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
@@ -630,13 +550,53 @@
     "dealValue": 0.85,
     "ipoCount": 0.7
    },
-   "history": 1,
-   "score": 0.152,
+   "history": 2,
+   "score": 0.157,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.143,
-    "dealValue": 0.013,
-    "ipoCount": 0.123
+    "dealCount": 0.16,
+    "dealValue": -0.002,
+    "ipoCount": 0.14
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.157,
+   "perFeature": {
+    "valuation": 0.32,
+    "dealCount": 0.16,
+    "dealValue": 0.008,
+    "ipoCount": 0.14
+   }
+  },
+  {
+   "label": "estimated (priors ×0.75), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.75",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.156,
+   "perFeature": {
+    "valuation": 0.317,
+    "dealCount": 0.155,
+    "dealValue": 0.01,
+    "ipoCount": 0.143
    }
   },
   {
@@ -651,72 +611,32 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.152,
+   "score": 0.155,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.145,
     "dealValue": 0.013,
-    "ipoCount": 0.118
+    "ipoCount": 0.13
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m0.5",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.85,
+    "dealValue": 0.7,
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.151,
+   "score": 0.155,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.143,
     "dealValue": 0.013,
-    "ipoCount": 0.12
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.25",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.15,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.14,
-    "dealValue": 0.013,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.15,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.153,
-    "dealValue": 0,
-    "ipoCount": 0.118
+    "ipoCount": 0.135
    }
   },
   {
@@ -731,38 +651,38 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.15,
+   "score": 0.154,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.155,
     "dealValue": -0.002,
-    "ipoCount": 0.118
+    "ipoCount": 0.135
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.25), 3 rounds, fade 1/1/0.85/0.85, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m1",
+   "priorScale": "0.25",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
+    "dealValue": 0.85,
+    "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.15,
+   "score": 0.154,
    "perFeature": {
-    "valuation": 0.33,
+    "valuation": 0.327,
     "dealCount": 0.143,
-    "dealValue": 0.008,
-    "ipoCount": 0.118
+    "dealValue": 0.017,
+    "ipoCount": 0.13
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
+   "priorScale": "0.5",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
@@ -771,98 +691,38 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.15,
+   "score": 0.154,
    "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.138,
+    "valuation": 0.323,
+    "dealCount": 0.14,
     "dealValue": 0.013,
-    "ipoCount": 0.118
+    "ipoCount": 0.138
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.149,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.148,
-    "dealValue": 0,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×1), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.149,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.143,
-    "dealValue": 0.008,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.149,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.143,
-    "dealValue": 0.005,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m2",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.85,
+    "dealValue": 0.7,
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.149,
+   "score": 0.154,
    "perFeature": {
     "valuation": 0.323,
-    "dealCount": 0.15,
+    "dealCount": 0.148,
     "dealValue": 0,
-    "ipoCount": 0.123
+    "ipoCount": 0.145
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
+   "priorScale": "0.25",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
@@ -871,152 +731,12 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.148,
+   "score": 0.153,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.14,
-    "dealValue": 0.008,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m0.5",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.148,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.14,
-    "dealValue": 0.005,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.148,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.145,
-    "dealValue": -0.002,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.75), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.75",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.148,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.133,
     "dealValue": 0.013,
-    "ipoCount": 0.12
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.148,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.138,
-    "dealValue": 0.01,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.148,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.138,
-    "dealValue": 0.01,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.5",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.147,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.135,
-    "dealValue": 0.008,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m0.5",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.147,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.135,
-    "dealValue": 0.005,
-    "ipoCount": 0.118
+    "ipoCount": 0.13
    }
   },
   {
@@ -1031,36 +751,76 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.147,
+   "score": 0.153,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.143,
     "dealValue": 0,
-    "ipoCount": 0.115
+    "ipoCount": 0.138
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.55/0.55, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 3,
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 2,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.55,
+    "dealValue": 0.85,
     "ipoCount": 0.55
    },
-   "history": 1,
-   "score": 0.146,
+   "history": 2,
+   "score": 0.153,
    "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.128,
-    "dealValue": 0.005,
-    "ipoCount": 0.12
+    "valuation": 0.327,
+    "dealCount": 0.15,
+    "dealValue": 0,
+    "ipoCount": 0.135
    }
   },
   {
-   "label": "estimated (priors ×1), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.153,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.148,
+    "dealValue": 0,
+    "ipoCount": 0.135
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.153,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.145,
+    "dealValue": -0.002,
+    "ipoCount": 0.138
+   }
+  },
+  {
+   "label": "estimated (priors ×1), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "1",
    "rounds": 3,
@@ -1068,41 +828,61 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.7,
-    "ipoCount": 0.7
+    "ipoCount": 0.55
    },
-   "history": 1,
-   "score": 0.145,
+   "history": 2,
+   "score": 0.153,
    "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.125,
-    "dealValue": 0.01,
-    "ipoCount": 0.118
+    "valuation": 0.317,
+    "dealCount": 0.14,
+    "dealValue": 0.008,
+    "ipoCount": 0.145
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.55, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
+   "priorScale": "f0.5/s0.5/m2",
    "rounds": 3,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.85,
+    "dealValue": 0.7,
     "ipoCount": 0.55
    },
-   "history": 1,
-   "score": 0.145,
+   "history": 2,
+   "score": 0.153,
    "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.123,
+    "valuation": 0.323,
+    "dealCount": 0.14,
     "dealValue": 0.005,
-    "ipoCount": 0.12
+    "ipoCount": 0.145
    }
   },
   {
-   "label": "estimated (priors ×0.75), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5), 2 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "0.75",
+   "priorScale": "0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.152,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.135,
+    "dealValue": 0.008,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m0.5",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
@@ -1111,12 +891,172 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.144,
+   "score": 0.152,
    "perFeature": {
     "valuation": 0.327,
+    "dealCount": 0.138,
+    "dealValue": 0.008,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.152,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.138,
+    "dealValue": 0.01,
+    "ipoCount": 0.13
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.152,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.138,
+    "dealValue": 0.01,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.152,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.138,
+    "dealValue": 0.01,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.152,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.138,
+    "dealValue": 0.01,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.151,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.14,
+    "dealValue": 0.005,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.75), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.75",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.151,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.133,
+    "dealValue": 0.013,
+    "ipoCount": 0.135
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.15,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.135,
+    "dealValue": 0.005,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×1), 3 rounds, fade 1/1/0.7/0.55, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 1,
+   "score": 0.15,
+   "perFeature": {
+    "valuation": 0.323,
     "dealCount": 0.128,
-    "dealValue": 0.003,
-    "ipoCount": 0.118
+    "dealValue": 0.01,
+    "ipoCount": 0.138
    }
   },
   {
@@ -1131,32 +1071,32 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.144,
+   "score": 0.149,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.128,
     "dealValue": -0.002,
-    "ipoCount": 0.118
+    "ipoCount": 0.138
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.75), 2 rounds, fade 1/1/1/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
+   "priorScale": "0.75",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.85,
+    "dealValue": 1,
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.143,
+   "score": 0.148,
    "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.13,
+    "valuation": 0.327,
+    "dealCount": 0.128,
     "dealValue": 0.003,
-    "ipoCount": 0.115
+    "ipoCount": 0.133
    }
   },
   {
@@ -1171,152 +1111,12 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.143,
+   "score": 0.147,
    "perFeature": {
     "valuation": 0.327,
-    "dealCount": 0.125,
-    "dealValue": 0.003,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.143,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.128,
-    "dealValue": 0,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.143,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.13,
-    "dealValue": -0.007,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.143,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.118,
-    "dealValue": 0.005,
-    "ipoCount": 0.12
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.25",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.7
-   },
-   "history": 2,
-   "score": 0.142,
-   "perFeature": {
-    "valuation": 0.33,
     "dealCount": 0.123,
-    "dealValue": 0.015,
-    "ipoCount": 0.1
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 1,
-   "score": 0.142,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.128,
-    "dealValue": 0,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.142,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.133,
-    "dealValue": -0.01,
-    "ipoCount": 0.123
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.142,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.113,
-    "dealValue": 0.008,
-    "ipoCount": 0.12
+    "dealValue": 0.003,
+    "ipoCount": 0.133
    }
   },
   {
@@ -1331,12 +1131,112 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.141,
+   "score": 0.147,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.12,
     "dealValue": -0.007,
-    "ipoCount": 0.12
+    "ipoCount": 0.143
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.55/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.147,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.123,
+    "dealValue": 0.005,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.25",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.7
+   },
+   "history": 2,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.123,
+    "dealValue": 0.015,
+    "ipoCount": 0.115
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.128,
+    "dealValue": 0.003,
+    "ipoCount": 0.13
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.125,
+    "dealValue": 0,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.85/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.128,
+    "dealValue": -0.007,
+    "ipoCount": 0.14
    }
   },
   {
@@ -1351,12 +1251,112 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.14,
+   "score": 0.146,
    "perFeature": {
     "valuation": 0.327,
     "dealCount": 0.123,
     "dealValue": -0.01,
-    "ipoCount": 0.12
+    "ipoCount": 0.143
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.85/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.12,
+    "dealValue": 0.005,
+    "ipoCount": 0.13
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.146,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.118,
+    "dealValue": 0.005,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.145,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.128,
+    "dealValue": 0,
+    "ipoCount": 0.13
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.145,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.128,
+    "dealValue": -0.01,
+    "ipoCount": 0.14
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.7/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.145,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.11,
+    "dealValue": 0.008,
+    "ipoCount": 0.133
    }
   },
   {
@@ -1371,36 +1371,16 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.139,
+   "score": 0.143,
    "perFeature": {
-    "valuation": 0.327,
+    "valuation": 0.323,
     "dealCount": 0.115,
     "dealValue": 0,
-    "ipoCount": 0.115
+    "ipoCount": 0.135
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.7
-   },
-   "history": 2,
-   "score": 0.138,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.113,
-    "dealValue": 0.005,
-    "ipoCount": 0.103
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "f0.25/s1/m0.5",
    "rounds": 1,
@@ -1408,19 +1388,19 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.7
+    "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.138,
+   "score": 0.142,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.115,
     "dealValue": 0.005,
-    "ipoCount": 0.103
+    "ipoCount": 0.118
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m0.5",
    "rounds": 1,
@@ -1428,19 +1408,19 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.7
+    "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.138,
+   "score": 0.142,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.113,
     "dealValue": 0.005,
-    "ipoCount": 0.103
+    "ipoCount": 0.12
    }
   },
   {
-   "label": "estimated (priors ×0.5), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.5), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "0.5",
    "rounds": 1,
@@ -1448,15 +1428,35 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.7
+    "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.137,
+   "score": 0.141,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.11,
     "dealValue": 0.005,
-    "ipoCount": 0.103
+    "ipoCount": 0.12
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m0.5",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.85
+   },
+   "history": 2,
+   "score": 0.141,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.113,
+    "dealValue": 0.005,
+    "ipoCount": 0.115
    }
   },
   {
@@ -1471,51 +1471,11 @@
     "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.136,
+   "score": 0.14,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.105,
     "dealValue": 0.005,
-    "ipoCount": 0.105
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.136,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.105,
-    "dealValue": -0.002,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.55/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.136,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.098,
-    "dealValue": -0.002,
     "ipoCount": 0.12
    }
   },
@@ -1531,52 +1491,12 @@
     "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.135,
+   "score": 0.139,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.1,
     "dealValue": 0.003,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.135,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.098,
-    "dealValue": 0.003,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m0.5",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.135,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.098,
-    "dealValue": 0.003,
-    "ipoCount": 0.108
+    "ipoCount": 0.123
    }
   },
   {
@@ -1591,12 +1511,32 @@
     "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.135,
+   "score": 0.139,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.1,
     "dealValue": 0.003,
-    "ipoCount": 0.108
+    "ipoCount": 0.123
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.7, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.7
+   },
+   "history": 1,
+   "score": 0.139,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.105,
+    "dealValue": -0.002,
+    "ipoCount": 0.13
    }
   },
   {
@@ -1611,16 +1551,36 @@
     "ipoCount": 0.55
    },
    "history": 1,
-   "score": 0.135,
+   "score": 0.139,
    "perFeature": {
     "valuation": 0.323,
-    "dealCount": 0.105,
+    "dealCount": 0.103,
     "dealValue": -0.005,
-    "ipoCount": 0.118
+    "ipoCount": 0.133
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.55, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.55/0.55, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.55
+   },
+   "history": 1,
+   "score": 0.139,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.098,
+    "dealValue": -0.002,
+    "ipoCount": 0.133
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.7, plus the last quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m2",
    "rounds": 2,
@@ -1628,39 +1588,59 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.4,
-    "ipoCount": 0.55
+    "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.135,
+   "score": 0.139,
    "perFeature": {
     "valuation": 0.323,
     "dealCount": 0.1,
     "dealValue": -0.002,
-    "ipoCount": 0.118
+    "ipoCount": 0.133
    }
   },
   {
-   "label": "hand-set, direct effects, fade 1/1/1/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "hand-set",
-   "priorScale": null,
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m0.5",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.55
+    "ipoCount": 0.85
    },
-   "history": 2,
-   "score": 0.133,
+   "history": 1,
+   "score": 0.138,
    "perFeature": {
-    "valuation": 0.32,
-    "dealCount": 0.108,
-    "dealValue": 0.015,
-    "ipoCount": 0.088
+    "valuation": 0.33,
+    "dealCount": 0.098,
+    "dealValue": 0.003,
+    "ipoCount": 0.12
    }
   },
   {
-   "label": "estimated (priors ×0.75), direct effects, fade 1/1/1/0.7, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/1/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m0.5",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.138,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.098,
+    "dealValue": 0.003,
+    "ipoCount": 0.12
+   }
+  },
+  {
+   "label": "estimated (priors ×0.75), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "0.75",
    "rounds": 1,
@@ -1668,15 +1648,15 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.7
+    "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.133,
+   "score": 0.137,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.095,
     "dealValue": 0,
-    "ipoCount": 0.105
+    "ipoCount": 0.123
    }
   },
   {
@@ -1691,12 +1671,32 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.133,
+   "score": 0.137,
    "perFeature": {
-    "valuation": 0.32,
+    "valuation": 0.313,
     "dealCount": 0.09,
     "dealValue": 0,
-    "ipoCount": 0.123
+    "ipoCount": 0.145
+   }
+  },
+  {
+   "label": "hand-set, direct effects, fade 1/1/1/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "hand-set",
+   "priorScale": null,
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.136,
+   "perFeature": {
+    "valuation": 0.32,
+    "dealCount": 0.108,
+    "dealValue": 0.015,
+    "ipoCount": 0.1
    }
   },
   {
@@ -1711,32 +1711,12 @@
     "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.132,
+   "score": 0.135,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.09,
     "dealValue": -0.002,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×2), 3 rounds, fade 1/1/0.4/0.55, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.55
-   },
-   "history": 1,
-   "score": 0.132,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.083,
-    "dealValue": 0.005,
-    "ipoCount": 0.118
+    "ipoCount": 0.12
    }
   },
   {
@@ -1751,32 +1731,32 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.13,
+   "score": 0.134,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.088,
     "dealValue": -0.002,
-    "ipoCount": 0.103
+    "ipoCount": 0.12
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s0.5/m1",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 1,
+    "dealValue": 0.7,
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.13,
+   "score": 0.134,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.088,
-    "dealValue": -0.005,
-    "ipoCount": 0.105
+    "dealValue": -0.002,
+    "ipoCount": 0.12
    }
   },
   {
@@ -1791,12 +1771,32 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.13,
+   "score": 0.134,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.088,
     "dealValue": -0.005,
-    "ipoCount": 0.105
+    "ipoCount": 0.123
+   }
+  },
+  {
+   "label": "estimated (priors ×2), 3 rounds, fade 1/1/0.55/0.55, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.55
+   },
+   "history": 1,
+   "score": 0.134,
+   "perFeature": {
+    "valuation": 0.317,
+    "dealCount": 0.08,
+    "dealValue": 0.002,
+    "ipoCount": 0.135
    }
   },
   {
@@ -1811,12 +1811,12 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.129,
+   "score": 0.133,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.083,
     "dealValue": -0.005,
-    "ipoCount": 0.108
+    "ipoCount": 0.123
    }
   },
   {
@@ -1831,32 +1831,52 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.129,
+   "score": 0.133,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.088,
     "dealValue": -0.005,
-    "ipoCount": 0.103
+    "ipoCount": 0.12
    }
   },
   {
-   "label": "hand-set, direct effects, fade 1/1/1/0.7, plus the last quarter's shocks",
-   "linkSet": "hand-set",
-   "priorScale": null,
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/1, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 1,
-    "ipoCount": 0.7
+    "dealValue": 0.7,
+    "ipoCount": 1
    },
    "history": 1,
-   "score": 0.128,
+   "score": 0.132,
    "perFeature": {
-    "valuation": 0.32,
-    "dealCount": 0.09,
-    "dealValue": 0.008,
-    "ipoCount": 0.093
+    "valuation": 0.33,
+    "dealCount": 0.08,
+    "dealValue": -0.002,
+    "ipoCount": 0.118
+   }
+  },
+  {
+   "label": "estimated (priors ×2), 2 rounds, fade 1/1/0.7/0.55, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 2,
+   "score": 0.132,
+   "perFeature": {
+    "valuation": 0.323,
+    "dealCount": 0.07,
+    "dealValue": -0.005,
+    "ipoCount": 0.14
    }
   },
   {
@@ -1871,96 +1891,36 @@
     "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.128,
+   "score": 0.131,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.078,
     "dealValue": -0.002,
-    "ipoCount": 0.105
+    "ipoCount": 0.118
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.128,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.078,
-    "dealValue": -0.002,
-    "ipoCount": 0.105
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.55/0.85, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.7/1, plus the last quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.25/s1/m1",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.85
+    "dealValue": 0.7,
+    "ipoCount": 1
    },
    "history": 1,
-   "score": 0.128,
+   "score": 0.131,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.08,
     "dealValue": -0.002,
-    "ipoCount": 0.103
+    "ipoCount": 0.115
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.55/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.128,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.08,
-    "dealValue": -0.002,
-    "ipoCount": 0.105
-   }
-  },
-  {
-   "label": "estimated (priors ×2), 2 rounds, fade 1/1/0.55/0.55, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.55
-   },
-   "history": 2,
-   "score": 0.128,
-   "perFeature": {
-    "valuation": 0.323,
-    "dealCount": 0.075,
-    "dealValue": -0.005,
-    "ipoCount": 0.118
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.55/1, plus the last quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.55/0.85, plus the last quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m1",
    "rounds": 1,
@@ -1968,15 +1928,55 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.55,
-    "ipoCount": 1
+    "ipoCount": 0.85
    },
    "history": 1,
-   "score": 0.127,
+   "score": 0.131,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.078,
     "dealValue": -0.002,
+    "ipoCount": 0.118
+   }
+  },
+  {
+   "label": "hand-set, direct effects, fade 1/1/1/0.85, plus the last quarter's shocks",
+   "linkSet": "hand-set",
+   "priorScale": null,
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.13,
+   "perFeature": {
+    "valuation": 0.32,
+    "dealCount": 0.09,
+    "dealValue": 0.008,
     "ipoCount": 0.1
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/1, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 1
+   },
+   "history": 1,
+   "score": 0.13,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.078,
+    "dealValue": -0.002,
+    "ipoCount": 0.115
    }
   },
   {
@@ -1991,252 +1991,12 @@
     "ipoCount": 0.55
    },
    "history": 1,
-   "score": 0.126,
+   "score": 0.13,
    "perFeature": {
-    "valuation": 0.32,
+    "valuation": 0.317,
     "dealCount": 0.07,
     "dealValue": 0,
-    "ipoCount": 0.115
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/0.85/0.4/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 0.85,
-    "dealValue": 0.4,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.119,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.043,
-    "dealValue": -0.002,
-    "ipoCount": 0.103
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5), 3 rounds, fade 0.85/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.5",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 0.85,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.119,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.083,
-    "dealValue": 0,
-    "ipoCount": 0.058
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.119,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.088,
-    "dealValue": -0.002,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.04,
-    "dealValue": -0.002,
-    "ipoCount": 0.103
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.04,
-    "dealValue": -0.002,
-    "ipoCount": 0.103
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.042,
-    "dealValue": -0.002,
-    "ipoCount": 0.1
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.85
-   },
-   "history": 2,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.04,
-    "dealValue": -0.007,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.85/0.85, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.85
-   },
-   "history": 2,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.042,
-    "dealValue": -0.01,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.7/0.85, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.85
-   },
-   "history": 2,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.042,
-    "dealValue": -0.01,
-    "ipoCount": 0.108
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25), 3 rounds, fade 1/1/0.85/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.25",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.085,
-    "dealValue": 0,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m0.5",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.118,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.09,
-    "dealValue": -0.002,
-    "ipoCount": 0.052
-   }
-  },
-  {
-   "label": "estimated (priors ×2), direct effects, fade 1/1/0.55/0.85, plus the last 2 quarters' shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.85
-   },
-   "history": 2,
-   "score": 0.117,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.04,
-    "dealValue": -0.015,
-    "ipoCount": 0.113
+    "ipoCount": 0.133
    }
   },
   {
@@ -2251,72 +2011,212 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.117,
+   "score": 0.122,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.04,
     "dealValue": -0.007,
-    "ipoCount": 0.105
+    "ipoCount": 0.125
    }
   },
   {
-   "label": "estimated (priors ×0.5), 2 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "0.5",
-   "rounds": 2,
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.04,
+    "dealValue": -0.002,
+    "ipoCount": 0.115
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.04,
+    "dealValue": -0.002,
+    "ipoCount": 0.115
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.04,
+    "dealValue": -0.002,
+    "ipoCount": 0.115
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.85
+   },
+   "history": 2,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.038,
+    "dealValue": -0.007,
+    "ipoCount": 0.123
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.85/0.85, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.85
+   },
+   "history": 2,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.042,
+    "dealValue": -0.01,
+    "ipoCount": 0.123
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.7/0.85, plus the last 2 quarters' shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.85
+   },
+   "history": 2,
+   "score": 0.121,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.042,
+    "dealValue": -0.01,
+    "ipoCount": 0.123
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.4/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.12,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.04,
+    "dealValue": -0.002,
+    "ipoCount": 0.113
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×0.5 macro), 3 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m0.5",
+   "rounds": 3,
    "lambda": {
     "valuation": 0.85,
     "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.117,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.08,
-    "dealValue": -0.002,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
+    "dealValue": 0.85,
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.117,
+   "score": 0.12,
    "perFeature": {
     "valuation": 0.333,
-    "dealCount": 0.082,
+    "dealCount": 0.09,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.057
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "label": "estimated (priors ×2), direct effects, fade 1/1/0.55/0.85, plus the last 2 quarters' shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m1",
-   "rounds": 3,
+   "priorScale": "2",
+   "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
+    "dealValue": 0.55,
+    "ipoCount": 0.85
+   },
+   "history": 2,
+   "score": 0.119,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.035,
+    "dealValue": -0.015,
+    "ipoCount": 0.125
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5), 3 rounds, fade 0.85/1/1/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.5",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 1,
+    "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.117,
+   "score": 0.119,
    "perFeature": {
     "valuation": 0.333,
-    "dealCount": 0.082,
+    "dealCount": 0.083,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.06
    }
   },
   {
@@ -2331,56 +2231,36 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.117,
+   "score": 0.119,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.083,
     "dealValue": -0.002,
-    "ipoCount": 0.052
+    "ipoCount": 0.06
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 3 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 3 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m1",
    "rounds": 3,
    "lambda": {
     "valuation": 0.85,
     "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
+    "dealValue": 0.7,
+    "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.117,
+   "score": 0.119,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.08,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.063
    }
   },
   {
-   "label": "estimated (priors ×2), direct effects, fade 1/1/0.55/0.85, plus the last quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.116,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.045,
-    "dealValue": -0.012,
-    "ipoCount": 0.103
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/0.85/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.25), 2 rounds, fade 1/1/0.85/0.7, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "0.25",
    "rounds": 2,
@@ -2388,35 +2268,35 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.85,
-    "ipoCount": 0.55
+    "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.083,
     "dealValue": 0,
-    "ipoCount": 0.052
+    "ipoCount": 0.057
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.5), 2 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m0.5",
+   "priorScale": "0.5",
    "rounds": 2,
    "lambda": {
-    "valuation": 1,
+    "valuation": 0.85,
     "dealCount": 1,
     "dealValue": 0.7,
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.083,
+    "valuation": 0.333,
+    "dealCount": 0.08,
     "dealValue": -0.002,
-    "ipoCount": 0.052
+    "ipoCount": 0.06
    }
   },
   {
@@ -2431,19 +2311,39 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.085,
     "dealValue": -0.002,
-    "ipoCount": 0.052
+    "ipoCount": 0.057
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.25), 3 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m0.5",
-   "rounds": 2,
+   "priorScale": "0.25",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.118,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.085,
+    "dealValue": 0,
+    "ipoCount": 0.057
+   }
+  },
+  {
+   "label": "estimated (priors ×0.75), 3 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.75",
+   "rounds": 3,
    "lambda": {
     "valuation": 0.85,
     "dealCount": 1,
@@ -2451,36 +2351,76 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.08,
     "dealValue": -0.002,
-    "ipoCount": 0.052
+    "ipoCount": 0.06
    }
   },
   {
-   "label": "estimated (priors ×0.75), 3 rounds, fade 0.85/1/1/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 3 rounds, fade 1/1/0.85/0.7, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "0.75",
+   "priorScale": "f0.25/s0.5/m0.5",
    "rounds": 3,
    "lambda": {
-    "valuation": 0.85,
+    "valuation": 1,
     "dealCount": 1,
-    "dealValue": 1,
+    "dealValue": 0.85,
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.078,
+    "valuation": 0.33,
+    "dealCount": 0.088,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.057
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.118,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.082,
+    "dealValue": -0.002,
+    "ipoCount": 0.063
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 3 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m1",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.118,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.082,
+    "dealValue": -0.002,
+    "ipoCount": 0.06
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 3 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s0.5/m1",
    "rounds": 3,
@@ -2488,15 +2428,75 @@
     "valuation": 0.85,
     "dealCount": 1,
     "dealValue": 0.85,
-    "ipoCount": 0.7
+    "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.116,
+   "score": 0.118,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.078,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.063
+   }
+  },
+  {
+   "label": "estimated (priors ×2), direct effects, fade 1/1/0.55/0.85, plus the last quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.117,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.04,
+    "dealValue": -0.012,
+    "ipoCount": 0.11
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×0.5 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.117,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.083,
+    "dealValue": -0.002,
+    "ipoCount": 0.057
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), 2 rounds, fade 0.85/1/0.85/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m0.5",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.117,
+   "perFeature": {
+    "valuation": 0.333,
+    "dealCount": 0.08,
+    "dealValue": -0.002,
+    "ipoCount": 0.057
    }
   },
   {
@@ -2516,16 +2516,56 @@
     "valuation": 0.333,
     "dealCount": 0.073,
     "dealValue": -0.002,
-    "ipoCount": 0.055
+    "ipoCount": 0.057
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.7, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m1",
+   "priorScale": "f0.25/s0.5/m1",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.115,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.075,
+    "dealValue": -0.005,
+    "ipoCount": 0.06
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.115,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.073,
+    "dealValue": -0.005,
+    "ipoCount": 0.063
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 0.85,
     "dealCount": 1,
     "dealValue": 0.7,
     "ipoCount": 0.55
@@ -2534,33 +2574,13 @@
    "score": 0.115,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.078,
-    "dealValue": -0.005,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.114,
-   "perFeature": {
-    "valuation": 0.33,
     "dealCount": 0.075,
     "dealValue": -0.005,
-    "ipoCount": 0.055
+    "ipoCount": 0.06
    }
   },
   {
-   "label": "estimated (priors ×1), 3 rounds, fade 0.85/1/0.85/0.4, this quarter's shocks",
+   "label": "estimated (priors ×1), 3 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "1",
    "rounds": 3,
@@ -2568,95 +2588,15 @@
     "valuation": 0.85,
     "dealCount": 1,
     "dealValue": 0.85,
-    "ipoCount": 0.4
+    "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.114,
+   "score": 0.115,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.07,
     "dealValue": -0.002,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.55/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.114,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.068,
-    "dealValue": -0.002,
-    "ipoCount": 0.057
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.113,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.073,
-    "dealValue": -0.005,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m1",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.113,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.075,
-    "dealValue": -0.005,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.4/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.113,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.068,
-    "dealValue": -0.002,
-    "ipoCount": 0.057
+    "ipoCount": 0.06
    }
   },
   {
@@ -2671,12 +2611,12 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.113,
+   "score": 0.115,
    "perFeature": {
     "valuation": 0.333,
-    "dealCount": 0.065,
+    "dealCount": 0.063,
     "dealValue": -0.002,
-    "ipoCount": 0.057
+    "ipoCount": 0.065
    }
   },
   {
@@ -2691,56 +2631,136 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.113,
+   "score": 0.115,
    "perFeature": {
     "valuation": 0.333,
     "dealCount": 0.065,
     "dealValue": -0.002,
-    "ipoCount": 0.057
+    "ipoCount": 0.065
    }
   },
   {
-   "label": "estimated (priors ×1), 2 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
+   "label": "estimated (priors ×1), 2 rounds, fade 0.85/1/0.85/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "1",
    "rounds": 2,
    "lambda": {
     "valuation": 0.85,
     "dealCount": 1,
-    "dealValue": 0.7,
+    "dealValue": 0.85,
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.112,
+   "score": 0.114,
    "perFeature": {
-    "valuation": 0.33,
+    "valuation": 0.333,
     "dealCount": 0.068,
     "dealValue": -0.005,
-    "ipoCount": 0.053
+    "ipoCount": 0.06
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.55/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), 2 rounds, fade 1/1/0.7/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m1",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.114,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.078,
+    "dealValue": -0.005,
+    "ipoCount": 0.057
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 3 rounds, fade 1/1/0.55/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.114,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.065,
+    "dealValue": -0.002,
+    "ipoCount": 0.063
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 3 rounds, fade 1/1/0.4/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.114,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.068,
+    "dealValue": -0.002,
+    "ipoCount": 0.063
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.25/s0.5/m2",
    "rounds": 2,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.55,
+    "dealValue": 0.4,
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.11,
+   "score": 0.111,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.057,
     "dealValue": -0.005,
-    "ipoCount": 0.057
+    "ipoCount": 0.063
    }
   },
   {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 0.85/1/0.55/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.111,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.055,
+    "dealValue": -0.005,
+    "ipoCount": 0.065
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.25/s1/m2",
    "rounds": 2,
@@ -2748,59 +2768,39 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.4,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.109,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.057,
-    "dealValue": -0.005,
-    "ipoCount": 0.055
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), 2 rounds, fade 1/1/0.55/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.109,
+   "score": 0.11,
    "perFeature": {
     "valuation": 0.327,
-    "dealCount": 0.057,
+    "dealCount": 0.055,
     "dealValue": -0.005,
-    "ipoCount": 0.057
+    "ipoCount": 0.063
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 2 rounds, fade 1/1/0.4/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), 2 rounds, fade 0.85/1/0.4/0.55, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "f0.5/s1/m2",
    "rounds": 2,
    "lambda": {
-    "valuation": 1,
+    "valuation": 0.85,
     "dealCount": 1,
     "dealValue": 0.4,
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.109,
+   "score": 0.11,
    "perFeature": {
     "valuation": 0.327,
-    "dealCount": 0.057,
+    "dealCount": 0.053,
     "dealValue": -0.005,
-    "ipoCount": 0.057
+    "ipoCount": 0.063
    }
   },
   {
-   "label": "estimated (priors ×0.25), direct effects, fade 1/1/1/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.25), direct effects, fade 1/1/1/0.85, this quarter's shocks",
    "linkSet": "estimated",
    "priorScale": "0.25",
    "rounds": 1,
@@ -2808,15 +2808,35 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 1,
-    "ipoCount": 0.7
+    "ipoCount": 0.85
    },
    "history": 0,
-   "score": 0.108,
+   "score": 0.109,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.063,
     "dealValue": -0.002,
-    "ipoCount": 0.04
+    "ipoCount": 0.045
+   }
+  },
+  {
+   "label": "estimated (priors ×2), 3 rounds, fade 0.85/1/0.55/0.4, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 3,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.4
+   },
+   "history": 0,
+   "score": 0.109,
+   "perFeature": {
+    "valuation": 0.333,
+    "dealCount": 0.048,
+    "dealValue": -0.005,
+    "ipoCount": 0.06
    }
   },
   {
@@ -2831,12 +2851,12 @@
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.107,
+   "score": 0.108,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.06,
     "dealValue": -0.002,
-    "ipoCount": 0.04
+    "ipoCount": 0.042
    }
   },
   {
@@ -2851,52 +2871,12 @@
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.107,
+   "score": 0.108,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.058,
     "dealValue": -0.002,
-    "ipoCount": 0.04
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/0.85/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m0.5",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.107,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.06,
-    "dealValue": -0.002,
-    "ipoCount": 0.04
-   }
-  },
-  {
-   "label": "estimated (priors ×2), 3 rounds, fade 0.85/1/0.7/0.4, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 3,
-   "lambda": {
-    "valuation": 0.85,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.4
-   },
-   "history": 0,
-   "score": 0.107,
-   "perFeature": {
-    "valuation": 0.333,
-    "dealCount": 0.045,
-    "dealValue": -0.005,
-    "ipoCount": 0.055
+    "ipoCount": 0.045
    }
   },
   {
@@ -2911,172 +2891,32 @@
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.106,
+   "score": 0.108,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.058,
     "dealValue": -0.002,
-    "ipoCount": 0.038
+    "ipoCount": 0.045
    }
   },
   {
-   "label": "estimated (priors ×1), direct effects, fade 1/1/0.55/0.7, this quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×0.5 macro), direct effects, fade 1/1/0.85/0.7, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "1",
+   "priorScale": "f0.5/s1/m0.5",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
     "dealCount": 1,
-    "dealValue": 0.55,
+    "dealValue": 0.85,
     "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.104,
+   "score": 0.108,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.053,
+    "dealCount": 0.06,
     "dealValue": -0.002,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×0.75), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "0.75",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.104,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.053,
-    "dealValue": -0.002,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×2), 2 rounds, fade 0.85/1/0.55/0.4, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 2,
-   "lambda": {
-    "valuation": 0.85,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.4
-   },
-   "history": 0,
-   "score": 0.104,
-   "perFeature": {
-    "valuation": 0.327,
-    "dealCount": 0.043,
-    "dealValue": -0.005,
-    "ipoCount": 0.05
-   }
-  },
-  {
-   "label": "hand-set, direct effects, fade 1/1/0.4/0.55, this quarter's shocks",
-   "linkSet": "hand-set",
-   "priorScale": null,
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.103,
-   "perFeature": {
-    "valuation": 0.32,
-    "dealCount": 0.055,
-    "dealValue": 0,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s0.5/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.103,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.05,
-    "dealValue": -0.002,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.25/s1/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.103,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.05,
-    "dealValue": -0.002,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.7,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.103,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.048,
-    "dealValue": -0.002,
-    "ipoCount": 0.035
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.55/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m1",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.103,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.05,
-    "dealValue": -0.002,
-    "ipoCount": 0.035
+    "ipoCount": 0.042
    }
   },
   {
@@ -3091,12 +2931,152 @@
     "ipoCount": 0.55
    },
    "history": 2,
-   "score": 0.103,
+   "score": 0.107,
    "perFeature": {
     "valuation": 0.16,
     "dealCount": 0.128,
     "dealValue": 0.02,
-    "ipoCount": 0.105
+    "ipoCount": 0.118
+   }
+  },
+  {
+   "label": "estimated (priors ×1), direct effects, fade 1/1/0.55/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.105,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.053,
+    "dealValue": -0.002,
+    "ipoCount": 0.038
+   }
+  },
+  {
+   "label": "estimated (priors ×0.75), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "0.75",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.105,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.053,
+    "dealValue": -0.002,
+    "ipoCount": 0.04
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s0.5/m1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.105,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.05,
+    "dealValue": -0.002,
+    "ipoCount": 0.04
+   }
+  },
+  {
+   "label": "estimated (priors ×2), 2 rounds, fade 0.85/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 2,
+   "lambda": {
+    "valuation": 0.85,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.105,
+   "perFeature": {
+    "valuation": 0.327,
+    "dealCount": 0.043,
+    "dealValue": -0.005,
+    "ipoCount": 0.055
+   }
+  },
+  {
+   "label": "estimated (priors ×0.25 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.25/s1/m1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.104,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.05,
+    "dealValue": -0.002,
+    "ipoCount": 0.038
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s0.5/m1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.104,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.048,
+    "dealValue": -0.002,
+    "ipoCount": 0.04
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×1 macro), direct effects, fade 1/1/0.7/0.55, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m1",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.7,
+    "ipoCount": 0.55
+   },
+   "history": 0,
+   "score": 0.104,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.05,
+    "dealValue": -0.002,
+    "ipoCount": 0.038
    }
   },
   {
@@ -3111,18 +3091,38 @@
     "ipoCount": 0.7
    },
    "history": 1,
-   "score": 0.101,
+   "score": 0.104,
    "perFeature": {
     "valuation": 0.177,
-    "dealCount": 0.108,
+    "dealCount": 0.105,
     "dealValue": 0.013,
-    "ipoCount": 0.105
+    "ipoCount": 0.12
    }
   },
   {
-   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.55/0.55, this quarter's shocks",
+   "label": "hand-set, direct effects, fade 1/1/0.4/0.4, this quarter's shocks",
+   "linkSet": "hand-set",
+   "priorScale": null,
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.4
+   },
+   "history": 0,
+   "score": 0.103,
+   "perFeature": {
+    "valuation": 0.32,
+    "dealCount": 0.055,
+    "dealValue": 0,
+    "ipoCount": 0.038
+   }
+  },
+  {
+   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.55/0.55, this quarter's shocks",
    "linkSet": "estimated",
-   "priorScale": "f0.5/s1/m2",
+   "priorScale": "f0.5/s0.5/m2",
    "rounds": 1,
    "lambda": {
     "valuation": 1,
@@ -3134,49 +3134,9 @@
    "score": 0.099,
    "perFeature": {
     "valuation": 0.33,
-    "dealCount": 0.033,
+    "dealCount": 0.028,
     "dealValue": -0.002,
-    "ipoCount": 0.033
-   }
-  },
-  {
-   "label": "estimated (priors ×2), direct effects, fade 1/1/0.4/0.55, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.4,
-    "ipoCount": 0.55
-   },
-   "history": 0,
-   "score": 0.098,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.033,
-    "dealValue": -0.005,
-    "ipoCount": 0.033
-   }
-  },
-  {
-   "label": "estimated (priors ×0.5 links, ×0.5 spillovers, ×2 macro), direct effects, fade 1/1/0.55/0.7, this quarter's shocks",
-   "linkSet": "estimated",
-   "priorScale": "f0.5/s0.5/m2",
-   "rounds": 1,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.55,
-    "ipoCount": 0.7
-   },
-   "history": 0,
-   "score": 0.098,
-   "perFeature": {
-    "valuation": 0.33,
-    "dealCount": 0.03,
-    "dealValue": -0.002,
-    "ipoCount": 0.033
+    "ipoCount": 0.038
    }
   },
   {
@@ -3191,12 +3151,12 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.097,
+   "score": 0.098,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.025,
     "dealValue": -0.002,
-    "ipoCount": 0.033
+    "ipoCount": 0.038
    }
   },
   {
@@ -3211,16 +3171,56 @@
     "ipoCount": 0.55
    },
    "history": 0,
-   "score": 0.097,
+   "score": 0.098,
    "perFeature": {
     "valuation": 0.33,
     "dealCount": 0.025,
     "dealValue": -0.002,
-    "ipoCount": 0.033
+    "ipoCount": 0.038
    }
   },
   {
-   "label": "hand-set, 2 rounds, fade 1/1/0.85/0.55, this quarter's shocks",
+   "label": "estimated (priors ×0.5 links, ×1 spillovers, ×2 macro), direct effects, fade 1/1/0.55/0.7, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "f0.5/s1/m2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.55,
+    "ipoCount": 0.7
+   },
+   "history": 0,
+   "score": 0.098,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.028,
+    "dealValue": -0.002,
+    "ipoCount": 0.037
+   }
+  },
+  {
+   "label": "estimated (priors ×2), direct effects, fade 1/1/0.4/0.4, this quarter's shocks",
+   "linkSet": "estimated",
+   "priorScale": "2",
+   "rounds": 1,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.4,
+    "ipoCount": 0.4
+   },
+   "history": 0,
+   "score": 0.096,
+   "perFeature": {
+    "valuation": 0.33,
+    "dealCount": 0.03,
+    "dealValue": -0.007,
+    "ipoCount": 0.03
+   }
+  },
+  {
+   "label": "hand-set, 2 rounds, fade 1/1/0.85/0.7, this quarter's shocks",
    "linkSet": "hand-set",
    "priorScale": null,
    "rounds": 2,
@@ -3228,15 +3228,35 @@
     "valuation": 1,
     "dealCount": 1,
     "dealValue": 0.85,
-    "ipoCount": 0.55
+    "ipoCount": 0.7
    },
    "history": 0,
-   "score": 0.094,
+   "score": 0.095,
    "perFeature": {
     "valuation": 0.27,
     "dealCount": 0.063,
     "dealValue": -0.002,
-    "ipoCount": 0.045
+    "ipoCount": 0.048
+   }
+  },
+  {
+   "label": "hand-set, 3 rounds, fade 1/1/0.85/0.85, plus the last quarter's shocks",
+   "linkSet": "hand-set",
+   "priorScale": null,
+   "rounds": 3,
+   "lambda": {
+    "valuation": 1,
+    "dealCount": 1,
+    "dealValue": 0.85,
+    "ipoCount": 0.85
+   },
+   "history": 1,
+   "score": 0.063,
+   "perFeature": {
+    "valuation": 0.067,
+    "dealCount": 0.08,
+    "dealValue": 0.003,
+    "ipoCount": 0.1
    }
   },
   {
@@ -3260,26 +3280,6 @@
    }
   },
   {
-   "label": "hand-set, 3 rounds, fade 1/1/0.85/0.85, plus the last quarter's shocks",
-   "linkSet": "hand-set",
-   "priorScale": null,
-   "rounds": 3,
-   "lambda": {
-    "valuation": 1,
-    "dealCount": 1,
-    "dealValue": 0.85,
-    "ipoCount": 0.85
-   },
-   "history": 1,
-   "score": 0.06,
-   "perFeature": {
-    "valuation": 0.067,
-    "dealCount": 0.08,
-    "dealValue": 0.003,
-    "ipoCount": 0.09
-   }
-  },
-  {
    "label": "hand-set, 3 rounds, fade 1/1/1/0.85, plus the last 2 quarters' shocks",
    "linkSet": "hand-set",
    "priorScale": null,
@@ -3291,12 +3291,12 @@
     "ipoCount": 0.85
    },
    "history": 2,
-   "score": 0.052,
+   "score": 0.055,
    "perFeature": {
     "valuation": 0.017,
     "dealCount": 0.098,
     "dealValue": 0.003,
-    "ipoCount": 0.088
+    "ipoCount": 0.1
    }
   }
  ],
@@ -3305,10 +3305,10 @@
    "quarter": "2019Q1",
    "feature": "valuation",
    "predicted": [
-    12.04,
-    12.41,
-    12.37,
-    12.24
+    12.09,
+    12.43,
+    12.38,
+    12.28
    ],
    "realized": [
     11.39,
@@ -3321,10 +3321,10 @@
    "quarter": "2019Q1",
    "feature": "dealCount",
    "predicted": [
-    -15.72,
-    -10.88,
-    -10.14,
-    -8.66
+    -15.95,
+    -10.95,
+    -10.1,
+    -8.52
    ],
    "realized": [
     -3.29,
@@ -3337,10 +3337,10 @@
    "quarter": "2019Q1",
    "feature": "dealValue",
    "predicted": [
-    -38.87,
-    -14.93,
-    -11.75,
-    -8.26
+    -39.73,
+    -14.83,
+    -11.56,
+    -7.94
    ],
    "realized": [
     -151.64,
@@ -3353,26 +3353,26 @@
    "quarter": "2019Q1",
    "feature": "ipoCount",
    "predicted": [
-    -20.04,
-    -8.91,
-    0.81,
-    0.44
+    -20.47,
+    -8.55,
+    1.26,
+    0.73
    ],
    "realized": [
-    -25.77,
-    1.19,
-    -9.37,
-    -25
+    -34.69,
+    -5.98,
+    -4.02,
+    -21.88
    ]
   },
   {
    "quarter": "2019Q2",
    "feature": "valuation",
    "predicted": [
-    1.68,
-    1.62,
-    1.44,
-    1.41
+    1.56,
+    1.5,
+    1.37,
+    1.36
    ],
    "realized": [
     1.14,
@@ -3385,9 +3385,9 @@
    "quarter": "2019Q2",
    "feature": "dealCount",
    "predicted": [
-    -11.71,
-    -10.03,
-    -8.26,
+    -12.1,
+    -10.37,
+    -8.51,
     null
    ],
    "realized": [
@@ -3401,9 +3401,9 @@
    "quarter": "2019Q2",
    "feature": "dealValue",
    "predicted": [
-    -9.23,
-    -1.55,
-    3.08,
+    -9.62,
+    -1.79,
+    3.06,
     null
    ],
    "realized": [
@@ -3417,26 +3417,26 @@
    "quarter": "2019Q2",
    "feature": "ipoCount",
    "predicted": [
-    -4.13,
-    10.07,
-    11.35,
-    11.07
+    -4.05,
+    10.38,
+    11.62,
+    11.37
    ],
    "realized": [
-    22.11,
-    14.08,
-    0.98,
-    28.32
+    20.25,
+    25,
+    9.94,
+    35.46
    ]
   },
   {
    "quarter": "2019Q3",
    "feature": "valuation",
    "predicted": [
-    -2.95,
-    -3.1,
-    -3.09,
-    -3.07
+    -2.9,
+    -3.02,
+    -3.01,
+    -2.99
    ],
    "realized": [
     -2.52,
@@ -3449,8 +3449,8 @@
    "quarter": "2019Q3",
    "feature": "dealCount",
    "predicted": [
-    11.55,
-    11.97,
+    11.91,
+    12.38,
     null,
     null
    ],
@@ -3465,8 +3465,8 @@
    "quarter": "2019Q3",
    "feature": "dealValue",
    "predicted": [
-    18.71,
-    13.37,
+    19.48,
+    13.99,
     null,
     null
    ],
@@ -3481,16 +3481,16 @@
    "quarter": "2019Q3",
    "feature": "ipoCount",
    "predicted": [
-    13.67,
-    5.16,
-    -0.54,
-    -2.55
+    14.24,
+    5.35,
+    -0.51,
+    -2.59
    ],
    "realized": [
-    -6.55,
-    -23.71,
-    -0.44,
-    -68.69
+    3.71,
+    -15.41,
+    6.06,
+    -68.53
    ]
   },
   {
@@ -3498,9 +3498,9 @@
    "feature": "valuation",
    "predicted": [
     7.91,
-    7.93,
-    7.7,
-    7.63
+    7.96,
+    7.79,
+    7.74
    ],
    "realized": [
     7.57,
@@ -3513,7 +3513,7 @@
    "quarter": "2019Q4",
    "feature": "dealCount",
    "predicted": [
-    1.88,
+    1.79,
     null,
     null,
     null
@@ -3529,7 +3529,7 @@
    "quarter": "2019Q4",
    "feature": "dealValue",
    "predicted": [
-    8.06,
+    7.77,
     null,
     null,
     null
@@ -3545,26 +3545,26 @@
    "quarter": "2019Q4",
    "feature": "ipoCount",
    "predicted": [
-    4.02,
-    15.13,
-    13.36,
-    8.36
+    3.88,
+    15.17,
+    13.39,
+    8.44
    ],
    "realized": [
-    -10.92,
-    13.8,
-    -53.01,
-    51.78
+    -6.51,
+    16.47,
+    -56.61,
+    47.06
    ]
   },
   {
    "quarter": "2020Q1",
    "feature": "valuation",
    "predicted": [
-    -36.93,
-    -36.82,
-    -36.04,
-    -35.65
+    -37.01,
+    -37.02,
+    -36.46,
+    -36.19
    ],
    "realized": [
     -35.49,
@@ -3609,26 +3609,26 @@
    "quarter": "2020Q1",
    "feature": "ipoCount",
    "predicted": [
-    -16.93,
-    -59.41,
-    -59.74,
-    -39.93
+    -17.21,
+    -61.19,
+    -61.29,
+    -41.1
    ],
    "realized": [
-    16.59,
-    -50.15,
-    54.72,
-    68.4
+    18.53,
+    -54.8,
+    48.61,
+    52.62
    ]
   },
   {
    "quarter": "2020Q2",
    "feature": "valuation",
    "predicted": [
-    20.2,
-    21.01,
-    20.96,
-    20.92
+    20.3,
+    20.97,
+    20.97,
+    20.97
    ],
    "realized": [
     18.18,
@@ -3673,26 +3673,26 @@
    "quarter": "2020Q2",
    "feature": "ipoCount",
    "predicted": [
-    -49.36,
-    -19.65,
-    -3.47,
-    -3.35
+    -50.87,
+    -19.81,
+    -3.37,
+    -3.29
    ],
    "realized": [
-    -54.83,
-    51.94,
-    67.52,
-    154.51
+    -60.49,
+    45.08,
+    51.25,
+    148.83
    ]
   },
   {
    "quarter": "2020Q3",
    "feature": "valuation",
    "predicted": [
-    1.04,
-    0.85,
-    0.82,
-    0.82
+    0.96,
+    0.83,
+    0.83,
+    0.83
    ],
    "realized": [
     0.9,
@@ -3737,26 +3737,26 @@
    "quarter": "2020Q3",
    "feature": "ipoCount",
    "predicted": [
-    -0.9,
-    18.49,
-    18.98,
-    19.85
+    0.49,
+    20.71,
+    21.09,
+    21.96
    ],
    "realized": [
-    67.34,
-    79.82,
-    163.69,
-    80.41
+    61.2,
+    64.3,
+    158.81,
+    76.13
    ]
   },
   {
    "quarter": "2020Q4",
    "feature": "valuation",
    "predicted": [
-    15.53,
-    15.88,
-    15.88,
-    15.88
+    15.82,
+    16.26,
+    16.38,
+    16.42
    ],
    "realized": [
     14.34,
@@ -3801,26 +3801,26 @@
    "quarter": "2020Q4",
    "feature": "ipoCount",
    "predicted": [
-    33.53,
-    42.41,
-    34,
-    19.92
+    34.97,
+    44.52,
+    35.66,
+    21
    ],
    "realized": [
-    55.89,
-    140.69,
-    58.34,
-    85.3
+    42.82,
+    138.25,
+    56.48,
+    81.51
    ]
   },
   {
    "quarter": "2021Q1",
    "feature": "valuation",
    "predicted": [
-    10.49,
-    10.8,
-    10.9,
-    10.92
+    10.58,
+    11.05,
+    11.26,
+    11.31
    ],
    "realized": [
     9.62,
@@ -3865,26 +3865,26 @@
    "quarter": "2021Q1",
    "feature": "ipoCount",
    "predicted": [
-    30.92,
-    43.42,
-    33.25,
-    20.9
+    32.31,
+    45.1,
+    34.5,
+    21.84
    ],
    "realized": [
-    123.43,
-    41.35,
-    68.59,
-    76.11
+    125.74,
+    43.97,
+    69,
+    76.13
    ]
   },
   {
    "quarter": "2021Q2",
    "feature": "valuation",
    "predicted": [
-    6.34,
-    6.8,
-    6.98,
-    7.02
+    6.43,
+    7.02,
+    7.24,
+    7.3
    ],
    "realized": [
     5.84,
@@ -3929,26 +3929,26 @@
    "quarter": "2021Q2",
    "feature": "ipoCount",
    "predicted": [
-    42.22,
-    39.21,
-    27.08,
-    16.38
+    43.74,
+    40.48,
+    27.95,
+    16.96
    ],
    "realized": [
-    3.48,
-    32.03,
-    40.88,
-    -48.48
+    6.44,
+    32.93,
+    41.53,
+    -40.83
    ]
   },
   {
    "quarter": "2021Q3",
    "feature": "valuation",
    "predicted": [
-    -2.84,
-    -2.78,
-    -2.81,
-    -2.83
+    -2.8,
+    -2.71,
+    -2.76,
+    -2.8
    ],
    "realized": [
     -2.83,
@@ -3993,26 +3993,26 @@
    "quarter": "2021Q3",
    "feature": "ipoCount",
    "predicted": [
-    20.85,
-    10.09,
-    3.26,
-    0.2
+    21.35,
+    9.91,
+    3.02,
+    -0.03
    ],
    "realized": [
-    12.16,
-    19.03,
-    -72.3,
-    -101.93
+    13.04,
+    19.71,
+    -64.57,
+    -92.68
    ]
   },
   {
    "quarter": "2021Q4",
    "feature": "valuation",
    "predicted": [
-    7.23,
-    7.36,
-    7.5,
-    7.56
+    7.29,
+    7.43,
+    7.62,
+    7.69
    ],
    "realized": [
     6.72,
@@ -4057,16 +4057,16 @@
    "quarter": "2021Q4",
    "feature": "ipoCount",
    "predicted": [
-    2.5,
-    9.39,
-    8.81,
-    4.6
+    2.11,
+    9.65,
+    9.09,
+    4.77
    ],
    "realized": [
-    7.55,
-    -83.34,
-    -112.54,
-    -121.02
+    8.55,
+    -75.3,
+    -102.98,
+    -103.15
    ]
   },
   {
@@ -4074,9 +4074,9 @@
    "feature": "valuation",
    "predicted": [
     1.17,
-    1.24,
-    1.26,
-    1.24
+    1.25,
+    1.28,
+    1.25
    ],
    "realized": [
     0.79,
@@ -4089,10 +4089,10 @@
    "quarter": "2022Q1",
    "feature": "dealCount",
    "predicted": [
-    -1.57,
-    -1.88,
-    -1.64,
-    -1.84
+    -1.71,
+    -2.05,
+    -1.83,
+    -2.03
    ],
    "realized": [
     -3.22,
@@ -4105,10 +4105,10 @@
    "quarter": "2022Q1",
    "feature": "dealValue",
    "predicted": [
-    1.04,
-    -0.67,
-    2.21,
-    3.02
+    0.74,
+    -1.16,
+    2.14,
+    3.1
    ],
    "realized": [
     41.77,
@@ -4121,26 +4121,26 @@
    "quarter": "2022Q1",
    "feature": "ipoCount",
    "predicted": [
-    0.12,
-    2.98,
-    2.55,
-    2
+    0.31,
+    3.06,
+    2.59,
+    2.12
    ],
    "realized": [
-    -91.76,
-    -120.75,
-    -129.01,
-    -154.52
+    -86.02,
+    -113.67,
+    -113.81,
+    -149.49
    ]
   },
   {
    "quarter": "2022Q2",
    "feature": "valuation",
    "predicted": [
-    -18.35,
-    -19.08,
-    -19.59,
-    -19.74
+    -18.52,
+    -19.33,
+    -20.01,
+    -20.21
    ],
    "realized": [
     -16.61,
@@ -4153,10 +4153,10 @@
    "quarter": "2022Q2",
    "feature": "dealCount",
    "predicted": [
-    -0.37,
-    -18.17,
-    -24.43,
-    -26.48
+    -0.15,
+    -18.63,
+    -25.61,
+    -27.91
    ],
    "realized": [
     -40.93,
@@ -4169,10 +4169,10 @@
    "quarter": "2022Q2",
    "feature": "dealValue",
    "predicted": [
-    -14.19,
-    -55.67,
-    -54.56,
-    -50.28
+    -14.58,
+    -58.35,
+    -57.92,
+    -53.68
    ],
    "realized": [
     -31.97,
@@ -4185,26 +4185,26 @@
    "quarter": "2022Q2",
    "feature": "ipoCount",
    "predicted": [
-    -3.89,
-    -34.8,
-    -34.13,
-    -23.74
+    -3.96,
+    -36.9,
+    -36.04,
+    -25.15
    ],
    "realized": [
-    -76,
-    -82.89,
-    -107.02,
-    -25.22
+    -70.56,
+    -69.23,
+    -103.44,
+    -19.29
    ]
   },
   {
    "quarter": "2022Q3",
    "feature": "valuation",
    "predicted": [
-    -7.16,
-    -8.42,
-    -9.22,
-    -9.27
+    -7.37,
+    -8.86,
+    -9.83,
+    -9.9
    ],
    "realized": [
     -5.82,
@@ -4217,10 +4217,10 @@
    "quarter": "2022Q3",
    "feature": "dealCount",
    "predicted": [
-    -21.22,
-    -38.8,
-    -44.53,
-    -45.3
+    -22.14,
+    -40.77,
+    -47.14,
+    -48.06
    ],
    "realized": [
     -11.13,
@@ -4233,10 +4233,10 @@
    "quarter": "2022Q3",
    "feature": "dealValue",
    "predicted": [
-    -60.82,
-    -86.27,
-    -80.87,
-    -69.34
+    -64.43,
+    -91.74,
+    -86.79,
+    -74.66
    ],
    "realized": [
     -45.9,
@@ -4249,26 +4249,26 @@
    "quarter": "2022Q3",
    "feature": "ipoCount",
    "predicted": [
-    -33.74,
-    -49.04,
-    -34.5,
-    -22.81
+    -36.12,
+    -51.9,
+    -36.66,
+    -24.46
    ],
    "realized": [
-    -65.93,
-    -91.67,
-    -11.47,
-    -48.21
+    -53.65,
+    -89.43,
+    -6.84,
+    -32.73
    ]
   },
   {
    "quarter": "2022Q4",
    "feature": "valuation",
    "predicted": [
-    11.32,
-    10.61,
-    10.87,
-    11.12
+    11.28,
+    10.44,
+    10.8,
+    11.1
    ],
    "realized": [
     11.41,
@@ -4281,10 +4281,10 @@
    "quarter": "2022Q4",
    "feature": "dealCount",
    "predicted": [
-    -30.15,
-    -34.1,
-    -32.79,
-    -31.11
+    -31.76,
+    -35.82,
+    -34.18,
+    -32.27
    ],
    "realized": [
     -28.04,
@@ -4297,10 +4297,10 @@
    "quarter": "2022Q4",
    "feature": "dealValue",
    "predicted": [
-    -59.95,
-    -52.89,
-    -40.53,
-    -28.79
+    -64.03,
+    -55.96,
+    -42.47,
+    -29.73
    ],
    "realized": [
     -63.77,
@@ -4313,26 +4313,26 @@
    "quarter": "2022Q4",
    "feature": "ipoCount",
    "predicted": [
-    -36.99,
-    -13.26,
-    2.02,
-    4.18
+    -38.92,
+    -13.11,
+    2.6,
+    4.69
    ],
    "realized": [
-    -63.53,
-    16.87,
-    -19.67,
-    1.98
+    -65.93,
+    16.86,
+    -8.83,
+    4.65
    ]
   },
   {
    "quarter": "2023Q1",
    "feature": "valuation",
    "predicted": [
-    -1.82,
-    -1.69,
-    -1.67,
-    -1.64
+    -2,
+    -1.76,
+    -1.72,
+    -1.69
    ],
    "realized": [
     -0.72,
@@ -4345,10 +4345,10 @@
    "quarter": "2023Q1",
    "feature": "dealCount",
    "predicted": [
-    -7.46,
-    -10.59,
-    -10.3,
-    -10.15
+    -7.51,
+    -10.36,
+    -9.95,
+    -9.79
    ],
    "realized": [
     -16.95,
@@ -4361,10 +4361,10 @@
    "quarter": "2023Q1",
    "feature": "dealValue",
    "predicted": [
-    -10.48,
-    -19.2,
-    -16.45,
-    -14.21
+    -10.34,
+    -18.95,
+    -16.19,
+    -14.12
    ],
    "realized": [
     13.14,
@@ -4377,26 +4377,26 @@
    "quarter": "2023Q1",
    "feature": "ipoCount",
    "predicted": [
-    6.17,
-    7.15,
-    5.98,
-    5.34
+    7.22,
+    8.13,
+    6.69,
+    5.92
    ],
    "realized": [
-    53.73,
-    17.22,
-    38.9,
-    -0.68
+    53.16,
+    27.36,
+    40.72,
+    -1.75
    ]
   },
   {
    "quarter": "2023Q2",
    "feature": "valuation",
    "predicted": [
-    3.55,
-    3.74,
-    3.83,
-    3.92
+    3.7,
+    3.94,
+    4.06,
+    4.17
    ],
    "realized": [
     3.12,
@@ -4409,10 +4409,10 @@
    "quarter": "2023Q2",
    "feature": "dealCount",
    "predicted": [
-    1.91,
-    3.51,
-    4.17,
-    4.66
+    2.63,
+    4.53,
+    5.32,
+    5.85
    ],
    "realized": [
     -15.95,
@@ -4425,10 +4425,10 @@
    "quarter": "2023Q2",
    "feature": "dealValue",
    "predicted": [
-    0.72,
-    0.62,
-    -1.68,
-    -2.08
+    2.29,
+    2.35,
+    -0.37,
+    -0.99
    ],
    "realized": [
     -12.06,
@@ -4441,26 +4441,26 @@
    "quarter": "2023Q2",
    "feature": "ipoCount",
    "predicted": [
-    14.21,
-    10.77,
-    8.64,
-    4.61
+    15.21,
+    11.78,
+    9.4,
+    5
    ],
    "realized": [
-    6.51,
-    29.13,
-    -9.51,
-    45.67
+    16.24,
+    30.63,
+    -10.83,
+    54.29
    ]
   },
   {
    "quarter": "2023Q3",
    "feature": "valuation",
    "predicted": [
-    -3.94,
-    -3.98,
-    -4.14,
-    -4.2
+    -4.07,
+    -4.11,
+    -4.31,
+    -4.4
    ],
    "realized": [
     -3.14,
@@ -4474,9 +4474,9 @@
    "feature": "dealCount",
    "predicted": [
     0.5,
-    -3.37,
-    -4.42,
-    -4.92
+    -3.56,
+    -4.83,
+    -5.43
    ],
    "realized": [
     34.05,
@@ -4489,10 +4489,10 @@
    "quarter": "2023Q3",
    "feature": "dealValue",
    "predicted": [
-    -4.17,
-    -16.82,
-    -16.89,
-    -15.85
+    -4.5,
+    -18.3,
+    -18.63,
+    -17.62
    ],
    "realized": [
     51.77,
@@ -4505,26 +4505,26 @@
    "quarter": "2023Q3",
    "feature": "ipoCount",
    "predicted": [
-    2.34,
-    -3.48,
-    -4.94,
-    -3.98
+    2.49,
+    -4,
+    -5.51,
+    -4.41
    ],
    "realized": [
-    26.66,
-    -13.26,
-    40.63,
-    62.23
+    24.51,
+    -18.21,
+    45.64,
+    55.5
    ]
   },
   {
    "quarter": "2023Q4",
    "feature": "valuation",
    "predicted": [
-    6.76,
-    6.83,
-    7.1,
-    7.22
+    6.91,
+    6.93,
+    7.31,
+    7.48
    ],
    "realized": [
     5.86,
@@ -4537,10 +4537,10 @@
    "quarter": "2023Q4",
    "feature": "dealCount",
    "predicted": [
-    -0.59,
-    3.81,
-    5.77,
-    6.74
+    -0.64,
+    3.94,
+    6.14,
+    7.26
    ],
    "realized": [
     -3.69,
@@ -4553,10 +4553,10 @@
    "quarter": "2023Q4",
    "feature": "dealValue",
    "predicted": [
-    -1.31,
-    10.23,
-    10.65,
-    10.57
+    -1.7,
+    10.76,
+    11.55,
+    11.69
    ],
    "realized": [
     94.66,
@@ -4569,26 +4569,26 @@
    "quarter": "2023Q4",
    "feature": "ipoCount",
    "predicted": [
-    -1.12,
-    8.19,
-    9.07,
-    5.3
+    -1.39,
+    8.8,
+    9.67,
+    5.72
    ],
    "realized": [
-    -23.85,
-    30.23,
-    52.02,
-    26.71
+    -26.79,
+    37.24,
+    47.29,
+    21.87
    ]
   },
   {
    "quarter": "2024Q1",
    "feature": "valuation",
    "predicted": [
-    8.06,
-    8.53,
-    8.97,
-    9.09
+    8.08,
+    8.66,
+    9.22,
+    9.37
    ],
    "realized": [
     7.67,
@@ -4601,10 +4601,10 @@
    "quarter": "2024Q1",
    "feature": "dealCount",
    "predicted": [
-    2.96,
-    10.78,
-    14,
-    15.07
+    2.84,
+    11.13,
+    14.72,
+    15.92
    ],
    "realized": [
     16.76,
@@ -4617,10 +4617,10 @@
    "quarter": "2024Q1",
    "feature": "dealValue",
    "predicted": [
-    17.67,
-    31.33,
-    30.72,
-    27.27
+    18.23,
+    33.05,
+    32.88,
+    29.34
    ],
    "realized": [
     113.83,
@@ -4633,26 +4633,26 @@
    "quarter": "2024Q1",
    "feature": "ipoCount",
    "predicted": [
-    10.88,
-    24.3,
-    21.35,
-    15.32
+    11.51,
+    25.71,
+    22.59,
+    16.37
    ],
    "realized": [
-    29.36,
-    51.3,
-    26.14,
-    48.12
+    35.98,
+    46.08,
+    20.72,
+    39.14
    ]
   },
   {
    "quarter": "2024Q2",
    "feature": "valuation",
    "predicted": [
-    -2.62,
-    -2.3,
-    -2.3,
-    -2.34
+    -2.57,
+    -2.16,
+    -2.17,
+    -2.23
    ],
    "realized": [
     -2.8,
@@ -4665,10 +4665,10 @@
    "quarter": "2024Q2",
    "feature": "dealCount",
    "predicted": [
-    13.41,
-    14.32,
-    14.5,
-    14.18
+    14.26,
+    15.38,
+    15.57,
+    15.19
    ],
    "realized": [
     23.91,
@@ -4681,10 +4681,10 @@
    "quarter": "2024Q2",
    "feature": "dealValue",
    "predicted": [
-    31.25,
-    23.59,
-    18.74,
-    14.09
+    33.56,
+    25.57,
+    20.3,
+    15.22
    ],
    "realized": [
     -71.46,
@@ -4697,26 +4697,26 @@
    "quarter": "2024Q2",
    "feature": "ipoCount",
    "predicted": [
-    21.41,
-    13.26,
-    6.33,
-    3.25
+    22.76,
+    13.88,
+    6.65,
+    3.42
    ],
    "realized": [
-    47.5,
-    23.03,
-    45.7,
-    70.71
+    39.3,
+    14.68,
+    33.85,
+    64.38
    ]
   },
   {
    "quarter": "2024Q3",
    "feature": "valuation",
    "predicted": [
-    3.11,
-    3.14,
-    3.28,
-    3.34
+    3.29,
+    3.32,
+    3.51,
+    3.58
    ],
    "realized": [
     2.1,
@@ -4729,10 +4729,10 @@
    "quarter": "2024Q3",
    "feature": "dealCount",
    "predicted": [
-    3.17,
-    5.66,
-    6.55,
-    6.98
+    3.43,
+    6.18,
+    7.26,
+    7.79
    ],
    "realized": [
     -2.56,
@@ -4745,10 +4745,10 @@
    "quarter": "2024Q3",
    "feature": "dealValue",
    "predicted": [
-    4.29,
-    9.53,
-    8.93,
-    7.83
+    4.75,
+    10.74,
+    10.31,
+    9.24
    ],
    "realized": [
     42.1,
@@ -4761,26 +4761,26 @@
    "quarter": "2024Q3",
    "feature": "ipoCount",
    "predicted": [
-    2.8,
-    4.51,
-    3.74,
-    1.21
+    2.95,
+    5.23,
+    4.4,
+    1.62
    ],
    "realized": [
-    4.19,
-    25.73,
-    49.62,
-    15.16
+    -0.03,
+    18.03,
+    47.48,
+    9.79
    ]
   },
   {
    "quarter": "2024Q4",
    "feature": "valuation",
    "predicted": [
-    -3.95,
-    -3.82,
-    -3.75,
-    -3.8
+    -4.04,
+    -3.87,
+    -3.8,
+    -3.87
    ],
    "realized": [
     -3.69,
@@ -4793,10 +4793,10 @@
    "quarter": "2024Q4",
    "feature": "dealCount",
    "predicted": [
-    -0.91,
-    0.9,
-    1.4,
-    1.08
+    -0.92,
+    0.89,
+    1.37,
+    1.01
    ],
    "realized": [
     7.53,
@@ -4809,10 +4809,10 @@
    "quarter": "2024Q4",
    "feature": "dealValue",
    "predicted": [
-    2.05,
-    6.88,
-    7.69,
-    6.48
+    2.31,
+    7.07,
+    7.99,
+    6.66
    ],
    "realized": [
     -6.31,
@@ -4825,26 +4825,26 @@
    "quarter": "2024Q4",
    "feature": "ipoCount",
    "predicted": [
-    -0.43,
-    1.72,
-    -0.71,
-    0.18
+    -0.07,
+    1.7,
+    -0.85,
+    0.15
    ],
    "realized": [
-    26.44,
-    50.51,
-    16.23,
-    55.89
+    19.84,
+    49.47,
+    11.96,
+    59.63
    ]
   },
   {
    "quarter": "2025Q1",
    "feature": "valuation",
    "predicted": [
-    -1.14,
-    -1.11,
+    -1.1,
+    -1.08,
     -1.19,
-    -1.24
+    -1.25
    ],
    "realized": [
     -1.2,
@@ -4857,58 +4857,58 @@
    "quarter": "2025Q1",
    "feature": "dealCount",
    "predicted": [
-    2.75,
-    3.34,
-    2.7,
-    2.34
+    3.03,
+    3.53,
+    2.78,
+    2.37
    ],
    "realized": [
     8.46,
     2.12,
     20.91,
-    38.65
+    38.02
    ]
   },
   {
    "quarter": "2025Q1",
    "feature": "dealValue",
    "predicted": [
-    6.77,
-    7.38,
-    5.8,
-    4.65
+    7.27,
+    7.68,
+    5.87,
+    4.62
    ],
    "realized": [
     -29.41,
     -77.29,
     87.21,
-    92.51
+    92.39
    ]
   },
   {
    "quarter": "2025Q1",
    "feature": "ipoCount",
    "predicted": [
-    1.48,
-    -2.71,
-    -3.19,
-    -2.2
+    1.46,
+    -3.12,
+    -3.56,
+    -2.5
    ],
    "realized": [
-    32.77,
-    -1.26,
-    38.64,
-    26.63
+    33.09,
+    -4.24,
+    43.59,
+    22.18
    ]
   },
   {
    "quarter": "2025Q2",
    "feature": "valuation",
    "predicted": [
-    2.88,
-    2.84,
-    2.99,
-    3.04
+    3.04,
+    2.96,
+    3.19,
+    3.27
    ],
    "realized": [
     1.71,
@@ -4921,15 +4921,15 @@
    "quarter": "2025Q2",
    "feature": "dealCount",
    "predicted": [
-    -2.92,
-    -1.62,
-    -0.53,
-    0.01
+    -3.21,
+    -1.69,
+    -0.33,
+    0.36
    ],
    "realized": [
     -0.08,
     19.35,
-    37.75,
+    37.11,
     48.16
    ]
   },
@@ -4937,15 +4937,15 @@
    "quarter": "2025Q2",
    "feature": "dealValue",
    "predicted": [
-    -4.71,
-    2.91,
-    6.26,
-    7.51
+    -5.17,
+    3.59,
+    7.67,
+    9.22
    ],
    "realized": [
     -50.46,
     114.99,
-    121.23,
+    121.1,
     139.51
    ]
   },
@@ -4953,26 +4953,26 @@
    "quarter": "2025Q2",
    "feature": "ipoCount",
    "predicted": [
-    -8.66,
-    -1.38,
-    1.49,
-    1.06
+    -9.09,
+    -0.78,
+    2.19,
+    1.63
    ],
    "realized": [
-    -11.73,
-    28.77,
-    17.36,
-    43.87
+    -12.88,
+    35.57,
+    14.79,
+    48.04
    ]
   },
   {
    "quarter": "2025Q3",
    "feature": "valuation",
    "predicted": [
-    2.6,
-    2.94,
-    3.04,
-    3.07
+    2.55,
+    2.98,
+    3.09,
+    3.13
    ],
    "realized": [
     3.05,
@@ -4985,14 +4985,14 @@
    "quarter": "2025Q3",
    "feature": "dealCount",
    "predicted": [
-    2.3,
-    6.74,
-    7.8,
-    8.19
+    2.46,
+    7.24,
+    8.43,
+    8.85
    ],
    "realized": [
     20.11,
-    38.25,
+    37.62,
     48.38,
     33.5
    ]
@@ -5001,14 +5001,14 @@
    "quarter": "2025Q3",
    "feature": "dealValue",
    "predicted": [
-    11.6,
-    19.81,
-    18.15,
-    15.07
+    12.76,
+    21.64,
+    19.9,
+    16.44
    ],
    "realized": [
     116.13,
-    121.71,
+    121.58,
     139.18,
     86.85
    ]
@@ -5017,26 +5017,26 @@
    "quarter": "2025Q3",
    "feature": "ipoCount",
    "predicted": [
-    10.5,
-    13.13,
-    10.59,
-    8.29
+    11.27,
+    13.87,
+    11.11,
+    8.76
    ],
    "realized": [
-    31.75,
-    19.36,
-    44.89,
-    65.12
+    39.26,
+    17.53,
+    49.85,
+    63.18
    ]
   },
   {
    "quarter": "2025Q4",
    "feature": "valuation",
    "predicted": [
-    1.11,
-    1.19,
-    1.28,
-    1.26
+    1.2,
+    1.31,
+    1.4,
+    1.38
    ],
    "realized": [
     0.71,
@@ -5049,13 +5049,13 @@
    "quarter": "2025Q4",
    "feature": "dealCount",
    "predicted": [
-    6.44,
-    9.25,
-    10.06,
-    9.93
+    7.01,
+    9.93,
+    10.76,
+    10.61
    ],
    "realized": [
-    29.99,
+    29.35,
     40.11,
     25.2,
     24.22
@@ -5065,13 +5065,13 @@
    "quarter": "2025Q4",
    "feature": "dealValue",
    "predicted": [
-    16.43,
-    19.18,
-    16.16,
-    13.68
+    18.02,
+    20.62,
+    17.25,
+    14.54
    ],
    "realized": [
-    89.36,
+    89.23,
     106.96,
     54.73,
     61.97
@@ -5081,25 +5081,25 @@
    "quarter": "2025Q4",
    "feature": "ipoCount",
    "predicted": [
-    9.32,
-    9.27,
-    5.91,
-    3.62
+    9.89,
+    9.56,
+    6.08,
+    3.67
    ],
    "realized": [
-    4.75,
-    30.46,
-    50.87,
-    -7.59
+    0.65,
+    33.14,
+    46.65,
+    -6.89
    ]
   },
   {
    "quarter": "2026Q1",
    "feature": "valuation",
    "predicted": [
+    -0.42,
     -0.43,
-    -0.45,
-    -0.55,
+    -0.56,
     null
    ],
    "realized": [
@@ -5113,15 +5113,15 @@
    "quarter": "2026Q1",
    "feature": "dealCount",
    "predicted": [
-    5.09,
-    4.7,
-    3.79,
+    5.08,
+    4.66,
+    3.68,
     null
    ],
    "realized": [
-    28.69,
-    13.5,
-    12.22,
+    28.9,
+    13.7,
+    12.43,
     null
    ]
   },
@@ -5129,15 +5129,15 @@
    "quarter": "2026Q1",
    "feature": "dealValue",
    "predicted": [
-    4.9,
-    0.26,
-    -1.09,
+    4.6,
+    -0.19,
+    -1.5,
     null
    ],
    "realized": [
-    83.49,
-    30.86,
-    37.69,
+    83.54,
+    30.9,
+    37.74,
     null
    ]
   },
@@ -5145,15 +5145,15 @@
    "quarter": "2026Q1",
    "feature": "ipoCount",
    "predicted": [
-    1.17,
-    -2.55,
-    -4.44,
+    1.09,
+    -2.7,
+    -4.58,
     null
    ],
    "realized": [
-    28.13,
-    48.75,
-    -9.5,
+    31.3,
+    44.95,
+    -8.45,
     null
    ]
   },
@@ -5161,8 +5161,8 @@
    "quarter": "2026Q2",
    "feature": "valuation",
    "predicted": [
-    8.81,
-    8.97,
+    8.9,
+    9.08,
     null,
     null
    ],
@@ -5177,14 +5177,14 @@
    "quarter": "2026Q2",
    "feature": "dealCount",
    "predicted": [
-    1.03,
-    7.75,
+    0.96,
+    8.02,
     null,
     null
    ],
    "realized": [
-    4.89,
-    4.18,
+    5.03,
+    4.33,
     null,
     null
    ]
@@ -5193,14 +5193,14 @@
    "quarter": "2026Q2",
    "feature": "dealValue",
    "predicted": [
-    8.7,
-    25.24,
+    8.96,
+    26.83,
     null,
     null
    ],
    "realized": [
-    -0.04,
-    7.65,
+    -0.01,
+    7.68,
     null,
     null
    ]
@@ -5209,14 +5209,14 @@
    "quarter": "2026Q2",
    "feature": "ipoCount",
    "predicted": [
-    2.46,
-    15.36,
+    2.49,
+    16.33,
     null,
     null
    ],
    "realized": [
-    43.3,
-    -14.44,
+    38.52,
+    -14.36,
     null,
     null
    ]
@@ -5225,7 +5225,7 @@
    "quarter": "2026Q3",
    "feature": "valuation",
    "predicted": [
-    -0.44,
+    -0.57,
     null,
     null,
     null
@@ -5241,13 +5241,13 @@
    "quarter": "2026Q3",
    "feature": "dealCount",
    "predicted": [
-    7.28,
+    7.55,
     null,
     null,
     null
    ],
    "realized": [
-    -2.25,
+    -2.11,
     null,
     null,
     null
@@ -5257,13 +5257,13 @@
    "quarter": "2026Q3",
    "feature": "dealValue",
    "predicted": [
-    20.54,
+    21.65,
     null,
     null,
     null
    ],
    "realized": [
-    -18.57,
+    -18.54,
     null,
     null,
     null
@@ -5273,13 +5273,13 @@
    "quarter": "2026Q3",
    "feature": "ipoCount",
    "predicted": [
-    15.72,
+    16.51,
     null,
     null,
     null
    ],
    "realized": [
-    -35.84,
+    -34.69,
     null,
     null,
     null
