@@ -50,6 +50,35 @@ export function namesExtend(a: string, b: string): boolean {
   return s.every((w, i) => !!l[i]?.startsWith(w));
 }
 
+const GENERIC_NAME = /^(?:group|holdings?|company|companies|partners|capital|technologies|systems|solutions|services|inc|llc|ltd|corp|corporation|bank|bancorp|the)$/i;
+
+/**
+ * Two spellings of one private company, for merging the same buyer's duplicate records. Returns the name to keep, or
+ * null: spacing ("AdoreMe" / "Adore Me", "Sentrycs" / "Sentry CS Ltd."), a description in front ("CNAPP Vendor
+ * Ermetic" / "Ermetic": keeps the plain name), initials ("UDF IV" / "United Development Funding IV", "TMRC" / "Texas
+ * Mineral Resources Corp": keeps the full name).
+ */
+export function privateNameMatch(a: string, b: string): string | null {
+  const strip = (s: string) => normalizeName(s).replace(/\b(?:inc|llc|ltd|corp|corporation|co|limited|plc|gmbh|ag|sa|nv|bv)\b/g, "").replace(/\s+/g, " ").trim();
+  const [x, y] = [strip(a), strip(b)];
+  if (!x || !y) return null;
+  if (x.replace(/ /g, "") === y.replace(/ /g, "") && x.replace(/ /g, "").length >= 5) return a.length >= b.length ? a : b;
+  const [short, long, shortRaw, longRaw] = x.split(" ").length <= y.split(" ").length ? [x, y, a, b] : [y, x, b, a];
+  const sw = short.split(" "), lw = long.split(" ");
+  // A description in front: the shorter name is the end of the longer one.
+  // Words ending in a connector belong to the name ("Bancshares of Jackson Hole"): keep the longer one then.
+  if (sw.length < lw.length && lw.slice(-sw.length).join(" ") === short && short.replace(/ /g, "").length >= 3 && !sw.every((w) => GENERIC_NAME.test(w)))
+    return /^(?:of|and|the|for|de)$/.test(lw[lw.length - sw.length - 1]) ? longRaw : shortRaw;
+  // Initials: "UDF IV" = United Development Funding IV.
+  const acronym = /^([A-Z]{3,})(?:\s+([IVX]+))?$/.exec(shortRaw.trim().replace(/[.,]/g, ""));
+  if (acronym) {
+    const words = longRaw.replace(/[.,]/g, "").split(/\s+/).filter((w) => !/^(?:of|and|the|&)$/i.test(w));
+    const roman = acronym[2] && words.at(-1)?.toUpperCase() === acronym[2] ? words.pop() : null;
+    if ((acronym[2] ? !!roman : true) && words.map((w) => w[0]?.toUpperCase()).join("") === acronym[1]) return longRaw;
+  }
+  return null;
+}
+
 /** A party written as another party's ticker: "UWMC" for UWM Holdings Corp (ticker UWMC). */
 export function isTickerOf(name: string, party: { ticker?: string | null }): boolean {
   return !!party.ticker && party.ticker.length >= 2 && name.trim().toUpperCase() === party.ticker.toUpperCase();

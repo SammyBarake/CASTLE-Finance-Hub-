@@ -2,7 +2,7 @@
  * Final consistency pass over every stored deal, run at the end of each deal ingest. Pure (no EDGAR requests), so
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, sameCompany } from "./parse/names";
+import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -220,9 +220,13 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     for (let j = i + 1; j < privates.length && days(privates[i].announcedDate, privates[j].announcedDate) <= 365; j++) {
       const [a, b] = [privates[i], privates[j]];
       if (!deals.includes(a) || !deals.includes(b) || a.status === "Terminated") continue;
-      if (!(identicalNames(a.target.name, b.target.name) || namesExtend(a.target.name, b.target.name))) continue;
+      // Or another spelling of the same name ("AdoreMe" / "Adore Me", "CNAPP Vendor Ermetic" / "Ermetic", "UDF IV" / "United
+      // Development Funding IV"), which also picks the name to keep.
+      const spelling = privateNameMatch(a.target.name, b.target.name);
+      if (!(identicalNames(a.target.name, b.target.name) || namesExtend(a.target.name, b.target.name) || spelling)) continue;
       if (!(sameCompany(a.acquirer.name, b.acquirer.name) || (!!a.acquirer.cik && a.acquirer.cik === b.acquirer.cik))) continue;
-      if (b.target.name.length > a.target.name.length) a.target.name = b.target.name;
+      if (spelling) a.target.name = spelling;
+      else if (b.target.name.length > a.target.name.length) a.target.name = b.target.name;
       merge(a, b);
       drop(b, `same purchase as ${a.id}`);
       result.merged++;

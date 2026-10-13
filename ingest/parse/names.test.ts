@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, privateNameMatch, sameCompany, titleCaseCaps } from "./names";
 
 describe("descriptions, tails and fragments read as names", () => {
   it("strips a 'Leading … Provider' description, a 'via …' tail, a listing prefix and a dangling connector", () => {
@@ -217,5 +217,21 @@ describe("cleanPartyName: longer descriptions", () => {
     expect(cleanPartyName("Carlisle Management Company SCA")).toBe("Carlisle Management Company SCA");
     expect(cleanPartyName("Thoma Bravo Fund XV, L.P.")).toBe("Thoma Bravo");
     expect(cleanPartyName("American Industrial Partners Capital Fund VII, L.P.")).toBe("American Industrial Partners");
+  });
+});
+
+describe("privateNameMatch", () => {
+  it("matches spellings of one private company and picks the name to keep", () => {
+    expect(privateNameMatch("AdoreMe", "Adore Me")).toBe("Adore Me");
+    expect(privateNameMatch("CNAPP Vendor Ermetic", "Ermetic")).toBe("Ermetic");
+    expect(privateNameMatch("UDF IV", "United Development Funding IV")).toBe("United Development Funding IV");
+    expect(privateNameMatch("TMRC", "Texas Mineral Resources Corp")).toBe("Texas Mineral Resources Corp");
+    expect(privateNameMatch("Jackson Hole Incorporated", "Bancshares of Jackson Hole Incorporated")).toBe("Bancshares of Jackson Hole Incorporated");
+  });
+  it("leaves different companies apart", () => {
+    expect(privateNameMatch("Proofread Anywhere", "SEOButler")).toBeNull();
+    expect(privateNameMatch("Codecademy", "Ryzac, Inc.")).toBeNull();
+    expect(privateNameMatch("Group", "Acme Group")).toBeNull();
+    expect(privateNameMatch("Bank of Jackson", "Jackson Hole Incorporated")).toBeNull();
   });
 });

@@ -881,7 +881,7 @@ export async function isMergerTermination(cik: string, adsh: string, doc: string
  * Private targets have no filings of their own. Sector and industry come from the acquirer, and an
  * announced deal closes when the acquirer files an 8-K Item 2.01 ("Completion of Acquisition").
  */
-export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | null, today: string, directory?: Directory) {
+export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | null, today: string, directory?: Directory, opts: { verifyClosing?: boolean } = {}) {
   if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
   // Delisted since (no longer in the listed-company file): its SEC name, not prose such as
   // "Merger As previously reported, Ideanomics, Inc.".
@@ -890,7 +890,9 @@ export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | n
     deal.acquirer.ticker ??= acquirerSub.tickers?.[0] ?? null;
     deal.sector = sectorForSic(acquirerSub.sic, acquirerSub.name);
     deal.industry = acquirerSub.sicDescription || null;
-    if (deal.status === "Announced") {
+    // Without verification (the history's light runs) the buyer's first 8-K Item 2.01 closes it; otherwise
+    // privateClosing reads the 8-Ks and takes the one naming the target.
+    if (deal.status === "Announced" && !opts.verifyClosing) {
       const limit = new Date(Date.parse(deal.announcedDate) + 400 * 86_400_000).toISOString().slice(0, 10);
       const done = recentFilings(acquirerSub)
         .filter((f) => /^8-K/.test(f.form) && /\b2\.01\b/.test(f.items) && f.date > deal.announcedDate && f.date <= limit)
@@ -907,6 +909,36 @@ export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | n
   deal.proxyCheckedAt = today;
   deal.fairnessCheckedAt = today;
   deal.fairnessParser = FAIRNESS_PARSER_VERSION;
+}
+
+/**
+ * A private purchase closes on the buyer's 8-K Item 2.01 that names it: a serial buyer files one for each deal, and the
+ * first one after the announcement may be another (Rocket Lab's Planetary Systems took SolAero's closing date). Each
+ * 8-K is read once per deal (`seen`: "close:<deal>:<accession>"); with none naming it, the later-filings search
+ * (`settleFromBuyerFilings`) has its turn.
+ */
+async function privateClosing(deal: StoredDeal, acquirerSub: Submissions, seen: Set<string>) {
+  const name = searchName(cleanPartyName(deal.target.name));
+  if (!name) return;
+  const named = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  const done = recentFilings(acquirerSub)
+    .filter((f) => /^8-K/.test(f.form) && /\b2\.01\b/.test(f.items) && f.date > deal.announcedDate && f.date <= shiftDate(deal.announcedDate, 400))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  for (const f of done.slice(0, 4)) {
+    const key = `close:${deal.id}:${f.adsh}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const text = flatten(htmlToText(await getTextHead(archiveUrl(acquirerSub.cik, f.adsh, f.primaryDocument), 150_000)));
+      if (named.test(text)) {
+        deal.status = "Closed";
+        deal.statusDate = f.date;
+        return;
+      }
+    } catch {
+      // Unreadable: the later-filings search may still settle it.
+    }
+  }
 }
 
 /**
@@ -1719,7 +1751,8 @@ export async function ingestDeals(
       }
       if (deal.privateTarget) {
         const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
-        enrichPrivateDeal(deal, acquirerSub, opts.today, directory);
+        enrichPrivateDeal(deal, acquirerSub, opts.today, directory, { verifyClosing: !opts.light });
+        if (deal.status === "Announced" && acquirerSub && !opts.light) await privateClosing(deal, acquirerSub, state.seen);
         if (deal.status === "Announced" && acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
         // Still open: the buyer's later filings usually say it closed (or ended).
         if (acquirerSub && !opts.light && settleDue(deal, opts.today)) await settleFromBuyerFilings(deal, acquirerSub.cik, opts.today);
