@@ -53,7 +53,12 @@ export function listsOnExchange(text: string): boolean {
  * re-IPO (Smithfield Foods: public until 2013, IPO again in January 2025).
  */
 export const publicWithin = (filings: { form: string; date: string }[], date: string) =>
-  filings.some((f) => (PERIODIC.test(f.form) || f.form === "424B4") && f.date < date && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
+  filings.some((f) => (PERIODIC.test(f.form) || FINAL_PROSPECTUS.test(f.form)) && f.date < date && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
+/**
+ * A final pricing prospectus: 424B4, or 424B1 when only the information left out under Rule 430A was added
+ * (Grupo Aeroméxico's November 2025 IPO, which read "Filed" for a year).
+ */
+export const FINAL_PROSPECTUS = /^424B[14]$/;
 export const FUNDLIKE =
   /\b(ETF|Fund|Trust|Bitcoin|Ether(?:eum)?|Staked|Solana|XRP|Crypto(?:currency)?|Portfolio|Income Shares)\b|\bAcquisition (?:Corp|Company|Co)\b|\b(?:Holdings|Capital|Acquisition) (?:Corp\.?,? |Inc\.?,? )?[IVX]{1,4}\b/i;
 export const MIN_RAISE = 20e6;
@@ -120,7 +125,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   const mergedIn = filings.some((f) => /^(?:S-4|F-4)(?:\/A)?$/.test(f.form) && f.date < initial.date);
   if (mergedIn && filings.some((f) => /^8-K/.test(f.form) && /\b5\.06\b/.test(f.items))) return null;
 
-  const priced = filings.find((f) => f.form === "424B4" && f.date >= initial.date);
+  const priced = filings.find((f) => FINAL_PROSPECTUS.test(f.form) && f.date >= initial.date);
   // Withdrawn before pricing (a withdrawal after the IPO concerns some later registration).
   const withdrawn = filings.find((f) => f.form === "RW" && f.date >= initial.date && (!priced || f.date < priced.date));
   if (withdrawn) return null;

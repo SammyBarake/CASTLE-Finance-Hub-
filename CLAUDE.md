@@ -126,7 +126,9 @@ ingest/               The SEC data engine (Node, run by GitHub Actions; never im
                       by existing holders, like Innio, stays), and SPAC mergers (S-4/F-4 before the S-1 plus an
                       8-K Item 5.06, or no bookrunner). The tracked registration is the IPO's own S-1: a follow-on
                       S-1 after the IPO (WhiteHawk) no longer drops it. A bank in the company's own name isn't a
-                      bookrunner ("Baird Medical"). Bump IPO_PARSER_VERSION to re-read stored records. A registration with no known bookrunner counts only if the prospectus lists on the NYSE / Nasdaq / Cboe or "a national securities exchange" (`listsOnExchange`; drops shells quoted over the counter or nowhere). Small-cap underwriters are in `lib/banks.ts` (H.C. Wainwright, Ladenburg, Northland, D. Boral, Kingswood, Eddid, Pacific Century, R.F. Lafferty, Joseph Gunnar / Stone, Dominari, Revere, Spartan …): 32 of 78 filed IPOs had no bookrunner, mostly these.
+                      bookrunner ("Baird Medical"). Bump IPO_PARSER_VERSION to re-read stored records. A final
+                      prospectus is a 424B4 or a 424B1 (`FINAL_PROSPECTUS`; Grupo Aeroméxico and AGI priced on 424B1s
+                      and read "Filed" for months), in the pipeline and the IPO history alike. A registration with no known bookrunner counts only if the prospectus lists on the NYSE / Nasdaq / Cboe or "a national securities exchange" (`listsOnExchange`; drops shells quoted over the counter or nowhere). Small-cap underwriters are in `lib/banks.ts` (H.C. Wainwright, Ladenburg, Northland, D. Boral, Kingswood, Eddid, Pacific Century, R.F. Lafferty, Joseph Gunnar / Stone, Dominari, Revere, Spartan …): 32 of 78 filed IPOs had no bookrunner, mostly these.
                       Rules shared with ipoHistory.ts: SPACs (6770) and ABS (6189) are out; commodity dealers (6221)
                       and REITs (6798, registered on S-11) count only if the prospectus lists on the NYSE / Nasdaq /
                       Cboe (`listsOnExchange`: Gemini, Lineage; not commodity pools or non-traded REITs); no 10-K /

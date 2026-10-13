@@ -5,7 +5,7 @@
  */
 import { archiveUrl, filingsUntil, fullTextSearch, getSubmissions, getText, nameOn, NotFoundError, trimCik, type Submissions } from "./edgar";
 import { monthWindows } from "./deals";
-import { EXCLUDED_SIC, FUNDLIKE, LISTING_SIC, listsOnExchange, MIN_RAISE, publicWithin } from "./ipos";
+import { EXCLUDED_SIC, FINAL_PROSPECTUS, FUNDLIKE, LISTING_SIC, listsOnExchange, MIN_RAISE, publicWithin } from "./ipos";
 import { normalizeName } from "./parse/names";
 import { isResaleOnly, parseFinalProspectus } from "./parse/ipo";
 import { displayName } from "./parse/press";
@@ -48,7 +48,7 @@ type Row = { adsh: string; date: string; form: string; primaryDocument: string; 
 
 /** Is the 424B4 filed on `date` this company's IPO? (Filings newest first, up to `date`.) */
 export function isIpoProspectus(filings: Row[], date: string, adsh: string): boolean {
-  const before = filings.filter((f) => f.date < date || (f.date === date && f.adsh !== adsh && f.form !== "424B4"));
+  const before = filings.filter((f) => f.date < date || (f.date === date && f.adsh !== adsh && !FINAL_PROSPECTUS.test(f.form)));
   if (publicWithin(before, date)) return false;
   const registered = before.some((f) => /^(?:S-1|F-1|S-11)(?:\/A)?$/.test(f.form) && (Date.parse(date) - Date.parse(f.date)) / 86_400_000 <= 1100);
   // Came public through a SPAC merger: a merger registration and the 8-K that ends shell status.
@@ -79,8 +79,9 @@ export async function backfillIpoHistory(
   };
   let candidates = 0;
   for (const [start, end] of monthWindows(from, to)) {
-    const hits = (await fullTextSearch({ q: "", forms: ["424B4"], from: start, to: end })).filter(
-      (h) => h.fileType === "424B4" && !h.sics.some((s) => EXCLUDED_SIC.has(s)) && !FUNDLIKE.test(h.displayNames[0] ?? ""),
+    // 424B1 is a final pricing prospectus too (Grupo Aeroméxico), roughly one for every five to fifteen 424B4s.
+    const hits = (await fullTextSearch({ q: "", forms: ["424B4", "424B1"], from: start, to: end })).filter(
+      (h) => FINAL_PROSPECTUS.test(h.fileType) && !h.sics.some((s) => EXCLUDED_SIC.has(s)) && !FUNDLIKE.test(h.displayNames[0] ?? ""),
     );
     let added = 0;
     for (const h of hits) {
