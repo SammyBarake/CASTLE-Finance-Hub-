@@ -1,16 +1,16 @@
 {
- "generatedAt": "2026-10-07T07:58:42Z",
+ "generatedAt": "2026-10-13T05:51:20Z",
  "linkSet": "estimated",
- "priorScale": "f0.25/s1/m0.5",
+ "priorScale": "f0.25/s0.5/m0.5",
  "rounds": 3,
  "lambda": {
   "valuation": 1,
-  "dealCount": 0.85,
+  "dealCount": 1,
   "dealValue": 0.85,
-  "ipoCount": 0.55
+  "ipoCount": 0.7
  },
  "history": 2,
- "score": 0.149,
+ "score": 0.158,
  "previousScore": 0.086,
  "hitRate": 0.64,
  "quarters": 31,
