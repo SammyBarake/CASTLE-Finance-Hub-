@@ -84,11 +84,17 @@ export interface Deal {
   hasFairness?: boolean;
   /** The feed's compact stand-in for the target bank's DCF (`dcfOf` in lib/precedents.ts): for the Precedents tool. */
   dcf?: DcfSummary;
+  /** Links into the merger proxy's main sections (ingest/parse/proxySections.ts). Only on /api/deal/[id]. */
+  proxySections?: ProxySection[];
   /** Page feed only: how many filings the full record links (the feed carries just the first; /api/deal/[id] has all). */
   filingCount?: number;
   milestones?: DealMilestones;
   /** Deal protections and financing from the merger agreement summary (public targets only). */
   terms?: DealTerms;
+  /** Open cash deals: the target's latest close against the offer (ingest/prices.ts). */
+  arb?: MergerArb;
+  /** The buyer's share price around the announcement and after, against the S&P 500 (listed buyers). */
+  reaction?: BuyerReaction;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
   /** EV / last-twelve-months EBITDA of the target. */
@@ -151,7 +157,30 @@ export interface ValuationRange {
   high: number;
 }
 
+/** Merger-arb spread: +2.1 = the target trades 2.1% below the offer. */
+export interface MergerArb {
+  priceUsd: number;
+  spreadPct: number;
+  /** Date of the price. */
+  asOf: string;
+}
+
+/** The buyer's share-price move (%), from the close before the announcement: two trading days on, then less the S&P 500. */
+export interface BuyerReaction {
+  announcementPct: number;
+  announcementVsMarketPct: number;
+  /** About six months / a year on (126 / 252 trading days), less the S&P 500; null until then. */
+  m6VsMarketPct: number | null;
+  y1VsMarketPct: number | null;
+}
+
 /** The target bank's discounted cash flow analysis, from its fairness opinion: value per target share and assumptions. */
+/** A link into the target's merger proxy at one of its sections (from the proxy's own table of contents). */
+export interface ProxySection {
+  label: string;
+  url: string;
+}
+
 export interface DcfSummary {
   bank: string | null;
   low: number;

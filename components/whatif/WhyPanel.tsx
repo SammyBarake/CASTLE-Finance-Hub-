@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { PanelHead } from "@/components/ui/primitives";
-import type { Contribution } from "@/lib/ripple/engine";
+import type { Contribution, RippleShock } from "@/lib/ripple/engine";
+import { driverSentence } from "@/lib/ripple/insights";
 import { ASSUMPTION, type FeatureLink, type MacroLink, type SectorLink } from "@/lib/ripple/links";
 import { FEATURE_LABELS, FEATURE_NOUNS, MACRO_LABELS } from "@/lib/ripple/settings";
 import { AssumptionBadge } from "./AssumptionBadge";
@@ -78,8 +79,9 @@ function LinkCard({ link }: { link: AnyLink }) {
   );
 }
 
-export function WhyPanel({ selection, quarter, contributions, ipoLoading, assumed, lambda }: { selection: Selection; quarter: number; contributions: Contribution[]; ipoLoading: boolean; assumed: boolean; lambda: number }) {
+export function WhyPanel({ selection, quarter, contributions, ipoLoading, assumed, lambda, shock }: { selection: Selection; quarter: number; contributions: Contribution[]; ipoLoading: boolean; assumed: boolean; lambda: number; shock: RippleShock }) {
   const title = `${selection.sector} ${FEATURE_NOUNS[selection.feature]}`;
+  const lead = ipoLoading ? null : driverSentence(title, quarter, contributions, shock);
   const shown = contributions.slice(0, SHOWN);
   const largest = Math.max(0, ...shown.map((c) => Math.abs(c.value)));
   // Paths start folded to one line each; the biggest one starts open. Choices are remembered per path.
@@ -96,6 +98,7 @@ export function WhyPanel({ selection, quarter, contributions, ipoLoading, assume
           </span>
         )}
       </PanelHead>
+      {lead && <p className="why-lead">{lead}</p>}
       {ipoLoading && <p className="why-note">IPO history loading: the values appear once the IPO backfill fills the history. The links below are what will drive them.</p>}
       {shown.length ? (
         <ol className="why-list">

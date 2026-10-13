@@ -9,12 +9,14 @@
  *   npm run ingest -- --only activists --from 2025-01-01   backfill activist 13Ds
  *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
  *   npm run ingest -- --only deals --backstop-only --from 2021-01-01   only look up merger-proxy filers without a deal
+ *   npm run ingest -- --only prices                 merger-arb spreads and buyers' share-price reactions (Yahoo)
  */
 import { ingestActivists } from "./activists";
 import { buildDirectory, ingestDeals } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { ingestIpos } from "./ipos";
 import { fetchMacro } from "./macro";
+import { updatePrices } from "./prices";
 import { storeFromEnv } from "./store";
 
 function arg(name: string): string | undefined {
@@ -94,6 +96,14 @@ async function main() {
       log("ipos: discovering registrations");
       const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
       log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
+    }
+    if (runs("prices")) {
+      // Non-critical: merger-arb spreads and buyers' share-price reactions (Yahoo); a failure keeps the stored figures.
+      try {
+        await updatePrices(state, { today, log });
+      } catch (err) {
+        log(`prices: skipped (${(err as Error).message})`);
+      }
     }
     if (runs("activists")) {
       // Non-critical: a failure keeps the stored stakes.

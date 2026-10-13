@@ -78,6 +78,8 @@ describe("registrant name matching", () => {
     expect(registrantMatches("INTERPUBLIC GROUP OF COMPANIES, INC.", "Interpublic")).toBe(true);
     expect(registrantMatches("Fortune Brands Innovations, Inc.", "Fortune")).toBe(false);
     expect(registrantMatches("First American Financial Corp", "First American")).toBe(false);
+    expect(registrantMatches("EOS ENERGY ENTERPRISES, INC.", "Eos")).toBe(false);
+    expect(registrantMatches("EOS ENERGY ENTERPRISES, INC.", "EOS Energy Enterprises")).toBe(true);
     expect(coreName("ENABLE MIDSTREAM Energy")).toBe("ENABLE MIDSTREAM");
     expect(coreName("Aerie Pharmaceuticals")).toBe("Aerie Pharmaceuticals");
   });

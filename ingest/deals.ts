@@ -31,6 +31,7 @@ import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
+import { proxySections } from "./parse/proxySections";
 import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
@@ -389,6 +390,8 @@ export function registrantMatches(registrant: string, target: string): boolean {
   if (r.length < 3 || t.length < 3) return false;
   if (r === t || r.replace(/ /g, "") === t.replace(/ /g, "")) return true; // "Hill Rom" = "Hillrom"
   if (!r.startsWith(t + " ")) return false;
+  // A short form of three letters is too common a start: Pulmatrix's "Eos" (Eos SENOLYTIX) is not Eos Energy Enterprises.
+  if (!t.includes(" ") && t.length <= 3) return false;
   // "Interpublic" = "Interpublic Group of Companies"
   return r.slice(t.length + 1).split(" ").every((w) => DESCRIPTOR.test(w) || /^(?:group|companies|of|the)$/.test(w));
 }
@@ -1091,7 +1094,12 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       .sort((a, b) => FAIRNESS_FORMS.indexOf(a.form) - FAIRNESS_FORMS.indexOf(b.form) || b.date.localeCompare(a.date))[0];
     if (proxy && proxy.adsh !== deal.fairnessAdsh) {
       try {
-        const text = htmlToText(await getText(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument)));
+        const url = archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument);
+        const html = await getText(url);
+        // Jump links from its table of contents (Background, the banks' opinions, projections …), at no extra cost.
+        const sections = proxySections(html, url);
+        if (sections.length) deal.proxySections = sections;
+        const text = htmlToText(html);
         const opinions = parseFairness(text, { acquirerName: deal.acquirer.name, offerPrice: deal.pricePerShare });
         if (opinions.length) deal.fairness = opinions;
         deal.fairnessAdsh = proxy.adsh;

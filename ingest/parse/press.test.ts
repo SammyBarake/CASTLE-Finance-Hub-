@@ -369,6 +369,23 @@ describe("term extractors", () => {
     // Financing language elsewhere doesn't make an all-cash offer mixed.
     expect(extractConsideration("Juniper shareholders will receive $40.00 per share in cash. HPE intends to fund the transaction with cash and new shares of mandatory convertible preferred stock.")).toBe("Cash");
     expect(extractConsideration("Discover shareholders will receive 1.0192 Capital One shares for each Discover share.")).toBe("Stock");
+    // A cash-or-stock election is mixed, with the ratio written before legal words.
+    expect(extractConsideration("each Common Share will be converted into the right to receive, at the election of the holder, (i) for each Common Share with respect to which a Stock Election has been made, 3.8721 fully paid and non-assessable Parent Shares; (ii) for each Common Share with respect to which a Cash Election has been made, $374.00 in cash")).toBe("Mixed");
+    expect(extractConsideration("each outstanding share of Synergy will be converted into the right to receive £4.39 ($7.06) in cash and 0.4308 of a share of New STERIS.")).toBe("Mixed");
+    // Warrants per share are not shares; a lump sum in cash elsewhere is the balance sheet.
+    expect(extractConsideration("in all cases EP shareholders will receive 0.640 KMI warrants per share of EP common stock. The offer is comprised of $14.65 in cash and 0.4187 KMI shares.")).toBe("Mixed");
+    expect(extractConsideration("Holders will receive 0.75 shares of Acme common stock for each share. At quarter end, Acme had $2.4 billion in cash.")).toBe("Stock");
+  });
+
+  it("finds the offer price, not reference prices, buybacks or collar bounds", () => {
+    // Beazer's earnings release: the buyback price came after the offer.
+    expect(extractPrice("Beazer announced that it has entered into a definitive agreement to be acquired by Dream Finders Homes, Inc. for $33.50 per share in an all-cash transaction. During the quarter we repurchased 0.9 million shares at an average price of $23.04 per share.")).toBe(33.5);
+    expect(extractPrice("Holders will receive 0.32 shares of Herman Miller for each share of Knoll. Based on Herman Miller's five-day volume weighted average price of $43.94 per share, the transaction terms imply a purchase price of $25.06 per share.")).toBe(25.06);
+    expect(extractPrice("Pacer holders will receive $6.00 in cash and XPO stock (provided that this volume weighted average price is no less than $23.12 per share and no greater than $32.94 per share).")).toBeNull();
+    // A floor in the offer itself counts; a top-up doesn't.
+    expect(extractPrice("Sentio stockholders will receive: (i) no less than $14.37 per share in cash at the closing of the merger; (ii) up to an additional $0.55 per share in cash.")).toBe(14.37);
+    // Two share classes: the first is the main one.
+    expect(extractPrice("Brookfield will acquire all of the outstanding shares of common stock of Watermark for $6.768 per Class A share and $6.699 per Class T share in an all-cash transaction.")).toBe(6.768);
   });
 
   it("assigns advisors to the right side", () => {
@@ -414,6 +431,18 @@ describe("extractValue: figures that are not the price", () => {
     // Costs mentioned before the figure don't matter.
     expect(extractValue(`$30 million of cash and certain other transaction costs, which implies a value of $150 million based upon a 15-day VWAP.`)?.usd).toBe(150e6);
   });
+
+  it("skips track records, face values and other currencies", () => {
+    expect(extractValue(`Macquarie Capital's deep sector expertise in telecommunications and media sectors with 376 transactions completed, valued at $212 billion in the year ended March 31, 2020.`)).toBeNull();
+    expect(extractValue(`Its equity sponsor posted record results, valued at $212 billion in the year ended March 31, 2020.`)).toBeNull();
+    // A year-end in the sentence before does not matter (Asbury / Herb Chambers).
+    expect(extractValue(`The Herb Chambers Companies sold approximately 50,000 vehicles during the year ended December 31, 2024. The aggregate net purchase price was $1.45 billion.`)?.usd).toBe(1.45e9);
+    expect(extractValue(`Since 1988, Vestar funds have completed more than 80 investments in companies - as well as more than 200 add-on acquisitions - with a total value of approximately $50 billion.`)).toBeNull();
+    expect(extractValue(`Combined, Encore and Asset Acceptance have purchased over 60 million consumer accounts with a face value of over $130 billion.`)).toBeNull();
+    expect(extractValue(`The gross transaction value will be NT$6.8 billion (approximately US$223 million).`)).toBeNull();
+    // A deal's own value still counts.
+    expect(extractValue(`The transaction is valued at approximately $1.4 billion, including debt.`)?.usd).toBe(1.4e9);
+  });
 });
 
 describe("deal adjectives and asset headlines", () => {
@@ -436,6 +465,13 @@ HOUSTON, May 1, 2024 - Harbor Offshore, Inc. (NYSE: HBO) today announced that it
 Alder Metals Announces Strategic Acquisition of Kestrel's Bauxite, Alumina, and Aluminum Assets for $4.1 billion
 PITTSBURGH, January 5, 2024 - Alder Metals Corporation (NYSE: ALD) today announced a definitive agreement to acquire the assets.`;
     expect(parsePressRelease(list, { filerName: "Alder Metals Corporation", filerTickers: ["ALD"] })).toBeNull();
+  });
+
+  it("skips assets bought from a named company", () => {
+    const t = `Exhibit 99.1
+Harlan Midstream LP Announces Transformative Transaction
+HOUSTON, October 6, 2026 - Harlan Midstream LP (NYSE: HRLM) today announced the execution of a definitive agreement with Corvex Oil to acquire DJ Basin crude oil and gas gathering and storage assets from Corvex Oil. Corvex Oil will contribute its ownership interests in Harlan Midstream.`;
+    expect(parsePressRelease(t, { filerName: "Harlan Midstream LP", filerTickers: ["HRLM"] })).toBeNull();
   });
 
   it("ends an all-capitals target before the sub-headline", () => {

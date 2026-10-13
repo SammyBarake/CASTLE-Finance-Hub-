@@ -1,19 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { useFullDeal } from "@/components/data/useFullDeal";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { buyerType } from "@/lib/buyers";
+import { bankFingerprint } from "@/lib/fingerprint";
+import { similarDeals } from "@/lib/precedents";
 import { feeLabel, financingLabel, goShopLabel } from "@/lib/terms";
 import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
-import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
-import type { Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
+import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
+import type { BuyerReaction, Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
 import { useRecordActions } from "@/components/workspace/actions";
 import { useWorkspace, type RecordKind } from "@/components/workspace/WorkspaceProvider";
 
@@ -34,6 +36,19 @@ function DealFilings({ deal }: { deal: Deal }) {
   const more = !full && (deal.filingCount ?? 0) > deal.filings.length;
   return (
     <>
+      {!!full?.proxySections?.length && (
+        <div className="proxy-jump">
+          <div className="fp-head">Jump into the merger proxy</div>
+          <div className="proxy-chips">
+            {full.proxySections.map((s) => (
+              <a key={s.url} className="proxy-chip" href={s.url} target="_blank" rel="noreferrer">
+                {s.label}
+                <Icon name="external" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
       <Filings filings={full?.filings ?? deal.filings} />
       {more && <p className="dim ff-intro">{failed ? "Couldn't load the other filings. Try again in a moment." : `Loading all ${deal.filingCount} filings…`}</p>}
     </>
@@ -148,9 +163,33 @@ function Tabs({ tab, onChange, tabs }: { tab: Tab; onChange: (t: Tab) => void; t
 
 // ---------------------------------------------------------------------------
 
+const Move = ({ value }: { value: number | null }) =>
+  value == null ? <span className="dim">Not yet</span> : <span className={value >= 0 ? "text-up" : "text-down"}>{formatSignedPct(value)}</span>;
+
+/** "Did it work?": the buyer's shares around the announcement and later, against the S&P 500. */
+function BuyerReactionGrid({ reaction }: { reaction: BuyerReaction }) {
+  return (
+    <>
+      <h3 className="detail-section">Buyer&apos;s shares · against the S&amp;P 500</h3>
+      <DetailGrid>
+        <DetailItem label="Two days after announcing">
+          <Move value={reaction.announcementVsMarketPct} />
+          <small className="dim"> · shares moved {formatSignedPct(reaction.announcementPct)}</small>
+        </DetailItem>
+        <DetailItem label="Six months on">
+          <Move value={reaction.m6VsMarketPct} />
+        </DetailItem>
+        <DetailItem label="One year on">
+          <Move value={reaction.y1VsMarketPct} />
+        </DetailItem>
+      </DetailGrid>
+    </>
+  );
+}
+
 function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data: HubData; onOpenDeal: (d: Deal) => void; onOpenAdvisor: (name: string) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
-  const related = data.deals.filter((d) => d.sector === deal.sector && d.id !== deal.id).slice(0, 5);
+  const related = useMemo(() => similarDeals(deal, data.deals, buyerType), [deal, data.deals]);
   const statusDate = deal.statusDate && deal.status !== "Announced" ? ` · ${formatDateLong(deal.statusDate)}` : "";
   const isRanked = (name: string) => data.leagueTable.entries.some((e) => e.advisor.name === name);
 
@@ -188,7 +227,17 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Consideration">{considerationLabel(deal.consideration)}</DetailItem>
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / Revenue">{formatMultiple(deal.evRevenue)}</DetailItem>
+            {deal.arb && (
+              <DetailItem label="Merger-arb spread">
+                {formatPct(deal.arb.spreadPct)}
+                <small className="dim">
+                  {" "}
+                  · target at {formatPrice(deal.arb.priceUsd)}, {formatDateLong(deal.arb.asOf)}
+                </small>
+              </DetailItem>
+            )}
           </DetailGrid>
+          {deal.reaction && <BuyerReactionGrid reaction={deal.reaction} />}
           {deal.terms && (
             <>
               <h3 className="detail-section">Deal protections</h3>
@@ -214,7 +263,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Sector">{deal.sector}</DetailItem>
             <DetailItem label="Industry">{deal.industry ?? "—"}</DetailItem>
           </DetailGrid>
-          <div className="related-title">Related {deal.sector.toLowerCase()} transactions</div>
+          <div className="related-title">Most similar deals · same sector, nearest size, same buyer type</div>
           {related.length ? (
             related.map((d) => (
               <button key={d.id} type="button" className="related-deal" onClick={() => onOpenDeal(d)}>
@@ -224,11 +273,18 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
                     {d.acquirer.name} · {formatDateLong(d.announcedDate)}
                   </small>
                 </span>
-                <span className="mono">{formatUsd(d.valueUsd)}</span>
+                <span className="related-figures">
+                  <span className="mono">{formatUsd(d.enterpriseValueUsd ?? d.valueUsd)}</span>
+                  {(d.evEbitda != null || d.premiumPct != null) && (
+                    <small className="mono">
+                      {[d.evEbitda != null ? `${formatMultiple(d.evEbitda)} EBITDA` : null, d.premiumPct != null ? `${formatPct(d.premiumPct)} premium` : null].filter(Boolean).join(" · ")}
+                    </small>
+                  )}
+                </span>
               </button>
             ))
           ) : (
-            <p>No other transactions in this sector.</p>
+            <p>No comparable transactions in this sector.</p>
           )}
         </>
       )}
@@ -340,7 +396,72 @@ function IpoBody({ ipo, data, onOpenAdvisor }: { ipo: Ipo; data: HubData; onOpen
   );
 }
 
-function AdvisorBody({ entry, rank, data, onOpenDeal }: { entry: LeagueTableEntry; rank: number; data: HubData; onOpenDeal: (d: Deal) => void }) {
+/** Who the bank works for, in which sectors, at what size, and whom it faces: from every deal in the feed. */
+function Fingerprint({ name, data, onOpenAdvisor }: { name: string; data: HubData; onOpenAdvisor: (bank: string) => void }) {
+  const f = useMemo(() => bankFingerprint(name, data.deals), [name, data.deals]);
+  if (!f.deals) return null;
+  const since = data.deals.reduce((m, d) => (d.announcedDate < m ? d.announcedDate : m), data.asOf).slice(0, 4);
+  const inLeague = new Set(data.leagueTable.entries.map((e) => e.advisor.name));
+  return (
+    <>
+      <div className="related-title">Fingerprint · every deal since {since}</div>
+      <DetailGrid>
+        <DetailItem label="Deals">{f.deals}</DetailItem>
+        <DetailItem label="Side">
+          {Math.round((f.buySide / f.deals) * 100)}% buyer · {Math.round((f.sellSide / f.deals) * 100)}% target
+        </DetailItem>
+        <DetailItem label="Typical deal">{f.medianValueUsd != null ? `${formatUsd(f.medianValueUsd)} median` : "—"}</DetailItem>
+        <DetailItem label="Premium on its sales">{f.medianPremiumPct != null ? `${formatPct(f.medianPremiumPct)} median` : "—"}</DetailItem>
+      </DetailGrid>
+      <div className="fp-block">
+        <div className="fp-head">Sectors</div>
+        {f.sectors.map((s) => (
+          <div className="fp-row" key={s.sector}>
+            <span>{s.sector}</span>
+            <span className="fp-bar" aria-hidden="true">
+              <span style={{ width: `${s.share}%` }} />
+            </span>
+            <span className="mono">{s.count}</span>
+          </div>
+        ))}
+      </div>
+      {!!f.repeatClients.length && (
+        <div className="fp-block">
+          <div className="fp-head">Repeat clients</div>
+          {f.repeatClients.slice(0, 5).map((c) => (
+            <div className="fp-row fp-list" key={c.company.cik ?? c.company.name}>
+              <span>
+                <CompanyLink company={c.company} />
+              </span>
+              <span className="mono">{c.count} deals</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!!f.counterparts.length && (
+        <div className="fp-block">
+          <div className="fp-head">Most often across the table</div>
+          {f.counterparts.slice(0, 5).map((c) => (
+            <div className="fp-row fp-list" key={c.bank}>
+              <span>
+                {inLeague.has(c.bank) ? (
+                  <button type="button" className="small-link" onClick={() => onOpenAdvisor(c.bank)}>
+                    {c.bank}
+                  </button>
+                ) : (
+                  c.bank
+                )}
+              </span>
+              <span className="mono">{c.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AdvisorBody({ entry, rank, data, onOpenDeal, onOpenAdvisor }: { entry: LeagueTableEntry; rank: number; data: HubData; onOpenDeal: (d: Deal) => void; onOpenAdvisor: (bank: string) => void }) {
   const name = entry.advisor.name;
   const associated = data.deals.filter((d) => d.acquirerAdvisors.includes(name) || d.targetAdvisors.includes(name)).slice(0, 12);
   const change = entry.rankChange;
@@ -352,6 +473,7 @@ function AdvisorBody({ entry, rank, data, onOpenDeal }: { entry: LeagueTableEntr
         <DetailItem label="Total deal value">{formatUsdB1(entry.dealValueUsd)}</DetailItem>
         <DetailItem label="Rank change">{change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)} vs. prior quarter`}</DetailItem>
       </DetailGrid>
+      <Fingerprint name={name} data={data} onOpenAdvisor={onOpenAdvisor} />
       <div className="related-title">Recent transactions</div>
       {associated.length ? (
         associated.map((d) => (
@@ -456,7 +578,7 @@ export function useDetails() {
       variant: "drawer",
       eyebrow: `Advisor · ${data.leagueTable.period}`,
       title: entry.advisor.name,
-      body: <AdvisorBody key={entry.advisor.name} entry={entry} rank={rank} data={data} onOpenDeal={openDeal} />,
+      body: <AdvisorBody key={entry.advisor.name} entry={entry} rank={rank} data={data} onOpenDeal={openDeal} onOpenAdvisor={openAdvisorByName} />,
     });
   const openDefinitions = () => openDialog({ eyebrow: "Reference", title: "Data definitions", body: <Definitions isSample={data.isSample} /> });
 

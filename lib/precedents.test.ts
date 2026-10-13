@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dcfOf, dcfRows, DEFAULT_PRECEDENTS, percentile, screenForDeal, screenPrecedents, summarize, summarizeComps, summarizeDcf } from "./precedents";
+import { dcfOf, dcfRows, DEFAULT_PRECEDENTS, percentile, screenForDeal, screenPrecedents, similarDeals, summarize, summarizeComps, summarizeDcf } from "./precedents";
 import type { Deal } from "./types";
 
 const deal = (over: Partial<Deal>): Deal => ({
@@ -103,5 +103,23 @@ describe("DCF from fairness opinions", () => {
     expect(s.discount.median).toBe(10);
     expect(s.growth.median).toBe(2.5);
     expect(s.vsMid.n).toBe(1);
+  });
+});
+
+describe("similarDeals", () => {
+  const d = (id: string, over: Partial<Deal>) => ({ id, announcedDate: "2024-01-01", sector: "Tech", status: "Closed", industry: "Software", valueUsd: 1e9, enterpriseValueUsd: null, acquirer: { name: "Acme", cik: "1", ticker: "ACM" }, ...over }) as unknown as Deal;
+  const type = (x: Deal) => (/Partners/.test(x.acquirer.name) ? "Private equity" : "Strategic");
+  it("picks same-sector deals of a similar size, same buyer type first", () => {
+    const subject = d("s", { valueUsd: 1e9 });
+    const deals = [
+      subject,
+      d("near", { valueUsd: 1.1e9 }),
+      d("pe", { valueUsd: 1.05e9, acquirer: { name: "Vista Partners", cik: null, ticker: null } }),
+      d("far", { valueUsd: 9e9 }),
+      d("other-sector", { valueUsd: 1e9, sector: "Energy" }),
+      d("ended", { valueUsd: 1e9, status: "Terminated" }),
+      d("private", { valueUsd: 1e9, privateTarget: true }),
+    ];
+    expect(similarDeals(subject, deals, type).map((x) => x.id)).toEqual(["near", "pe"]);
   });
 });

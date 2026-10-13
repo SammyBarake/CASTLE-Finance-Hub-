@@ -78,6 +78,15 @@ describe("computeMultiples", () => {
   it("ignores an implausibly small share count", () => {
     expect(computeMultiples({ valueUsd: null, valueKind: null, pricePerShare: 5.02 }, { ...fin, sharesOutstanding: 1000 }).impliedEquityUsd).toBeNull();
   });
+
+  it("ignores a share count tagged a thousand times too big", () => {
+    // Sun Healthcare: 25.3 million shares read as 25.3 billion made an $8.50 offer a $215B deal.
+    const m = computeMultiples({ valueUsd: null, valueKind: null, pricePerShare: 8.5 }, { ...fin, sharesOutstanding: 25.27e9 });
+    expect(m.impliedEquityUsd).toBeNull();
+    expect(m.enterpriseValueUsd).toBeNull();
+    // Nor does price × shares alone make a $100B+ deal.
+    expect(computeMultiples({ valueUsd: null, valueKind: null, pricePerShare: 90 }, { ...fin, sharesOutstanding: 12e9 }).impliedEquityUsd).toBeNull();
+  });
 });
 
 describe("EBITDA fallbacks and freshness", () => {

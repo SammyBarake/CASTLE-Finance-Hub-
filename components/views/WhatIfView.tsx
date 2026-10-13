@@ -189,7 +189,7 @@ export function WhatIfView() {
               </div>
             )}
           </section>
-          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} assumed={selectedAssumed} lambda={S.lambda[selected.feature]} />
+          <WhyPanel selection={selected} quarter={quarter} contributions={why} ipoLoading={ipoLoading} assumed={selectedAssumed} lambda={S.lambda[selected.feature]} shock={shock} />
         </div>
       </div>
 

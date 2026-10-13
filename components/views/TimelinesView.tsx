@@ -7,7 +7,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { AboutData, Kpi, Kpis, PageHeading, PanelHead, SectorDot, Segment, Takeaways } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPct } from "@/lib/format";
 import { SECTOR_COLORS } from "@/lib/sectors";
 import { MIN_CLOSE_DAYS, months, STALE_OPEN_DAYS, timelineInsights, timelineStats, type DealTimeline } from "@/lib/timelines";
 
@@ -129,6 +129,11 @@ export function TimelinesView() {
                     <th scope="col">{list === "waiting" ? "STAGE" : "CLOSED"}</th>
                     <th scope="col" className="right">{list === "waiting" ? "WAITING" : "TOOK"}</th>
                     {list === "waiting" && <th scope="col">VS. TYPICAL</th>}
+                    {list === "waiting" && (
+                      <th scope="col" className="right" title="How far the target trades below an all-cash offer: the market’s doubt that the deal closes">
+                        ARB SPREAD
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -153,10 +158,11 @@ export function TimelinesView() {
                             <small>{open.progressPct != null ? `${(open.progressPct / 100).toFixed(1)}×` : "—"}</small>
                           </td>
                         )}
+                        {open && <td className="right mono">{t.deal.arb ? formatPct(t.deal.arb.spreadPct) : <span className="dim">—</span>}</td>}
                       </RowLink>
                     );
                   })}
-                  {!rows.length && <EmptyRow colSpan={6}>Nothing here.</EmptyRow>}
+                  {!rows.length && <EmptyRow colSpan={list === "waiting" ? 7 : 5}>Nothing here.</EmptyRow>}
                 </tbody>
               </table>
             </div>

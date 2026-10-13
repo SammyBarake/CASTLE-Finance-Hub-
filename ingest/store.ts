@@ -44,6 +44,8 @@ export interface StoredDeal extends Deal {
   sponsorCheck?: number;
   /** ADVISOR_CHECK_VERSION of the search for the buyer's financial adviser in the announcement releases. */
   advisorCheck?: number;
+  /** Last day the buyer's share-price reaction was looked up (ingest/prices.ts). */
+  reactionCheckedAt?: string;
 }
 
 export interface StoredIpo extends Ipo {

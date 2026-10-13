@@ -217,8 +217,12 @@ export function computeMultiples(
   target?: { sic?: string | null; name?: string },
 ): Multiples {
   // A listed company has at least ~500k shares; fewer means the cover-page figure is in thousands or another class.
-  const shares = fin?.sharesOutstanding && fin.sharesOutstanding >= 500_000 ? fin.sharesOutstanding : null;
+  // More than 15 billion means the figure was tagged a thousand times too big (Sun Healthcare's 25 million shares read as
+  // 25 billion, a $215M deal as $215B): no target has had that many.
+  const shares = fin?.sharesOutstanding && fin.sharesOutstanding >= 500_000 && fin.sharesOutstanding <= 15e9 ? fin.sharesOutstanding : null;
   let impliedEquityUsd = deal.pricePerShare != null && shares ? deal.pricePerShare * shares : null;
+  // A deal that big always states its value; price × shares alone never makes one.
+  if (impliedEquityUsd != null && !deal.valueUsd && impliedEquityUsd > 100e9) impliedEquityUsd = null;
   // A share count that doesn't fit the stated deal value is stale (a reverse split since the last filing) or the
   // wrong class: trust the stated value instead.
   if (impliedEquityUsd != null && deal.valueUsd && deal.valueKind !== "enterprise" && (impliedEquityUsd / deal.valueUsd > 2 || impliedEquityUsd / deal.valueUsd < 0.5))

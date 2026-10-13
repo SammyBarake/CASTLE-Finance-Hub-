@@ -191,3 +191,27 @@ export const summarizeDcf = (rows: DcfRow[]) => ({
   discount: summarize(rows.map((r) => r.discountMid)),
   growth: summarize(rows.map((r) => r.growthMid)),
 });
+
+/**
+ * The deals most like this one, for the deal drawer: same sector and kind of target (public or private), not
+ * terminated, within a quarter to four times its size, nearest in size first, then the same buyer type (strategic or
+ * private equity), the same industry and the most recent. Without a size on either side, recency and buyer type decide.
+ */
+export function similarDeals(deal: Deal, deals: Deal[], buyerTypeOf: (d: Deal) => string, n = 5): Deal[] {
+  const size = dealSize(deal);
+  const type = buyerTypeOf(deal);
+  const years = (d: Deal) => Math.abs(Date.parse(d.announcedDate) - Date.parse(deal.announcedDate)) / (365.25 * 86_400_000);
+  return deals
+    .filter((d) => d.id !== deal.id && d.sector === deal.sector && !!d.privateTarget === !!deal.privateTarget && d.status !== "Terminated")
+    .map((d) => {
+      const s = dealSize(d);
+      if (size && s && (s > size * 4 || s < size / 4)) return null;
+      const sizeGap = size && s ? Math.abs(Math.log(s / size)) : size ? 1.5 : 0.5;
+      const score = sizeGap + (buyerTypeOf(d) === type ? 0 : 0.5) + (deal.industry && d.industry === deal.industry ? 0 : 0.3) + years(d) * 0.15;
+      return { d, score };
+    })
+    .filter((x): x is { d: Deal; score: number } => x != null)
+    .sort((a, b) => a.score - b.score || b.d.announcedDate.localeCompare(a.d.announcedDate))
+    .slice(0, n)
+    .map((x) => x.d);
+}

@@ -188,8 +188,11 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     ...(d.fairness?.length ? (opts.withFairness ? { fairness: d.fairness, hasFairness: true } : { hasFairness: true }) : {}),
     // The target bank's DCF in a few numbers, for the Precedents tool (the full opinions stay out of the feed).
     ...(dcfOf(d.fairness) ? { dcf: dcfOf(d.fairness)! } : {}),
+    ...(opts.withFairness && d.proxySections?.length ? { proxySections: d.proxySections } : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
     ...(d.terms ? { terms: d.terms } : {}),
+    ...(d.arb ? { arb: d.arb } : {}),
+    ...(d.reaction ? { reaction: d.reaction } : {}),
     ...(d.privateTarget ? { privateTarget: true } : {}),
   };
 }

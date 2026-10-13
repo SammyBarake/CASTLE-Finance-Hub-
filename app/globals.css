@@ -547,9 +547,24 @@
   .detail-section { font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #777; margin: 16px 0 2px; }
   .drawer-description { font-size: 11.5px !important; color: #b4b4b4 !important; line-height: 1.65 !important; margin: 0 0 6px !important; }
   .related-title { font-size: 10px; color: #999; margin: 20px 0 8px; }
+  .related-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+  .related-figures small { font-size: 9px; color: #7d7d7d; }
+  /* Bank fingerprint (advisor drawer) */
+  .fp-block { margin-top: 14px; }
+  .fp-head { font-size: 9.5px; color: #7d7d7d; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
+  .fp-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px; align-items: center; gap: 10px; min-height: 26px; font-size: 11px; color: #cfcfcf; border-top: 1px solid #1c1c1c; }
+  .fp-row .mono { text-align: right; color: #9a9a9a; font-size: 10px; }
+  .fp-row.fp-list { grid-template-columns: minmax(0, 1fr) auto; }
+  .fp-bar { position: relative; display: block; height: 6px; background: #161616; border-radius: 3px; overflow: hidden; }
+  .fp-bar > span { position: absolute; inset: 0 auto 0 0; background: #8a8a8a; border-radius: 3px; }
   .related-deal { display: flex; align-items: center; justify-content: space-between; width: 100%; border-top: 1px solid #252525; padding: 12px 0; text-align: left; font-size: 11px; color: #ccc; gap: 12px; }
   .related-deal:hover { color: white; }
   .related-deal small { display: block; font-size: 9px; color: #888; margin-top: 3px; }
+  .proxy-jump { margin-bottom: 16px; }
+  .proxy-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .proxy-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a2a2a; border-radius: 4px; padding: 5px 9px; font-size: 11px; color: #cfcfcf; transition: border-color 0.15s, color 0.15s; }
+  .proxy-chip:hover { border-color: #4a4a4a; color: #fff; }
+  .proxy-chip svg { width: 10px; height: 10px; opacity: 0.55; }
   /* ---------- company pages ---------- */
   .company-link { color: inherit; text-decoration: none; }
   .company-link:hover, .company-link:focus-visible { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #555; }
@@ -838,11 +853,21 @@
   .buyer-notes { list-style: none; margin: 14px 0 0; padding: 12px 18px 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 24px; border-top: 1px solid var(--color-line); }
   .buyer-notes li { position: relative; padding-left: 13px; font-size: 11px; color: #c8c8c8; line-height: 1.5; }
   .buyer-notes li::before { content: ""; position: absolute; left: 0; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: #6a6a6a; }
+  .reaction-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 22px; padding: 4px 18px 6px; align-items: start; }
+  .reaction-table td { padding-top: 7px; padding-bottom: 7px; }
+  .reaction-table .reaction-all td { color: #eee; font-weight: 500; }
+  .reaction-table .reaction-group td { font-size: 9.5px; color: #7d7d7d; letter-spacing: 0.4px; text-transform: uppercase; padding-top: 14px; border-bottom: 0; }
+  .reaction-lists { display: grid; gap: 16px; }
+  .reaction-lists .related-deal { padding: 9px 0; }
+  @media (max-width: 1280px) {
+    .reaction-grid { grid-template-columns: 1fr; }
+  }
   @media (max-width: 1020px) {
     .buyer-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 760px) {
     .buyer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .reaction-grid { padding: 4px 12px 6px; }
   }
 
   /* ---------- precedent transactions ---------- */
@@ -1104,6 +1129,7 @@
 
   /* Why it moves */
   .why-note, .why-empty { margin: 0 19px 14px; font-size: 10.5px; line-height: 1.5; color: #8d8d8d; }
+  .why-lead { margin: 0 19px 14px; font-size: 12px; line-height: 1.5; color: #e6e6e6; }
   .why-list { list-style: none; padding: 0 19px 8px; margin: 0; }
   .why-item { padding: 12px 0 13px; border-top: 1px solid var(--color-soft); animation: rise-in 0.4s var(--ease-out) both; }
   .why-item:nth-child(2) { animation-delay: 0.05s; }
@@ -1410,6 +1436,7 @@
   .tab { font-size: 10px; }
   .table-scroll th { font-size: 8px; padding: 10px 14px; }
   .table-scroll td { padding: 13px 14px; font-size: 10px; }
+  .table-scroll .reaction-table th, .table-scroll .reaction-table td { padding-left: 6px; padding-right: 6px; }
   .table-value { font-size: 10px; }
   .table-date { font-size: 9px; }
   .table-underwriters { font-size: 9px; }
@@ -1450,6 +1477,7 @@
   .row-icon { width: 34px; height: 34px; }
   .whatif-preset { min-height: 34px; }
   .small-link { min-height: 32px; }
+  .proxy-chip { min-height: 34px; }
   .select-wrap select { min-height: 36px; }
   .search-field { height: 36px; }
   .legend button { min-height: 32px; padding-block: 6px; }

@@ -10,6 +10,7 @@ import { formatQuarter } from "@/lib/format";
 import { valuationCards, type ValuationMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
 import type { SectorValuation } from "@/lib/types";
+import { BuyerReactions } from "./BuyerReactions";
 import { BuyerTypes } from "./BuyerTypes";
 import { Legend, useSectorToggle, ValuationCards, ValuationMetricToggle, VALUATION_METRICS } from "./sections";
 
@@ -96,6 +97,8 @@ export function ValuationsView() {
       </section>
 
       <BuyerTypes />
+
+      <BuyerReactions />
 
       <section className="panel">
         <div className="table-tools">

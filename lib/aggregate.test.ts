@@ -17,6 +17,12 @@ describe("toPublicDeal", () => {
     expect(full.filings).toHaveLength(3);
     expect(full.filingCount).toBeUndefined();
   });
+
+  it("serves proxy jump links with the full record only", () => {
+    const proxySections = [{ label: "Background", url: "https://www.sec.gov/p.htm#b" }];
+    expect(toPublicDeal({ ...deal({}), proxySections }).proxySections).toBeUndefined();
+    expect(toPublicDeal({ ...deal({}), proxySections }, { withFairness: true }).proxySections).toEqual(proxySections);
+  });
 });
 
 const deal = (over: Partial<Deal>): Deal => ({
