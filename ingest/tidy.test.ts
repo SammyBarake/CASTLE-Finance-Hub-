@@ -48,6 +48,19 @@ describe("nameOn", () => {
     expect(nameOn(sub, "2022-01-01")).toBe("Teledyne FLIR, LLC");
     expect(nameOn({ name: "Acme" }, "2021-01-01")).toBe("Acme");
   });
+
+  it("falls back to the earliest name still in use after the date when EDGAR's 'from' is late", () => {
+    const rumble = {
+      name: "RideNow Group, Inc.",
+      formerNames: [
+        { name: "RumbleOn, Inc.", from: "2021-06-24T00:00:00.000Z", to: "2025-08-12T00:00:00.000Z" },
+        { name: "Smart Server, Inc", from: "2014-01-24T00:00:00.000Z", to: "2017-01-23T00:00:00.000Z" },
+      ],
+    };
+    expect(nameOn(rumble, "2021-03-15")).toBe("RumbleOn, Inc.");
+    expect(nameOn(rumble, "2016-01-01")).toBe("Smart Server, Inc");
+    expect(nameOn(rumble, "2026-01-01")).toBe("RideNow Group, Inc.");
+  });
 });
 
 describe("junkReason", () => {

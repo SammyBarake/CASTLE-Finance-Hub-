@@ -32,6 +32,7 @@ import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
+import { completedPhrases, endedPhrases, readStatement, searchName, shortName as firstNameWord } from "./parse/completion";
 import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
@@ -936,6 +937,61 @@ async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, se
   }
 }
 
+/** Bump to look every open private deal up again in its buyer's filings (`closeCheck`). */
+export const CLOSE_CHECK_VERSION = 1;
+const SETTLE_FORMS = ["8-K", "10-Q", "10-K", "10-KT", "20-F", "40-F", "6-K"];
+
+/** Open and 60+ days old: looked up once (per version), then every 90 days while under three years old. */
+function settleDue(deal: StoredDeal, today: string) {
+  const age = (Date.parse(today) - Date.parse(deal.announcedDate)) / 86_400_000;
+  if (!OPEN.includes(deal.status) || age < 60) return false;
+  if (deal.closeCheck !== CLOSE_CHECK_VERSION || !deal.closeCheckedAt) return true;
+  return age <= 3 * 365 && (Date.parse(today) - Date.parse(deal.closeCheckedAt)) / 86_400_000 >= 90;
+}
+
+/**
+ * Most buyers never report a private purchase on an 8-K Item 2.01, so it stayed "Announced" for years (DoorDash /
+ * Wolt, Aon / NFP). Their later filings say it closed ("On March 21, 2022, we completed the acquisition of Linode")
+ * or ended ("terminated its agreement to acquire Tower Semiconductor"): full-text search of the buyer's own filings,
+ * then the sentence is read (`readStatement`: plain past tense, not "if", "may" or "expected"). The date only when
+ * that sentence states one, or says "today" in an 8-K / 6-K release (its filing date); otherwise it stays blank.
+ */
+async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: string, today: string) {
+  deal.closeCheck = CLOSE_CHECK_VERSION;
+  deal.closeCheckedAt = today;
+  const name = searchName(cleanPartyName(deal.target.name));
+  if (!name) return;
+  // The short form ("acquire Tower") counts only in a document that also gives the full name.
+  const short = firstNameWord(name);
+  for (const kind of ["closed", "ended"] as const) {
+    const phrasesFor = kind === "closed" ? completedPhrases : endedPhrases;
+    const phrases = phrasesFor(name);
+    const shortPhrases = short ? phrasesFor(short) : [];
+    let hits: FtsHit[];
+    try {
+      hits = await fullTextSearch({ q: [...phrases, ...shortPhrases].map((p) => `"${p}"`).join(" OR "), forms: SETTLE_FORMS, from: deal.announcedDate, to: today, ciks: [acquirerCik] });
+    } catch {
+      deal.closeCheckedAt = null; // try again next run
+      return;
+    }
+    for (const h of hits.sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 3)) {
+      let text: string;
+      try {
+        text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
+      } catch {
+        continue;
+      }
+      let r = readStatement(text, phrases);
+      if (!r.found && shortPhrases.length && text.toLowerCase().includes(name.toLowerCase())) r = readStatement(text, shortPhrases);
+      if (!r.found) continue;
+      const stated = r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null;
+      deal.status = kind === "closed" ? "Closed" : "Terminated";
+      deal.statusDate = stated ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
+      return;
+    }
+  }
+}
+
 /**
  * Deal protections from the target's merger 8-K (Item 1.01 summary of the merger agreement), with gaps filled
  * from its merger proxy: fees from the proxy's summary only (its background section quotes rejected proposals),
@@ -1618,7 +1674,13 @@ export async function ingestDeals(
         // Listed today but not when the deal was announced: a private target then (Adobe / Figma, Galaxy / BitGo, both
         // listed in 2025). Open records only: they stay "Announced" for ever, as the target files nothing about them.
         const sub = await submissions(deal.target.cik!);
-        if (sub && provablyUnlistedOn(sub, deal.announcedDate)) {
+        // Or the registrant then was the buyer, which took the target's name later: RumbleOn bought the private RideNow in
+        // 2021 and renamed itself RideNow Group in 2025, so today's name list matched RideNow to RumbleOn's own filer.
+        const then = sub ? nameOn(sub, deal.announcedDate) : "";
+        const wasBuyer =
+          !!sub && !registrantMatches(then, deal.target.name) && !sameCompany(then, deal.target.name) && (sameCompany(then, deal.acquirer.name) || registrantMatches(then, deal.acquirer.name));
+        if (sub && wasBuyer && !deal.acquirer.cik) deal.acquirer = { name: displayName(then), cik: trimCik(sub.cik), ticker: sub.tickers?.[0] ?? null };
+        if (sub && (wasBuyer || provablyUnlistedOn(sub, deal.announcedDate))) {
           // A private target needs a listed buyer ("Dermira" buying Journey Medical was a licence, read as a deal).
           if (!deal.acquirer.cik) {
             drop(deal);
@@ -1628,7 +1690,9 @@ export async function ingestDeals(
           const base = `p-${normalizeName(deal.target.name).replace(/\s+/g, "-")}-${deal.announcedDate}`;
           let id = base;
           for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
-          Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evRevenue: null });
+          // "Pending" came from the registrant's own proxy: a private deal starts again from "Announced", and the private
+          // checks below (the buyer's 8-K Item 2.01, its later filings) settle it.
+          Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evRevenue: null, status: "Announced", statusDate: null });
           deal.target = { ...deal.target, cik: null, ticker: null };
           deal.milestones = deal.terms = deal.fairness = undefined;
           deal.registrantCheck = REGISTRANT_CHECK_VERSION;
@@ -1638,6 +1702,8 @@ export async function ingestDeals(
         const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
         enrichPrivateDeal(deal, acquirerSub, opts.today, directory);
         if (deal.status === "Announced" && acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
+        // Still open: the buyer's later filings usually say it closed (or ended).
+        if (acquirerSub && !opts.light && settleDue(deal, opts.today)) await settleFromBuyerFilings(deal, acquirerSub.cik, opts.today);
       } else {
         let sub = await submissions(deal.target.cik!);
         if (sub && sub.sic === "6770") {
@@ -1653,6 +1719,8 @@ export async function ingestDeals(
           // A foreign private issuer files 6-Ks, never an 8-K Item 1.02: the buyer's 8-K says the agreement ended (Intel / Tower).
           const acquirerSub = deal.acquirer.cik && sub && recentFilings(sub).some((f) => /^6-K/.test(f.form)) ? await submissions(deal.acquirer.cik) : null;
           if (acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
+          // Or its release only (Intel announced the end of its Tower deal under Item 7.01).
+          if (acquirerSub && !opts.light && settleDue(deal, opts.today)) await settleFromBuyerFilings(deal, acquirerSub.cik, opts.today);
           if (deal.status === "Terminated") deal.milestones = undefined;
         }
         // No value yet: the announcement releases of the target and the buyer usually state one.

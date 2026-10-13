@@ -612,6 +612,9 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
   // Properties Reports … Results" names the company.
   if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies))\\b`, "i").test(headline)) return true;
+  // The unit's own name may stand in between: "… to Acquire the L3Harris Space and Navigation Business".
+  // Case matters for the unit's name (capitalised words), so the verb and the business word list both cases.
+  if (new RegExp(`(?:[Aa]cquisition [Oo]f|ACQUISITION OF|[Aa]cquires?|ACQUIRES?|[Aa]cquired|ACQUIRED|[Aa]cquiring|ACQUIRING)\\s+(?:the|The|THE)\\s+${escapeRx(targetName)}\\s+(?:[A-Z][\\w&.-]*\\s+(?:and\\s+|AND\\s+|&\\s+)?){1,3}(?:Business(?:es)?|BUSINESS(?:ES)?|Division|DIVISION|Unit|UNIT|Segment|SEGMENT|Operations|OPERATIONS)\\b`).test(headline)) return true;
   const start = intro.slice(0, 1200);
   // Assets bought from the named company: "to acquire DJ Basin crude oil and gas gathering and storage assets from
   // Chevron" (Hess Midstream). Only "assets": "business from Michigan Insurance Company in its pooling agreement" is

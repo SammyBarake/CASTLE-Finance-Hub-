@@ -166,7 +166,7 @@ interface FtsResponse {
   };
 }
 
-export async function fullTextSearch(opts: { q: string; forms: string[]; from: string; to: string }): Promise<FtsHit[]> {
+export async function fullTextSearch(opts: { q: string; forms: string[]; from: string; to: string; ciks?: string[] }): Promise<FtsHit[]> {
   const out: FtsHit[] = [];
   for (let offset = 0; ; offset += 100) {
     const params = new URLSearchParams({
@@ -177,6 +177,8 @@ export async function fullTextSearch(opts: { q: string; forms: string[]; from: s
       enddt: opts.to,
       from: String(offset),
     });
+    // Only these filers' documents ("0000050863", padded).
+    if (opts.ciks?.length) params.set("ciks", opts.ciks.map(padCik).join(","));
     const res = await getJson<FtsResponse>(`https://efts.sec.gov/LATEST/search-index?${params}`);
     for (const h of res.hits.hits) {
       const s = h._source;
@@ -257,10 +259,11 @@ export const getSubmissions = (cik: string) => getJson<Submissions>(`https://dat
  * "Teledyne FLIR", "Beacon Roofing Supply" became "QXO Building Products"); a deal should show the name it had then.
  */
 export function nameOn(sub: Pick<Submissions, "name" | "formerNames">, date: string): string {
-  const then = (sub.formerNames ?? [])
-    .filter((f) => f.to && f.to.slice(0, 10) > date && (!f.from || f.from.slice(0, 10) <= date))
-    .sort((a, b) => a.to!.localeCompare(b.to!));
-  return then[0]?.name ?? sub.name;
+  const later = (sub.formerNames ?? []).filter((f) => f.to && f.to.slice(0, 10) > date).sort((a, b) => a.to!.localeCompare(b.to!));
+  const then = later.filter((f) => !f.from || f.from.slice(0, 10) <= date);
+  // EDGAR's "from" is often when its records first noted the name, not when the company took it: RumbleOn's shows June
+  // 2021, months after its March 2021 deal. With no name covering the date, the earliest one still in use after it.
+  return then[0]?.name ?? later[0]?.name ?? sub.name;
 }
 
 /**

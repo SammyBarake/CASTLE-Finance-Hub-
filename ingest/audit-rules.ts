@@ -44,7 +44,8 @@ export function auditDeal(d: Deal, asOf: string): Finding[] {
   if (d.announcedDate > asOf.slice(0, 10)) add("announced-in-future", d.announcedDate);
   if (d.announcedDate < "2020-01-01") add("announced-too-old", d.announcedDate);
   if (d.statusDate && d.statusDate < d.announcedDate) add("status-before-announcement", `${d.status} ${d.statusDate}`);
-  if (d.status === "Closed" && !d.statusDate) add("closed-without-date", "");
+  // A private purchase confirmed only by the buyer's later 10-Q ("we acquired …") often has no stated closing date.
+  if (d.status === "Closed" && !d.statusDate && !d.privateTarget) add("closed-without-date", "");
   const m = d.milestones;
   if (m?.closed && m.closed < d.announcedDate) add("milestone-before-announcement", `closed ${m.closed}`);
 

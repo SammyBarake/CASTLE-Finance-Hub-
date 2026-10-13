@@ -467,6 +467,13 @@ PITTSBURGH, January 5, 2024 - Alder Metals Corporation (NYSE: ALD) today announc
     expect(parsePressRelease(list, { filerName: "Alder Metals Corporation", filerTickers: ["ALD"] })).toBeNull();
   });
 
+  it("skips a named company's business unit", () => {
+    const t = `Exhibit 99.1
+EMBERCO Announces Definitive Agreement to Acquire the Larkspur Space and Navigation Business
+ALHAMBRA, Calif., February 15, 2022 - EMBERCO Corporation (Nasdaq: EMBR) today announced that it has entered into a definitive agreement to acquire the Space and Navigation business of Larkspur Technologies, Inc. (NYSE: LKS) for $5 million.`;
+    expect(parsePressRelease(t, { filerName: "EMBERCO Corporation", filerTickers: ["EMBR"] })).toBeNull();
+  });
+
   it("skips assets bought from a named company", () => {
     const t = `Exhibit 99.1
 Harlan Midstream LP Announces Transformative Transaction

@@ -311,3 +311,10 @@ describe("parseMergerItem: structures the big-deal check found", () => {
     expect(extractMergerPrice("Each share will be converted into the right to receive $42.15 in cash.")).toBe(42.15);
   });
 });
+
+describe("item101: asset sales", () => {
+  it("skips a section whose first agreement is an asset purchase agreement", () => {
+    const t = `Item 1.01 Entry into a Material Definitive Agreement. Definitive agreement to sell all assets of Eastfield Insurance. Eastfield Bankshares, Inc. (the "Company") and a wholly owned subsidiary of Arthur Gale & Co. ("Gale") entered into a definitive asset purchase agreement on September 19, 2023 under which Gale agreed to purchase for cash Eastfield Bank's insurance operations. Separately, the Company entered into an Agreement and Plan of Merger with Camden Bancorp ("Camden"), under which Camden will merge with and into the Company. Item 9.01 Financial Statements and Exhibits.`;
+    expect(item101(t)).toBeNull();
+  });
+});

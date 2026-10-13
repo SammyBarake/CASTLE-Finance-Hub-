@@ -46,6 +46,9 @@ export interface StoredDeal extends Deal {
   advisorCheck?: number;
   /** Last day the buyer's share-price reaction was looked up (ingest/prices.ts). */
   reactionCheckedAt?: string;
+  /** CLOSE_CHECK_VERSION and day of the last search of the buyer's filings for the deal's closing or end (open deals). */
+  closeCheck?: number;
+  closeCheckedAt?: string | null;
 }
 
 export interface StoredIpo extends Ipo {

@@ -37,6 +37,12 @@ export function item101(text: string): string | null {
   // UK / Irish targets are bought under a "Transaction Agreement" by a scheme of arrangement (Horizon, Nielsen).
   if (!/Agreement and Plan of Merger|Merger Agreement|Arrangement Agreement|Plan of Arrangement|Transaction Agreement|Implementation Agreement|scheme of arrangement/i.test(section)) return null;
   if (!/merge[ds]? with and into|merger of .{1,60} with and into|tender offer|exchange offer|plan of arrangement|scheme of arrangement|amalgamat|be acquired by|(?:will|shall) acquire\s+(?:all\s+of\s+)?(?:the\s+)?(?:issued\b|outstanding\b|[A-Z])/i.test(section)) return null;
+  // An asset sale is not a takeover of the filer: when the first agreement the section says was entered into is an
+  // asset purchase agreement ("entered into a definitive asset purchase agreement … under which Gallagher agreed to
+  // purchase … Eastern Bank's insurance operations"), the merger described after it is another deal (Eastern buying
+  // Cambridge, signed the same day) that the other party's filings report.
+  const first = /\bentered\s+into\s+(?:an?|the)\s+(?:[\w-]+\s+){0,4}?(agreement and plan of (?:merger|reorganization)|merger agreement|transaction agreement|arrangement agreement|asset purchase agreement|purchase and sale agreement)\b/i.exec(section.slice(0, 2500));
+  if (first && /asset purchase|purchase and sale/i.test(first[1])) return null;
   return section;
 }
 
