@@ -1069,8 +1069,10 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       // buyer's shares or the company's own for a new deal (HomeStreet's with Mechanics Bank, after FirstSun walked away).
       let terminated: (typeof after)[number] | undefined;
       const ends = after.filter((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate && (!closed || f.date < shiftDate(closed.date, -30)));
+      // A revival comes within a year (CP and KCS signed again four months on); a proxy years later is another deal
+      // (Sphere 3D's 2026 merger proxy kept its 2022 termination with Gryphon "Pending").
       for (const f of ends.slice(0, 3)) {
-        if (after.some((g) => REVIVAL_FORMS.test(g.form) && g.date > f.date && (!closed || g.date < closed.date))) continue;
+        if (after.some((g) => REVIVAL_FORMS.test(g.form) && g.date > f.date && g.date <= shiftDate(f.date, 365) && (!closed || g.date < closed.date))) continue;
         if (await isMergerTermination(sub.cik, f.adsh, f.primaryDocument)) {
           terminated = f;
           break;
@@ -1255,13 +1257,30 @@ export async function ingestDeals(
    * (MorphoSys's 14D-9 for Novartis's tender, DISH's information statement for EchoStar). The roles are swapped, or the
    * record dropped when the deal is already tracked the right way round.
    */
-  const reverseRoles = async (deal: StoredDeal, sub: Submissions): Promise<"swapped" | "dropped" | null> => {
+  const reverseRoles = async (deal: StoredDeal, sub: Submissions): Promise<"swapped" | "dropped" | "private" | null> => {
     const TARGET_SIDE = /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC 13E3)(?:\/A)?$/;
     const BUYER_SIDE = /^(?:S-4|F-4|SC TO-T)(?:\/A)?$/;
     const within = (f: { date: string }) => f.date >= deal.announcedDate && f.date <= shiftDate(deal.announcedDate, 550);
     const own = recentFilings(sub).filter(within);
     if (own.some((f) => TARGET_SIDE.test(f.form)) || !own.some((f) => BUYER_SIDE.test(f.form))) return null;
     const otherCik = deal.acquirer.cik ?? (await resolveRegistrant(cleanPartyName(deal.acquirer.name), deal.announcedDate))?.cik ?? null;
+    if (!otherCik && isPrivateTargetName(cleanPartyName(deal.acquirer.name), "")) {
+      // The other party has no SEC filer at all: a private company the registrant is buying with its own shares (Sphere 3D
+      // registered them on an F-4 to buy Gryphon). It becomes a private target; the private checks settle it next run.
+      dropped.add(deal.id);
+      const base = `p-${normalizeName(deal.acquirer.name).replace(/\s+/g, "-")}-${deal.announcedDate}`;
+      let id = base;
+      for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
+      const seller = deal.acquirer;
+      Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evRevenue: null, status: "Announced", statusDate: null });
+      deal.acquirer = { name: displayName(nameOn(sub, deal.announcedDate)), cik: deal.target.cik, ticker: deal.target.ticker };
+      deal.target = { name: seller.name, cik: null, ticker: null };
+      [deal.acquirerAdvisors, deal.targetAdvisors] = [deal.targetAdvisors, deal.acquirerAdvisors];
+      deal.milestones = deal.terms = deal.fairness = undefined;
+      deal.statusCheckedAt = null;
+      deal.registrantCheck = REGISTRANT_CHECK_VERSION;
+      return "private";
+    }
     if (!otherCik || otherCik === deal.target.cik) return null;
     const other = await submissions(otherCik);
     if (!other || !recentFilings(other).some((f) => within(f) && TARGET_SIDE.test(f.form))) return null;
@@ -1714,7 +1733,7 @@ export async function ingestDeals(
         // Still open months on: read backwards, or a foreign target whose end only the buyer reports.
         if (sub && OPEN.includes(deal.status) && Date.parse(opts.today) - Date.parse(deal.announcedDate) > 120 * 86_400_000) {
           const turned = await reverseRoles(deal, sub);
-          if (turned === "dropped") continue;
+          if (turned === "dropped" || turned === "private") continue;
           if (turned === "swapped") sub = await submissions(deal.target.cik!);
           // A foreign private issuer files 6-Ks, never an 8-K Item 1.02: the buyer's 8-K says the agreement ended (Intel / Tower).
           const acquirerSub = deal.acquirer.cik && sub && recentFilings(sub).some((f) => /^6-K/.test(f.form)) ? await submissions(deal.acquirer.cik) : null;
