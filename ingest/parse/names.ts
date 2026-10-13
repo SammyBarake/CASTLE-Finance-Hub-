@@ -52,6 +52,41 @@ export function namesExtend(a: string, b: string): boolean {
 
 const GENERIC_NAME = /^(?:group|holdings?|company|companies|partners|capital|technologies|systems|solutions|services|inc|llc|ltd|corp|corporation|bank|bancorp|the)$/i;
 
+/** Words a description is made of (industries, products, qualities, places), not names. */
+const DESCRIPTIVE = new Set(
+  (
+    "a an and of the for in & based owned award winning leading disruptive flexible rapid emergency evacuation saas b2b b2c ai edge " +
+    "water treatment software engineering it development utility billing energy drink fishing charter motor vehicle insurance " +
+    "verification wireless charging generative video creation technology tech platform insulin patch pump talent solutions intelligence " +
+    "healthcare health system medical equipment cnc machining digital tv government relations hot oilfield services manufacturing " +
+    "consumer experience home specialty channel distributor emea food beverage restaurant retail logistics transportation trucking " +
+    "construction engineering consulting staffing marketing advertising media data analytics cloud cyber cybersecurity security " +
+    "payments fintech financial wealth management advisory accounting legal clinical lab laboratory diagnostics biotech pharmaceutical " +
+    "device devices products product industrial chemical chemicals packaging plastics metals steel aerospace defense automotive " +
+    "solar wind renewable power electric electrical hvac plumbing roofing landscaping cleaning maintenance repair facilities services " +
+    "real estate property residential commercial multifamily hospitality hotel travel education training learning research testing " +
+    "inspection environmental waste recycling agriculture farm dental veterinary pet animal behavioral mental care senior " +
+    "independent regional national global international local american north south east west midwest florida texas california " +
+    "new york us u.s. uk u.k. european canadian private privately held small mid-size large family family-owned"
+  ).split(/\s+/),
+);
+const ROLE_END = /^(?:company|business|provider|platform|firm|developer|manufacturer|operator|distributor|maker|producer|leader|pioneer|specialist|vendor|innovator|supplier|factory|startup|agency|practice|center|centre)$/i;
+
+/**
+ * A description standing where a name should be: every word before the role word is a generic one ("Water Treatment
+ * Company", "Edge AI Pioneer", "B2B Intelligence Leader", "Florida Based Fishing Charter Business"), or a known non-name
+ * ("Privately Held", "Platform", "… RESULTS Company", "1.1 Million Square Foot Greenhouse"). A real name has a
+ * proper noun in it: "Miller Electric Company", "Hunter Fan Company".
+ */
+export function isDescriptionOnly(name: string): boolean {
+  const n = name.trim();
+  if (/^(?:privately held|platform|specialty|home health|consumer experience|manufacturing factory)$/i.test(n)) return true;
+  if (/['’]s (?:latest|proprietary|newest)\b|\bmillion square f(?:oo|ee)t\b|\b\d+-megawatt\b|\bresults\b.*\bcompany$|^and\b/i.test(n)) return true;
+  const words = n.replace(/[,()]/g, " ").split(/\s+/).filter(Boolean);
+  if (words.length < 2 || !ROLE_END.test(words.at(-1)!)) return false;
+  return words.slice(0, -1).every((w) => DESCRIPTIVE.has(w.toLowerCase()) || w.toLowerCase().split("-").every((p) => DESCRIPTIVE.has(p)));
+}
+
 /**
  * Two spellings of one private company, for merging the same buyer's duplicate records. Returns the name to keep, or
  * null: spacing ("AdoreMe" / "Adore Me", "Sentrycs" / "Sentry CS Ltd."), a description in front ("CNAPP Vendor

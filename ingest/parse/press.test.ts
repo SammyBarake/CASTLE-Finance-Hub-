@@ -467,6 +467,21 @@ PITTSBURGH, January 5, 2024 - Alder Metals Corporation (NYSE: ALD) today announc
     expect(parsePressRelease(list, { filerName: "Alder Metals Corporation", filerTickers: ["ALD"] })).toBeNull();
   });
 
+  it("finds the name behind a description", () => {
+    const comma = `Exhibit 99.1
+Hubbell Soft to Acquire B2B Intelligence Leader, Clarebit
+Cambridge, MA (November 1, 2023) - Hubbell Soft, Inc. (NYSE: HBSF) announced today that it has entered into a definitive agreement to acquire Clarebit, a top B2B data provider. Clarebit's data will expand the platform. Clarebit was founded in 2015.`;
+    expect(parsePressRelease(comma, { filerName: "Hubbell Soft, Inc.", filerTickers: ["HBSF"] })?.target.name).toBe("Clarebit");
+    const after = `Exhibit 99.1
+NXQ Agrees to Acquire Edge AI Pioneer Kinora to Redefine the Intelligent Edge
+EINDHOVEN, February 10, 2025 - NXQ Semiconductors N.V. (NASDAQ: NXQI) today announced a definitive agreement to acquire Kinora, Inc. for $307 million. Kinora's processors run AI models. Kinora is based in California.`;
+    expect(parsePressRelease(after, { filerName: "NXQ Semiconductors N.V.", filerTickers: ["NXQI"] })?.target.name).toMatch(/^Kinora/);
+    const body = `Exhibit 99.1
+FRANKLYN ELECTRIC ACQUIRES WATER TREATMENT COMPANY
+Fort Wayne, IN - April 1, 2021 - Franklyn Electric Co., Inc. (NASDAQ: FRNK) announced today that it has acquired Puronix, Inc. in an all-cash transaction. Puronix makes water softeners. Puronix will join the Water Systems segment.`;
+    expect(parsePressRelease(body, { filerName: "Franklyn Electric Co., Inc.", filerTickers: ["FRNK"] })?.target.name).toMatch(/^Puronix/);
+  });
+
   it("skips a named company's business unit", () => {
     const t = `Exhibit 99.1
 EMBERCO Announces Definitive Agreement to Acquire the Larkspur Space and Navigation Business

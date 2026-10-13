@@ -2,7 +2,7 @@
  * Final consistency pass over every stored deal, run at the end of each deal ingest. Pure (no EDGAR requests), so
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
-import { cleanPartyName, identicalNames, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
+import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -15,6 +15,8 @@ export function junkReason(d: StoredDeal): string | null {
   if (!d.target.cik && isMergerVehicle(d.target.name)) return `merger vehicle as target "${d.target.name}"`;
   if (d.privateTarget && BASIN_NAME.test(d.target.name.trim())) return `asset purchase in a basin "${d.target.name}"`;
   if (d.privateTarget && /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(d.target.name.trim())) return `description as target "${d.target.name}"`;
+  // No name at all: "Edge AI Pioneer", "Water Treatment Company", "Privately Held" (the release never named it).
+  if (d.privateTarget && isDescriptionOnly(d.target.name)) return `description as target "${d.target.name}"`;
   if (d.acquirer.cik && d.acquirer.cik === d.target.cik) return "acquirer and target are the same registrant";
   // The same company on both sides once names are cleaned ("Nasdaq-listed Gryphon Digital Mining" buying
   // "Gryphon Digital Mining, Inc." was a reverse merger read as a self-deal).

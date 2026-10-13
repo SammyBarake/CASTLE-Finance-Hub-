@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPartyName, identicalNames, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, privateNameMatch, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isDescriptionOnly, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, privateNameMatch, sameCompany, titleCaseCaps } from "./names";
 
 describe("descriptions, tails and fragments read as names", () => {
   it("strips a 'Leading … Provider' description, a 'via …' tail, a listing prefix and a dangling connector", () => {
@@ -233,5 +233,16 @@ describe("privateNameMatch", () => {
     expect(privateNameMatch("Codecademy", "Ryzac, Inc.")).toBeNull();
     expect(privateNameMatch("Group", "Acme Group")).toBeNull();
     expect(privateNameMatch("Bank of Jackson", "Jackson Hole Incorporated")).toBeNull();
+  });
+});
+
+describe("isDescriptionOnly", () => {
+  it("flags a description standing where a name should be", () => {
+    for (const n of ["Water Treatment Company", "Edge AI Pioneer", "B2B Intelligence Leader", "Florida Based Fishing Charter Business", "Privately Held", "Platform", "AND FULL YEAR REVENUE RESULTS Company", "1.1 Million Square Foot Greenhouse", "Ring Jamie Siminoff's Latest Company"])
+      expect(isDescriptionOnly(n)).toBe(true);
+  });
+  it("keeps real names", () => {
+    for (const n of ["Miller Electric Company", "Hunter Fan Company", "Madison National Life Insurance Company", "A. Zahner Company", "Gray Casualty & Surety Company", "Wolt", "Own Company"])
+      expect(isDescriptionOnly(n)).toBe(false);
   });
 });

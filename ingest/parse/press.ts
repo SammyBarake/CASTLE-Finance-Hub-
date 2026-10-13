@@ -8,7 +8,7 @@
 import { findBanks } from "../../lib/banks";
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
-import { cleanPartyName, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, isDescriptionOnly, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 export type PressKind = "announcement" | "update" | "completion" | "termination";
 
@@ -723,10 +723,30 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   // follows it in the text, and the description goes (cleanPartyName).
   // Only a mixed-case word that runs on into lower case ("Playdemic from AT&T"): what follows a cut headline is
   // usually the dateline ("CLEVELAND, Ohio", "London, UK") or the first sentence ("The …", "Energy Steel & Supply").
-  if (/\s(?:Leader|Provider|Maker|Developer|Specialist|Producer|Creator|Manufacturer|Supplier|Distributor)$/.test(parties.tgt)) {
-    const named = new RegExp(`${escapeRx(parties.tgt)}\\s+([A-Z](?=[\\w.&'’-]*[a-z])[\\w.&'’-]{2,})(?=\\s+[a-z])`).exec(flatten(text).slice(0, 5000));
-    if (named && isPlausibleName(named[1]) && !/^(?:The|This|That|These|Today|Its|Our)$/.test(named[1]) && !sameCompany(named[1], parties.acq))
-      parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
+  // A description with the name at its end: "Disruptive Energy Drink Business GHOST" → "GHOST".
+  // (Case-sensitive, so the name must be capitalised; the role word in Title Case or capitals.)
+  const roles = "Business|Company|Provider|Platform|Firm|Developer|Leader|Pioneer|Maker|Manufacturer|Distributor|Producer|Specialist|Vendor|Innovator|Supplier|Agency";
+  const tail = new RegExp(`^(.+\\s(?:${roles}|${roles.toUpperCase()}))\\s+([A-Z][\\w.&'’-]*(?:\\s+[A-Z][\\w.&'’-]*){0,2})$`).exec(parties.tgt);
+  if (tail && isDescriptionOnly(tail[1]) && isPlausibleName(tail[2]) && !isDescriptionOnly(tail[2]) && !/^(?:of|in|for|and|the|to|with|from)\b/i.test(tail[2])) parties.tgt = tail[2];
+  const runOn = () => new RegExp(`${escapeRx(parties!.tgt)}\\s+([A-Z](?=[\\w.&'’-]*[a-z])[\\w.&'’-]{2,})(?=\\s+[a-z])`).exec(flatten(text).slice(0, 5000));
+  const runOnOk = (m: RegExpExecArray | null): m is RegExpExecArray => !!m && isPlausibleName(m[1]) && !/^(?:The|This|That|These|Today|Its|Our)$/.test(m[1]) && !sameCompany(m[1], parties!.acq);
+  // (A listed company whose name is all ordinary words, "The New Home Company (NYSE: NWHM)", is a name.)
+  const listedName = new RegExp(`${escapeRx(parties.tgt)}[^()]{0,40}\\((?:NYSE|NASDAQ|Nasdaq|NYSE American|Cboe)\\b`).test(flatten(text).slice(0, 8000));
+  if (isDescriptionOnly(parties.tgt) && !listedName) {
+    // No name at all: the headline gives it after the description ("… B2B Intelligence Leader, Clearbit", "… Edge AI
+    // Pioneer Kinara to Redefine …"), as a name the release repeats (not "Combining …", "From Kvaerner", "In China").
+    const flat = flatten(text);
+    const m = new RegExp(`${escapeRx(parties.tgt)}(?:,\\s+|\\s+)([A-Z][\\w.&'’-]*(?:\\s+[A-Z][\\w.&'’-]*){0,3})(?=$|,|\\s+[a-z]|\\s+(?:To|For|In|With)\\b)`).exec(headline);
+    const cand = m ? cleanPartyName(m[1].replace(/\s+(?:To|For|In|With)$/, "")) : null;
+    const notWord = (c: string) => !/^(?:in|from|to|for|with|by|on|at|of|and|or|into|adjacent|including|plus|enters?|raises?|secures?|projected|expands?|adds?|creates?|strengthens?|bringing|combining|board|earnings|private|regulatory|assets?|locations?|business|portfolio|facilities|agency|center|greenhouse)\b|ing\b/i.test(c.split(/\s+/)[0]);
+    const repeated = (c: string) => (flat.match(new RegExp(`\\b${escapeRx(c)}\\b`, "g")) ?? []).length >= 3;
+    const usable = (c: string | null | undefined): c is string => !!c && isPlausibleName(c) && !isDescriptionOnly(c) && notWord(c) && repeated(c) && !sameCompany(c, parties!.acq);
+    if (usable(cand)) parties.tgt = cand;
+    // Or only the text does: "FRANKLIN ELECTRIC ACQUIRES WATER TREATMENT COMPANY … has acquired Puronics, Inc.".
+    else if (usable(bodyParties?.tgt)) parties.tgt = bodyParties!.tgt;
+  } else if (/\s(?:Leader|Provider|Maker|Developer|Specialist|Producer|Creator|Manufacturer|Supplier|Distributor)$/.test(parties.tgt)) {
+    const named = runOn();
+    if (runOnOk(named)) parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
   }
 
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
