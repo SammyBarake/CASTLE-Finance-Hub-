@@ -19,8 +19,11 @@ const PATTERNS: RegExp[] = [
   new RegExp(String.raw`\b[Tt]o\s+[Bb]e\s+(?:[Aa]cquired|[Tt]aken\s+[Pp]rivate)\s+[Bb]y\s+${FUNDS}${NAME}${END}`),
   // "Parent and Merger Sub are affiliates of investment funds managed by Thoma Bravo"
   new RegExp(String.raw`\b(?:Parent|Purchaser|Buyer|Holdings|Merger\s+Sub|Bidco)\b[^.]{0,140}?\b(?:(?:is|are)\s+(?:each\s+)?)?(?:an?\s+)?(?:affiliates?\s+of|controlled\s+by|(?:an?\s+)?(?:indirect\s+)?(?:wholly[- ]owned\s+)?subsidiar(?:y|ies)\s+of|formed\s+by|owned\s+by|sponsored\s+by)\s+${FUNDS}${NAME}${END}`),
-  // "… an affiliate of funds managed by Apollo", "a portfolio company of Clearlake"
-  new RegExp(String.raw`\b(?:funds?|vehicles?)\s+(?:managed|advised|sponsored)(?:\s+or\s+advised)?\s+by\s+(?:affiliates\s+of\s+)?${NAME}${END}`),
+  // "… an affiliate of funds managed by Apollo", "a portfolio company of Clearlake", "funds advised by each of Advent
+  // International Corporation, Permira …" (McAfee)
+  new RegExp(String.raw`\b(?:funds?|vehicles?)\s+(?:managed|advised|sponsored)(?:\s+or\s+advised)?\s+by\s+(?:affiliates\s+of\s+)?(?:each\s+of\s+)?${NAME}${END}`),
+  // "to be acquired by an investor group led by Advent International"
+  new RegExp(String.raw`\b(?:investor\s+group|group\s+of\s+investors|consortium|investor\s+consortium)\s+led\s+by\s+${FUNDS}${NAME}${END}`),
   new RegExp(String.raw`\bportfolio\s+company\s+of\s+${FUNDS}${NAME}${END}`),
   // "Pillartree Limited, a newly formed private limited company wholly owned by Amgen Inc." (Irish scheme offers)
   new RegExp(String.raw`\bnewly[- ](?:formed|incorporated)\b[^.;]{0,80}?\b(?:wholly[- ]owned\s+(?:indirect\s+)?(?:subsidiary\s+of|by)|owned\s+by|subsidiary\s+of)\s+${FUNDS}${NAME}${END}`),

@@ -14,6 +14,7 @@ export function junkReason(d: StoredDeal): string | null {
   for (const c of [d.acquirer, d.target]) if (!isPlausibleName(c.name) && !isPlaceholderBuyer(c.name)) return `implausible name "${c.name}"`;
   if (!d.target.cik && isMergerVehicle(d.target.name)) return `merger vehicle as target "${d.target.name}"`;
   if (d.privateTarget && BASIN_NAME.test(d.target.name.trim())) return `asset purchase in a basin "${d.target.name}"`;
+  if (d.privateTarget && HOTEL_PROPERTY.test(d.target.name)) return `a hotel property "${d.target.name}"`;
   if (d.privateTarget && /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(d.target.name.trim())) return `description as target "${d.target.name}"`;
   // No name at all: "Edge AI Pioneer", "Water Treatment Company", "Privately Held" (the release never named it).
   if (d.privateTarget && isDescriptionOnly(d.target.name)) return `description as target "${d.target.name}"`;
@@ -298,6 +299,12 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
 /** Acquirer name of a SPAC (blank-check company), out of scope as a buyer. */
 export const SPAC_NAME =
   /\b(?:Acquisition|Merger|Growth Opportunit(?:y|ies))\s+(?:Corp(?:oration)?|Co|Company|Ltd|Limited|Inc)\b|\bCapital Corp\.?\s+[IVX]+\b|\bBlank Check\b/i;
+
+/**
+ * A single branded hotel bought by a lodging REIT is a property, not a company: "Residence Inn by Marriott Seattle
+ * South/Renton", "Embassy Suites by Hilton South Jordan Salt Lake City" (Apple Hospitality).
+ */
+export const HOTEL_PROPERTY = /\bby\s+(?:Marriott|Hilton|Hyatt|IHG|Wyndham)\s+[A-Z]/;
 
 /** A "private target" named only for an oil and gas basin is an asset purchase: "Crescent Energy to Acquire Eagle Ford Assets from Devon". */
 export const BASIN_NAME =

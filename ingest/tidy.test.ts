@@ -73,6 +73,11 @@ describe("junkReason", () => {
     expect(junkReason(deal({ acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null } }))).toBeNull();
   });
 
+  it("drops a single branded hotel as a private target", () => {
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Residence Inn by Marriott Seattle South/Renton", ticker: null, cik: null } }))).toMatch(/hotel/);
+    expect(junkReason(deal({ privateTarget: true, target: { name: "Radisson Hotel Group Americas", ticker: null, cik: null } }))).toBeNull();
+  });
+
   it("drops a run of hyphenated words as a private target", () => {
     expect(junkReason(deal({ privateTarget: true, target: { name: "Cash-Flow-Positive", ticker: null, cik: null } }))).toMatch(/description/);
     expect(junkReason(deal({ privateTarget: true, target: { name: "Mercedes-Benz Trucks", ticker: null, cik: null } }))).toBeNull();

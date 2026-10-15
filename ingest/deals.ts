@@ -33,11 +33,11 @@ import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
 import { completedPhrases, endedPhrases, readPastReference, readStatement, searchName, shortName as firstNameWord } from "./parse/completion";
-import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
+import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import type { StoredDeal, State } from "./store";
-import { BASIN_NAME, SPAC_NAME, tidyDeals } from "./tidy";
+import { BASIN_NAME, HOTEL_PROPERTY, SPAC_NAME, tidyDeals } from "./tidy";
 import { flatten, htmlToText } from "./text";
 import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
 
@@ -263,7 +263,8 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
     return DISTINCT.some((w) => pw.has(w) && !lw.has(w));
   };
   // A short name can belong to another company: Emerson's "NI (NASDAQ: NATI)" is National Instruments, not NI Holdings.
-  if (byName && !differs(byName.name) && (!ticker || !pressUs || byName.ticker.toUpperCase() === ticker))
+  // Nor is a buyout firm the listed company its name normalises to ("Advent International" → Advent Technologies).
+  if (byName && !differs(byName.name) && !notTheSponsor(p.name, byName.name) && (!ticker || !pressUs || byName.ticker.toUpperCase() === ticker))
     return { cik: byName.cik, ticker: ticker ?? byName.ticker, listedInUs: pressUs || US_LISTED.test(byName.exchange ?? ""), byNameToday: !pressUs };
   return { cik: null, ticker, listedInUs: pressUs };
 }
@@ -427,7 +428,7 @@ export function isPrivateTargetName(name: string, acquirerName: string): boolean
   if (!/^[A-Z0-9]/.test(n) || /^\d+\s/.test(n)) return false;
   // A basin is an asset purchase: "Eagle Ford" (Crescent Energy buying Devon's Eagle Ford assets). A run of hyphenated
   // words is a description: "Cash-Flow-Positive" (production).
-  if (BASIN_NAME.test(n) || /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(n) || isDescriptionOnly(n)) return false;
+  if (BASIN_NAME.test(n) || HOTEL_PROPERTY.test(n) || /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(n) || isDescriptionOnly(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // Asset and product deals: "… Retail Assets", "… Earth Station", "Global Rights to …", "the Pizza Hut Brand".
   if (/\b(?:assets?|rights?|brand|brands|licen[cs]es?|stations?|portfolio|propert(?:y|ies)|facility|facilities|plant|mine|refinery|project|fleet|vessels?|patents?|product line|division|business line|stake|interest|ownership)\b/i.test(n)) return false;
@@ -675,8 +676,9 @@ const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|
 /**
  * Bump to look again for the sponsor behind deals whose buyer is still an acquisition vehicle.
  * 2: "Acquirer Sub" counts as a vehicle (Amgen / Horizon).
+ * 3: deals linked to a registrant a buyout firm's name collides with are re-read (Advent → Advent Technologies).
  */
-export const SPONSOR_CHECK_VERSION = 2;
+export const SPONSOR_CHECK_VERSION = 3;
 
 /**
  * The real buyer behind an acquisition vehicle ("Spaceship Purchaser, Inc." → Permira): the target's announcement
@@ -1447,6 +1449,8 @@ export async function ingestDeals(
         if (!sub || sub.sic === "6770") continue;
         const then = nameOn(sub, date);
         if (!registrantMatches(then, name) && !registrantMatches(then, bare) && squash(then) !== squash(name)) continue;
+        if (notTheSponsor(name, then)) continue; // "Advent" is not Advent Technologies Holdings
+
         if (!(await listedThen(sub, date))) continue;
         const cik = trimCik(sub.cik);
         const successor = [...directory.byCik.values()].find((x) => US_LISTED.test(x.exchange ?? "") && squash(x.name) === squash(then));
@@ -1716,6 +1720,13 @@ export async function ingestDeals(
   log(`  backstop recovered ${recovered} deals`);
 
   // Enrich new/changed deals, plus open deals whose status may have moved.
+  // Registrants a colliding buyout firm's name normalises to but which aren't the firm (Advent Technologies for "Advent"):
+  // deals linked to one re-read their source document's buyer once (SPONSOR_CHECK_VERSION 3).
+  const sponsorKeys = new Map(COLLIDING_SPONSORS.map((s) => [normalizeName(s), s]));
+  const collidingCiks = new Set(
+    [...directory.byCik.values()].filter((c) => sponsorKeys.has(normalizeName(c.name)) && notTheSponsor(sponsorKeys.get(normalizeName(c.name))!, c.name)).map((c) => c.cik),
+  );
+  const collisionDue = (d: StoredDeal) => !!d.acquirer.cik && collidingCiks.has(d.acquirer.cik) && d.sponsorCheck !== SPONSOR_CHECK_VERSION;
   // Buyers stored by name only, once per version; consortiums, funds and acquisition vehicles have no registrant to find.
   const buyerLinkDue = (d: StoredDeal) =>
     !d.acquirer.cik &&
@@ -1725,6 +1736,7 @@ export async function ingestDeals(
     !/\b(?:consortium|investor group|led by|affiliates?|funds?)\b/i.test(d.acquirer.name);
   const toEnrich = state.deals.filter((d) =>
     buyerLinkDue(d) ||
+    collisionDue(d) ||
     (d.privateTarget
       ? touched.has(d) ||
         (d.status === "Announced" && d.statusCheckedAt !== opts.today) ||
@@ -1815,6 +1827,22 @@ export async function ingestDeals(
           deal.registrantCheck = REGISTRANT_CHECK_VERSION;
         }
       }
+      // Linked to a registrant a buyout firm's name collides with: the buyer the source document named (through its
+      // vehicle's sponsor: McAfee's "Condor BidCo" is Advent); a firm that isn't the registrant is unlinked.
+      if (collisionDue(deal) && deal.filings[0]) {
+        const text = htmlToText(await getTextHead(deal.filings[0].url, 400_000));
+        const ctx = { filerName: deal.target.name, filerTickers: [] as string[] };
+        let named = (parsePressRelease(text, ctx) ?? parseMergerItem(text, ctx))?.acquirer.name ?? null;
+        const targetSub = deal.target.cik ? await submissions(deal.target.cik) : null;
+        if (named && isPlaceholderBuyer(named) && targetSub) named = await findSponsor({ ...deal, acquirer: { ...deal.acquirer, name: named } }, targetSub);
+        if (named && notTheSponsor(cleanPartyName(named), deal.acquirer.name)) {
+          deal.acquirer = { name: cleanPartyName(named), cik: null, ticker: null };
+          delete deal.reaction;
+          deal.reactionCheckedAt = undefined;
+          stats.sponsorsFound++;
+        }
+        deal.sponsorCheck = SPONSOR_CHECK_VERSION;
+      }
       // A buyer stored by name only: the registrant it was then (renamed since, or listed under another ticker).
       if (buyerLinkDue(deal)) {
         const buyer = await resolveBuyer(deal.acquirer.name, deal.announcedDate);
@@ -1876,7 +1904,7 @@ export async function ingestDeals(
             // Linked to a listed company only if it trades on a US exchange ("Authentic Holdings, Inc." on OTC is not
             // Authentic Brands Group).
             const match = directory.byName.get(normalizeName(sponsor));
-            const listed = match && US_LISTED.test(match.exchange ?? "") ? match : undefined;
+            const listed = match && US_LISTED.test(match.exchange ?? "") && !notTheSponsor(sponsor, match.name) ? match : undefined;
             deal.acquirer = { name: sponsor, ticker: listed?.ticker ?? null, cik: listed?.cik ?? null };
             stats.sponsorsFound++;
           }

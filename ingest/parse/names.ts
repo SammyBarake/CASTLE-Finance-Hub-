@@ -30,6 +30,35 @@ export function normalizeName(name: string): string {
 }
 
 /**
+ * Private-equity firms whose names collide with a listed company once `normalizeName` drops descriptors: "Advent
+ * International" and "Advent Technologies Holdings" (a fuel-cell maker) both become "advent", which credited Advent's
+ * buyouts of McAfee, Maxar, Heidrick & Struggles and Sapiens to the fuel-cell maker.
+ */
+export const COLLIDING_SPONSORS = [
+  "Advent International", "Advent", "Bain Capital", "Vista Equity Partners", "Silver Lake", "Elliott", "Cerberus", "Searchlight",
+  "Sycamore Partners", "Sycamore", "Platinum Equity", "Stone Point", "Lone Star", "Summit Partners", "Gores", "Clearlake", "Centerbridge",
+  "Warburg Pincus", "Thoma Bravo", "Permira", "Hellman & Friedman", "Veritas Capital", "Genstar", "Insight Partners", "Francisco Partners",
+  "Cinven", "CVC",
+];
+// Words a sponsor's own registered name may add ("Bain Capital, LP", "Elliott Investment Management L.P.").
+const SPONSOR_FORM = new Set(["partners", "capital", "management", "investment", "investments", "group", "holdings", "holding", "global", "fund", "funds", "advisors", "advisers", "inc", "corp", "corporation", "co", "company", "lp", "llc", "ltd", "limited", "l", "p", "the", "and", "international", "equity"]);
+
+/**
+ * A registrant is not the sponsor a document named when it adds words of its own: "Advent Technologies Holdings" is not
+ * "Advent" or "Advent International", "Bain Capital Specialty Finance" (a listed lending fund) is not Bain Capital.
+ * False for names that aren't a colliding sponsor ("Apollo" is Apollo Global Management).
+ */
+export function notTheSponsor(named: string, registrant: string): boolean {
+  const lower = named.toLowerCase().trim();
+  const sponsor = COLLIDING_SPONSORS.find((s) => lower === s.toLowerCase() || lower.startsWith(`${s.toLowerCase()} `) || lower.startsWith(`${s.toLowerCase()},`));
+  if (!sponsor) return false;
+  const own = new Set(sponsor.toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? []);
+  // SEC state tags aside ("… /DE/").
+  const words = registrant.replace(/\s*[\\/][A-Za-z]{2,4}[\\/]?\s*$/, "").toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? [];
+  return words.some((w) => !own.has(w) && !SPONSOR_FORM.has(w));
+}
+
+/**
  * Stricter than `sameCompany` (no shared-first-word match, so "Global Payments" is not "Global Blue"): the same name,
  * or one name extending the other ("Lucid Group" / "Lucid Motors" share "lucid" but "Teledyne" / "Teledyne FLIR" too).
  */

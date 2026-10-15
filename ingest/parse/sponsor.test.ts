@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPlaceholderBuyer } from "./names";
+import { isPlaceholderBuyer, notTheSponsor } from "./names";
 import { sponsorFromText } from "./sponsor";
 
 // Synthetic text in the style of announcement releases and merger proxies.
@@ -19,6 +19,9 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
     // Consortiums and firm descriptions before the names.
     expect(sponsorFromText("Corvid Health has entered into a definitive agreement to be acquired by a consortium of private investment firms composed of Elliott Investment Management, Patient Square Capital, and Veritas Capital for $43.00 per share.", "Corvid Health, Inc.", "Star Parent, Inc.")).toBe("Elliott Investment Management, Patient Square Capital, and Veritas Capital");
     expect(sponsorFromText("Lumen Bio today announced that it has entered into a definitive agreement to be acquired by funds managed by global investment firms Carlyle (NASDAQ: CG) and SK Capital Partners, LP.", "Lumen Bio, Inc.", "Beacon Parent Holdings, L.P.")).toBe("Carlyle");
+    // "funds advised by each of …" and "an investor group led by …" (McAfee).
+    expect(sponsorFromText('Affiliates of funds advised by each of Advent International Corporation and Permira Advisers LLC (each, a "Sponsor") have committed to capitalize Parent.', "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International Corporation and Permira Advisers LLC");
+    expect(sponsorFromText("Mosaic to be acquired by an investor group led by Advent International for $26.00 per share in cash.", "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International");
   });
 
   it("cuts descriptions and keeps initials in personal names", () => {
@@ -39,5 +42,21 @@ describe("isPlaceholderBuyer: more vehicle shapes", () => {
       expect(isPlaceholderBuyer(n), n).toBe(true);
     }
     for (const n of ["Intercontinental Exchange, Inc.", "Permira", "Project Management Institute"]) expect(isPlaceholderBuyer(n), n).toBe(n === "Project Management Institute");
+  });
+});
+
+describe("notTheSponsor: buyout firms whose names collide with a listed company", () => {
+  it("rejects a registrant that adds words of its own", () => {
+    expect(notTheSponsor("Advent International Corporation", "Advent Technologies Holdings, Inc.")).toBe(true);
+    expect(notTheSponsor("Advent", "Advent Technologies Holdings, Inc.")).toBe(true);
+    expect(notTheSponsor("Bain Capital", "Bain Capital Specialty Finance, Inc.")).toBe(true);
+    expect(notTheSponsor("Elliott", "Elliott Opportunity II Corp.")).toBe(true);
+  });
+
+  it("accepts the firm itself and names that aren't colliding sponsors", () => {
+    expect(notTheSponsor("Advent International, L.P.", "Advent International Corp /DE/")).toBe(false);
+    expect(notTheSponsor("Bain Capital", "Bain Capital, LP")).toBe(false);
+    expect(notTheSponsor("Apollo", "Apollo Global Management, Inc.")).toBe(false);
+    expect(notTheSponsor("Adventist Health", "Advent Technologies Holdings, Inc.")).toBe(false);
   });
 });
