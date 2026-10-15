@@ -148,7 +148,9 @@ function collectHeadline(lines: string[], from: number, step: 1 | -1): { start: 
 // Company names are matched case-sensitively (capitalised words plus a few connectors);
 // the surrounding keywords are case-insensitive via (?i:...) groups.
 const SUFFIX = String.raw`,\s(?:Inc|Corp|Ltd|LLC|L\.P|LP|Co|N\.V|S\.A|plc|PLC|Limited|Incorporated)\.?`;
-const NAME = String.raw`([A-Z0-9][\w&.'’\-]*(?:${SUFFIX}|\s(?:[A-Z0-9&][\w&.'’\-]*|of|and|de|du|la|for|the|by))*?)`;
+// A slash between letters belongs to a name ("RE/MAX Holdings" was read as "MAX Holdings"; "Quad/Graphics", "Danfoss
+// A/S"); not in dates or phone numbers ("11/14/11", "212/355-4449").
+const NAME = String.raw`([A-Z0-9][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*(?:${SUFFIX}|\s(?:[A-Z0-9&][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*|of|and|de|du|la|for|the|by))*?)`;
 const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the )?`;
 const STOP = String.raw`(?=['’]s\b|\s*(?:[,;:(]|$)|\.(?:\s|$)|\s(?i:for|in|at|to|from|with|via|and (?:expand|create|strength|accelerat|add|form)|creating|expanding|adding|strengthening|accelerating|valued|forming|through|—|-|–)(?:\b|\s))`;
 

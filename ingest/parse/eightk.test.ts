@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { htmlToText } from "../text";
-import { extractMergerPrice, item101, parseMergerItem } from "./eightk";
+import { definedEntities, extractMergerPrice, item101, parseMergerItem } from "./eightk";
 import { extractConsideration } from "./press";
 
 // Synthetic Item 1.01 sections in the style of real merger 8-Ks.
@@ -316,5 +316,12 @@ describe("item101: asset sales", () => {
   it("skips a section whose first agreement is an asset purchase agreement", () => {
     const t = `Item 1.01 Entry into a Material Definitive Agreement. Definitive agreement to sell all assets of Eastfield Insurance. Eastfield Bankshares, Inc. (the "Company") and a wholly owned subsidiary of Arthur Gale & Co. ("Gale") entered into a definitive asset purchase agreement on September 19, 2023 under which Gale agreed to purchase for cash Eastfield Bank's insurance operations. Separately, the Company entered into an Agreement and Plan of Merger with Camden Bancorp ("Camden"), under which Camden will merge with and into the Company. Item 9.01 Financial Statements and Exhibits.`;
     expect(item101(t)).toBeNull();
+  });
+});
+
+describe("definedEntities: names with a slash", () => {
+  it("keeps RE/MAX whole", () => {
+    const sec = `Item 1.01 Entry Into a Material Definitive Agreement. On April 26, 2026, RE/MAX Holdings, Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement") by and among the Company, The Real Brokerage Inc., a company existing under the laws of British Columbia ("Parent"), and Wildlife Acquisition I Corp., a Delaware corporation ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Item 9.01`;
+    expect(definedEntities(sec).find((e) => e.nick === "Company")?.name).toBe("RE/MAX Holdings, Inc.");
   });
 });

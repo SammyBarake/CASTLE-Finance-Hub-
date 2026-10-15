@@ -59,7 +59,8 @@ export function definedEntities(s: string): Entity[] {
   // A name starts with a capital, or is a lower-case web name ("salesforce.com, inc.").
   // The usual terms also count without quote marks: some filings print `(the Company)`, `(Parent)` (EQT / Equitrans),
   // or `(the Company or Icosavax)`. A description never runs on across another party's definition.
-  const re = /([A-Z][A-Za-z0-9&.,'’\- ]{1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\((?!\s*(?:the\s+)?(?:Company|Parent|Merger Sub|Purchaser|Buyer)\b)[^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?(?:["“]([^"”]{1,40})["”]|(Company|Parent|Ultimate Parent|Merger Sub|Purchaser|Buyer|Acquir[eo]r|Partnership|Registrant|Guarantor))(?:\s+or\s+(?:the\s+)?(?:["“]([^"”]+)["”]|([A-Z][\w&.'’\-]*(?: [A-Z][\w&.'’\-]*){0,3})))?\s*\)/g;
+  // (A slash between letters belongs to the name: "RE/MAX Holdings, Inc., a Delaware corporation (the "Company")".)
+  const re = /([A-Z](?:[A-Za-z0-9&.,'’\- ]|\/(?=[A-Za-z])){1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\((?!\s*(?:the\s+)?(?:Company|Parent|Merger Sub|Purchaser|Buyer)\b)[^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?(?:["“]([^"”]{1,40})["”]|(Company|Parent|Ultimate Parent|Merger Sub|Purchaser|Buyer|Acquir[eo]r|Partnership|Registrant|Guarantor))(?:\s+or\s+(?:the\s+)?(?:["“]([^"”]+)["”]|([A-Z][\w&.'’\-]*(?: [A-Z][\w&.'’\-]*){0,3})))?\s*\)/g;
   for (const m0 of s.matchAll(re)) {
     const m = [m0[0], m0[1], m0[2] ?? m0[3], m0[4] ?? m0[5]] as const;
     // "Eli Lilly and Company" is one name: keep its "and" away from the clause-word stripping below, which would

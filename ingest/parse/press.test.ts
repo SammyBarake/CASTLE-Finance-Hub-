@@ -467,6 +467,17 @@ PITTSBURGH, January 5, 2024 - Alder Metals Corporation (NYSE: ALD) today announc
     expect(parsePressRelease(list, { filerName: "Alder Metals Corporation", filerTickers: ["ALD"] })).toBeNull();
   });
 
+  it("keeps a slash between letters in a name, not in dates or phone numbers", () => {
+    const t = `Exhibit 99.1
+Quad/Graphix to Acquire LSC Printing in All-Stock Transaction
+SUSSEX, Wis., October 31, 2018 - Quad/Graphix, Inc. (NYSE: QUAX) and LSC Printing, Inc. (NYSE: LKSP) today announced that they have entered into a definitive agreement under which Quad/Graphix will acquire LSC Printing in an all-stock transaction.`;
+    expect(parsePressRelease(t, { filerName: "Quad/Graphix, Inc.", filerTickers: ["QUAX"] })?.acquirer.name).toMatch(/^Quad\/Graphix/);
+    const dated = `Exhibit 99.1
+11/14/11 Carlyle Parts to Acquire Tri-Star Connectors, Inc.
+CHARLOTTE, N.C., November 14, 2011 - Carlyle Parts Incorporated (NYSE: CYP) announced today a definitive agreement to acquire Tri-Star Connectors, Inc.`;
+    expect(parsePressRelease(dated, { filerName: "Carlyle Parts Incorporated", filerTickers: ["CYP"] })?.acquirer.name ?? "").not.toMatch(/11\/14/);
+  });
+
   it("finds the name behind a description", () => {
     const comma = `Exhibit 99.1
 Hubbell Soft to Acquire B2B Intelligence Leader, Clarebit

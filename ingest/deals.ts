@@ -282,7 +282,7 @@ const SPAC_FILER = /\bAcquisitions?\b|\bMerger\b|\bCapital Corp\b|\s[IVX]+,?\s+(
 /** How far before its merger proxy the backstop looks for a company's signing 8-K. */
 const BACKSTOP_DAYS = 400;
 /** `seen` key for a backstop lookup (company + proxy year). Bump to look every filer up again after a parser change. */
-const BACKSTOP_KEY = "backstop3";
+const BACKSTOP_KEY = "backstop4";
 const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
 
 /**
@@ -1608,9 +1608,14 @@ export async function ingestDeals(
       // Item 1.01 8-Ks first, then the communication-day ones: Piedmont filed six 8-Ks of deal news after its signing, which
       // pushed the signing 8-K itself out of a newest-first list of six.
       const eightKs = filings.filter((f) => /^8-K/.test(f.form)).sort((a, b) => b.date.localeCompare(a.date));
+      // A foreign issuer files 6-Ks, never 8-Ks (Yatra Online, ReNew Energy Global, Cadeler): its 6-Ks, communication
+      // days first, read as press releases.
+      const sixKs = eightKs.length ? [] : filings.filter((f) => /^6-K/.test(f.form)).sort((a, b) => b.date.localeCompare(a.date));
       const announcements = [
         ...eightKs.filter((f) => /\b1\.01\b/.test(f.items)),
         ...eightKs.filter((f) => !/\b1\.01\b/.test(f.items) && communicationDays.has(f.date)),
+        ...sixKs.filter((f) => communicationDays.has(f.date)),
+        ...sixKs.filter((f) => !communicationDays.has(f.date)),
       ].slice(0, 8);
       for (const f of announcements) {
         // The filer as it was then: its name at the time (Resolute Energy, not today's Cimarex Resolute), and listed
@@ -1622,26 +1627,24 @@ export async function ingestDeals(
         const listedCiks = (await listedThen(sub, f.date)) ? [cik] : [];
         const docsIn = await filingDocuments(sub.cik, f.adsh);
         const exhibits = docsIn.filter((d) => /ex-?99|dex99/i.test(d) && /\.htm/i.test(d));
-        // Press-release exhibits first (they carry premiums and advisors), then the 8-K's own Item 1.01.
+        const asPress = (file: string) => async () => {
+          const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, file)));
+          const p = parsePressRelease(text, ctx);
+          // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), or by
+          // a name the release defines for it ("BTRS Holdings Inc. ("Billtrust")"), never as the buyer (that
+          // would be an acquirer's own vote). Use its registered name so it resolves to it.
+          const aliases = new Set(definedEntities(text.slice(0, 8000)).filter((e) => isFiler(e.name)).flatMap((e) => [e.nick, e.alias ?? ""]));
+          const namesFiler = (name: string) => isFiler(name) || aliases.has(name);
+          if (!p || p.kind !== "announcement" || !namesFiler(p.target.name) || namesFiler(p.acquirer.name)) return null;
+          return { ...p, target: { ...p.target, name: displayName(nameThen) } };
+        };
+        // Press-release exhibits first (they carry premiums and advisors), then the 8-K's own Item 1.01; a 6-K's own
+        // document is often the release itself.
         const attempts: { file: string; parse: () => Promise<ParsedPress | null> }[] = [
-          ...exhibits.map((ex) => ({
-            file: ex,
-            parse: async () => {
-              const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, ex)));
-              const p = parsePressRelease(text, ctx);
-              // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), or by
-              // a name the release defines for it ("BTRS Holdings Inc. ("Billtrust")"), never as the buyer (that
-              // would be an acquirer's own vote). Use its registered name so it resolves to it.
-              const aliases = new Set(definedEntities(text.slice(0, 8000)).filter((e) => isFiler(e.name)).flatMap((e) => [e.nick, e.alias ?? ""]));
-              const namesFiler = (name: string) => isFiler(name) || aliases.has(name);
-              if (!p || p.kind !== "announcement" || !namesFiler(p.target.name) || namesFiler(p.acquirer.name)) return null;
-              return { ...p, target: { ...p.target, name: displayName(nameThen) } };
-            },
-          })),
-          {
-            file: f.primaryDocument,
-            parse: async () => parseMergerItem(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))), ctx),
-          },
+          ...exhibits.map((ex) => ({ file: ex, parse: asPress(ex) })),
+          /^6-K/.test(f.form)
+            ? { file: f.primaryDocument, parse: asPress(f.primaryDocument) }
+            : { file: f.primaryDocument, parse: async () => parseMergerItem(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))), ctx) },
         ];
         let deal: StoredDeal | null = null;
         for (const { file, parse } of attempts) {
