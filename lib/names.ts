@@ -35,6 +35,28 @@ export function titleCaseCaps(name: string): string {
 }
 
 /**
+ * Brands written in mixed case, which no title-casing of an all-capitals SEC name can recover ("VMWARE, INC." ->
+ * "Vmware, Inc."). Matched as whole words, case-insensitively.
+ */
+const BRANDS = new Map(
+  [
+    "VMware", "iRobot", "ConocoPhillips", "JetBlue", "PepsiCo", "BlackRock", "FedEx", "eBay", "PayPal", "HubSpot", "ServiceNow", "CrowdStrike",
+    "DocuSign", "SolarWinds", "NextEra", "AbbVie", "BioNTech", "AstraZeneca", "GlaxoSmithKline", "LinkedIn", "YouTube", "iHeartMedia",
+    "MicroStrategy", "CarMax", "DaVita", "AutoNation", "DoorDash", "GitLab", "HashiCorp", "CoreWeave", "DigitalOcean", "BioMarin", "NetApp",
+    "RingCentral", "SailPoint", "SentinelOne", "TripAdvisor", "TrueBlue", "UnitedHealth", "WestRock", "ZoomInfo", "FirstEnergy", "NiSource",
+    "CenterPoint", "PulteGroup", "MasTec", "MarketAxess", "LiveRamp", "DoubleVerify", "PubMatic", "AppLovin", "Cerner", "WillScot", "SmartRent",
+    "SoundHound", "OneMain", "TransDigm", "BorgWarner", "PetIQ", "PetSmart", "eHealth", "NortonLifeLock", "GoDaddy", "WeWork", "SeaWorld",
+    "AeroVironment", "AmerisourceBergen", "BankUnited", "BioCryst", "CareDx", "ChampionX", "ChargePoint", "DexCom", "EchoStar", "EnerSys",
+    "FactSet", "FirstCash", "HealthEquity", "InterDigital", "IntriCon", "KnowBe4", "LendingTree", "LivePerson", "MoneyGram", "MongoDB",
+    "NetScout", "NovoCure", "PacWest", "PagerDuty", "PowerSchool", "ProPetro", "QuidelOrtho", "RadNet", "SiriusXM", "StoneCo", "SunPower",
+    "TaskUs", "TrueCar", "UiPath", "UniFirst", "VeriSign", "WebMD", "WideOpenWest", "WisdomTree", "ZipRecruiter", "eGain", "eMagin", "AtriCure",
+    "ArcBest", "DuPont", "ExxonMobil", "GreenSky", "HomeStreet", "InfuSystem", "LeMaitre", "MaxLinear", "MicroVision", "OraSure", "RealPage",
+    "SecureWorks", "SkyWest", "SpartanNash", "TriNet", "WesBanco", "ePlus", "iCAD", "iRhythm", "uniQure",
+  ].map((b) => [b.toLowerCase(), b]),
+);
+const applyBrands = (s: string) => s.replace(/\bAmazon[ .]Com\b/i, "Amazon.com").replace(/\b[A-Za-z][A-Za-z0-9]*\b/g, (w) => BRANDS.get(w.toLowerCase()) ?? w);
+
+/**
  * A company name as the terminal shows it: SEC state tags dropped ("Lifecore Biomedical, Inc. \Del\",
  * "Acme Corp /DE/"), all-capitals names title-cased, and a capitalised run inside a mixed name too
  * ("PERDOCEO EDUCATION Corp" -> "Perdoceo Education Corp", "TransDigm Group INC" -> "TransDigm Group Inc").
@@ -42,7 +64,7 @@ export function titleCaseCaps(name: string): string {
  */
 export function displayCompanyName(raw: string): string {
   let s = raw.replace(/\s*[\\/]\s*[A-Za-z]{2,4}\s*[\\/]?\s*$/, "").replace(/\s*[\\/]\s*$/, "").trim();
-  if (!/[a-z]/.test(s)) return titleCaseCaps(s);
+  if (!/[a-z]/.test(s)) return applyBrands(titleCaseCaps(s));
   s = s.replace(/\b(INC|CORP|LTD|CO)\b(\.?)/g, (_, w: string, dot: string) => (SUFFIX_CASE[w] ?? w) + dot);
   const caps = s.match(/\b[A-Z]{4,}\b/g) ?? [];
   if (caps.length >= 2) s = s.replace(/\b[A-Z]{4,}\b/g, (w) => (SUFFIX_CASE[w] ?? capWord(w)));
@@ -55,5 +77,5 @@ export function displayCompanyName(raw: string): string {
   // Suffixes and numerals title-cased word by word: "Northstrive Fund Ii Lp" -> "Northstrive Fund II LP".
   s = s.replace(/\b(?:Lp|Llp|Llc|Ii|Iii)\b/g, (w) => w.toUpperCase());
   // Names stored title-cased before the "Mc" rule: "Mckesson Corp" -> "McKesson Corp".
-  return fixMc(s);
+  return applyBrands(fixMc(s));
 }

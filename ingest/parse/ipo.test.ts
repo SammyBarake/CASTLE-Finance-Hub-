@@ -69,6 +69,16 @@ describe("final prospectus wordings", () => {
     expect(parseFinalProspectus(klarna).expectedRaiseUsd).toBe(34_311_274 * 40);
   });
 
+  it("reads US$ prices and takes the raise from the cover table's total", () => {
+    // ADSs worth a tenth of a share each: the cover counts shares, the price is per ADS.
+    const adr = `PROSPECTUS 17,790,000 Common Shares Represented by American Depositary Shares Hanseong Chips Inc. We are offering 177,900,000 ADSs. The initial public offering price of the ADSs is US$149.00 per ADS. Per ADS Total Public offering price US$ 149.0000 US$ 26,507,100,000 Underwriting discount and commissions US$ 1.4477`;
+    expect(parseFinalProspectus(adr)).toMatchObject({ offerPrice: 149, expectedRaiseUsd: 26_507_100_000 });
+    expect(extractOfferPrice(`The initial public offering price per ADS is US$22.00. We have been approved for listing`)).toBe(22);
+    // A best-efforts minimum / maximum table: keep price × the cover's (maximum) share count.
+    const minMax = `PROSPECTUS 15,000,000 Shares of Common Stock Acme Corp Per Share Total Minimum Offering Total Maximum Offering Public offering price $ 4.00 $ 50,000,000 $ 60,000,000 Underwriting commissions`;
+    expect(parseFinalProspectus(minMax).expectedRaiseUsd).toBe(60_000_000);
+  });
+
   it("takes every bank from the underwriting table, skipping compensation tables", () => {
     const text = `Cover with logos only. RBC Capital Markets TABLE OF CONTENTS ${"x".repeat(3000)} Name Number of Shares Underlying RSUs Number of Shares Underlying Options Jane Director 69,638 ${"y".repeat(500)} Total 1,000 ${"z".repeat(3000)} Underwriting Name Number of Shares Morgan Stanley & Co. LLC 10,434,725 Goldman Sachs & Co. LLC 10,434,725 RBC Capital Markets, LLC 1,200,000 Total 22,069,450`;
     expect(extractUnderwritingTable(text)).toEqual(["Morgan Stanley", "Goldman Sachs", "RBC Capital Markets"]);

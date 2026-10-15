@@ -86,7 +86,7 @@ async function main() {
     if (runs("deals")) {
       log("deals: discovering announcements");
       const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint, backstopOnly: flag("backstop-only") });
-      log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched, ${s.valuesFound} values found, ${s.sponsorsFound} sponsors named, ${s.advisorsFound} buyer advisers found`);
+      log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched, ${s.valuesFound} values found, ${s.sponsorsFound} sponsors named, ${s.advisorsFound} buyer advisers found, ${s.buyersLinked} buyers linked`);
       if (s.searchGaps.length) {
         complete = false;
         log(`deals: ${s.searchGaps.length} searches failed after retries; stale deals are kept this run (run again later to fill the gaps)`);

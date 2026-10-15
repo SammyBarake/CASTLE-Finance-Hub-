@@ -337,7 +337,11 @@ function termsSection(body: string): string {
  */
 const NOT_DEAL_VALUE =
   /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:company|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio compan\w*|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions))\b/i;
-const valueContext = (t: string, index: number, length: number) => t.slice(Math.max(0, index - 90), index + length + 50);
+// The amount's own sentence only: "… an all-stock transaction valued at $35 billion. The combination will create the
+// industry's leading …" (AMD / Xilinx) is a deal value.
+const valueContext = (t: string, index: number, length: number) =>
+  (t.slice(Math.max(0, index - 90), index).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/).pop() ?? "") +
+  t.slice(index, index + length + 50).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/)[0];
 
 /** No announced deal has been valued above this (the largest ever were ~$200B). */
 export const MAX_DEAL_VALUE = 300e9;
@@ -427,7 +431,12 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.
     const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
     if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting)\b/i.test(sentenceBefore)) continue;
-    const usd = num(m[2]) * unitMult(m[3]);
+    // The amount can come first: "Transaction at $13 Billion Equity Value and $25 Billion Consolidated Enterprise Value"
+    // (Endeavor) paired "Equity Value" with the $25 billion after it.
+    const amountFirst = /\bvalue$/.test(lead)
+      ? /(?<![A-Z]{1,3})(?:US\$|\$|USD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\s+(?:(?:consolidated|implied|total|aggregate|approximate)\s+){0,2}$/i.exec(t.slice(Math.max(0, m.index! - 40), m.index!))
+      : null;
+    const usd = amountFirst ? num(amountFirst[1]) * unitMult(amountFirst[2]) : num(m[2]) * unitMult(m[3]);
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
     const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";
     return { usd, kind };
@@ -443,23 +452,41 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
   return null;
 }
 
-function classifyConsideration(t: string, offer = false): Consideration | null {
+/**
+ * `forStock` is the text the stock and mixed tests read: employee-award sentences are left out of it (their conversion
+ * into the buyer's stock is not the holders' price), but not out of the cash test ("Cisco will pay $76 per share in cash
+ * … and assume outstanding equity awards": Sourcefire).
+ */
+function classifyConsideration(t: string, offer = false, forStock = t): Consideration | null {
   const cash =
-    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per share\s*)?in cash|cash consideration|in cash for each/i.test(t) ||
-    // In the sentence saying what holders get only: "£4.39 ($7.06) in cash". Not "$80 million in cash": a lump sum
-    // there is often a CVR or one part of a merger of equals, and elsewhere the balance sheet.
-    (offer && /\d\)\s+in cash/i.test(t));
+    // "$148.50 per Biohaven share in cash", "$66.00 per Ordinary Share and ADS in Cash" (Talend)
+    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per (?:\w+\s+){0,3}?share(?:\s+and\s+ADS)?\s*,?\s*)?in cash|cash consideration|in cash for each|cash tender offer|net to the (?:seller|holder)s?(?: thereof)? in cash|(?<!contingent )(?:total |aggregate )?cash purchase price|\b(?:an?|the) cash transaction/i.test(t) ||
+    // In the sentence saying what holders get only: "£4.39 ($7.06) in cash", "the right to receive cash in an amount
+    // equal to the Offer Price" (Cerner). Not "$80 million in cash": a lump sum there is often a CVR or one part of a
+    // merger of equals, and elsewhere the balance sheet.
+    (offer && /\d\)\s+in cash|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)/i.test(t));
   const stock =
-    /all[- ]stock|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(t) ||
+    // Not "available to all stockholders" (Sequenom) nor a count tendered or outstanding ("35,852,857 shares of Audentes
+    // common stock were validly tendered"); an aggregate count paid counts ("will receive 30,700,000 shares of HF common
+    // stock").
+    /\ball[- ]stock\b(?!holder)|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b(?![^.;]{0,60}?\b(?:were|are|have been|had been)\s+(?:validly\s+)?(?:tendered|issued and outstanding|outstanding))|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(forStock) ||
     // "one Union Pacific common share and $88.82 in cash", "0.5 Acme ADSs", "one ListCo Share and $5.00 in cash" (a count
     // of shares, not a $ price per share)
-    /(?<![$\d.,]\s?)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?)\b(?!\s+(?:outstanding|repurchase))/.test(t) ||
+    // Not a tender's top-up threshold: "constitutes one Share more than 90% of the outstanding Shares", "one share of
+    // Common Stock more than 80%". Nor the merger sub's own shares: "… will be converted into and become one share of
+    // common stock of the surviving corporation" (Revance). Nor an ADS ratio: "(each ADS representing one ordinary
+    // share)" (Talend).
+    /(?<![$\d.,]\s?)(?<!\brepresent(?:s|ing)\s)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?)\b(?!\s+(?:outstanding|repurchase)|[^.;]{0,40}?\b(?:more|less|fewer) than\b|[^.;]{0,30}?\bof (?:the )?[Ss]urviving\b)/.test(forStock) ||
     // An exchange ratio before legal words: "3.8721 fully paid and non-assessable Parent Shares" (Penumbra).
     // Not "0.640 KMI warrants per share", nor a share count ("2.785 million shares").
-    /(?<![$\d.,]\s?)\b\d+\.\d{3,4}\s+(?!million|billion)(?:[\w&.'’-]+\s+){0,6}?(?<!\bper\s)(?:[Ss]hares?|ADSs?)\b/.test(t);
+    /(?<![$\d.,]\s?)\b\d+\.\d{3,4}\s+(?!million|billion)(?:[\w&.'’-]+\s+){0,6}?(?<!\bper\s)(?:[Ss]hares?|ADSs?)\b/.test(forStock) ||
+    // "the right to receive 0.70 of a fully paid and nonassessable share of Martin Marietta common stock" (TXI)
+    /(?<![$\d.,]\s?)\b\d*\.\d+\s+of\s+(?:a|one)\s+(?:fully[- ]paid\s+(?:and\s+)?non-?assessable\s+)?(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:share|ADS)\b/i.test(forStock);
   // A cash-or-stock election is mixed: "at the election of the holder … 3.8721 Parent Shares … or $374.00 in cash".
   const mixed =
-    /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)|stock and cash|combination of cash and|cash-and-stock|cash and stock|\b(?:cash|stock) election\b/i.test(t);
+    /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)|stock and cash|combination of cash and|cash-and-stock|cash and stock|\b(?:cash|stock) election\b/i.test(forStock) ||
+    // "72% stock (1:1 share) and 28% cash ($88.82/share)" (Union Pacific / Norfolk Southern)
+    /\b\d{1,2}% (?:stock|cash)\b[^.;]{0,40}?\b\d{1,2}% (?:stock|cash)\b/i.test(forStock);
   if (mixed || (cash && stock)) return "Mixed";
   if (stock) return "Stock";
   if (cash) return "Cash";
@@ -467,11 +494,22 @@ function classifyConsideration(t: string, offer = false): Consideration | null {
 }
 
 export function extractConsideration(raw: string): Consideration | null {
-  const t = raw.replace(/no cash consideration[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*/gi, " ");
+  // "No fractional shares … will be issued, and holders … will receive cash in lieu of any fractional shares" says
+  // nothing about the price (HFF). The clause only: it often ends the holders' own sentence ("… 0.5 shares of Parent
+  // common stock, with cash paid in lieu of fractional shares").
+  const t = raw.replace(
+    /no cash consideration[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*|\bno fractional shares[^.;]{0,120}?(?:will|shall) be issued[^.;,]*|\bcash\s+(?:will be paid\s+|being paid\s+|paid\s+|payable\s+)?in\s+lieu\s+of\s+(?:any\s+|such\s+|the\s+)?fraction(?:al|s)[^.;,)]*/gi,
+    " ",
+  );
   // The sentence saying what holders get decides it. Financing talk elsewhere ("funded with cash on hand and new
   // shares") made an all-cash deal (HPE / Juniper) look mixed.
   const offer = /(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/i.exec(t)?.[0];
-  return (offer && classifyConsideration(offer, true)) || classifyConsideration(t);
+  // Employee awards converted into the buyer's stock ("… denominated in shares of Oracle's common stock … an exchange
+  // ratio determined by dividing the Merger Consideration …") say nothing about what holders get: Cerner read as stock.
+  const AWARDS = /\b(?:stock options?|options? to (?:purchase|acquire)|restricted stock|RSUs?|PSUs?|performance (?:share |stock )?units?|(?:deferred )?(?:stock|share) units?(?: awards?)?|equity awards?|compensatory awards?|incentive awards?)\b/i;
+  // A sentence about awards names them early; a holders' sentence can run on into them later (Ryland).
+  const holders = t.split(/(?<=\.)\s+(?=[A-Z(])/).filter((s) => !AWARDS.test(s.slice(0, 150))).join(" ");
+  return (offer && classifyConsideration(offer, true)) || classifyConsideration(t, false, holders);
 }
 
 // ---------------------------------------------------------------------------

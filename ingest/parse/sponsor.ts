@@ -10,7 +10,9 @@ import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, namesCompany, same
 const NAME = String.raw`([A-Z][A-Za-z0-9&.,'’\- ]{1,80}?)`;
 // Where a sponsor's name ends: a parenthesis, a clause, "and" / "or" before a lower-case word, end of sentence.
 const END = String.raw`(?=\s*\(|,\s+(?:a|an|the|which|who|one|together|collectively|L\.?P\.?\s*\(|and\s+its)\b|;|(?<!\b[A-Z])\.\s|\s+(?:and|or)\s+(?:its|their|certain|other|[a-z])|\s+(?:in|for|at|to|on|through|pursuant|under|with)\s+[a-z]|\s+(?:for|in)\s+(?:a\s+)?(?:US)?\$|\s+(?:For|In|At)\s+(?:US)?\$|$)`;
-const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+|private\s+equity\s+|infrastructure\s+)?(?:funds?|vehicles?|entities|accounts)\s+(?:managed|advised|sponsored|controlled)(?:\s+or\s+advised)?\s+by\s+|affiliates?\s+of\s+|an?\s+affiliate\s+of\s+)?`;
+// "a consortium of private investment firms composed of Elliott …" (Syneos); "funds managed by global investment firms
+// Carlyle …" (bluebird).
+const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+|private\s+equity\s+|infrastructure\s+)?(?:funds?|vehicles?|entities|accounts)\s+(?:managed|advised|sponsored|controlled)(?:\s+or\s+advised)?\s+by\s+|affiliates?\s+of\s+|an?\s+affiliate\s+of\s+|an?\s+(?:consortium|investor\s+group)\s+(?:of\s+(?:[a-z-]+\s+){1,4}?)?(?:composed\s+of|consisting\s+of|comprised\s+of|comprising|including)\s+)?(?:(?:global|leading|private|alternative)\s+){0,2}(?:(?:investment|private[- ]equity|asset\s+management)\s+firms?\s+)?`;
 
 const PATTERNS: RegExp[] = [
   // "Squarespace Enters into Definitive Agreement to Be Acquired by Permira"
@@ -20,6 +22,8 @@ const PATTERNS: RegExp[] = [
   // "… an affiliate of funds managed by Apollo", "a portfolio company of Clearlake"
   new RegExp(String.raw`\b(?:funds?|vehicles?)\s+(?:managed|advised|sponsored)(?:\s+or\s+advised)?\s+by\s+(?:affiliates\s+of\s+)?${NAME}${END}`),
   new RegExp(String.raw`\bportfolio\s+company\s+of\s+${FUNDS}${NAME}${END}`),
+  // "Pillartree Limited, a newly formed private limited company wholly owned by Amgen Inc." (Irish scheme offers)
+  new RegExp(String.raw`\bnewly[- ](?:formed|incorporated)\b[^.;]{0,80}?\b(?:wholly[- ]owned\s+(?:indirect\s+)?(?:subsidiary\s+of|by)|owned\s+by|subsidiary\s+of)\s+${FUNDS}${NAME}${END}`),
   // "Permira to Acquire Squarespace", "… announced that Thoma Bravo has agreed to acquire …" (headline first)
   new RegExp(String.raw`^\s*${NAME}\s+(?:to\s+acquire|agrees?\s+to\s+acquire|has\s+agreed\s+to\s+acquire|will\s+acquire)\s`),
 ];

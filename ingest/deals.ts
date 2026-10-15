@@ -672,8 +672,11 @@ const proxyWanted = (d: StoredDeal) =>
 /** A terminated deal that came back files a new merger proxy or tender document (originals only). */
 const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|SC 13E3)$/;
 
-/** Bump to look again for the sponsor behind deals whose buyer is still an acquisition vehicle. */
-export const SPONSOR_CHECK_VERSION = 1;
+/**
+ * Bump to look again for the sponsor behind deals whose buyer is still an acquisition vehicle.
+ * 2: "Acquirer Sub" counts as a vehicle (Amgen / Horizon).
+ */
+export const SPONSOR_CHECK_VERSION = 2;
 
 /**
  * The real buyer behind an acquisition vehicle ("Spaceship Purchaser, Inc." → Permira): the target's announcement
@@ -753,6 +756,8 @@ async function* announcementReleases(deal: StoredDeal, subs: Submissions[]): Asy
 
 /** Bump to look again for the banks of deals whose buyer's adviser is unknown. */
 export const ADVISOR_CHECK_VERSION = 1;
+/** Bump to look again for the SEC registrant behind buyers stored without a CIK. */
+export const BUYER_LINK_VERSION = 1;
 
 /**
  * Both sides' financial advisers from the announcement releases ("Goldman Sachs is serving as financial advisor to
@@ -1268,6 +1273,8 @@ export interface DealRunStats {
   sponsorsFound: number;
   /** Deals that got their buyer's financial adviser from the announcement releases. */
   advisorsFound: number;
+  /** Buyers stored by name only that were linked to their SEC registrant. */
+  buyersLinked: number;
 }
 
 export async function ingestDeals(
@@ -1285,7 +1292,7 @@ export async function ingestDeals(
   },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
-  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [], valuesFound: 0, sponsorsFound: 0, advisorsFound: 0 };
+  const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [], valuesFound: 0, sponsorsFound: 0, advisorsFound: 0, buyersLinked: 0 };
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
   // Removed records are deleted from the store on save (an upsert alone would keep them).
@@ -1417,6 +1424,36 @@ export async function ingestDeals(
     }
     lookups.set(key, found);
     return found;
+  };
+
+  /**
+   * The registrant behind a buyer stored by name only. Today's listed-company file misses buyers renamed since ("Exxon
+   * Mobil Corporation" is now ExxonMobil Holdings Corp) or listed under another ticker (Nicolet: NCBS on Nasdaq in
+   * 2021, NIC on the NYSE now), so EDGAR's name lookup is asked, and a registrant counts only if it had that name and
+   * was exchange-listed on the deal date. Today's ticker comes from the listed-company file, by CIK or, after a
+   * holding-company reorganization, by the same name without spaces (XOM). Network errors propagate (checked again).
+   */
+  const resolveBuyer = async (name: string, date: string): Promise<{ cik: string; ticker: string | null } | null> => {
+    const q = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim();
+    const bare = q.replace(/\s+(?:Corporation|Corp|Incorporated|Inc|Company|Co|Limited|Ltd|plc|LLC|LP|L P|NV|SA|AG)$/i, "");
+    const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+    const tried = new Set<string>();
+    for (const query of [...new Set([q, bare, coreName(name)])]) {
+      if (squash(query).length < 4) continue;
+      for (const c of (await lookupCompanies(query)).slice(0, 3)) {
+        if (tried.has(c.cik)) continue;
+        tried.add(c.cik);
+        const sub = await submissions(c.cik);
+        if (!sub || sub.sic === "6770") continue;
+        const then = nameOn(sub, date);
+        if (!registrantMatches(then, name) && !registrantMatches(then, bare) && squash(then) !== squash(name)) continue;
+        if (!(await listedThen(sub, date))) continue;
+        const cik = trimCik(sub.cik);
+        const successor = [...directory.byCik.values()].find((x) => US_LISTED.test(x.exchange ?? "") && squash(x.name) === squash(then));
+        return { cik, ticker: directory.byCik.get(cik)?.ticker ?? sub.tickers?.[0] ?? successor?.ticker ?? null };
+      }
+    }
+    return null;
   };
 
   /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
@@ -1679,8 +1716,16 @@ export async function ingestDeals(
   log(`  backstop recovered ${recovered} deals`);
 
   // Enrich new/changed deals, plus open deals whose status may have moved.
+  // Buyers stored by name only, once per version; consortiums, funds and acquisition vehicles have no registrant to find.
+  const buyerLinkDue = (d: StoredDeal) =>
+    !d.acquirer.cik &&
+    d.buyerLinkCheck !== BUYER_LINK_VERSION &&
+    isPlausibleName(d.acquirer.name) &&
+    !isPlaceholderBuyer(d.acquirer.name) &&
+    !/\b(?:consortium|investor group|led by|affiliates?|funds?)\b/i.test(d.acquirer.name);
   const toEnrich = state.deals.filter((d) =>
-    d.privateTarget
+    buyerLinkDue(d) ||
+    (d.privateTarget
       ? touched.has(d) ||
         (d.status === "Announced" && d.statusCheckedAt !== opts.today) ||
         !d.statusCheckedAt ||
@@ -1701,7 +1746,7 @@ export async function ingestDeals(
       !d.milestones ||
       d.milestones.voteHeld === undefined ||
       // Looks like a company buying itself: a target renamed after its buyer (re-read the name it had then).
-      (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today),
+      (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)),
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
   for (const deal of toEnrich) {
@@ -1769,6 +1814,15 @@ export async function ingestDeals(
           deal.milestones = deal.terms = deal.fairness = undefined;
           deal.registrantCheck = REGISTRANT_CHECK_VERSION;
         }
+      }
+      // A buyer stored by name only: the registrant it was then (renamed since, or listed under another ticker).
+      if (buyerLinkDue(deal)) {
+        const buyer = await resolveBuyer(deal.acquirer.name, deal.announcedDate);
+        if (buyer && buyer.cik !== deal.target.cik) {
+          deal.acquirer = { ...deal.acquirer, cik: buyer.cik, ticker: deal.acquirer.ticker ?? buyer.ticker };
+          stats.buyersLinked++;
+        }
+        deal.buyerLinkCheck = BUYER_LINK_VERSION;
       }
       if (deal.privateTarget) {
         const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;

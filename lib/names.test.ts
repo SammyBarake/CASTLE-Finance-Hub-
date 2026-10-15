@@ -10,6 +10,12 @@ describe("displayCompanyName", () => {
     ["CANADIAN PACIFIC", "Canadian Pacific"],
     ["NVIDIA Corp", "NVIDIA Corp"],
     ["BIO-TECHNE Corp", "BIO-TECHNE Corp"],
+    // Mixed-case brands title-casing can't recover.
+    ["VMWARE, INC.", "VMware, Inc."],
+    ["Irobot Corp", "iRobot Corp"],
+    ["CONOCOPHILLIPS", "ConocoPhillips"],
+    ["AMAZON COM INC", "Amazon.com Inc"],
+    ["CERNER Corp", "Cerner Corp"],
     ["AT&T Inc.", "AT&T Inc."],
     ["IBM", "IBM"],
     ["Hormel Foods Corp", "Hormel Foods Corp"],

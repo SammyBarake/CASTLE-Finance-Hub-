@@ -44,6 +44,8 @@ export interface StoredDeal extends Deal {
   sponsorCheck?: number;
   /** ADVISOR_CHECK_VERSION of the search for the buyer's financial adviser in the announcement releases. */
   advisorCheck?: number;
+  /** BUYER_LINK_VERSION of the search for the SEC registrant behind a buyer stored without a CIK. */
+  buyerLinkCheck?: number;
   /** Last day the buyer's share-price reaction was looked up (ingest/prices.ts). */
   reactionCheckedAt?: string;
   /** CLOSE_CHECK_VERSION and day of the last search of the buyer's filings for the deal's closing or end (open deals). */

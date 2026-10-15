@@ -14,6 +14,11 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
       ),
     ).toBe("Thoma Bravo, L.P.");
     expect(sponsorFromText("Ribeye Parent, LLC is a newly formed entity controlled by BDT Capital Partners, LLC (together with its affiliates, \"BDT\").", "Weber Inc.", "Ribeye Parent, LLC")).toBe("BDT Capital Partners, LLC");
+    // An Irish scheme's Rule 2.7 announcement names the bidder company, then its owner.
+    expect(sponsorFromText("RECOMMENDED CASH OFFER for LAKESIDE THERAPEUTICS PLC by Birchwood Limited, a newly formed private limited company wholly owned by Amgen Inc. to be implemented by way of a scheme of arrangement", "Lakeside Therapeutics plc", "Acquirer Sub")).toBe("Amgen Inc");
+    // Consortiums and firm descriptions before the names.
+    expect(sponsorFromText("Corvid Health has entered into a definitive agreement to be acquired by a consortium of private investment firms composed of Elliott Investment Management, Patient Square Capital, and Veritas Capital for $43.00 per share.", "Corvid Health, Inc.", "Star Parent, Inc.")).toBe("Elliott Investment Management, Patient Square Capital, and Veritas Capital");
+    expect(sponsorFromText("Lumen Bio today announced that it has entered into a definitive agreement to be acquired by funds managed by global investment firms Carlyle (NASDAQ: CG) and SK Capital Partners, LP.", "Lumen Bio, Inc.", "Beacon Parent Holdings, L.P.")).toBe("Carlyle");
   });
 
   it("cuts descriptions and keeps initials in personal names", () => {
@@ -30,7 +35,7 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
 
 describe("isPlaceholderBuyer: more vehicle shapes", () => {
   it("flags intermediate holdcos, fincos, parent holdings and project names", () => {
-    for (const n of ["Denali Intermediate Holdings, Inc.", "Bullseye FinCo, Inc.", "Beacon Parent Holdings, L.P.", "Eclipse Parent Acquisitions, LLC", "Project Hospitality Parent, LLC", "Buyer Group Led by Evercel"]) {
+    for (const n of ["Denali Intermediate Holdings, Inc.", "Bullseye FinCo, Inc.", "Beacon Parent Holdings, L.P.", "Eclipse Parent Acquisitions, LLC", "Project Hospitality Parent, LLC", "Buyer Group Led by Evercel", "Acquirer Sub", "Acquiror Holdings LLC"]) {
       expect(isPlaceholderBuyer(n), n).toBe(true);
     }
     for (const n of ["Intercontinental Exchange, Inc.", "Permira", "Project Management Institute"]) expect(isPlaceholderBuyer(n), n).toBe(n === "Project Management Institute");

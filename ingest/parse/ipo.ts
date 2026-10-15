@@ -44,9 +44,12 @@ export function extractSharesOffered(text: string): number | null {
 
 /** Final offer price from a 424B4 cover. */
 export function extractOfferPrice(text: string): number | null {
-  const t = flatten(text.slice(0, 60_000));
+  // Foreign issuers write "US$": "The initial public offering price per ADS is US$22.00", "PRICE US$22.00 PER ADS"
+  // (Londian Wason), "The initial public offering price of the ADSs is US$149.00 per ADS" (SK hynix).
+  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:US|U\.S\.)\s?\$/g, "$");
   const m =
     /(?:initial\s+)?public\s+offering\s+price\s+(?:is|of|per\s+(?:share|ADS))\s+\$\s?(\d{1,4}(?:\.\d{2}))/i.exec(t) ??
+    /public\s+offering\s+price\s+of\s+(?:the|our)\s+(?:ADSs|shares|ordinary shares|common shares|common stock)\s+is\s+\$\s?(\d{1,4}\.\d{2})/i.exec(t) ??
     // "PRICE $23.00 A SHARE" and the fee table's "Price to Public … Per Share $23.00" (SailPoint).
     /\bPRICE\s+\$\s?(\d{1,4}\.\d{2})\s+(?:A|PER)\s+(?:SHARE|ADS)\b/i.exec(t) ??
     /Price to (?:the )?Public[^$]{0,250}?\bPer (?:Share|ADS)\s+\$\s?(\d{1,4}\.\d{2})/i.exec(t) ??
@@ -100,8 +103,11 @@ export function extractDescription(text: string): string | null {
   return null;
 }
 
-/** Bump after changing these parsers: stored pipeline records are then re-read on the next ingest. */
-export const IPO_PARSER_VERSION = 4;
+/**
+ * Bump after changing these parsers: stored pipeline records are then re-read on the next ingest.
+ * 5: US$ prices and the cover table's total (SK hynix, Londian Wason).
+ */
+export const IPO_PARSER_VERSION = 5;
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or
@@ -152,12 +158,28 @@ export function parseRegistration(mainText: string, feeText: string | null): Ipo
   };
 }
 
+/**
+ * The cover table's total at the offer price: "Per ADS Total Public offering price US$ 149.0000 US$ 26,507,100,000".
+ * SK hynix's cover counts "17,790,000 Common Shares Represented by American Depositary Shares" while the price is per
+ * ADS (a tenth of a share), so price × cover shares was ten times too small. Only when the table's price is the offer
+ * price.
+ */
+export function extractOfferingTotal(text: string, price: number): number | null {
+  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:US|U\.S\.)\s?\$/g, "$");
+  const m = /Public offering price(?:\s?\(\d\))?\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+\$\s?(\d{1,3}(?:,\d{3}){2,}(?:\.\d{1,2})?)/i.exec(t);
+  if (!m || Math.abs(Number(m[1]) - price) > 0.005) return null;
+  // A best-efforts "Total Minimum Offering / Total Maximum Offering" table: the first total is the minimum.
+  if (/minimum/i.test(t.slice(Math.max(0, m.index - 120), m.index))) return null;
+  const v = num(m[2]);
+  return v >= 1e6 && v < 1e11 ? v : null;
+}
+
 /** Terms from the final prospectus (424B4). */
 export function parseFinalProspectus(text: string): IpoTerms {
   const price = extractOfferPrice(text);
   const shares = extractSharesOffered(text);
   return {
-    expectedRaiseUsd: price && shares ? price * shares : null,
+    expectedRaiseUsd: price ? (extractOfferingTotal(text, price) ?? (shares ? price * shares : null)) : null,
     offerPrice: price,
     underwriters: extractUnderwritingTable(text).length ? extractUnderwritingTable(text) : extractUnderwriters(text),
     description: extractDescription(text),

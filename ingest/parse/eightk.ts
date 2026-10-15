@@ -108,8 +108,9 @@ export function extractMergerPrice(s: string): number | null {
   const found: { v: number; at: number }[] = [];
   const patterns = [
     /(?:right|entitled) to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/gi,
-    // "for (i) $8.50 per Share, net to the seller in cash"
-    /(?:for|at a price of|offer price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
+    // "for (i) $8.50 per Share, net to the seller in cash", "for a purchase price of $95.00 per share, net to the holders
+    // thereof in cash" (Cerner)
+    /(?:for|at a price of|offer price of|(?:for|at) a (?:purchase |cash |offer )?price of|purchase price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
   ];
   for (const re of patterns) {
     for (const m of s.matchAll(re)) {

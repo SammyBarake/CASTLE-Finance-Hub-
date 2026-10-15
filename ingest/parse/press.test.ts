@@ -375,6 +375,29 @@ describe("term extractors", () => {
     // Warrants per share are not shares; a lump sum in cash elsewhere is the balance sheet.
     expect(extractConsideration("in all cases EP shareholders will receive 0.640 KMI warrants per share of EP common stock. The offer is comprised of $14.65 in cash and 0.4187 KMI shares.")).toBe("Mixed");
     expect(extractConsideration("Holders will receive 0.75 shares of Acme common stock for each share. At quarter end, Acme had $2.4 billion in cash.")).toBe("Stock");
+    // Cerner: a cash tender offer; the employee awards converted into the buyer's stock are not the holders' price.
+    expect(
+      extractConsideration(
+        'Merger Subsidiary will commence a cash tender offer to acquire all of the outstanding shares for a purchase price of $95.00 per share, net to the holders thereof in cash. Each RSU will be converted into a restricted stock unit denominated in shares of Oracle\'s common stock, adjusted based on an exchange ratio. In the Merger, each outstanding share will be converted into the right to receive cash in an amount equal to the Offer Price.',
+      ),
+    ).toBe("Cash");
+    expect(extractConsideration("Thermo Fisher will acquire PPD for $47.50 per share for a total cash purchase price of $17.4 billion.")).toBe("Cash");
+    // A slide deck: "72% stock (1:1 share) and 28% cash ($88.82/share)".
+    expect(extractConsideration("Purchasing Norfolk Southern for an implied value of $320 per share; 72% stock (1:1 share) and 28% cash ($88.82/share)")).toBe("Mixed");
+    // A tender's top-up threshold is not a share exchange; "the Offer Price in cash" is cash (Cascade).
+    expect(extractConsideration("The Top-Up Option may be exercised if the Shares owned by Parent would constitute one Share more than 90% of the outstanding Shares. Each Share will be converted into the right to receive the Offer Price in cash.")).toBe("Cash");
+    // "0.70 of a fully paid and nonassessable share" (TXI); fractional-share cash is not part of the price.
+    expect(extractConsideration("Each share of TXI common stock will be converted into the right to receive 0.70 of a fully paid and nonassessable share of Martin Marietta common stock. No fractional shares will be issued and TXI's stockholders will receive cash in lieu of any fractional shares.")).toBe("Stock");
+    expect(extractConsideration("No fractional shares of JLL Common Stock will be issued, and holders will receive cash in lieu of any fractional shares. Each HFF Share will be converted into the right to receive $24.63 in cash and 0.1505 of a share of JLL Common Stock.")).toBe("Mixed");
+    // Tender releases: an ADS ratio, "all stockholders" and a count of shares tendered are not share exchanges; a cash
+    // sentence that also mentions equity awards still counts (Sourcefire); "per Biohaven share in cash".
+    expect(extractConsideration("Thoma Bravo will initiate a cash tender offer for $66.00 per ordinary share and ADS (each ADS representing one ordinary share) in cash.")).toBe("Cash");
+    expect(extractConsideration("LabCorp would acquire Sequenom in a cash tender offer for $2.40 per share. These documents will be available to all stockholders of Sequenom free of charge.")).toBe("Cash");
+    expect(extractConsideration("Astellas purchased shares of Audentes for a price of US$60.00 per share net to the seller in cash. As of the expiration, 35,852,857 shares of Audentes common stock were validly tendered.")).toBe("Cash");
+    expect(extractConsideration("Under the terms of the agreement, Cisco will pay $76 per share in cash and assume outstanding equity awards.")).toBe("Cash");
+    expect(extractConsideration("Biohaven shareholders will receive $148.50 per Biohaven share in cash, plus 0.5 of a share of a new publicly traded company.")).toBe("Mixed");
+    // A holders' sentence that runs on into the awards still counts (Ryland).
+    expect(extractConsideration("Each share of Ryland common stock will be converted and exchangeable for 1.0191 issued and outstanding shares of common stock of the Surviving Corporation, and each Ryland stock option will be converted into an option of the Surviving Corporation.")).toBe("Stock");
   });
 
   it("finds the offer price, not reference prices, buybacks or collar bounds", () => {
@@ -430,6 +453,14 @@ describe("extractValue: figures that are not the price", () => {
     expect(extractValue(`In addition to the initial cash purchase price at closing, Thermo Fisher has agreed to pay $125 million in January 2027.`)).toBeNull();
     // Costs mentioned before the figure don't matter.
     expect(extractValue(`$30 million of cash and certain other transaction costs, which implies a value of $150 million based upon a 15-day VWAP.`)?.usd).toBe(150e6);
+  });
+
+  it("pairs a label with the amount written before it, and reads only the amount's own sentence", () => {
+    // Endeavor's headline.
+    expect(extractValue(`Transaction at $13 Billion Equity Value and $25 Billion Consolidated Enterprise Value is Largest Private Equity Take-Private in 10 Years`)).toEqual({ usd: 13e9, kind: "equity" });
+    // AMD / Xilinx: "industry" in the next sentence is not this figure's context.
+    expect(extractValue(`AMD will acquire Xilinx in an all-stock transaction valued at $35 billion. The combination will create the industry's leading high performance computing company.`)).toEqual({ usd: 35e9, kind: "transaction" });
+    expect(extractValue(`The global semiconductor market was valued at $600 billion in 2024.`)).toBeNull();
   });
 
   it("skips track records, face values and other currencies", () => {

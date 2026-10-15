@@ -95,6 +95,10 @@ Item 9.01 Exhibits.`;
     const s = `Purchaser will commence a tender offer to acquire all of the outstanding shares of common stock of the Company, par value $0.0001 per share (the "Shares"), for (i) $8.50 per Share, net to the seller in cash, without interest (the "Closing Amount"), plus (ii) one contingent value right per Share (a "CVR") which represents the right to receive up to $3.50 per Share upon the satisfaction of specified milestones, net to the seller in cash.`;
     expect(extractMergerPrice(s)).toBe(8.5);
   });
+
+  it("reads 'for a purchase price of $X per share' (Cerner)", () => {
+    expect(extractMergerPrice(`Merger Subsidiary will commence a cash tender offer (the "Offer") to acquire all of the issued and outstanding shares of the Company's common stock for a purchase price of $95.00 per share, net to the holders thereof in cash (the "Offer Price")`)).toBe(95);
+  });
 });
 
 describe("parseMergerItem: defined securities are not parties", () => {
