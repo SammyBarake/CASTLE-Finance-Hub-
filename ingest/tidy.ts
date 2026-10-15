@@ -53,7 +53,7 @@ export function junkReason(d: StoredDeal): string | null {
 
 /** Fix values no real deal can have. Returns true when anything changed. */
 export function sanitizeDeal(d: StoredDeal): boolean {
-  const before = JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name]);
+  const before = JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name, d.statusDate]);
   // Names without a CIK are never replaced by an SEC name: give them today's clean-up rules
   // ("Sculptor Capital Management Together" -> "Sculptor Capital Management").
   for (const c of [d.acquirer, d.target]) {
@@ -61,6 +61,9 @@ export function sanitizeDeal(d: StoredDeal): boolean {
     const clean = cleanPartyName(c.name);
     if (clean !== c.name && isPlausibleName(clean)) c.name = clean;
   }
+  // A listed target closed without a date: its own filings' closing date (the buyer-filings check once closed six
+  // foreign targets, Merck / Verona among them, before their Form 25 was read).
+  if (!d.privateTarget && d.status === "Closed" && !d.statusDate && d.milestones?.closed) d.statusDate = d.milestones.closed;
   // Premium over the unaffected price: take-unders exist, but beyond these bands it was read off another figure.
   if (d.premiumPct != null && (d.premiumPct < -50 || d.premiumPct > 300)) d.premiumPct = null;
   if (d.valueUsd != null && d.valueUsd < 1e6) {
@@ -73,7 +76,7 @@ export function sanitizeDeal(d: StoredDeal): boolean {
   }
   // A bank advises one side. The target's list comes from its own proxy when there is one, so it wins.
   if (d.acquirerAdvisors.some((a) => d.targetAdvisors.includes(a))) d.acquirerAdvisors = d.acquirerAdvisors.filter((a) => !d.targetAdvisors.includes(a));
-  return JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name]) !== before;
+  return JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name, d.statusDate]) !== before;
 }
 
 /** Fold `later` into `keep`: the same deal recorded twice (a buyer's short form, "H&F" vs "Hellman & Friedman"). */

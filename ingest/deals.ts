@@ -991,14 +991,14 @@ function settleDue(deal: StoredDeal, today: string) {
  * then the sentence is read (`readStatement`: plain past tense, not "if", "may" or "expected"). The date only when
  * that sentence states one, or says "today" in an 8-K / 6-K release (its filing date); otherwise it stays blank.
  */
-async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: string, today: string) {
+async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: string, today: string, kinds: readonly ("closed" | "ended")[] = ["closed", "ended"]) {
   deal.closeCheck = CLOSE_CHECK_VERSION;
   deal.closeCheckedAt = today;
   const name = searchName(cleanPartyName(deal.target.name));
   if (!name) return;
   // The short form ("acquire Tower") counts only in a document that also gives the full name.
   const short = firstNameWord(name);
-  for (const kind of ["closed", "ended"] as const) {
+  for (const kind of kinds) {
     const phrasesFor = kind === "closed" ? completedPhrases : endedPhrases;
     const phrases = phrasesFor(name);
     const shortPhrases = short ? phrasesFor(short) : [];
@@ -1790,7 +1790,9 @@ export async function ingestDeals(
           const acquirerSub = deal.acquirer.cik && sub && recentFilings(sub).some((f) => /^6-K/.test(f.form)) ? await submissions(deal.acquirer.cik) : null;
           if (acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
           // Or its release only (Intel announced the end of its Tower deal under Item 7.01).
-          if (acquirerSub && !opts.light && settleDue(deal, opts.today)) await settleFromBuyerFilings(deal, acquirerSub.cik, opts.today);
+          // Ends only: a listed target's closing comes from its own Form 25 / 15, with the real date (an undated "completed"
+          // from the buyer had closed Merck / Verona without one).
+          if (acquirerSub && !opts.light && settleDue(deal, opts.today)) await settleFromBuyerFilings(deal, acquirerSub.cik, opts.today, ["ended"]);
           if (deal.status === "Terminated") deal.milestones = undefined;
         }
         // No value yet: the announcement releases of the target and the buyer usually state one.
