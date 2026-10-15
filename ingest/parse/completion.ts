@@ -34,9 +34,20 @@ export function shortName(name: string): string | null {
 /** The core of a private company's name for searching: no legal suffix ("Avitide Inc." → "Avitide"). */
 export function searchName(name: string): string | null {
   const core = name.replace(/,?\s+(?:Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Co|Company LLC|L\.?P|plc|S\.A|N\.V|B\.V|GmbH|AG|Oy|AB|SAS)\.?$/i, "").trim();
-  // Too short or generic to search for on its own ("Joh", "Home Health", "Privately Held").
-  if (core.length < 4 || !/[A-Z]/.test(core[0]) || /^(?:privately held|home health|consumer experience|the company)$/i.test(core)) return null;
+  // Too short or generic to search for on its own ("Joh", "Home Health", "Privately Held"); an acronym in capitals is a
+  // name ("NFP": Aon's 10-Q says "completed the acquisition of NFP").
+  if ((core.length < 4 && !/^[A-Z]{3}$/.test(core)) || !/[A-Z]/.test(core[0]) || /^(?:privately held|home health|consumer experience|the company)$/i.test(core)) return null;
   return core;
+}
+
+/**
+ * A completed purchase referred to by its month: "our May 2022 acquisition of Wolt Enterprises Oy" (DoorDash's 10-Q,
+ * which never says "completed the acquisition of Wolt"). Found, but undated: the day isn't stated.
+ */
+export function readPastReference(text: string, name: string): CompletionRead {
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`\\b(?:our|its)\\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{4}\\s+acquisition\\s+of\\s+${esc}\\b`, "i").test(text.replace(/\s+/g, " "));
+  return { found, date: null, today: false };
 }
 
 const CONDITIONAL = /\b(?:if|may|might|could|would|will|shall|expects?|expected|anticipates?|anticipated|intends?|plans?|right to|option to|upon|until|unless|whether|pending|proposed)\b/i;

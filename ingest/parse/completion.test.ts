@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedPhrases, endedPhrases, readStatement, searchName, shortName, statedDate } from "./completion";
+import { completedPhrases, endedPhrases, readPastReference, readStatement, searchName, shortName, statedDate } from "./completion";
 
 describe("private-deal completion statements", () => {
   it("reads a plain completion with its date", () => {
@@ -30,6 +30,13 @@ describe("private-deal completion statements", () => {
     expect(shortName("Tower Semiconductor")).toBe("Tower");
     expect(shortName("Wolt")).toBeNull();
     expect(shortName("Ask Sage")).toBeNull();
+  });
+
+  it("reads a completed purchase referred to by its month, undated", () => {
+    expect(readPastReference("including in the case of our May 2022 acquisition of Wolt Enterprises Oy (\"Wolt\");", "Wolt")).toEqual({ found: true, date: null, today: false });
+    expect(readPastReference("our proposed acquisition of Wolt is expected to close in 2022", "Wolt").found).toBe(false);
+    expect(searchName("NFP")).toBe("NFP");
+    expect(searchName("Joh")).toBeNull();
   });
 
   it("parses stated dates and search names", () => {

@@ -32,7 +32,7 @@ import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
 import { parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
-import { completedPhrases, endedPhrases, readStatement, searchName, shortName as firstNameWord } from "./parse/completion";
+import { completedPhrases, endedPhrases, readPastReference, readStatement, searchName, shortName as firstNameWord } from "./parse/completion";
 import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, sameCompany, titleCaseCaps } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForSic } from "./sectors";
@@ -969,8 +969,11 @@ async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, se
   }
 }
 
-/** Bump to look every open private deal up again in its buyer's filings (`closeCheck`). */
-export const CLOSE_CHECK_VERSION = 1;
+/**
+ * Bump to look every open private deal up again in its buyer's filings (`closeCheck`).
+ * 2: six documents instead of three, "our May 2022 acquisition of X", three-letter acronyms ("NFP").
+ */
+export const CLOSE_CHECK_VERSION = 2;
 const SETTLE_FORMS = ["8-K", "10-Q", "10-K", "10-KT", "20-F", "40-F", "6-K"];
 
 /** Open and 60+ days old: looked up once (per version), then every 90 days while under three years old. */
@@ -1006,19 +1009,34 @@ async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: string, tod
       deal.closeCheckedAt = null; // try again next run
       return;
     }
-    for (const h of hits.sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 3)) {
+    // Full-text search matches loosely (DoorDash's closing 8-K never says "completed the acquisition of Wolt"), so up
+    // to six of its hits are read, oldest first; a dated statement wins over an undated one ("our May 2022 acquisition
+    // of Wolt" in a 10-Q, "On May 31, 2022, we completed …" in the 10-K).
+    let undated: string | null | undefined;
+    for (const h of hits.sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 6)) {
       let text: string;
       try {
         text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
       } catch {
+        deal.closeCheckedAt = null; // a download failed: look again next run
         continue;
       }
       let r = readStatement(text, phrases);
       if (!r.found && shortPhrases.length && text.toLowerCase().includes(name.toLowerCase())) r = readStatement(text, shortPhrases);
+      if (!r.found && kind === "closed") r = readPastReference(text, name);
       if (!r.found) continue;
       const stated = r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null;
+      const date = stated ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
+      if (date) {
+        deal.status = kind === "closed" ? "Closed" : "Terminated";
+        deal.statusDate = date;
+        return;
+      }
+      if (undated === undefined) undated = null;
+    }
+    if (undated === null) {
       deal.status = kind === "closed" ? "Closed" : "Terminated";
-      deal.statusDate = stated ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
+      deal.statusDate = null;
       return;
     }
   }
