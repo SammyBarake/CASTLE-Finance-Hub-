@@ -7,12 +7,15 @@ import { coverageStart } from "@/lib/aggregate";
 import { coverage, coverageTakeaways, IPO_FIELDS, PRIVATE_FIELDS, privateDeals, PUBLIC_FIELDS, publicDeals, type Coverage, type Share } from "@/lib/coverage";
 import { formatPct } from "@/lib/format";
 
-/** A share as a percentage with a faint bar behind it. */
+/** A share as a percentage with a slim bar under it (the design's value bar). */
 function Cell({ s, strong }: { s: Share; strong?: boolean }) {
   if (s.pct == null) return <td className="right dim">—</td>;
   return (
-    <td className={`right mono cov-cell ${strong ? "cov-all" : ""}`} style={{ "--pct": `${s.pct}%` } as CSSProperties} title={`${s.n.toLocaleString("en-US")} of ${s.of.toLocaleString("en-US")}`}>
+    <td className={`right mono cov-cell ${strong ? "cov-all" : ""}`} title={`${s.n.toLocaleString("en-US")} of ${s.of.toLocaleString("en-US")}`}>
       {formatPct(s.pct, 0)}
+      <span className="cov-bar" aria-hidden="true">
+        <i style={{ "--pct": `${Math.max(0, Math.min(100, s.pct))}%` } as CSSProperties} />
+      </span>
     </td>
   );
 }

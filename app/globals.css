@@ -887,8 +887,11 @@
   /* ---------- data coverage (CoverageView) ---------- */
   .coverage-table tbody th[scope="row"] { background: transparent; border-top: 0; border-bottom: 1px solid var(--color-soft); color: #dcdcdc; font-size: 11px; font-weight: 450; letter-spacing: 0; white-space: normal; min-width: 170px; }
   .coverage-table tbody th[scope="row"] small { display: block; margin-top: 3px; color: #6f6f6f; font-size: 9px; font-weight: 400; }
-  .coverage-table .cov-cell { background: linear-gradient(90deg, rgba(255, 255, 255, 0.055) var(--pct), transparent var(--pct)); }
+  .coverage-table .cov-cell { color: #b8b8b8; }
+  .coverage-table .cov-bar { display: block; width: 56px; height: 3px; margin: 6px 0 0 auto; border-radius: 2px; background: #1e1e1e; overflow: hidden; }
+  .coverage-table .cov-bar i { display: block; width: var(--pct); height: 100%; border-radius: 2px; background: #6c6c6c; transform-origin: left center; animation: bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
   .coverage-table .cov-all { color: #f2f2f2; font-weight: 500; }
+  .coverage-table .cov-all .cov-bar i { background: #d6d6d6; }
   .coverage-table tfoot th, .coverage-table tfoot td { border-top: 1px solid #2a2a2a; border-bottom: 0; background: #0b0b0b; color: #8a8a8a; font-size: 10px; }
   .coverage-table tfoot th { text-align: left; font-weight: 450; letter-spacing: 0; }
 
