@@ -8,7 +8,9 @@ import { AboutData, CompanyMark, Kpi, Kpis, PageHeading, PanelHead, SectorLabel,
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { bankShortName } from "@/lib/banks";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { termsWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatPct, formatUsd } from "@/lib/format";
 import { feeLabel, feeUsd, financingLabel, financingShort, goShopLabel, termsInsights, termsRows, termsStats, type TermsRow } from "@/lib/terms";
 
@@ -75,7 +77,21 @@ export function DealTermsView() {
 
   return (
     <>
-      <PageHeading title="Deal Terms" subtitle="Break fees, go-shops and financing in U.S. public-target M&A" onExport={exportRows} />
+      <PageHeading
+        title="Deal Terms"
+        subtitle="Break fees, go-shops and financing in U.S. public-target M&A"
+        onExport={exportRows}
+        excel={() =>
+          visible.length
+            ? termsWorkbook(visible, exportContext(data), {
+                selection: [
+                  `Deals: ${{ all: "All", reverse: "With a reverse fee", goshop: "With a go-shop", financed: "With committed debt" }[filter]}`,
+                  ...(lender ? [`Financed by: ${lender}`] : []),
+                ],
+              })
+            : null
+        }
+      />
 
       <Kpis label="Deal terms summary">
         <Kpi label="Median break fee" value={pct(s.medianTargetFee)} note={`Paid by the target · ${rows.filter((r) => r.targetFeePct != null).length} deals`} />

@@ -8,7 +8,9 @@ import { AboutData, CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, 
 import { AdvisorFees } from "./AdvisorFees";
 import { EmptyRow, RowLink } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { leagueWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatUsd, formatUsdB1 } from "@/lib/format";
 import { sum } from "@/lib/metrics";
 import { matchAdvisor } from "@/lib/search";
@@ -53,6 +55,23 @@ export function AdvisorsView() {
         title="Advisors"
         subtitle={view === "deals" ? `U.S. M&A league table · ${data.leagueTable.period}` : "Advisory fees disclosed in merger proxies"}
         onExport={view === "deals" ? exportRows : undefined}
+        excel={
+          view === "deals"
+            ? () =>
+                visibleRows.length
+                  ? leagueWorkbook(visibleRows, exportContext(data), {
+                      period: data.leagueTable.period,
+                      by: sort,
+                      selection: [
+                        `Period: ${data.leagueTable.period}`,
+                        `Ranked by: ${sort === "value" ? "Deal value" : "Deal count"}`,
+                        ...(minDeals ? [`Minimum deals advised: ${minDeals}`] : []),
+                        ...(query.trim() ? [`Search: ${query.trim()}`] : []),
+                      ],
+                    })
+                  : null
+            : undefined
+        }
       />
       <div className="advisor-view-toggle">
         <Segment

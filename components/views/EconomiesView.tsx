@@ -6,7 +6,9 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { economiesWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatPct } from "@/lib/format";
 import type { Economy, Region } from "@/lib/types";
 
@@ -65,7 +67,12 @@ export function EconomiesView() {
 
   return (
     <>
-      <PageHeading title="World Economies" subtitle={`Growth, inflation and interest rates · ${monthYear(macro.asOf)}`} onExport={exportRows} />
+      <PageHeading
+        title="World Economies"
+        subtitle={`Growth, inflation and interest rates · ${monthYear(macro.asOf)}`}
+        onExport={exportRows}
+        excel={() => (rows.length ? economiesWorkbook(rows, year, exportContext({ ...data, asOf: macro.asOf }), { selection: [`Region: ${region === "all" ? "All regions" : region}`] }) : null)}
+      />
 
       <Kpis label="U.S. snapshot">
         <Kpi label="U.S. GDP growth" value={pct(us?.gdpGrowth ?? null)} note={`${year} IMF estimate · ${us?.gdpGrowthPrior != null ? `${pct(us.gdpGrowthPrior)} in ${year - 1}` : ""}`} />

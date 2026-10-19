@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useDetails } from "@/components/details/details";
+import { exportContext } from "@/components/export/excel";
+import { ExportButton } from "@/components/export/ExportButton";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { useUi, type MenuPosition } from "@/components/ui/UiProvider";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
+import { dealsWorkbook } from "@/lib/excel/workbooks";
 import { considerationLabel, formatDateLong, formatPct, formatPrice, formatRaise, formatUsd } from "@/lib/format";
 import type { DealScreen } from "@/lib/screen";
 import type { Deal, Ipo } from "@/lib/types";
@@ -123,6 +126,7 @@ export function useRecordActions() {
 // ---------------------------------------------------------------------------
 
 function CompareBody({ deals, isSample }: { deals: Deal[]; isSample: boolean }) {
+  const { asOf } = useHubData().data;
   const { toast } = useUi();
   const fields: [string, (d: Deal) => string][] = [
     ["Acquirer", (d) => d.acquirer.name],
@@ -163,17 +167,17 @@ function CompareBody({ deals, isSample }: { deals: Deal[]; isSample: boolean }) 
         </table>
       </div>
       <div className="dialog-actions">
-        <button
-          type="button"
-          className="button"
-          onClick={() => {
+        <ExportButton
+          title="comparison"
+          label="Export the comparison"
+          onCsv={() => {
             downloadCsv(dealsToCsv(deals, isSample), `Castle_Comparison${isSample ? "_Sample" : ""}.csv`);
             toast(`${deals.length} rows exported.`);
           }}
-        >
-          <Icon name="download" />
-          Export comparison data
-        </button>
+          excel={() =>
+            dealsWorkbook(deals, exportContext({ asOf, isSample }), { title: "Deal Comparison", subtitle: `${deals.length} deals side by side`, sheet: "Comparison", file: "Comparison", summary: true })
+          }
+        />
       </div>
     </>
   );

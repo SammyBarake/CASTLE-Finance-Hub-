@@ -11,11 +11,15 @@ import { AboutData, FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } fr
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { PrecedentsDcf } from "@/components/views/PrecedentsDcf";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { precedentsWorkbook } from "@/lib/excel/workbooks";
 import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import {
+  dcfRows,
   dealSize,
   DEFAULT_PRECEDENTS,
+  describeScreen,
   PRECEDENT_SPEC,
   screenForDeal,
   screenPrecedents,
@@ -92,7 +96,20 @@ function Precedents({ dealId }: { dealId: string | null }) {
         title="Precedent Transactions"
         subtitle={subject ? `Comparables for ${subject.acquirer.name} → ${subject.target.name}` : "Comparable U.S. M&A · Transaction multiples"}
         onExport={included.length ? exportRows : undefined}
-        exportLabel="Export the comps table as CSV"
+        excel={() =>
+          included.length
+            ? precedentsWorkbook(included, dcfRows(included), exportContext(data), {
+                subtitle: subject ? `Comparables for ${subject.acquirer.name} → ${subject.target.name}` : "Comparable U.S. M&A · transaction multiples",
+                selection: [
+                  ...(subject ? [`Subject deal: ${subject.acquirer.name} → ${subject.target.name}`] : []),
+                  ...describeScreen(screen),
+                  ...(excluded.size ? [`Excluded by you: ${rows.length - included.length}`] : []),
+                ],
+                sector: screen.sector,
+              })
+            : null
+        }
+        exportLabel="Export the comps table"
         extra={<CopyLinkButton label="Copy a link to this precedent set" />}
       />
 

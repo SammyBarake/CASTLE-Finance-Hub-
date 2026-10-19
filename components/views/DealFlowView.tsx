@@ -12,7 +12,9 @@ import { EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions, useWorkspaceDialogs, WatchButton } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
+import { dealsWorkbook } from "@/lib/excel/workbooks";
 import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { median, sum } from "@/lib/metrics";
 import {
@@ -85,6 +87,9 @@ function Cell({ d, col }: { d: Deal; col: DealColumn }) {
       return <td className="right mono">{formatMultiple(d.evEbitda)}</td>;
   }
 }
+
+/** How each screener filter is named on an export's cover. */
+const FILTER_NAMES: Partial<Record<keyof DealScreen, string>> = { query: "Search", sector: "Sector", status: "Status", date: "Announced", min: "Minimum value", max: "Maximum value" };
 
 export function DealFlowView() {
   const { data, freshness } = useHubData();
@@ -180,7 +185,22 @@ export function DealFlowView() {
 
   return (
     <>
-      <PageHeading title="Deal Flow" subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`} onExport={() => exportRows(rows)} extra={<CopyLinkButton />} />
+      <PageHeading
+        title="Deal Flow"
+        subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`}
+        onExport={() => exportRows(rows)}
+        excel={() =>
+          rows.length
+            ? dealsWorkbook(rows, exportContext(data), {
+                title: "Deal Flow",
+                subtitle: "Announced U.S. M&A from SEC filings · the deals on screen",
+                file: "Deal_Flow",
+                selection: chips.length ? chips.map((c) => `${FILTER_NAMES[c.key] ?? "Filter"}: ${c.label.replace(/^Search: /, "")}`) : ["Filters: none (every deal)"],
+              })
+            : null
+        }
+        extra={<CopyLinkButton />}
+      />
 
       <Kpis label="Filtered transaction summary">
         <Kpi label="Transactions" value={rows.length} note="Current selection" />

@@ -3,6 +3,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { sectorColor } from "@/lib/sectors";
 import type { DealStatus, IpoStage, Sector } from "@/lib/types";
 import { AnimatedNumber } from "./AnimatedNumber";
+import { ExportButton } from "@/components/export/ExportButton";
+import type { WorkbookSpec } from "@/lib/excel/spec";
 import { Icon } from "./Icon";
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
@@ -158,8 +160,24 @@ export function PageLink({ href, children = "View all" }: { href: string; childr
   );
 }
 
-/** Page title block with date and export button. */
-export function PageHeading({ title, subtitle, onExport, exportLabel, extra }: { title: string; subtitle: string; onExport?: () => void; exportLabel?: string; extra?: ReactNode }) {
+/** Page title block with the export button (Excel workbook and / or CSV). */
+export function PageHeading({
+  title,
+  subtitle,
+  onExport,
+  excel,
+  exportLabel,
+  extra,
+}: {
+  title: string;
+  subtitle: string;
+  /** The CSV download. */
+  onExport?: () => void;
+  /** The Excel workbook's contents, built when the menu item is chosen (null: nothing to export). */
+  excel?: () => WorkbookSpec | null;
+  exportLabel?: string;
+  extra?: ReactNode;
+}) {
   return (
     <div className="page-heading">
       <div>
@@ -170,12 +188,7 @@ export function PageHeading({ title, subtitle, onExport, exportLabel, extra }: {
       </div>
       <div className="head-tools">
         {extra}
-        {onExport && (
-          <button type="button" className="button" onClick={onExport} aria-label={exportLabel ?? `Export ${title} data as CSV`}>
-            <Icon name="download" />
-            Export
-          </button>
-        )}
+        {(onExport || excel) && <ExportButton title={title} onCsv={onExport} excel={excel} label={exportLabel} />}
       </div>
     </div>
   );

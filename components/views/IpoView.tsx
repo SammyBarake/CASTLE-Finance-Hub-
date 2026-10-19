@@ -8,7 +8,9 @@ import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions, WatchButton } from "@/components/workspace/actions";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { iposWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatRaise } from "@/lib/format";
 import { sum } from "@/lib/metrics";
 import { IPO_STAGES, SECTORS, type IpoStage, type Sector } from "@/lib/types";
@@ -62,7 +64,23 @@ export function IpoView() {
 
   return (
     <>
-      <PageHeading title="IPO Pipeline" subtitle={`U.S. public offerings · ${monthYear(data.asOf)}`} onExport={exportRows} />
+      <PageHeading
+        title="IPO Pipeline"
+        subtitle={`U.S. public offerings · ${monthYear(data.asOf)}`}
+        onExport={exportRows}
+        excel={() =>
+          rows.length
+            ? iposWorkbook(rows, exportContext(data), {
+                selection: [
+                  `Stage: ${stage === "all" ? "All companies" : stage}`,
+                  `Underwriter: ${bank === "all" ? "Any" : bank}`,
+                  `Sector: ${sector === "all" ? "All sectors" : sector}`,
+                  `Minimum expected raise: ${minRaise ? `${minRaise}M` : "Any"}`,
+                ],
+              })
+            : null
+        }
+      />
 
       <Kpis label="IPO summary">
         <Kpi label="Filed companies" value={filed.length} note="Awaiting pricing" />

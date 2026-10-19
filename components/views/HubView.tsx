@@ -6,7 +6,9 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Change, CompanyMark, Kpi, Kpis, PageHeading, PageLink } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions } from "@/components/workspace/actions";
+import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
+import { dealsWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatDateLong, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { ValuationMetric } from "@/lib/metrics";
 import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRICS, VolumePanel } from "./sections";
@@ -30,7 +32,17 @@ export function HubView() {
 
   return (
     <>
-      <PageHeading title="Hub" subtitle={`U.S. investment banking · ${monthYear(data.asOf)}`} onExport={exportDeals} exportLabel="Export deals as CSV" />
+      <PageHeading
+        title="Hub"
+        subtitle={`U.S. investment banking · ${monthYear(data.asOf)}`}
+        onExport={exportDeals}
+        excel={() =>
+          data.deals.length
+            ? dealsWorkbook(data.deals, exportContext(data), { title: "U.S. M&A Transactions", subtitle: "Every deal Castle tracks, from SEC EDGAR filings", file: "Deals" })
+            : null
+        }
+        exportLabel="Export deals"
+      />
 
       <Kpis label="Market snapshot">
         <Kpi label="Announced M&A value" value={ytd ? formatUsd(ytd.value) : "—"} note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />

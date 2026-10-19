@@ -70,6 +70,24 @@ test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   expect(errors).toEqual([]);
 });
 
+test("Excel export downloads a workbook", async ({ page }) => {
+  const errors = watchErrors(page);
+  // Precedents builds the richest workbook (summary formulas, the banks' DCFs); ExcelJS loads only on this click. CI's
+  // sample deals carry no multiples, so the screen drops that requirement.
+  await page.goto("/precedents?withMultiples=0", { waitUntil: "networkidle" });
+  await expectLoaded(page);
+  await page.getByRole("button", { name: "Export the comps table" }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Excel workbook (.xlsx)" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^Castle_Precedents.*\.xlsx$/);
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const c of stream) chunks.push(c as Buffer);
+  const file = Buffer.concat(chunks);
+  expect(file.subarray(0, 2).toString(), "zip signature").toBe("PK");
+  expect(file.length, "workbook bytes").toBeGreaterThan(10_000);
+  expect(errors).toEqual([]);
+});
+
 test("an unknown address gets the Castle 404 page", async ({ page }) => {
   const res = await page.goto("/no-such-page-here");
   expect(res?.status()).toBe(404);

@@ -3,7 +3,9 @@
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Kpi, Kpis, PageHeading, SectorLabel } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { volumeWorkbook } from "@/lib/excel/workbooks";
 import { formatDateLong, formatMonth, formatRaise, formatUsd } from "@/lib/format";
 import { rangeSummary, sectorBreakdown } from "@/lib/metrics";
 import { SECTORS } from "@/lib/sectors";
@@ -28,7 +30,7 @@ export function DealVolumeView() {
 
   return (
     <>
-      <PageHeading title="Deal Volume" subtitle={`Monthly announced U.S. M&A · ${period}`} onExport={exportRows} />
+      <PageHeading title="Deal Volume" subtitle={`Monthly announced U.S. M&A · ${period}`} onExport={exportRows} excel={() => volumeWorkbook(matrix, volume.range, exportContext(data))} />
 
       <Kpis label="Deal volume summary">
         <Kpi label="Announced value" value={formatUsd(s.value)} note={period} />

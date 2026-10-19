@@ -50,3 +50,4 @@ __pycache__/
 # Playwright
 /test-results/
 /playwright-report/
+exports-preview/

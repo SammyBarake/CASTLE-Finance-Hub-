@@ -52,6 +52,21 @@ export const WINDOW_OPTIONS: { value: PrecedentWindow; label: string }[] = [
 
 const num = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? null : Number(s));
 
+/** The screen in words, for an export's cover: "Sector: Tech", "Deal value: $1B – $10B", "Announced: Past 24 months". */
+export function describeScreen(s: PrecedentScreen): string[] {
+  const min = num(s.min);
+  const max = num(s.max);
+  return [
+    `Sector: ${s.sector === "all" ? "All sectors" : s.sector}`,
+    ...(s.industry.trim() ? [`Industry contains: ${s.industry.trim()}`] : []),
+    ...(min != null || max != null ? [`Deal value: ${min != null ? `$${min}B` : "any"} – ${max != null ? `$${max}B` : "any"}`] : []),
+    `Announced: ${WINDOW_OPTIONS.find((w) => w.value === s.window)?.label ?? s.window}`,
+    `Consideration: ${s.consideration === "all" ? "Any" : s.consideration}`,
+    `Valuation multiple required: ${s.withMultiples ? "Yes" : "No"}`,
+    `Terminated deals: ${s.includeTerminated ? "Included" : "Excluded"}`,
+  ];
+}
+
 function windowStart(window: PrecedentWindow, asOf: string): string {
   if (window === "all") return "0000-01-01";
   const d = new Date(asOf);

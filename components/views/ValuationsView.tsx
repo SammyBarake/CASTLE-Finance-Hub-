@@ -5,7 +5,9 @@ import { LineChart } from "@/components/charts/LineChart";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { PageHeading, SectorLabel, Select } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
+import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { valuationsWorkbook } from "@/lib/excel/workbooks";
 import { formatQuarter } from "@/lib/format";
 import { valuationCards, type ValuationMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
@@ -56,7 +58,7 @@ export function ValuationsView() {
 
   return (
     <>
-      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · LTM to ${latestQ ? formatQuarter(latestQ) : ""}`} onExport={exportRows} />
+      <PageHeading title="Valuations" subtitle={`Transaction ${m.tab} · LTM to ${latestQ ? formatQuarter(latestQ) : ""}`} onExport={exportRows} excel={() => valuationsWorkbook(data.valuations, quarters, exportContext(data))} />
 
       <div className="section-heading">
         <h2>
