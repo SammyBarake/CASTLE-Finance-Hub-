@@ -176,8 +176,12 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
       {exploring && <VolumeExplorer seed={{ metric, range, sectors: SECTORS.filter((s) => visible.has(s)) }} onClose={closeExplorer} />}
       <div className="chart-main">
         <div className="chart-meta">
-          {/* Legend doubles as the month-on-month scoreboard: click a sector to hide or show it. */}
+          {/* Legend doubles as the month-on-month scoreboard: click a sector to hide or show it. The changes compare the
+              last two complete months whatever period the chart shows, so they're labelled where they are read. */}
           <div className="legend" role="group" aria-label="Visible sectors">
+            <span className="legend-basis" title="Each sector's change in the last complete month against the month before; it doesn't depend on the period shown">
+              {shortMonth(latest)} vs {shortMonth(prev)}
+            </span>
             {SECTORS.map((s) => {
               const change = momentum.get(s);
               return (
@@ -195,9 +199,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
               );
             })}
           </div>
-          <span className="chart-unit">
-            {metric === "value" ? "USD billions" : "Transactions"} · change {shortMonth(latest)} vs. {shortMonth(prev)}
-          </span>
+          <span className="chart-unit">{metric === "value" ? "USD billions" : "Transactions"}</span>
         </div>
         <LineChart
           className={`chart-wrap ${large ? "large" : ""}`}

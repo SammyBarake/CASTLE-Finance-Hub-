@@ -30,6 +30,9 @@ export function WhatIfAccuracyView() {
   // The same quarter's valuation is the engine's input, so it isn't scored.
   const k = feature === "valuation" && ahead === 1 ? 2 : ahead;
   const series = forecastSeries(B, feature, k);
+  // The chart's own scores: the KPIs above average every feature and quarter, so they don't move with the selection.
+  const cell = B.features[feature][k - 1];
+  const errorVsNoChange = (skill: number | null) => (skill == null ? "—" : `${skill >= 0 ? "−" : "+"}${Math.abs(Math.round(skill * 100))}%`);
   const s = B.summary;
   const gain = s.previous.score > 0 ? Math.round(((s.chosen.score - s.previous.score) / s.previous.score) * 100) : 0;
 
@@ -38,8 +41,8 @@ export function WhatIfAccuracyView() {
       <PageHeading title="Accuracy" subtitle="How the what-if engine's predictions held up against what actually happened, quarter by quarter, out of sample" />
 
       <Kpis label="Backtest summary">
-        <Kpi label="Direction right" value={pct(s.chosen.all.hitRate)} note={`Valuations ${pct(s.chosen.valuation.hitRate)} · deals and IPOs ${pct(s.chosen.flows.hitRate)}`} />
-        <Kpi label="Error vs no change" value={`−${Math.round(s.chosen.score * 100)}%`} note="Average over the four features" />
+        <Kpi label="Direction right, overall" value={pct(s.chosen.all.hitRate)} note={`Valuations ${pct(s.chosen.valuation.hitRate)} · deals and IPOs ${pct(s.chosen.flows.hitRate)}`} />
+        <Kpi label="Error vs no change, overall" value={errorVsNoChange(s.chosen.score)} note="Average over the four features" />
         <Kpi label="Quarters tested" value={String(B.origins.count)} note={`${B.origins.from}–${B.origins.to}, links re-estimated each time`} />
         <Kpi label="Gain from tuning" value={`+${gain}%`} note={`Skill ${s.previous.score.toFixed(3)} → ${s.chosen.score.toFixed(3)}`} />
       </Kpis>
@@ -74,6 +77,18 @@ export function WhatIfAccuracyView() {
           formatTick={(v) => `${v}%`}
           ariaLabel={`${FEATURE_NAMES[feature]}: predicted versus realised change, ${AHEAD[k - 1].toLowerCase()}, ${series.labels[0] ?? ""} to ${series.labels.at(-1) ?? ""}`}
         />
+        <p className="acc-readout" aria-live="polite">
+          <span>
+            {FEATURE_NAMES[feature]}, {AHEAD[k - 1].toLowerCase()}
+          </span>
+          <span>
+            Direction right <b>{pct(cell.hitRate)}</b>
+          </span>
+          <span>
+            Error vs no change <b>{errorVsNoChange(cell.skill)}</b>
+          </span>
+          <span>{cell.n.toLocaleString("en-US")} forecasts</span>
+        </p>
       </section>
 
       <div className="acc-two">
@@ -99,22 +114,37 @@ export function WhatIfAccuracyView() {
                   <th scope="row">{SHORT[f]}</th>
                   {B.features[f].map((c, col) => {
                     const empty = !c.n || c.hitRate == null;
+                    const style = { ...shade(c.hitRate), "--i": row * 4 + col } as React.CSSProperties;
+                    if (empty)
+                      return (
+                        <td key={c.k}>
+                          <div className="acc-cell empty" style={style} title="Not scored: the same quarter's valuation is the input">
+                            <b>—</b>
+                            <small>input</small>
+                          </div>
+                        </td>
+                      );
+                    // A cell opens its own chart above: the grid and the chart show the same selection.
+                    const selected = f === feature && col + 1 === k;
                     return (
                       <td key={c.k}>
-                        <div
-                          className={`acc-cell ${empty ? "empty" : ""}`}
-                          style={{ ...shade(c.hitRate), "--i": row * 4 + col } as React.CSSProperties}
-                          title={empty ? "Not scored: the same quarter's valuation is the input" : `${c.n} forecasts · skill ${c.skill?.toFixed(2) ?? "—"} · slope ${c.slope ?? "—"}`}
+                        <button
+                          type="button"
+                          className={`acc-cell ${selected ? "selected" : ""}`}
+                          style={style}
+                          aria-pressed={selected}
+                          aria-label={`${SHORT[f]}, ${AHEAD[col].toLowerCase()}: direction right ${pct(c.hitRate)}. Show in the chart`}
+                          title={`${c.n} forecasts · skill ${c.skill?.toFixed(2) ?? "—"} · slope ${c.slope ?? "—"}`}
+                          onClick={() => {
+                            setFeature(f);
+                            setAhead(col + 1);
+                          }}
                         >
-                          <b>{empty ? "—" : pct(c.hitRate)}</b>
-                          {empty ? (
-                            <small>input</small>
-                          ) : (
-                            <span className="acc-meter" aria-hidden="true">
-                              <i style={{ transform: `scaleX(${Math.max(0, Math.min(1, (c.skill ?? 0) / 0.4))})` }} />
-                            </span>
-                          )}
-                        </div>
+                          <b>{pct(c.hitRate)}</b>
+                          <span className="acc-meter" aria-hidden="true">
+                            <i style={{ transform: `scaleX(${Math.max(0, Math.min(1, (c.skill ?? 0) / 0.4))})` }} />
+                          </span>
+                        </button>
                       </td>
                     );
                   })}
