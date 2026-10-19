@@ -291,7 +291,7 @@
   .page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23px; gap: 20px; }
   .page-heading p { font-size: 11px; color: #898989; margin-top: 7px; }
   .head-tools { display: flex; align-items: center; gap: 12px; }
-  .footer { max-width: 1670px; margin: 0 30px; display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: #6d6d6d; padding: 19px 0 23px; gap: 20px; border-top: 1px solid var(--color-soft); }
+  .footer { max-width: 1670px; margin: 0 30px; display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: #7a7a7a; padding: 19px 0 23px; gap: 20px; border-top: 1px solid var(--color-soft); }
   .footer button { font-size: 9px; color: #919191; padding: 0; }
   .footer button:hover { color: var(--color-fg); }
   .footer-links { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-end; }

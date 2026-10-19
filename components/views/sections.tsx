@@ -39,7 +39,7 @@ export function Legend({ visible, onToggle, label }: { visible: Set<Sector>; onT
   return (
     <div className="legend" role="group" aria-label={label}>
       {SECTORS.map((s) => (
-        <button key={s} type="button" aria-pressed={visible.has(s)} aria-label={`Toggle ${s}`} onClick={() => onToggle(s)}>
+        <button key={s} type="button" aria-pressed={visible.has(s)} onClick={() => onToggle(s)}>
           <SectorDot sector={s} />
           {s}
         </button>
@@ -185,7 +185,6 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
                   key={s}
                   type="button"
                   aria-pressed={visible.has(s)}
-                  aria-label={`Toggle ${s}`}
                   title={change == null ? s : `${s}: ${formatSignedPct(change)} in ${shortMonth(latest)} vs. ${shortMonth(prev)}`}
                   onClick={() => toggle(s)}
                 >
