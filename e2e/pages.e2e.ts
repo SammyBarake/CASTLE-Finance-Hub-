@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ROUTES } from "../components/shell/routes";
+import { INFO_ROUTES, ROUTES } from "../components/shell/routes";
 import { companyHref, hasCompanyPage } from "../lib/companies";
 import type { Deal } from "../lib/types";
 
@@ -31,7 +31,7 @@ for (const width of [1366, 375]) {
   test.describe(width === 375 ? "phone" : "desktop", () => {
     test.use({ viewport: { width, height: width === 375 ? 812 : 900 } });
 
-    for (const route of ROUTES) {
+    for (const route of [...ROUTES, ...INFO_ROUTES]) {
       test(`${route.title} (${route.href})`, async ({ page }) => {
         const errors = watchErrors(page);
         // Wait for the dataset (and every other request) to finish before judging the page.
@@ -68,6 +68,13 @@ test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   await page.goto(`/tearsheet/deal/${encodeURIComponent(deal.id)}`);
   await expect(page.locator("body")).toContainText(deal.target.name.split(" ")[0]);
   expect(errors).toEqual([]);
+});
+
+test("an unknown address gets the Castle 404 page", async ({ page }) => {
+  const res = await page.goto("/no-such-page-here");
+  expect(res?.status()).toBe(404);
+  await expect(page.locator("h1")).toHaveText("Page not found");
+  await expect(page.locator(".status-actions a").first()).toHaveAttribute("href", "/");
 });
 
 test("data feed, freshness, sitemap, robots and preview image", async ({ request }) => {

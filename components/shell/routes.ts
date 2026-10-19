@@ -68,10 +68,19 @@ export const SECTIONS: SectionDef[] = META.map((s) => ({ ...s, routes: ROUTES.fi
 /** Company pages sit outside the nav: no sidebar item is highlighted. */
 const COMPANY_ROUTE = { id: "company", href: "/company", title: "Company", tab: "Company", section: null } as const;
 
+/** Site pages linked from the footer (about, terms, privacy): outside the nav, like company pages. */
+export const INFO_ROUTES = [
+  { id: "about", href: "/about", title: "About Castle", tab: "About", section: null },
+  { id: "terms", href: "/terms", title: "Terms of Use", tab: "Terms", section: null },
+  { id: "privacy", href: "/privacy", title: "Privacy", tab: "Privacy", section: null },
+] as const;
+
 /** The page for a path: the longest matching href wins, so "/what-if/accuracy" isn't taken for "/what-if". */
 export const routeForPath = (path: string): { id: string; title: string; section: SectionId | null } =>
   path.startsWith("/company/")
     ? COMPANY_ROUTE
-    : (ROUTES.filter((r) => (r.href === "/" ? path === "/" : path === r.href || path.startsWith(`${r.href}/`))).sort((a, b) => b.href.length - a.href.length)[0] ?? ROUTES[0]);
+    : (INFO_ROUTES.find((r) => path === r.href) ??
+      ROUTES.filter((r) => (r.href === "/" ? path === "/" : path === r.href || path.startsWith(`${r.href}/`))).sort((a, b) => b.href.length - a.href.length)[0] ??
+      ROUTES[0]);
 
 export const sectionOf = (id: SectionId | null) => SECTIONS.find((s) => s.id === id) ?? null;

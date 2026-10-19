@@ -11,6 +11,7 @@ import { useWorkspaceDialogs } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { BrandLogo } from "./BrandLogo";
 import { GlobalSearch } from "./GlobalSearch";
+import { reportIssueUrl } from "@/lib/site";
 import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
 import { LiveStatus } from "./LiveStatus";
 import { NavigationProgress } from "./NavigationProgress";
@@ -167,9 +168,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? "Sample data (local development) · Fictional transactions and rankings"
               : "SEC EDGAR · Refreshed every few hours · Not investment advice"}
           </span>
-          <button type="button" onClick={openDefinitions}>
-            Data definitions
-          </button>
+          <nav className="footer-links" aria-label="About Castle">
+            <Link href="/about">About</Link>
+            <button type="button" onClick={openDefinitions}>
+              Data definitions
+            </button>
+            <a href={reportIssueUrl()} target="_blank" rel="noopener noreferrer">
+              Report a data issue
+            </a>
+            <Link href="/terms">Terms</Link>
+            <Link href="/privacy">Privacy</Link>
+          </nav>
         </footer>
       </div>
     </>

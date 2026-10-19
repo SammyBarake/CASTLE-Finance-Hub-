@@ -10,6 +10,11 @@ describe("routes", () => {
     expect(routeForPath("/company/0000320193").id).toBe("company");
   });
 
+  it("keeps the footer's info pages out of the nav", () => {
+    for (const path of ["/about", "/terms", "/privacy"]) expect(routeForPath(path).section, path).toBeNull();
+    expect(routeForPath("/about").title).toBe("About Castle");
+  });
+
   it("gives What-if its own section with two tabs", () => {
     const whatIf = SECTIONS.find((s) => s.id === "whatif")!;
     expect(whatIf.routes.map((r) => r.tab)).toEqual(["Scenarios", "Accuracy"]);

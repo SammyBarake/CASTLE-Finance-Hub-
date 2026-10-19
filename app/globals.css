@@ -294,6 +294,9 @@
   .footer { max-width: 1670px; margin: 0 30px; display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: #6d6d6d; padding: 19px 0 23px; gap: 20px; border-top: 1px solid var(--color-soft); }
   .footer button { font-size: 9px; color: #919191; padding: 0; }
   .footer button:hover { color: var(--color-fg); }
+  .footer-links { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-end; }
+  .footer-links a { color: #919191; text-decoration: none; transition: color 0.15s; }
+  .footer-links a:hover { color: var(--color-fg); }
 
   /* ---------- KPIs, panels ---------- */
   .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 22px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-panel); overflow: hidden; }
@@ -895,6 +898,63 @@
   .coverage-table tfoot th, .coverage-table tfoot td { border-top: 1px solid #2a2a2a; border-bottom: 0; background: #0b0b0b; color: #8a8a8a; font-size: 10px; }
   .coverage-table tfoot th { text-align: left; font-weight: 450; letter-spacing: 0; }
 
+  /* ---------- site pages: About, Terms, Privacy (InfoViews) ---------- */
+  .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; align-items: start; }
+  .info-sections, .info-steps { list-style: none; margin: 0; padding: 0 19px 10px; }
+  .info-sections li, .info-steps li { padding: 12px 0; border-top: 1px solid var(--color-soft); }
+  .info-sections li:first-child, .info-steps li:first-child { border-top: 0; padding-top: 2px; }
+  .info-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; }
+  .info-section-head strong, .info-steps strong { font-size: 11.5px; font-weight: 500; color: #e8e8e8; }
+  .info-section-head span { display: flex; gap: 12px; flex-wrap: wrap; }
+  .info-section-head a { font-size: 10px; color: #8f8f8f; transition: color 0.15s; }
+  .info-section-head a:hover { color: #f3f3f3; }
+  .info-sections p, .info-steps p { margin-top: 5px; font-size: 11px; line-height: 1.65; color: #949494; }
+  .info-steps { counter-reset: step; }
+  .info-steps li { counter-increment: step; position: relative; padding-left: 34px; }
+  .info-steps li::before { content: counter(step); position: absolute; left: 0; top: 11px; width: 20px; height: 20px; border: 1px solid #333; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #bdbdbd; font-variant-numeric: tabular-nums; }
+  .info-steps li:first-child::before { top: 1px; }
+  .info-steps a, .info-body a:not(.small-link), .info-doc a:not(.small-link) { color: #d6d6d6; text-decoration: underline; text-decoration-color: #444; text-underline-offset: 2px; transition: text-decoration-color 0.15s; }
+  .info-steps a:hover, .info-body a:not(.small-link):hover, .info-doc a:not(.small-link):hover { text-decoration-color: #aaa; }
+  .info-sources tbody th[scope="row"] { background: transparent; border-top: 0; border-bottom: 1px solid var(--color-soft); color: #dcdcdc; font-size: 11px; font-weight: 450; letter-spacing: 0; white-space: nowrap; }
+  .info-sources td { white-space: normal; font-size: 11px; line-height: 1.5; color: #b3b3b3; min-width: 220px; }
+  .info-body { padding: 0 19px 19px; font-size: 11px; line-height: 1.7; color: #9a9a9a; }
+  .info-body p { margin: 0 0 10px; }
+  .info-doc { max-width: 860px; padding: 6px 26px 16px; }
+  .info-clause { padding: 16px 0; border-top: 1px solid var(--color-soft); }
+  .info-clause:first-child { border-top: 0; }
+  .info-clause h2 { font-size: 12px; font-weight: 500; color: #ececec; margin-bottom: 7px; letter-spacing: 0; }
+  .info-clause p, .info-clause li { font-size: 11.5px; line-height: 1.75; color: #a3a3a3; }
+  .info-clause p + p { margin-top: 8px; }
+  .info-clause ul { list-style: none; margin: 0; padding: 0; }
+  .info-clause li { position: relative; padding-left: 13px; }
+  .info-clause li::before { content: ""; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: #6a6a6a; }
+  .info-clause .small-link { margin-top: 4px; }
+  @media (max-width: 1020px) {
+    .info-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .info-doc { padding: 2px 18px 10px; }
+    .info-sources tbody th[scope="row"] { white-space: normal; min-width: 120px; }
+  }
+
+  /* ---------- 404 and error pages (StatusPage) ---------- */
+  .status-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 32px 16px; background: var(--color-bg); }
+  .status-card { width: 100%; max-width: 440px; text-align: center; animation: rise-in 0.5s var(--ease-out) both; }
+  .status-logo { display: inline-block; margin-bottom: 30px; opacity: 0.92; transition: opacity 0.15s; }
+  .status-logo:hover { opacity: 1; }
+  .status-logo img { width: 112px; height: auto; }
+  .status-code { font-size: 10px; letter-spacing: 0.22em; color: #6f6f6f; font-variant-numeric: tabular-nums; }
+  .status-card h1 { margin-top: 10px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: #f2f2f2; }
+  .status-text { margin: 12px auto 0; max-width: 360px; font-size: 12px; line-height: 1.7; color: #8f8f8f; }
+  .status-text code { font-size: 10px; color: #6f6f6f; }
+  .status-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .status-actions .button.primary { background: #f2f2f2; border-color: #f2f2f2; color: #0b0b0b; font-weight: 500; }
+  .status-actions .button.primary:hover { background: #ffffff; border-color: #ffffff; }
+  .page-error { margin-top: 10px; padding: 36px 24px 32px; text-align: center; }
+  .page-error h1 { margin-top: 10px; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: #f2f2f2; }
+  .page-error > p:not(.status-code) { margin: 10px auto 0; max-width: 440px; font-size: 12px; line-height: 1.7; color: #8f8f8f; }
+  .page-error .page-error-ref code { font-size: 10px; color: #6f6f6f; }
+
   /* ---------- precedents: the target banks' DCFs (PrecedentsDcf) ---------- */
   .dcf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid #1a1a1a; }
   .dcf-stats > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-right: 1px solid #1a1a1a; min-width: 0; }
@@ -1445,6 +1505,9 @@
   .table-underwriters { font-size: 9px; }
   .footer { margin: 0 16px; padding: 17px 0 20px; font-size: 8px; gap: 12px; }
   .footer button { font-size: 8px; white-space: nowrap; }
+  .footer { flex-direction: column; align-items: flex-start; }
+  .footer-links { gap: 14px; justify-content: flex-start; }
+  .footer-links a { white-space: nowrap; }
   .toast { left: 50%; font-size: 10px; }
   .modal-header { padding: 20px; }
   .modal-body { padding: 18px 20px 22px; }
@@ -1472,6 +1535,7 @@
    Controls at least ~34px tall so a thumb hits them (the desktop layout stays dense), and form fields at 16px:
    iOS Safari zooms the whole page into any field whose text is smaller. */
 @media (pointer: coarse) {
+  .footer-links a, .footer-links button { display: inline-block; padding: 9px 0; }
   .segmented { padding: 2px; }
   .segmented button { min-height: 32px; padding: 6px 11px; }
   .tool-icon { width: 36px; height: 36px; }
