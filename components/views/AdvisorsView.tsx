@@ -28,7 +28,9 @@ export function AdvisorsView() {
   // Rank follows the chosen sort across all advisors; filters only hide rows.
   const rows = useMemo(() => {
     const ranked = entries.map((e, i) => ({ e, valueRank: i + 1 }));
-    const sorted = sort === "value" ? ranked : [...ranked].sort((a, b) => b.e.dealCount - a.e.dealCount || b.e.dealValueUsd - a.e.dealValueUsd);
+    // Same order as the league table's own count ranking (lib/aggregate.ts), so its rank changes line up.
+    const sorted =
+      sort === "value" ? ranked : [...ranked].sort((a, b) => b.e.dealCount - a.e.dealCount || b.e.dealValueUsd - a.e.dealValueUsd || a.e.advisor.name.localeCompare(b.e.advisor.name));
     return sorted.map((r, i) => ({ ...r, rank: i + 1 }));
   }, [entries, sort]);
   const visibleRows = rows.filter(({ e }) => matchAdvisor(e, query.trim().toLowerCase()) && (!minDeals || e.dealCount >= Number(minDeals)));
@@ -117,13 +119,13 @@ export function AdvisorsView() {
             </thead>
             <tbody>
               {visibleRows.map(({ e, valueRank, rank }) => {
-                const change = e.rankChange;
-                const showChange = sort === "value" && change !== 0;
+                const change = sort === "value" ? e.rankChange : (e.dealCountRankChange ?? 0);
+                const showChange = change !== 0;
                 return (
                   <RowLink key={e.advisor.name} label={`${e.advisor.name} advisory activity`} onOpen={() => openAdvisor(e, valueRank)}>
                     <td className="table-date">
                       {String(rank).padStart(2, "0")}
-                      <span className={`rank-change ${showChange ? (change > 0 ? "up" : "down") : "muted"}`} aria-label={sort !== "value" ? "Prior rank shown for value ranking only" : change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}>
+                      <span className={`rank-change ${showChange ? (change > 0 ? "up" : "down") : "muted"}`} aria-label={change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}>
                         {showChange ? (
                           <>
                             <Icon name={change > 0 ? "arrow-up" : "arrow-down"} />
@@ -159,7 +161,7 @@ export function AdvisorsView() {
           <span>
             {data.leagueTable.period} · Through {formatDate(data.asOf.slice(0, 10))}
           </span>
-          <span>Rank change vs. prior quarter · value ranking only</span>
+          <span>Rank change vs. prior quarter · {sort === "value" ? "by deal value" : "by deal count"}</span>
         </div>
       </section>
       <AboutData>

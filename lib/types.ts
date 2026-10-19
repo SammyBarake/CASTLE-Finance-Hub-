@@ -232,8 +232,10 @@ export interface LeagueTableEntry {
   advisor: Advisor;
   dealCount: number;
   dealValueUsd: number;
-  /** Positions gained (+) or lost (-) versus the prior period. */
+  /** Positions gained (+) or lost (-) versus the prior period, ranked by deal value. */
   rankChange: number;
+  /** The same when ranked by deal count (the Advisors page can rank either way). */
+  dealCountRankChange?: number;
 }
 
 export interface LeagueTable {

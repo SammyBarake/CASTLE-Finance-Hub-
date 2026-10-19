@@ -11,7 +11,11 @@ import { SECTORS, type ActivistStake, type Deal, type HubData, type Ipo, type Le
 const MONTHS = 24;
 const MAX_MONTHS = 72;
 const QUARTERS = 8;
-const LEAGUE_SIZE = 30;
+/**
+ * Every advisor credited this year (about 60). The Advisors page can rank by deal count as well as value, and a cut at
+ * the top 30 by value hid banks with many smaller mandates from the count ranking (Raymond James, TD Cowen).
+ */
+const LEAGUE_SIZE = 200;
 /**
  * Caps on what ships to the browser (the screener filters client-side). Aggregates use everything.
  * Heavy per-deal detail (fairness opinions) is left out and loaded on demand from /api/deal/[id].
@@ -107,14 +111,20 @@ export function leagueTable(deals: Deal[], asOf: string, shortName: (name: strin
   const current = rankAdvisors(ytd);
   const prior = q > 0 ? rankAdvisors(ytd.filter((d) => d.announcedDate <= priorQuarterEnd)) : [];
   const priorRank = new Map(prior.map(([name], i) => [name, i + 1]));
+  // The same two snapshots ranked by deal count, so the rank change follows whichever ranking the page shows.
+  const byCount = (rows: ReturnType<typeof rankAdvisors>) => [...rows].sort((a, b) => b[1].count - a[1].count || b[1].value - a[1].value || a[0].localeCompare(b[0]));
+  const countRank = new Map(byCount(current).map(([name], i) => [name, i + 1]));
+  const priorCountRank = new Map(byCount(prior).map(([name], i) => [name, i + 1]));
 
   const entries: LeagueTableEntry[] = current.slice(0, LEAGUE_SIZE).map(([name, s], i) => {
     const before = priorRank.get(name);
+    const beforeByCount = priorCountRank.get(name);
     return {
       advisor: { name, shortName: shortName(name) },
       dealCount: s.count,
       dealValueUsd: s.value,
       rankChange: before ? before - (i + 1) : 0,
+      dealCountRankChange: beforeByCount ? beforeByCount - countRank.get(name)! : 0,
     };
   });
   return { period: `${year} YTD`, entries };

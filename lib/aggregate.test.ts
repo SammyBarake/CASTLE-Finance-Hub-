@@ -106,6 +106,24 @@ describe("leagueTable", () => {
     expect(t.entries[0]).toMatchObject({ dealCount: 2, dealValueUsd: 7e9, rankChange: 1 });
     expect(t.entries[1].rankChange).toBe(-1);
   });
+
+  it("gives a rank change by deal count too, and keeps banks outside the top 30 by value", () => {
+    const deals = [
+      // Q1: Lazard's one big deal leads on value; Houlihan's two small ones lead on count.
+      deal({ announcedDate: "2026-02-01", valueUsd: 9e9, targetAdvisors: ["Lazard"] }),
+      deal({ announcedDate: "2026-02-15", valueUsd: 1e8, targetAdvisors: ["Houlihan Lokey"] }),
+      deal({ announcedDate: "2026-03-01", valueUsd: 1e8, targetAdvisors: ["Houlihan Lokey"] }),
+      // Q3: Lazard adds three deals and passes Houlihan on count.
+      ...[1, 2, 3].map((n) => deal({ announcedDate: `2026-08-0${n}`, valueUsd: 1e9, acquirerAdvisors: ["Lazard"] })),
+      // 30 one-deal banks worth more than Houlihan's deals.
+      ...Array.from({ length: 30 }, (_, i) => deal({ announcedDate: "2026-07-10", valueUsd: 5e8, acquirerAdvisors: [`Bank ${i}`] })),
+    ];
+    const t = leagueTable(deals, "2026-09-25", (n) => n.slice(0, 2));
+    const houlihan = t.entries.find((e) => e.advisor.name === "Houlihan Lokey");
+    expect(t.entries.indexOf(houlihan!)).toBe(31); // 32nd by value: still in the table
+    expect(houlihan).toMatchObject({ dealCount: 2, dealCountRankChange: -1 }); // 1st → 2nd by count
+    expect(t.entries.find((e) => e.advisor.name === "Lazard")?.dealCountRankChange).toBe(1); // 2nd → 1st
+  });
 });
 
 describe("sectorValuations", () => {

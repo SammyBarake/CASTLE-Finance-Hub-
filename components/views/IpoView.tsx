@@ -30,18 +30,22 @@ export function IpoView() {
   const reset = <T,>(set: (v: T) => void) => (v: T) => (set(v), setShown(TABLE_PAGE));
 
   const banks = useMemo(() => [...new Set(data.ipos.flatMap((i) => i.underwriters))].sort(), [data.ipos]);
-  const rows = useMemo(() => {
+  // The underwriter / sector / size filters; the stage tabs count within them, so a filtered list's tabs add up.
+  const filtered = useMemo(() => {
     const min = minRaise ? Number(minRaise) * 1e6 : null;
-    return data.ipos
-      .filter(
-        (i) =>
-          (stage === "all" || i.stage === stage) &&
-          (sector === "all" || i.sector === sector) &&
-          (bank === "all" || i.underwriters.includes(bank)) &&
-          (min == null || (i.expectedRaiseUsd ?? 0) >= min),
-      )
-      .sort((a, b) => (sort === "raise" ? (b.expectedRaiseUsd ?? -1) - (a.expectedRaiseUsd ?? -1) : b.filedDate.localeCompare(a.filedDate)));
-  }, [data.ipos, stage, sector, bank, minRaise, sort]);
+    return data.ipos.filter(
+      (i) => (sector === "all" || i.sector === sector) && (bank === "all" || i.underwriters.includes(bank)) && (min == null || (i.expectedRaiseUsd ?? 0) >= min),
+    );
+  }, [data.ipos, sector, bank, minRaise]);
+  const rows = useMemo(
+    () =>
+      filtered
+        .filter((i) => stage === "all" || i.stage === stage)
+        .sort((a, b) => (sort === "raise" ? (b.expectedRaiseUsd ?? -1) - (a.expectedRaiseUsd ?? -1) : b.filedDate.localeCompare(a.filedDate))),
+    [filtered, stage, sort],
+  );
+  const tabCount = (s: IpoStage | "all") => (s === "all" ? filtered.length : filtered.filter((i) => i.stage === s).length);
+  // The KPIs summarise the whole pipeline, whatever the table shows.
   const filed = data.ipos.filter((i) => i.stage === "Filed");
   const count = (s: IpoStage) => data.ipos.filter((i) => i.stage === s).length;
 
@@ -72,7 +76,7 @@ export function IpoView() {
           {(["all", ...IPO_STAGES] as const).map((s) => (
             <button key={s} type="button" className="tab" aria-pressed={stage === s} onClick={() => reset(setStage)(s)}>
               {s === "all" ? "All companies" : s}
-              <span>{s === "all" ? data.ipos.length : count(s)}</span>
+              <span>{tabCount(s)}</span>
             </button>
           ))}
         </div>
