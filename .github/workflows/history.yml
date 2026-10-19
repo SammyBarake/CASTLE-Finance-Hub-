@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   history:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned, like ci.yml
     timeout-minutes: 60
     env:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
