@@ -12,6 +12,7 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { auditDeal, auditIpo, duplicateDeals, type Finding } from "./audit-rules";
+import { withRetry } from "./store";
 import type { Deal, Ipo } from "../lib/types";
 
 async function load(): Promise<{ deals: Deal[]; ipos: Ipo[]; asOf: string }> {
@@ -23,17 +24,23 @@ async function load(): Promise<{ deals: Deal[]; ipos: Ipo[]; asOf: string }> {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Set NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY, or pass --local");
   const db = createClient(url, key, { auth: { persistSession: false } });
+  // Network blips are retried like the ingest's own reads: one used to fail the daily monitor with a bare "exit code 1".
   const all = async <T,>(table: string): Promise<T[]> => {
     const out: T[] = [];
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await db.from(table).select("data").range(from, from + 999);
-      if (error) throw new Error(error.message);
+      const data = await withRetry(`select ${table}`, () => db.from(table).select("data").range(from, from + 999));
       out.push(...(data ?? []).map((r) => r.data as T));
       if (!data || data.length < 1000) return out;
     }
   };
-  const [deals, ipos, meta] = await Promise.all([all<Deal>("deals"), all<Ipo>("ipos"), db.from("meta").select("value").eq("key", "asOf").maybeSingle()]);
-  return { deals, ipos, asOf: (meta.data?.value as string) ?? new Date().toISOString() };
+  const [deals, ipos, meta] = await Promise.all([
+    all<Deal>("deals"),
+    all<Ipo>("ipos"),
+    withRetry("select meta", () => db.from("meta").select("value").eq("key", "asOf").maybeSingle()),
+  ]);
+  // No stored date is a failure, never "now": the freshness check must not pass when it can't tell.
+  if (typeof meta?.value !== "string") throw new Error("the database has no asOf date in meta");
+  return { deals, ipos, asOf: meta.value };
 }
 
 const numberArg = (name: string) => {
@@ -73,5 +80,7 @@ Data age: ${ageHours.toFixed(1)} hours.`);
 
 main().catch((err) => {
   console.error(err);
+  // Says why in the failure email, not just "Process completed with exit code 1".
+  console.log(`::error::The audit could not run: ${(err as Error).message}`);
   process.exit(1);
 });

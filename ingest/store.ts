@@ -109,7 +109,7 @@ const PAGE = 1000;
 const TRANSIENT = /issued at future|fetch failed|timeout|timed out|ECONNRESET|ETIMEDOUT|socket|gateway|503|502|504|upstream/i;
 
 /** Run a Supabase call, retrying transient failures for up to ~3.5 minutes (10s, 20s, 40s, 60s, 80s). */
-async function withRetry<T>(label: string, call: () => PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
+export async function withRetry<T>(label: string, call: () => PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
   const waits = [10, 20, 40, 60, 80];
   for (let attempt = 0; ; attempt++) {
     let message: string;
