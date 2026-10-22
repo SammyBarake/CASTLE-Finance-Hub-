@@ -95,7 +95,7 @@ export function AboutView() {
             <li>
               <strong>Read</strong>
               <p>
-                Every hour on weekdays, and every six hours otherwise, Castle searches SEC EDGAR for new filings: deal press releases, merger 8-Ks, merger proxies and
+                Several times a day, most often during the U.S. business day, Castle searches SEC EDGAR for new filings: deal press releases, merger 8-Ks, merger proxies and
                 tender offers, IPO registrations and prospectuses, and Schedule 13Ds.
               </p>
             </li>
