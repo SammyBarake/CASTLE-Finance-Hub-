@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
-  preloadHubData(); // this page needs the full dataset before it can show anything
+  preloadHubData({ details: true }); // this page needs the dataset and its details before it can show anything
   const { id } = await params;
   return <CompanyView id={decodeURIComponent(id)} />;
 }

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { buildVolumeMatrix, headlineFigures, ytdSummary, type VolumeMatrix, type YtdSummary } from "@/lib/metrics";
 import type { HubData } from "@/lib/types";
+import { expandCore, withDetails, type HubDetails, type WireCore } from "@/lib/wire";
 
 /** How often an open tab asks whether the database has newer data. */
 const CHECK_EVERY_MS = 30_000;
@@ -24,8 +25,10 @@ export interface Freshness {
 
 interface HubDataValue {
   data: HubData;
-  /** False until the full dataset has loaded (pages outside BOOT_READY show a skeleton until then). */
+  /** False until the dataset's core has loaded (pages outside BOOT_READY show a skeleton until then). */
   ready: boolean;
+  /** The second download (per-deal details, activists, fees: lib/wire.ts) has arrived too (NEEDS_DETAILS pages wait for it). */
+  detailsReady: boolean;
   /** Set when the dataset could not be loaded after retries. */
   loadError: string | null;
   /** Fetch the dataset again, bypassing caches (a retry). */
@@ -44,14 +47,22 @@ const NO_IDS: ReadonlySet<string> = new Set();
 
 // Kept outside React so it survives anything that remounts the provider during a visit.
 let memory: HubData | null = null;
+let memoryDetails: HubDetails | null = null;
 let lastUpdateAt = 0;
 /** True for a moment after new data arrived from the server (figures then flash up / down as they count). */
 export const isLiveUpdate = () => Date.now() - lastUpdateAt < 2500;
 
+// Plain fetches matching preloadHubData()'s preloads, so a preloaded response is picked up.
 async function fetchHub(bust: boolean): Promise<HubData> {
   const res = await fetch(bust ? `/api/hub?t=${Date.now()}` : "/api/hub", { cache: bust ? "no-store" : "default" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as HubData;
+  return expandCore((await res.json()) as WireCore);
+}
+
+async function fetchDetails(bust: boolean): Promise<HubDetails> {
+  const res = await fetch(bust ? `/api/hub/details?t=${Date.now()}` : "/api/hub/details", { cache: bust ? "no-store" : "default" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as HubDetails;
 }
 
 /**
@@ -66,6 +77,7 @@ async function fetchHub(bust: boolean): Promise<HubData> {
  */
 export function HubDataProvider({ data: boot, children }: { data: HubData; children: ReactNode }) {
   const [full, setFull] = useState<HubData | null>(memory && memory.asOf >= boot.asOf ? memory : null);
+  const [details, setDetails] = useState<HubDetails | null>(full ? memoryDetails : null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<Freshness>({ checkedAt: null, checking: false, freshIds: NO_IDS, updatedAt: null });
   const loading = useRef(false);
@@ -87,12 +99,28 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
     }
   }, []);
 
+  // The details follow the core (in the background: list pages don't wait for them).
+  const loadDetails = useCallback(async (bust: boolean) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const next = await fetchDetails(bust || attempt > 0);
+        memoryDetails = next;
+        setDetails(next);
+        return;
+      } catch (err) {
+        if (attempt === 2) setLoadError((err as Error).message);
+        else await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
+  }, []);
+
   const load = useCallback(
     async (bust: boolean) => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const next = await fetchHub(bust || attempt > 0);
           apply(next);
+          void loadDetails(bust || attempt > 0);
           return next.asOf;
         } catch (err) {
           if (attempt === 2) setLoadError((err as Error).message);
@@ -101,7 +129,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
       }
       return null;
     },
-    [apply],
+    [apply, loadDetails],
   );
 
   // First load.
@@ -158,7 +186,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
     return () => clearTimeout(t);
   }, [freshness.freshIds]);
 
-  const data = full ?? boot;
+  const data = useMemo(() => (full ? withDetails(full, details) : boot), [full, details, boot]);
   const value = useMemo(() => {
     // The data's own month is still in progress: shown, but marked and kept out of month-on-month comparisons.
     const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf ? data.asOf.slice(0, 7) : null);
@@ -167,6 +195,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
     return {
       data,
       ready: !!full,
+      detailsReady: !!full && !!details,
       loadError,
       reload: () => load(true),
       freshness,
@@ -177,7 +206,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
       premiumSample: headline.premiumSample,
       ipoSummary: { filedCount: headline.ipoFiledCount, expectedRaiseUsd: headline.ipoExpectedRaiseUsd },
     };
-  }, [data, full, loadError, load, freshness]);
+  }, [data, full, details, loadError, load, freshness]);
   return <HubDataContext.Provider value={value}>{children}</HubDataContext.Provider>;
 }
 

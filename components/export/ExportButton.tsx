@@ -28,8 +28,8 @@ export function ExportButton({
 }) {
   const { openMenu, openDialog, toast } = useUi();
   // Pages that show before the full dataset (BOOT_READY) must not export the few rows they have so far.
-  const { ready } = useHubData();
-  const whenReady = (fn: () => void) => () => (ready ? fn() : toast("The data is still loading. Try again in a moment."));
+  const { detailsReady } = useHubData();
+  const whenReady = (fn: () => void) => () => (detailsReady ? fn() : toast("The data is still loading. Try again in a moment."));
   const openLive = () => {
     const spec = live?.();
     if (!spec) return toast("No live link for this view.");

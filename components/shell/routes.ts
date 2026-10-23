@@ -88,6 +88,13 @@ export const INFO_ROUTES = [
  */
 export const BOOT_READY: ReadonlySet<string> = new Set(["hub", "deal-volume", "advisors", "world-economies", "what-if-accuracy", "terms", "privacy"]);
 
+/**
+ * Pages that are mostly the dataset's details (lib/wire.ts: deal protections, filing milestones, buyer reactions,
+ * the banks' DCFs, activist stakes, fees): they wait for the second download as well. Pages with only a section of
+ * details show it loading instead (Valuations' "Did buyers win?", Precedents' DCFs, Advisors' fees).
+ */
+export const NEEDS_DETAILS: ReadonlySet<string> = new Set(["deal-terms", "timelines", "activists", "coverage", "company"]);
+
 /** The page for a path: the longest matching href wins, so "/what-if/accuracy" isn't taken for "/what-if". */
 export const routeForPath = (path: string): { id: string; title: string; section: SectionId | null } =>
   path.startsWith("/company/")

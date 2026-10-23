@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { AboutData, CompanyMark, Kpi, Kpis, PanelHead, Takeaways } from "@/components/ui/primitives";
+import { AboutData, CompanyMark, Kpi, Kpis, PanelHead, SectionLoading, Takeaways } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { bankShortName } from "@/lib/banks";
 import { feeInsights, feeLeague, feeRecords, feesBySize, formatBps } from "@/lib/fees";
@@ -14,7 +14,7 @@ const PAGE = 15;
 
 /** "Fees earned" view of the Advisors page: disclosed advisory fees from merger-proxy fairness opinions. */
 export function AdvisorFees() {
-  const { data } = useHubData();
+  const { data, detailsReady } = useHubData();
   const { openDeal, openAdvisorByName } = useDetails();
   const records = useMemo(() => feeRecords(data.fees ?? [], data.deals), [data.fees, data.deals]);
   const league = useMemo(() => feeLeague(records), [records]);
@@ -23,6 +23,7 @@ export function AdvisorFees() {
   const paydays = useMemo(() => [...records].sort((a, b) => b.feeUsd - a.feeUsd), [records]);
   const [shown, setShown] = useState(PAGE);
 
+  if (!detailsReady) return <SectionLoading title="Fee league table" />; // fees come with the details
   if (!records.length) {
     return (
       <section className="panel">

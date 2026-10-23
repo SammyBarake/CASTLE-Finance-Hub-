@@ -6,6 +6,6 @@ export const metadata: Metadata = { title: "Deal Terms · Castle" };
 export const revalidate = 900;
 
 export default function Page() {
-  preloadHubData(); // this page needs the full dataset before it can show anything
+  preloadHubData({ details: true }); // this page needs the dataset and its details before it can show anything
   return <DealTermsView />;
 }

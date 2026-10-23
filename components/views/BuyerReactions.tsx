@@ -3,7 +3,7 @@
 import { Fragment, useMemo } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
-import { PanelHead } from "@/components/ui/primitives";
+import { PanelHead, SectionLoading } from "@/components/ui/primitives";
 import { formatSignedPct, formatUsd } from "@/lib/format";
 import { MIN_GROUP, reactionInsights, reactionSummary, type ReactionGroup } from "@/lib/reactions";
 import type { Deal } from "@/lib/types";
@@ -51,10 +51,11 @@ function DealList({ title, deals, onOpen }: { title: string; deals: Deal[]; onOp
 
 /** "Did buyers win?": listed acquirers' shares against the S&P 500 after they announced, by how they paid and what they bought. */
 export function BuyerReactions() {
-  const { data } = useHubData();
+  const { data, detailsReady } = useHubData();
   const { openDeal } = useDetails();
   const s = useMemo(() => reactionSummary(data.deals), [data.deals]);
   const notes = useMemo(() => reactionInsights(s), [s]);
+  if (!detailsReady) return <SectionLoading title="Did buyers win?" />; // share reactions come with the details
   if (s.all.count < MIN_GROUP) return null;
   return (
     <section className="panel buyer-panel" aria-label="Did buyers win?">

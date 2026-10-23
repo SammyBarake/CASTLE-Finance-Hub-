@@ -7,6 +7,8 @@ import { preload } from "react-dom";
  * render from the boot copy and fetch it after hydration instead: a preload there competes with the page's own
  * first paint on a slow phone, and Lighthouse counts it against the largest paint.
  */
-export function preloadHubData() {
+export function preloadHubData(opts: { details?: boolean } = {}) {
   preload("/api/hub", { as: "fetch", crossOrigin: "anonymous" });
+  // The NEEDS_DETAILS pages fetch the second download (lib/wire.ts) alongside the core rather than after it.
+  if (opts.details) preload("/api/hub/details", { as: "fetch", crossOrigin: "anonymous" });
 }

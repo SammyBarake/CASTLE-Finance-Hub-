@@ -53,7 +53,7 @@ export function dealsToCsv(deals: Deal[], isSample: boolean): string {
 }
 
 export function downloadCsv(csv: string, filename: string) {
-  const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
+  const url = URL.createObjectURL(new Blob([String.fromCharCode(0xfeff) + csv], { type: "text/csv;charset=utf-8;" }));
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;

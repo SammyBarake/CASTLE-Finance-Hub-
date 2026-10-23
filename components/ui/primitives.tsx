@@ -198,6 +198,20 @@ export function PageHeading({
   );
 }
 
+/** A panel whose data is still on its way (the dataset's details, lib/wire.ts): its title and a soft shimmer. */
+export function SectionLoading({ title }: { title: string }) {
+  return (
+    <section className="panel" aria-busy="true">
+      <PanelHead title={title} subtitle="Loading…" />
+      <div className="section-loading">
+        <i className="sk" />
+        <i className="sk" />
+        <i className="sk" />
+      </div>
+    </section>
+  );
+}
+
 /** A slim strip of short, number-led findings under a page's KPIs. */
 export function Takeaways({ items, label = "Key takeaways" }: { items: string[]; label?: string }) {
   if (!items.length) return null;

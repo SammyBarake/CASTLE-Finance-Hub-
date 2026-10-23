@@ -13,7 +13,7 @@ import { BrandLogo } from "./BrandLogo";
 import { AccountButton } from "@/components/account/AccountButton";
 import { GlobalSearch } from "./GlobalSearch";
 import { reportIssueUrl } from "@/lib/site";
-import { BOOT_READY, routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
+import { BOOT_READY, NEEDS_DETAILS, routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
 import { LiveStatus } from "./LiveStatus";
 import { NavigationProgress } from "./NavigationProgress";
 import { PageSkeleton } from "./PageSkeleton";
@@ -21,7 +21,7 @@ import { SectionTabs } from "./SectionTabs";
 
 /** Sidebar, top bar and footer around every page. */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data, ready, loadError, reload } = useHubData();
+  const { data, ready, detailsReady, loadError, reload } = useHubData();
   const { openDefinitions } = useDetails();
   const { openMenu } = useUi();
   const ws = useWorkspace();
@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const route = routeForPath(pathname);
   // Pages built from the boot copy show at once (rendered on the server, so they appear with the HTML); the rest
   // wait behind the skeleton for the full dataset.
-  const showPage = ready || BOOT_READY.has(route.id);
+  const showPage = (ready || BOOT_READY.has(route.id)) && (detailsReady || !NEEDS_DETAILS.has(route.id));
   const section = sectionOf(route.section);
   const [menuOpen, setMenuOpen] = useState(false);
   // The tab last open in each section, so the sidebar link returns to it.

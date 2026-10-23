@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { INFO_ROUTES, ROUTES } from "../components/shell/routes";
 import { companyHref, hasCompanyPage } from "../lib/companies";
 import type { Deal } from "../lib/types";
+import { expandCore, type WireCore } from "../lib/wire";
 
 /**
  * Every page loads its data and renders without errors, at desktop and phone width. A failure here means a page is
@@ -48,7 +49,7 @@ for (const width of [1366, 375]) {
 
 test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   const errors = watchErrors(page);
-  const hub = await (await request.get("/api/hub")).json();
+  const hub = expandCore((await (await request.get("/api/hub")).json()) as WireCore);
   // Any deal whose target has a company page (live data has CIKs; CI's sample data has names only).
   const deal = (hub.deals as Deal[]).find((d) => hasCompanyPage(d.target));
   expect(deal, "a deal whose target has a company page").toBeTruthy();
@@ -111,8 +112,10 @@ test("an unknown address gets the Castle 404 page", async ({ page }) => {
 });
 
 test("data feed, freshness, sitemap, robots and preview image", async ({ request }) => {
-  const hub = await (await request.get("/api/hub")).json();
+  const hub = expandCore((await (await request.get("/api/hub")).json()) as WireCore);
   expect(hub.deals.length, "deals in the feed").toBeGreaterThan(0);
+  const details = await (await request.get("/api/hub/details")).json();
+  expect(details.asOf, "details belong to the same dataset").toBe(hub.asOf);
   expect(Date.parse(hub.asOf), "asOf is a date").not.toBeNaN();
   expect((await request.get("/api/freshness")).ok()).toBe(true);
   expect(await (await request.get("/sitemap.xml")).text()).toContain("<urlset");

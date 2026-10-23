@@ -258,6 +258,10 @@
   .sk-label { width: 40%; height: 10px; }
   .sk-value { width: 65%; height: 26px; }
   .sk-note { width: 50%; height: 9px; }
+  .section-loading { display: grid; gap: 10px; padding: 0 19px 19px; }
+  .section-loading .sk { height: 12px; }
+  .section-loading .sk:nth-child(2) { width: 82%; }
+  .section-loading .sk:nth-child(3) { width: 61%; }
   .skeleton-panel { border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-panel); padding: 19px; display: grid; gap: 18px; }
   .skeleton-bars { height: 220px; display: flex; align-items: flex-end; gap: 14px; }
   .skeleton-bars .sk { flex: 1; border-radius: 3px 3px 0 0; }

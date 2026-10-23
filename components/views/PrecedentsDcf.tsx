@@ -2,7 +2,8 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { PanelHead } from "@/components/ui/primitives";
+import { useHubData } from "@/components/data/HubDataProvider";
+import { PanelHead, SectionLoading } from "@/components/ui/primitives";
 import { RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { formatPct, formatPrice, formatSignedPct } from "@/lib/format";
 import { dcfRows, summarizeDcf } from "@/lib/precedents";
@@ -19,9 +20,11 @@ const span = (r: [number, number] | null) => (r ? (r[0] === r[1] ? formatPct(r[0
  * the bank's DCF value per share, and the discount rate and terminal growth behind it.
  */
 export function PrecedentsDcf({ deals, onOpen }: { deals: Deal[]; onOpen: (d: Deal) => void }) {
+  const { detailsReady } = useHubData();
   const rows = useMemo(() => dcfRows(deals), [deals]);
   const stats = useMemo(() => summarizeDcf(rows), [rows]);
   const [shown, setShown] = useState(TABLE_PAGE);
+  if (!detailsReady) return <SectionLoading title="What the banks' DCFs said" />; // the DCFs come with the details
   if (!rows.length) return null;
   const vs = stats.vsMid.median;
 
