@@ -201,7 +201,8 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     ...(opts.withFairness && d.proxySections?.length ? { proxySections: d.proxySections } : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
     ...(d.terms ? { terms: d.terms } : {}),
-    ...(d.arb ? { arb: d.arb } : {}),
+    // Share prices come from Yahoo: the site shows only percentages derived from them, never the quotes themselves.
+    ...(d.arb ? { arb: { spreadPct: d.arb.spreadPct, asOf: d.arb.asOf } } : {}),
     ...(d.reaction ? { reaction: d.reaction } : {}),
     ...(d.privateTarget ? { privateTarget: true } : {}),
   };

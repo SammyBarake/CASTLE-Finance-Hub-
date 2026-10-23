@@ -159,7 +159,8 @@ export interface ValuationRange {
 
 /** Merger-arb spread: +2.1 = the target trades 2.1% below the offer. */
 export interface MergerArb {
-  priceUsd: number;
+  /** The target's close (Yahoo). Stored for the spread only; never sent to the browser, which shows percentages. */
+  priceUsd?: number;
   spreadPct: number;
   /** Date of the price. */
   asOf: string;

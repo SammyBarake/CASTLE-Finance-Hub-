@@ -6,6 +6,8 @@ describe("toPublicDeal", () => {
   it("keeps the internal value type out of the browser feed", () => {
     const pub = toPublicDeal({ ...deal({}), valueKind: "equity" });
     expect("valueKind" in pub).toBe(false);
+    // Yahoo quotes stay server-side; the browser gets the spread only.
+    expect(toPublicDeal({ ...deal({}), arb: { priceUsd: 45.68, spreadPct: 4, asOf: "2026-10-21" } }).arb).toEqual({ spreadPct: 4, asOf: "2026-10-21" });
   });
 
   it("keeps only the first filing in the feed, all of them in the full record", () => {

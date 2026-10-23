@@ -232,7 +232,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
                 {formatPct(deal.arb.spreadPct)}
                 <small className="dim">
                   {" "}
-                  · target at {formatPrice(deal.arb.priceUsd)}, {formatDateLong(deal.arb.asOf)}
+                  · target&apos;s close against the offer, {formatDateLong(deal.arb.asOf)}
                 </small>
               </DetailItem>
             )}
