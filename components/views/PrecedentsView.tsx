@@ -112,6 +112,13 @@ function Precedents({ dealId }: { dealId: string | null }) {
             : null
         }
         exportLabel="Export the comps table"
+        live={() => {
+          const query = new URLSearchParams(encodeState(screen, DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+          if (dealId) query.set("deal", dealId);
+          if (excluded.size) query.set("x", [...excluded].join(","));
+          const q = query.toString();
+          return { path: `/api/live/precedents.csv${q ? `?${q}` : ""}`, note: excluded.size ? "The outliers you unticked stay out of the sheet too." : undefined };
+        }}
         extra={
           <>
             <CopyLinkButton label="Copy a link to this precedent set" />

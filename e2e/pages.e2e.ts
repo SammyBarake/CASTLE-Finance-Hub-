@@ -119,4 +119,12 @@ test("data feed, freshness, sitemap, robots and preview image", async ({ request
   expect(await (await request.get("/robots.txt")).text()).toContain("Sitemap:");
   const og = await request.get("/opengraph-image");
   expect(og.headers()["content-type"]).toContain("image/png");
+  // Live data links for Excel / Google Sheets: CSV with a header row and the page's filters applied.
+  for (const path of ["/api/live/deals.csv?sort=value", "/api/live/precedents.csv?withMultiples=0", "/api/live/league.csv", "/api/live/ipos.csv"]) {
+    const res = await request.get(path);
+    expect(res.headers()["content-type"], path).toContain("text/csv");
+    const lines = (await res.text()).trim().split(/\r?\n/);
+    expect(lines.length, `${path} rows`).toBeGreaterThan(1);
+  }
+  expect((await request.get("/api/live/deals.csv")).headers()["x-robots-tag"]).toBe("noindex");
 });

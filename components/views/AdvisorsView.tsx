@@ -55,6 +55,14 @@ export function AdvisorsView() {
         title="Advisors"
         subtitle={view === "deals" ? `U.S. M&A league table · ${data.leagueTable.period}` : "Advisory fees disclosed in merger proxies"}
         onExport={view === "deals" ? exportRows : undefined}
+        live={
+          view === "deals"
+            ? () => ({
+                path: `/api/live/league.csv${sort === "deals" ? "?sort=deals" : ""}`,
+                note: query.trim() || minDeals ? "The search and minimum-deals filters aren't part of the link: the sheet has every ranked advisor." : undefined,
+              })
+            : undefined
+        }
         excel={
           view === "deals"
             ? () =>

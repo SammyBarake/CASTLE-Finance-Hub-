@@ -68,6 +68,16 @@ export function IpoView() {
         title="IPO Pipeline"
         subtitle={`U.S. public offerings · ${monthYear(data.asOf)}`}
         onExport={exportRows}
+        live={() => {
+          const query = new URLSearchParams();
+          if (stage !== "all") query.set("stage", stage);
+          if (sector !== "all") query.set("sector", sector);
+          if (bank !== "all") query.set("bank", bank);
+          if (minRaise) query.set("min", minRaise);
+          if (sort === "raise") query.set("sort", "raise");
+          const q = query.toString();
+          return { path: `/api/live/ipos.csv${q ? `?${q}` : ""}` };
+        }}
         excel={() =>
           rows.length
             ? iposWorkbook(rows, exportContext(data), {

@@ -4,6 +4,7 @@ import { sectorColor } from "@/lib/sectors";
 import type { DealStatus, IpoStage, Sector } from "@/lib/types";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { ExportButton } from "@/components/export/ExportButton";
+import type { LiveLinkSpec } from "@/components/export/LiveLink";
 import type { WorkbookSpec } from "@/lib/excel/spec";
 import { Icon } from "./Icon";
 
@@ -168,6 +169,7 @@ export function PageHeading({
   excel,
   exportLabel,
   extra,
+  live,
 }: {
   title: string;
   subtitle: string;
@@ -177,6 +179,8 @@ export function PageHeading({
   excel?: () => WorkbookSpec | null;
   exportLabel?: string;
   extra?: ReactNode;
+  /** The live data link (Export menu → Live link for Excel / Sheets). */
+  live?: () => LiveLinkSpec | null;
 }) {
   return (
     <div className="page-heading">
@@ -188,7 +192,7 @@ export function PageHeading({
       </div>
       <div className="head-tools">
         {extra}
-        {(onExport || excel) && <ExportButton title={title} onCsv={onExport} excel={excel} label={exportLabel} />}
+        {(onExport || excel) && <ExportButton title={title} onCsv={onExport} excel={excel} live={live} label={exportLabel} />}
       </div>
     </div>
   );

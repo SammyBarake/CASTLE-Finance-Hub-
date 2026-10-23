@@ -51,6 +51,7 @@ export function SharedBookView({ id, book }: { id: string; book: SharedBook }) {
         onExport={live.length ? () => downloadCsv(dealsToCsv(live, data.isSample), `Castle_Deal_book_${book.title.replace(/[^\w.-]+/g, "_")}.csv`) : undefined}
         excel={rows.length ? () => bookWorkbook(book, rows, exportContext(data)) : undefined}
         exportLabel="Export this deal book"
+        live={() => ({ path: `/api/live/book/${id}.csv`, note: "The deals, thesis and comments follow the author's latest edits; the figures follow Castle's data." })}
         extra={
           <>
             <button type="button" className="button" onClick={copyLink}>

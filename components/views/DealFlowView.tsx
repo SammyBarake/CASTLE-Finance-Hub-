@@ -191,6 +191,13 @@ export function DealFlowView() {
         title="Deal Flow"
         subtitle={`Announced U.S. M&A · ${data.isSample ? "Transaction details" : "From SEC filings"}`}
         onExport={() => exportRows(rows)}
+        live={() => {
+          const query = encodeState(screen, DEFAULT_SCREEN, DEAL_SCREEN_SPEC);
+          return {
+            path: `/api/live/deals.csv${query ? `?${query}` : ""}`,
+            note: screen.watchOnly ? "Your watchlist filter isn't part of the link (it's yours, not the screen's): the sheet lists every deal matching the other filters." : undefined,
+          };
+        }}
         excel={() =>
           rows.length
             ? dealsWorkbook(rows, exportContext(data), {

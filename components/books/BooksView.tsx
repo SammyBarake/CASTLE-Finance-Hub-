@@ -55,6 +55,7 @@ export function BooksView() {
         }
         excel={book && rows.length ? () => bookWorkbook(book, rows, exportContext(data)) : undefined}
         exportLabel="Export this deal book"
+        live={book?.shareId ? () => ({ path: `/api/live/book/${book.shareId}.csv`, note: "This is the shared book's link: it follows your edits to the book within a minute or so." }) : undefined}
         extra={
           <button type="button" className="button" onClick={newBook}>
             <Icon name="book" />
