@@ -2,7 +2,7 @@
  * Derived figures shown on the hub (KPIs, momentum, medians).
  * Pure functions over HubData so they work unchanged on real data.
  */
-import type { Deal, HubData, Ipo, MonthlySectorVolume, Sector, SectorValuation } from "./types";
+import type { Deal, Headline, HubData, Ipo, MonthlySectorVolume, Sector, SectorValuation } from "./types";
 import { SECTORS } from "./types";
 
 export type VolumeMetric = "value" | "count";
@@ -159,6 +159,13 @@ export const medianPremium = (deals: Deal[]) =>
 export function ipoPipelineSummary(ipos: Ipo[]) {
   const filed = ipos.filter((i) => i.stage === "Filed");
   return { filedCount: filed.length, expectedRaiseUsd: sum(filed.map((i) => i.expectedRaiseUsd ?? 0)) };
+}
+
+/** The Hub's list-based figures (deals newest first): the boot copy carries these instead of the lists. */
+export function headlineFigures(deals: Deal[], ipos: Ipo[]): Headline {
+  const priced = deals.filter((d) => d.premiumPct != null).slice(0, 25);
+  const pipeline = ipoPipelineSummary(ipos);
+  return { medianPremiumPct: medianPremium(priced), premiumSample: priced.length, ipoFiledCount: pipeline.filedCount, ipoExpectedRaiseUsd: pipeline.expectedRaiseUsd };
 }
 
 export type ValuationMetric = "evEbitda" | "evRevenue" | "premium";

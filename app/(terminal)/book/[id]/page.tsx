@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SharedBookView } from "@/components/books/SharedBookView";
 import { getSharedBook } from "@/lib/data";
+import { preloadHubData } from "@/components/data/preloadHubData";
 
 // Edits by the author show up within a minute; each shared book is rendered on its first visit, then cached.
 export const revalidate = 60;
@@ -30,6 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
+  preloadHubData(); // this page needs the full dataset before it can show anything
   const { id } = await params;
   const book = await getSharedBook(id);
   if (!book) notFound();

@@ -80,6 +80,14 @@ export const INFO_ROUTES = [
   { id: "privacy", href: "/privacy", title: "Privacy", tab: "Privacy", section: null },
 ] as const;
 
+/**
+ * Pages drawn entirely from the boot copy (aggregates, the newest few deals and IPOs, the Hub's headline figures:
+ * `bootHubData`): they show with the server's HTML instead of waiting for /api/hub, which on a phone is the
+ * difference between content at ~2 s and at ~6 s. A page that lists or counts deals, IPOs, stakes or fees must not
+ * be here (it would show empty, then jump).
+ */
+export const BOOT_READY: ReadonlySet<string> = new Set(["hub", "deal-volume", "advisors", "world-economies", "what-if-accuracy", "terms", "privacy"]);
+
 /** The page for a path: the longest matching href wins, so "/what-if/accuracy" isn't taken for "/what-if". */
 export const routeForPath = (path: string): { id: string; title: string; section: SectionId | null } =>
   path.startsWith("/company/")

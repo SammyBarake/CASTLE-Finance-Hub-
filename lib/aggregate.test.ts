@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
+import { BOOT_LIST_SIZE, bootHubData, buildHubData, leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
+import { headlineFigures } from "./metrics";
 import type { Deal } from "./types";
 
 describe("toPublicDeal", () => {
@@ -47,6 +48,20 @@ const deal = (over: Partial<Deal>): Deal => ({
   targetAdvisors: [],
   filings: [],
   ...over,
+});
+
+describe("bootHubData", () => {
+  it("carries the newest few deals and the Hub's figures from the full lists, so the Hub shows the same numbers before the dataset arrives", () => {
+    const deals = Array.from({ length: 60 }, (_, i) =>
+      deal({ id: `d${i}`, announcedDate: `2026-${String(1 + (i % 9)).padStart(2, "0")}-${String(1 + (i % 27)).padStart(2, "0")}`, premiumPct: i % 3 ? 20 + i : null }),
+    );
+    const full = buildHubData({ deals, ipos: [], asOf: "2026-10-22T00:00:00Z", shortName: (n) => n });
+    const boot = bootHubData(full);
+    expect(boot.deals).toEqual(full.deals.slice(0, BOOT_LIST_SIZE));
+    expect(boot.headline).toEqual(headlineFigures(full.deals, full.ipos));
+    expect(boot.headline!.premiumSample).toBe(25);
+    expect(boot.activists).toEqual([]);
+  });
 });
 
 describe("monthlyVolume", () => {

@@ -344,4 +344,18 @@ export interface HubData {
   activists?: ActivistStake[];
   /** Advisory fees from fairness opinions, one row per bank per deal (computed from all deals). */
   fees?: FeeRow[];
+  /**
+   * The Hub's figures that come from the full lists, computed with them (`headlineFigures`), so the boot copy, which
+   * carries only the newest few deals and IPOs, shows the same numbers before the dataset arrives.
+   */
+  headline?: Headline;
+}
+
+export interface Headline {
+  /** Median premium over the newest 25 deals that disclose one, and how many that was. */
+  medianPremiumPct: number | null;
+  premiumSample: number;
+  /** Companies at the Filed stage and their expected raise. */
+  ipoFiledCount: number;
+  ipoExpectedRaiseUsd: number;
 }

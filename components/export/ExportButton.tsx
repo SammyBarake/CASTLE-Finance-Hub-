@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
 import type { WorkbookSpec } from "@/lib/excel/spec";
@@ -26,6 +27,9 @@ export function ExportButton({
   label?: string;
 }) {
   const { openMenu, openDialog, toast } = useUi();
+  // Pages that show before the full dataset (BOOT_READY) must not export the few rows they have so far.
+  const { ready } = useHubData();
+  const whenReady = (fn: () => void) => () => (ready ? fn() : toast("The data is still loading. Try again in a moment."));
   const openLive = () => {
     const spec = live?.();
     if (!spec) return toast("No live link for this view.");
@@ -50,7 +54,7 @@ export function ExportButton({
 
   if (!excel)
     return (
-      <button type="button" className="button" onClick={onCsv} aria-label={label ?? `Export ${title} data as CSV`}>
+      <button type="button" className="button" onClick={onCsv && whenReady(onCsv)} aria-label={label ?? `Export ${title} data as CSV`}>
         <Icon name="download" />
         Export
       </button>
@@ -66,8 +70,8 @@ export function ExportButton({
         openMenu(
           [
             { kind: "title", label: "Export" },
-            { kind: "action", label: "Excel workbook (.xlsx)", icon: "download", onSelect: () => void toExcel() },
-            ...(onCsv ? [{ kind: "action" as const, label: "CSV file", onSelect: onCsv }] : []),
+            { kind: "action", label: "Excel workbook (.xlsx)", icon: "download", onSelect: whenReady(() => void toExcel()) },
+            ...(onCsv ? [{ kind: "action" as const, label: "CSV file", onSelect: whenReady(onCsv) }] : []),
             ...(live ? [{ kind: "rule" as const }, { kind: "action" as const, label: "Live link for Excel / Sheets…", icon: "link" as const, onSelect: openLive }] : []),
           ],
           { anchor: e.currentTarget },

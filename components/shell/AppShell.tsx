@@ -13,7 +13,7 @@ import { BrandLogo } from "./BrandLogo";
 import { AccountButton } from "@/components/account/AccountButton";
 import { GlobalSearch } from "./GlobalSearch";
 import { reportIssueUrl } from "@/lib/site";
-import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
+import { BOOT_READY, routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
 import { LiveStatus } from "./LiveStatus";
 import { NavigationProgress } from "./NavigationProgress";
 import { PageSkeleton } from "./PageSkeleton";
@@ -50,6 +50,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const route = routeForPath(pathname);
+  // Pages built from the boot copy show at once (rendered on the server, so they appear with the HTML); the rest
+  // wait behind the skeleton for the full dataset.
+  const showPage = ready || BOOT_READY.has(route.id);
   const section = sectionOf(route.section);
   const [menuOpen, setMenuOpen] = useState(false);
   // The tab last open in each section, so the sidebar link returns to it.
@@ -158,11 +161,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           {section && section.routes.length > 1 && <SectionTabs section={section} activeId={route.id} />}
           {/* The page is always rendered normally (hiding or unmounting the route slot while the dataset loads
               makes Next.js fall back to full page reloads on quick clicks). Until the data arrives a skeleton
-              covers it. */}
-          <div className="page-enter" key={pathname} hidden={!ready}>
+              covers pages that need it. */}
+          <div className="page-enter" key={pathname} hidden={!showPage}>
             {children}
           </div>
-          {!ready && <PageSkeleton error={loadError} onRetry={reload} />}
+          {!showPage && <PageSkeleton error={loadError} onRetry={reload} />}
         </main>
         <footer className="footer">
           <span className="sample-tag">

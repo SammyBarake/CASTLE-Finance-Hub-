@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CompanyView } from "@/components/views/CompanyView";
 import { findCompany } from "@/lib/companies";
 import { getHubData } from "@/lib/data";
+import { preloadHubData } from "@/components/data/preloadHubData";
 
 export const revalidate = 900;
 
@@ -22,6 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
+  preloadHubData(); // this page needs the full dataset before it can show anything
   const { id } = await params;
   return <CompanyView id={decodeURIComponent(id)} />;
 }

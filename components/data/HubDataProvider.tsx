@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildVolumeMatrix, ipoPipelineSummary, medianPremium, ytdSummary, type VolumeMatrix, type YtdSummary } from "@/lib/metrics";
+import { buildVolumeMatrix, headlineFigures, ytdSummary, type VolumeMatrix, type YtdSummary } from "@/lib/metrics";
 import type { HubData } from "@/lib/types";
 
 /** How often an open tab asks whether the database has newer data. */
@@ -24,7 +24,7 @@ export interface Freshness {
 
 interface HubDataValue {
   data: HubData;
-  /** False until the full dataset has loaded (pages show a skeleton until then). */
+  /** False until the full dataset has loaded (pages outside BOOT_READY show a skeleton until then). */
   ready: boolean;
   /** Set when the dataset could not be loaded after retries. */
   loadError: string | null;
@@ -34,6 +34,8 @@ interface HubDataValue {
   matrix: VolumeMatrix;
   ytd: YtdSummary | null;
   medianPremiumPct: number | null;
+  /** How many deals the median premium covers (up to 25). */
+  premiumSample: number;
   ipoSummary: { filedCount: number; expectedRaiseUsd: number };
 }
 
@@ -160,6 +162,8 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
   const value = useMemo(() => {
     // The data's own month is still in progress: shown, but marked and kept out of month-on-month comparisons.
     const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf ? data.asOf.slice(0, 7) : null);
+    // Computed with the full lists on the server, so the boot copy (newest few deals only) shows the same figures.
+    const headline = data.headline ?? headlineFigures(data.deals, data.ipos);
     return {
       data,
       ready: !!full,
@@ -169,8 +173,9 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
       matrix,
       ytd: ytdSummary(matrix, data.yearToDate),
       // The latest 25 deals that disclose a premium (private-company deals never do).
-      medianPremiumPct: medianPremium(data.deals.filter((d) => d.premiumPct != null).slice(0, 25)),
-      ipoSummary: ipoPipelineSummary(data.ipos),
+      medianPremiumPct: headline.medianPremiumPct,
+      premiumSample: headline.premiumSample,
+      ipoSummary: { filedCount: headline.ipoFiledCount, expectedRaiseUsd: headline.ipoExpectedRaiseUsd },
     };
   }, [data, full, loadError, load, freshness]);
   return <HubDataContext.Provider value={value}>{children}</HubDataContext.Provider>;

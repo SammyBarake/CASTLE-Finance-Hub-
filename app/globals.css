@@ -164,10 +164,10 @@
   .brand-crest { animation: brand-rise 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
   .brand-letter { animation: brand-letter 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(0.3s + var(--i) * 0.055s); }
   /* The sheen only shows where the artwork is. */
-  .brand-sheen { overflow: hidden; pointer-events: none; -webkit-mask: url(/castle-logo.png) center / 100% 100% no-repeat; mask: url(/castle-logo.png) center / 100% 100% no-repeat; }
+  .brand-sheen { overflow: hidden; pointer-events: none; -webkit-mask: url(/castle-logo-sm.webp) center / 100% 100% no-repeat; mask: url(/castle-logo-sm.webp) center / 100% 100% no-repeat; }
   .brand-sheen-band { position: absolute; top: -10%; bottom: -10%; left: 0; width: 34%; transform: translateX(-130%) skewX(-18deg); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95) 50%, transparent); }
   .brand-echoes { z-index: 0; pointer-events: none; }
-  .brand-echo { position: absolute; inset: 0; background: url(/castle-logo.png) center / 100% 100% no-repeat; pointer-events: none; }
+  .brand-echo { position: absolute; inset: 0; background: url(/castle-logo-sm.webp) center / 100% 100% no-repeat; pointer-events: none; }
   @keyframes brand-rise { from { opacity: 0; transform: translateY(7%) scale(0.96); } }
   @keyframes brand-letter { from { opacity: 0; transform: translateY(16%); filter: blur(3px); } }
   .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -1001,7 +1001,7 @@
   .view-button { font-size: 10px; color: #888; white-space: nowrap; padding: 6px 9px; border-radius: 4px; border: 1px solid transparent; }
   .view-button:hover { color: #ddd; background: #151515; }
   .view-button.active { border-color: #3b3b3b; background: #202020; color: #eee; }
-  .view-count { font: 9px var(--font-mono); margin-left: 5px; color: #777; }
+  .view-count { font: 9px var(--font-mono); margin-left: 5px; color: #8f8f8f; }
   .views-row .save-view { margin-left: auto; color: #bbb; }
   .inline-count { font: 9px var(--font-mono); background: #2b2b2b; border-radius: 3px; padding: 0 4px; color: #ddd; }
   .bulk-bar { display: flex; align-items: center; gap: 12px; padding: 10px 17px; background: #1b1b1b; border-top: 1px solid #3a3a3a; font-size: 10px; animation: reveal 0.15s; }
@@ -1493,8 +1493,8 @@
   .valuation-delta { font-size: 8px; margin-left: 4px; }
   .hub-grid { gap: 13px; grid-template-columns: 1.2fr 1fr 1fr; }
   .hub-grid .panel-head, .preview-row { padding-left: 12px; padding-right: 12px; }
-  .preview-row strong { font-size: 10px; }
-  .preview-row small { font-size: 8px; }
+  .preview-row strong { font-size: 11px; }
+  .preview-row small { font-size: 9.5px; }
   .preview-value { font-size: 10px; }
   .preview-company { gap: 7px; }
   .company-mark { width: 22px; height: 22px; }
@@ -1548,6 +1548,7 @@
   .books-list button[aria-current="true"] { border-color: #6a6a6a; }
 }
 @media (max-width: 760px) {
+  /* Phones are read at arm's length: secondary text 10.5-11px, names and figures 12-13px (it went down to 8px before October 2026). */
   .sidebar { width: 210px; transform: translateX(-100%); transition: transform 0.18s; }
   .sidebar.open { transform: translateX(0); }
   .shell { margin-left: 0; }
@@ -1558,7 +1559,7 @@
   .nav-link .icon { width: 16px; }
   .menu-toggle { display: inline-flex; }
   .topbar { height: 58px; padding: 0 16px; gap: 13px; }
-  .top-location { gap: 7px; font-size: 10px; }
+  .top-location { gap: 7px; font-size: 11px; }
   .top-location > span, .top-location > .icon { display: none; }
   .top-tools { flex: 1; justify-content: flex-end; gap: 6px; }
   .search { width: 210px; max-width: 55vw; }
@@ -1572,43 +1573,43 @@
   .search-results { right: -1px; max-width: calc(100vw - 32px); }
   .main { padding: 24px 16px 0; }
   .page-heading { margin-bottom: 20px; }
-  .page-heading p { font-size: 10px; max-width: 250px; }
+  .page-heading p { font-size: 12px; max-width: 260px; }
   h1 { font-size: 25px; }
   .head-tools .button { padding: 7px; font-size: 0; gap: 0; }
   .head-tools .button .icon { width: 15px; height: 15px; }
   .kpis { margin-bottom: 18px; }
   .kpi { padding: 14px; }
-  .kpi-label { font-size: 9px; }
+  .kpi-label { font-size: 11px; }
   .kpi-value { font-size: 23px; }
   .kpi-value.text { font-size: 16px; }
-  .kpi-note, .kpi-change { font-size: 8px; }
+  .kpi-note, .kpi-change { font-size: 10.5px; }
   .kpi-line { gap: 7px; }
   .panel { margin-bottom: 18px; }
   .panel-head { padding: 15px; flex-wrap: wrap; gap: 12px; }
   .panel-controls { gap: 9px; }
-  .panel-heading small { font-size: 9px; }
-  .panel-head h2 { font-size: 12px; }
+  .panel-heading small { font-size: 11px; }
+  .panel-head h2 { font-size: 14px; }
   .segmented { padding: 2px; }
-  .segmented button { font-size: 9px; padding: 4px 7px; }
+  .segmented button { font-size: 11px; padding: 4px 8px; }
   .chart-main { padding: 0 13px 5px; }
   .chart-meta { gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
   .legend { gap: 12px; }
-  .legend button { font-size: 8px; gap: 4px; }
-  .legend-basis { font-size: 8px; padding: 1px 5px; }
-  .chart-unit { font-size: 8px; }
+  .legend button { font-size: 10.5px; gap: 4px; }
+  .legend-basis { font-size: 10px; padding: 1px 5px; }
+  .chart-unit { font-size: 10px; }
   .chart-wrap { height: 205px; }
   .chart-wrap.large { height: 260px; }
-  .panel-foot { padding: 9px 13px; font-size: 8px; }
+  .panel-foot { padding: 9px 13px; font-size: 10px; }
   .volume-foot .secondary-note { display: none; }
-  .section-heading h2 { font-size: 12px; }
-  .section-heading small { display: block; margin: 3px 0 0; font-size: 9px; }
-  .small-link { font-size: 9px; }
+  .section-heading h2 { font-size: 14px; }
+  .section-heading small { display: block; margin: 3px 0 0; font-size: 11px; }
+  .small-link { font-size: 11px; }
   .valuation-grid { display: flex; overflow-x: auto; padding-bottom: 4px; gap: 8px; margin-bottom: 17px; }
   .valuation-card { flex: 0 0 143px; padding: 12px; }
   .valuation-number { font-size: 23px; }
-  .valuation-delta { display: inline; font-size: 9px; margin-left: 5px; }
-  .valuation-sector { font-size: 10px; }
-  .valuation-label { font-size: 8px; }
+  .valuation-delta { display: inline; font-size: 11px; margin-left: 5px; }
+  .valuation-sector { font-size: 12px; }
+  .valuation-label { font-size: 10.5px; }
   .spark { bottom: 9px; right: 9px; width: 38px; }
   .hub-grid { grid-template-columns: 1fr; gap: 0; }
   .hub-grid .panel:first-child { grid-column: auto; }
@@ -1616,30 +1617,33 @@
   .preview-row { padding: 12px 15px; }
   .preview-company { gap: 9px; }
   .company-mark { width: 25px; height: 25px; }
-  .preview-value { font-size: 11px; }
+  .preview-value { font-size: 13px; }
+  .preview-value small { font-size: 10.5px; }
+  .preview-row strong { font-size: 13px; }
+  .preview-row small { font-size: 10.5px; }
   .table-tools { align-items: flex-start; flex-direction: column; gap: 13px; padding: 14px; }
   .filter-search, .table-tools .filter-search { width: 100%; }
   .table-filters { gap: 6px; }
-  .table-filters select { font-size: 9px; }
+  .table-filters select { font-size: 11px; }
   .tabs { gap: 20px; padding: 0 14px; }
-  .tab { font-size: 10px; }
-  .table-scroll th { font-size: 8px; padding: 10px 14px; }
-  .table-scroll td { padding: 13px 14px; font-size: 10px; }
+  .tab { font-size: 12px; }
+  .table-scroll th { font-size: 10px; padding: 10px 14px; }
+  .table-scroll td { padding: 13px 14px; font-size: 12px; }
   .table-scroll .reaction-table th, .table-scroll .reaction-table td { padding-left: 6px; padding-right: 6px; }
-  .table-value { font-size: 10px; }
-  .table-date { font-size: 9px; }
-  .table-underwriters { font-size: 9px; }
-  .footer { margin: 0 16px; padding: 17px 0 20px; font-size: 8px; gap: 12px; }
-  .footer button { font-size: 8px; white-space: nowrap; }
+  .table-value { font-size: 12px; }
+  .table-date { font-size: 11px; }
+  .table-underwriters { font-size: 11px; }
+  .footer { margin: 0 16px; padding: 17px 0 20px; font-size: 10.5px; gap: 12px; }
+  .footer button { font-size: 10.5px; white-space: nowrap; }
   .footer { flex-direction: column; align-items: flex-start; }
   .footer-links { gap: 14px; justify-content: flex-start; }
   .footer-links a { white-space: nowrap; }
-  .toast { left: 50%; font-size: 10px; }
+  .toast { left: 50%; font-size: 12px; }
   .modal-header { padding: 20px; }
   .modal-body { padding: 18px 20px 22px; }
   .modal-header h2 { font-size: 18px; }
-  .detail-value { font-size: 12px; }
-  .detail-label { font-size: 9px; }
+  .detail-value { font-size: 13px; }
+  .detail-label { font-size: 11px; }
   .modal-grid { column-gap: 15px; }
   .modal.detail-drawer { width: 100%; }
   .detail-drawer .modal-header { padding: 22px 20px; }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { useFullDeal } from "@/components/data/useFullDeal";
 import { Icon } from "@/components/ui/Icon";
@@ -558,6 +558,15 @@ function Definitions({ isSample }: { isSample: boolean }) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Drawer bodies read the dataset as it is now, not as it was when the drawer opened: some pages show before the
+ * full dataset arrives (BOOT_READY), and a deal opened then must still get its similar deals and context.
+ */
+function WithData({ render }: { render: (data: HubData) => ReactNode }) {
+  const { data } = useHubData();
+  return <>{render(data)}</>;
+}
+
 /** Open record details from anywhere. */
 export function useDetails() {
   const { openDialog } = useUi();
@@ -572,21 +581,21 @@ export function useDetails() {
       variant: "drawer",
       eyebrow: `M&A · ${deal.sector}`,
       title: `${deal.acquirer.name} → ${deal.target.name}`,
-      body: <DealBody key={deal.id} deal={deal} data={data} onOpenDeal={openDeal} onOpenAdvisor={openAdvisorByName} />,
+      body: <WithData key={deal.id} render={(live) => <DealBody deal={deal} data={live} onOpenDeal={openDeal} onOpenAdvisor={openAdvisorByName} />} />,
     });
   const openIpo = (ipo: Ipo) =>
     openDialog({
       variant: "drawer",
       eyebrow: `IPO · ${ipo.sector}`,
       title: ipo.company.name,
-      body: <IpoBody key={ipo.id} ipo={ipo} data={data} onOpenAdvisor={openAdvisorByName} />,
+      body: <WithData key={ipo.id} render={(live) => <IpoBody ipo={ipo} data={live} onOpenAdvisor={openAdvisorByName} />} />,
     });
   const openAdvisor = (entry: LeagueTableEntry, rank: number) =>
     openDialog({
       variant: "drawer",
       eyebrow: `Advisor · ${data.leagueTable.period}`,
       title: entry.advisor.name,
-      body: <AdvisorBody key={entry.advisor.name} entry={entry} rank={rank} data={data} onOpenDeal={openDeal} onOpenAdvisor={openAdvisorByName} />,
+      body: <WithData key={entry.advisor.name} render={(live) => <AdvisorBody entry={entry} rank={rank} data={live} onOpenDeal={openDeal} onOpenAdvisor={openAdvisorByName} />} />,
     });
   const openDefinitions = () => openDialog({ eyebrow: "Reference", title: "Data definitions", body: <Definitions isSample={data.isSample} /> });
 

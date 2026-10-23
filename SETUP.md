@@ -84,6 +84,31 @@ Sign-in is optional for visitors and off until you finish these steps: without t
 Email sign-in links need a mail sender (Supabase's built-in one only reaches your own team, two messages an hour), so
 they wait for the custom domain (Resend's free tier, set as Supabase's custom SMTP).
 
+## 5. Custom domain (launch day)
+
+Buy the domain anywhere (Cloudflare, Namecheap, Porkbun …), then, with `castle.example` standing for it:
+
+1. **Vercel** → the project → Settings → Domains → add `castle.example` (and `www.castle.example`, set to redirect to it).
+   Add the DNS records Vercel shows at your registrar; HTTPS comes on by itself within minutes. Keep
+   `castle-finance-hub.vercel.app`: old links, live Excel links and shared books keep working.
+2. **Vercel** → Environment Variables: `NEXT_PUBLIC_SITE_URL` = `https://castle.example` (type Config), then Redeploy.
+   Link previews, the sitemap and robots.txt now use the domain.
+3. **Supabase** → Authentication → URL Configuration: Site URL `https://castle.example`; add `https://castle.example/**`
+   to the Redirect URLs (keep the vercel.app one).
+4. **Google Cloud** → your OAuth client: add `https://castle.example` to the authorized JavaScript origins. Then
+   Branding: add the domain under authorized domains, set the home page `https://castle.example/about` and the
+   privacy policy `https://castle.example/privacy`, and submit for brand verification (free), so the sign-in screen
+   says "Castle" instead of the Supabase address. It asks you to prove you own the domain through Search Console (next step).
+5. **Google Search Console** (search.google.com/search-console) → add the domain → verify with the DNS record it gives
+   you → Sitemaps → submit `https://castle.example/sitemap.xml`.
+6. **GitHub** → your OAuth app: homepage `https://castle.example`.
+7. **Check:** open the site on your phone; sign in and out; paste a deal's tear-sheet link and a shared book into
+   LinkedIn's Post Inspector (linkedin.com/post-inspector) and check the preview card; run Lighthouse in Chrome's
+   DevTools on the Hub (mobile).
+
+Optional once the domain exists: email sign-in links (Resend free tier → verify the domain → Supabase → Authentication →
+SMTP Settings with Resend's SMTP details), and `NEXT_PUBLIC_CONTACT_EMAIL` for "Report a data issue".
+
 ## Checking it works
 
 - Actions → latest "Ingest SEC data" run is green, and the log ends with `saved to Supabase: N deals, M IPOs`.

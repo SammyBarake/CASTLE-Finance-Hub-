@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AboutView } from "@/components/views/InfoViews";
+import { preloadHubData } from "@/components/data/preloadHubData";
 
 export const metadata: Metadata = {
   title: "About · Castle",
@@ -8,5 +9,6 @@ export const metadata: Metadata = {
 export const revalidate = 900;
 
 export default function Page() {
+  preloadHubData(); // this page needs the full dataset before it can show anything
   return <AboutView />;
 }

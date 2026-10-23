@@ -3,7 +3,7 @@
  * from raw deals. Pure and deterministic, so it works on sample or real data.
  */
 import { feeRows } from "./fees";
-import { median } from "./metrics";
+import { headlineFigures, median } from "./metrics";
 import { dcfOf } from "./precedents";
 import { displayCompanyName } from "./names";
 import { SECTORS, type ActivistStake, type Deal, type HubData, type Ipo, type LeagueTableEntry, type Macro, type MonthlySectorVolume, type SectorValuation } from "./types";
@@ -225,13 +225,25 @@ export function toPublicIpo(i: Ipo): Ipo {
   };
 }
 
+/** Newest deals and IPOs in the boot copy: what the Hub lists before the dataset arrives. */
+export const BOOT_LIST_SIZE = 4;
+
 /**
- * What every page carries: the dataset without its long lists (deals, IPOs, activist stakes, fees). The shell
- * renders from this at once; the full dataset loads once per visit from /api/hub and stays in memory, so switching
- * pages never re-downloads it.
+ * What every page carries: the dataset without its long lists (only the newest few deals and IPOs; no activist
+ * stakes or fees), plus the Hub's figures computed from the full lists (`headline`). Pages built from this (the Hub,
+ * Volume, Advisors, World Economies: `BOOT_READY` in components/shell/routes.ts) show at once, rendered on the
+ * server; the full dataset loads once per visit from /api/hub and stays in memory, so switching pages never
+ * re-downloads it.
  */
 export function bootHubData(full: HubData): HubData {
-  return { ...full, deals: [], ipos: [], activists: [], fees: [] };
+  return {
+    ...full,
+    deals: full.deals.slice(0, BOOT_LIST_SIZE),
+    ipos: full.ipos.slice(0, BOOT_LIST_SIZE),
+    activists: [],
+    fees: [],
+    headline: full.headline ?? headlineFigures(full.deals, full.ipos),
+  };
 }
 
 export function buildHubData(input: {
@@ -244,15 +256,18 @@ export function buildHubData(input: {
 }): HubData {
   const deals = [...input.deals].sort((a, b) => b.announcedDate.localeCompare(a.announcedDate) || a.id.localeCompare(b.id));
   const ipos = [...input.ipos].sort((a, b) => (b.lastActivity ?? b.pricedDate ?? b.filedDate).localeCompare(a.lastActivity ?? a.pricedDate ?? a.filedDate));
+  const feed = deals.slice(0, DEAL_FEED_SIZE).map((d) => toPublicDeal(d));
+  const ipoFeed = ipos.slice(0, IPO_FEED_SIZE).map(toPublicIpo);
   return {
     asOf: input.asOf,
     isSample: false,
     totalDeals: deals.length,
-    deals: deals.slice(0, DEAL_FEED_SIZE).map((d) => toPublicDeal(d)),
+    deals: feed,
     fees: feeRows(deals),
     monthlyVolume: monthlyVolume(deals, input.asOf),
     yearToDate: yearToDate(deals, input.asOf),
-    ipos: ipos.slice(0, IPO_FEED_SIZE).map(toPublicIpo),
+    ipos: ipoFeed,
+    headline: headlineFigures(feed, ipoFeed),
     leagueTable: leagueTable(deals, input.asOf, input.shortName),
     valuations: sectorValuations(deals, input.asOf),
     macro: input.macro ?? null,

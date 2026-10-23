@@ -16,7 +16,7 @@ import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRIC
 const monthYear = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" });
 
 export function HubView() {
-  const { data, ytd, medianPremiumPct, ipoSummary, freshness } = useHubData();
+  const { data, ytd, medianPremiumPct, premiumSample, ipoSummary, freshness } = useHubData();
   const { openDeal, openIpo, openAdvisor } = useDetails();
   const { toast } = useUi();
   const { openRowMenu } = useRecordActions();
@@ -47,7 +47,7 @@ export function HubView() {
       <Kpis label="Market snapshot">
         <Kpi label="Announced M&A value" value={ytd ? formatUsd(ytd.value) : "—"} note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />
         <Kpi label="M&A transactions" value={ytd ? ytd.count.toLocaleString("en-US") : "—"} note={ytdNote} change={ytd && <Change value={ytd.countChangePct} />} />
-        <Kpi label="Median premium" value={formatPct(medianPremiumPct)} note={`Latest ${Math.min(25, data.deals.filter((d) => d.premiumPct != null).length)} public-target deals`} />
+        <Kpi label="Median premium" value={formatPct(medianPremiumPct)} note={`Latest ${premiumSample} public-target deals`} />
         <Kpi label="IPO pipeline" value={formatRaise(ipoSummary.expectedRaiseUsd)} note={`${ipoSummary.filedCount} filed companies · expected raise`} />
       </Kpis>
 
