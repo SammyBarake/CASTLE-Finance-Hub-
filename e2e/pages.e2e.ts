@@ -88,6 +88,15 @@ test("Excel export downloads a workbook", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("the sign-in return page explains a sign-in that didn't finish", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/auth/callback?error_description=You%20cancelled%20the%20sign-in.&next=%2F%2Felsewhere.example");
+  await expect(page.locator("h1")).toHaveText("Sign-in didn't finish");
+  await expect(page.locator("main")).toContainText("You cancelled the sign-in.");
+  await expect(page.locator(".status-actions a")).toHaveAttribute("href", "/");
+  expect(errors).toEqual([]);
+});
+
 test("an unknown address gets the Castle 404 page", async ({ page }) => {
   const res = await page.goto("/no-such-page-here");
   expect(res?.status()).toBe(404);

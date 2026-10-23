@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { preload } from "react-dom";
+import { AccountProvider } from "@/components/account/AccountProvider";
 import { HubDataProvider } from "@/components/data/HubDataProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { UiProvider } from "@/components/ui/UiProvider";
@@ -23,9 +24,12 @@ export default async function TerminalLayout({ children }: { children: ReactNode
   return (
     <HubDataProvider data={data}>
       <WorkspaceProvider>
-        <UiProvider>
-          <AppShell>{children}</AppShell>
-        </UiProvider>
+        {/* Above the dialog layer, so account dialogs follow the live sign-in and sync state. */}
+        <AccountProvider>
+          <UiProvider>
+            <AppShell>{children}</AppShell>
+          </UiProvider>
+        </AccountProvider>
       </WorkspaceProvider>
     </HubDataProvider>
   );

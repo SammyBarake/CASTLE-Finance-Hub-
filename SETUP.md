@@ -49,6 +49,39 @@ and takes a few minutes. (Public repos get unlimited Actions minutes; private re
    Do **not** add the service_role key to Vercel.
 3. Deploy (after changing variables, Redeploy). Pages rebuild themselves every 15 minutes, so they pick up each ingest automatically.
 
+## 4. Accounts (optional)
+
+Sign-in is optional for visitors and off until you finish these steps: without them the site shows no Sign in button.
+`<ref>` below is your Supabase project ref, the first part of `NEXT_PUBLIC_SUPABASE_URL` (`https://<ref>.supabase.co`).
+
+1. **Database.** Supabase → SQL Editor → run [`supabase/migrations/0003_accounts.sql`](supabase/migrations/0003_accounts.sql).
+   Then run [`supabase/tests/0003_accounts_rls.sql`](supabase/tests/0003_accounts_rls.sql): it checks that each user can reach only
+   their own workspace and that "Delete account" works, inside a transaction it rolls back. The last result must read
+   **All account checks passed**.
+2. **Return addresses.** Supabase → Authentication → URL Configuration: Site URL `https://castle-finance-hub.vercel.app`
+   (later, the custom domain); Redirect URLs: `https://castle-finance-hub.vercel.app/**` and `http://localhost:3000/**`.
+3. **Google.** [Google Cloud console](https://console.cloud.google.com) → a new project "Castle" → APIs & Services:
+   - **OAuth consent screen** (Google Auth Platform → Branding): app name *Castle*, your support email, authorized domain `<ref>.supabase.co`;
+     Audience: External; publish the app (the basic scopes need no Google review).
+   - **Clients → Create client → Web application**: authorized JavaScript origins `https://castle-finance-hub.vercel.app` and
+     `http://localhost:3000`; authorized redirect URI `https://<ref>.supabase.co/auth/v1/callback`.
+   - Copy the client ID and secret into Supabase → Authentication → Sign In / Providers → **Google**, and enable it.
+   - Until the custom domain is verified, Google's screen says "to continue to `<ref>.supabase.co`"; with the domain and Google's
+     brand verification it says "Castle".
+4. **GitHub.** GitHub → Settings → Developer settings → OAuth Apps → **New OAuth App**: name *Castle*, homepage
+   `https://castle-finance-hub.vercel.app`, callback `https://<ref>.supabase.co/auth/v1/callback`. Generate a client secret, then
+   paste the client ID and secret into Supabase → Sign In / Providers → **GitHub**, and enable it.
+5. **Turn the button on.** Vercel → Settings → Environment Variables: `NEXT_PUBLIC_AUTH_PROVIDERS` = `google,github`
+   (type **Config**, like the Supabase values), then Redeploy. Add the same line to `.env.local` to try it locally.
+6. **Later: LinkedIn and Microsoft.** LinkedIn: [developer portal](https://www.linkedin.com/developers/apps) → create an app (it
+   asks for a LinkedIn Page) → Products → *Sign In with LinkedIn using OpenID Connect* → the same callback URL → Supabase provider
+   **LinkedIn (OIDC)**. Microsoft: Azure portal → App registrations → New (accounts in any organization and personal accounts) →
+   the same callback URL → a client secret → Supabase provider **Azure** (tenant URL `https://login.microsoftonline.com/common`).
+   Then add `linkedin` / `microsoft` to `NEXT_PUBLIC_AUTH_PROVIDERS`.
+
+Email sign-in links need a mail sender (Supabase's built-in one only reaches your own team, two messages an hour), so
+they wait for the custom domain (Resend's free tier, set as Supabase's custom SMTP).
+
 ## Checking it works
 
 - Actions → latest "Ingest SEC data" run is green, and the log ends with `saved to Supabase: N deals, M IPOs`.

@@ -10,6 +10,7 @@ import { useUi } from "@/components/ui/UiProvider";
 import { useWorkspaceDialogs } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { BrandLogo } from "./BrandLogo";
+import { AccountButton } from "@/components/account/AccountButton";
 import { GlobalSearch } from "./GlobalSearch";
 import { reportIssueUrl } from "@/lib/site";
 import { routeForPath, sectionOf, SECTIONS, type SectionId } from "./routes";
@@ -144,6 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button type="button" className="tool-icon" aria-label="Display options" title="Display options" onClick={(e) => openSettings(e.currentTarget)}>
               <Icon name="settings" />
             </button>
+            <AccountButton />
           </div>
         </header>
         <main className="main" id="main">

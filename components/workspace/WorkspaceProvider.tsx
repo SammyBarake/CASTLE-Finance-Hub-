@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { DealColumn, DealScreen } from "@/lib/screen";
+import { LIMITS, newViewId } from "@/lib/workspace";
 import { getServerSnapshot, getSnapshot, isStorageOk, subscribe, updatePrefs, type Prefs } from "./store";
 
 export type RecordKind = "deal" | "ipo";
@@ -81,7 +82,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         let index = 0;
         updatePrefs((p) => {
           index = p.views.length;
-          return { ...p, views: [...p.views, { name: name.slice(0, 35), screen }] };
+          return { ...p, views: [...p.views, { id: newViewId(), name: name.slice(0, LIMITS.viewName), screen }] };
         });
         return index;
       },

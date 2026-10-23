@@ -213,7 +213,7 @@
   /* Rows that arrived in the latest update glow, then settle. */
   .table-scroll tbody tr.row-fresh, .preview-row.row-fresh { animation: row-fresh 12s var(--ease-out) both; }
   .sample-label { font-size: 9px; color: #888; white-space: nowrap; }
-  .tool-icon { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 29px; height: 29px; border: 1px solid #292929; border-radius: 5px; color: #999; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .tool-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 29px; height: 29px; border: 1px solid #292929; border-radius: 5px; color: #999; transition: background 0.15s, color 0.15s, border-color 0.15s; }
   .tool-icon:hover { background: #181818; color: #eee; }
   .tool-icon .icon { width: 14px; height: 14px; }
   .tool-icon.wide { width: auto; padding: 0 8px; font-size: 10px; }
@@ -1036,6 +1036,41 @@
   .menu-rule { border-top: 1px solid #303030; margin: 4px; }
   .menu-shortcut { margin-left: auto; color: #777; font-size: 9px; }
   .watch-count { font: 9px var(--font-mono); }
+
+  /* Optional accounts (components/account): the top-bar control and its two dialogs. */
+  .account-signin { flex: none; height: 29px; padding: 0 11px; border: 1px solid #303030; border-radius: 5px; background: #101010; color: #d1d1d1; font-size: 10.5px; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s var(--ease-out); }
+  .account-signin:hover { background: #202020; border-color: #484848; color: #fff; }
+  .account-signin:active { transform: scale(0.97); }
+  .account-signin:disabled { opacity: 0.6; cursor: default; }
+  .account-avatar { width: 29px; height: 29px; flex: none; border-radius: 50%; border: 1px solid #3a3a3a; background: linear-gradient(180deg, #252525, #141414); color: #e8e8e8; font: 600 10px var(--font-mono); letter-spacing: 0.04em; display: inline-flex; align-items: center; justify-content: center; transition: border-color 0.15s, transform 0.12s var(--ease-out); }
+  .account-avatar:hover { border-color: #5c5c5c; }
+  .account-avatar:active { transform: scale(0.95); }
+  .account-panel { display: grid; gap: 16px; font-size: 12px; line-height: 1.6; color: #b5b5b5; }
+  .account-lead { color: #e6e6e6; font-size: 13px; }
+  .account-points { display: grid; gap: 9px; }
+  .account-points li { display: flex; gap: 10px; align-items: flex-start; }
+  .account-points .icon { width: 14px; height: 14px; flex: none; margin-top: 3px; color: #858585; }
+  .account-providers { display: grid; gap: 8px; }
+  .account-provider { width: 100%; padding: 10px 12px; font-size: 12px; }
+  .account-provider:disabled { opacity: 0.55; cursor: default; }
+  .account-fine { font-size: 10.5px; color: #777; }
+  .account-fine a { color: #aaa; text-decoration: underline; text-underline-offset: 2px; }
+  .account-facts { display: grid; gap: 10px; }
+  .account-facts > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #222; }
+  .account-facts dt { color: #858585; font-size: 10px; padding-top: 2px; }
+  .account-facts dd { color: #e2e2e2; overflow-wrap: anywhere; }
+  .account-facts small { color: #888; font-size: 11px; }
+  .account-sync { display: flex; align-items: center; gap: 8px; }
+  .account-sync i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--color-up); }
+  .account-sync.syncing i { background: #aaa; animation: account-blink 0.9s ease-in-out infinite alternate; }
+  .account-sync.offline i, .account-sync.error i { background: #d9a441; }
+  .account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .account-delete { margin-left: auto; padding: 7px 2px; color: #8a8a8a; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; transition: color 0.15s; }
+  .account-delete:hover { color: var(--color-down); }
+  .account-confirm { display: grid; gap: 12px; padding: 14px; border: 1px solid #45292c; border-radius: 6px; background: #170f10; }
+  .account-confirm strong { color: #f0d4d6; }
+  .button.danger { border-color: #6a3a3e; background: #2a1517; color: #f3cdd0; }
+  .button.danger:hover { border-color: #8a4a50; background: #3a1c1f; }
   .notes-label { display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: #999; margin-bottom: 10px; }
   .notes-area { resize: vertical; width: 100%; min-height: 210px; max-height: 60vh; background: #101010; border: 1px solid #333; border-radius: 5px; padding: 13px; color: #ddd; font: 12px/1.8 var(--font-sans); }
   .notes-area:focus { outline: none; border-color: #6a6a6a; }
@@ -1066,6 +1101,7 @@
 @keyframes menu-item-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 @keyframes page-in { from { transform: translateY(4px); } to { transform: none; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes account-blink { from { opacity: 0.35; } to { opacity: 1; } }
 @keyframes live-pulse { 0% { opacity: 0.7; transform: scale(0.6); } 70%, 100% { opacity: 0; transform: scale(1.8); } }
 @keyframes nav-mark { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -1547,6 +1583,8 @@
   .segmented { padding: 2px; }
   .segmented button { min-height: 32px; padding: 6px 11px; }
   .tool-icon { width: 36px; height: 36px; }
+  .account-avatar { width: 36px; height: 36px; }
+  .account-signin { height: 36px; }
   .menu-toggle { padding: 9px; margin-left: -9px; }
   .view-button { min-height: 34px; padding: 6px 10px; }
   .row-icon { width: 34px; height: 34px; }

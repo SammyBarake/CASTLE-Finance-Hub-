@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
+import { AUTH_ENABLED, AUTH_PROVIDERS } from "@/components/account/client";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { SECTIONS, type SectionId } from "@/components/shell/routes";
 import { Kpi, Kpis, PageHeading, PanelHead } from "@/components/ui/primitives";
@@ -159,7 +160,7 @@ export function AboutView() {
           <div className="info-body">
             <p>
               Castle is built and maintained independently by a finance student, as a free resource for students and analysts learning the deal market. It costs nothing
-              to use and needs no account.
+              to use and needs no account{AUTH_ENABLED ? " (signing in only saves your workspace across devices)" : ""}.
             </p>
             <p>
               Castle isn&apos;t affiliated with the SEC or with any company or bank it covers, and nothing on it is investment advice. See the{" "}
@@ -214,6 +215,14 @@ export function TermsView() {
             <li>When you share Castle&apos;s figures, say where they came from, and don&apos;t present them as your own verified data.</li>
           </ul>
         </Clause>
+        {AUTH_ENABLED && (
+          <Clause title="Accounts">
+            <p>
+              An account is optional and free. Keep access to your sign-in provider secure, as anyone who can sign in to it can reach your Castle workspace. Accounts
+              used to abuse the site may be removed. You can delete yours at any time; the <Link href="/privacy">Privacy</Link> page says what it stores.
+            </p>
+          </Clause>
+        )}
         <Clause title="Names and trademarks">
           <p>
             Company, bank and fund names are used only to identify them; they belong to their owners. Castle isn&apos;t affiliated with, or endorsed by, the SEC or any
@@ -235,17 +244,44 @@ export function TermsView() {
 export function PrivacyView() {
   return (
     <>
-      <PageHeading title="Privacy" subtitle={`Effective ${EFFECTIVE} · No accounts, no cookies, no tracking`} />
+      <PageHeading title="Privacy" subtitle={`Effective ${EFFECTIVE} · ${AUTH_ENABLED ? "Accounts optional, no cookies, no tracking" : "No accounts, no cookies, no tracking"}`} />
       <section className="panel info-doc">
         <Clause title="The short version">
-          <p>Castle has no accounts, sets no cookies, runs no ads and no third-party trackers, and doesn&apos;t sell or share personal data.</p>
+          {AUTH_ENABLED ? (
+            <p>
+              Accounts are optional: everything on Castle works without one. Castle sets no cookies, runs no ads and no third-party trackers, and doesn&apos;t sell or
+              share personal data.
+            </p>
+          ) : (
+            <p>Castle has no accounts, sets no cookies, runs no ads and no third-party trackers, and doesn&apos;t sell or share personal data.</p>
+          )}
         </Clause>
-        <Clause title="Your workspace stays in your browser">
+        <Clause title={AUTH_ENABLED ? "Without an account, your workspace stays in your browser" : "Your workspace stays in your browser"}>
           <p>
             Your watchlist, notes, saved views, columns and display settings are stored only in your browser&apos;s local storage. They are never sent to Castle&apos;s
             servers, so they don&apos;t follow you to another device, and clearing this site&apos;s data in your browser deletes them.
           </p>
         </Clause>
+        {AUTH_ENABLED && (
+          <Clause title="If you sign in">
+            <ul>
+              <li>
+                You sign in through {AUTH_PROVIDERS.map((p) => p.label).join(", ").replace(/, ([^,]*)$/, " or $1")}. Castle receives your name, email address and
+                profile picture link from it, nothing else, and never sees your password.
+              </li>
+              <li>
+                Castle then keeps your account and a copy of your workspace (watchlist, notes, saved views, columns and display settings) in its database, hosted by
+                Supabase, so it follows you to any device. The database only lets you read or change your own workspace.
+              </li>
+              <li>Your sign-in is kept in your browser&apos;s local storage, not in a cookie. Signing out clears your workspace from that browser.</li>
+              <li>
+                In your account (the initials at the top right) you can download everything stored about you, or delete your account, which removes it and your workspace
+                straight away.
+              </li>
+              <li>Castle doesn&apos;t email you, and doesn&apos;t use your account for anything but keeping your workspace.</li>
+            </ul>
+          </Clause>
+        )}
         <Clause title="Search happens on your device">
           <p>Searching for companies, deals and banks runs in your browser over data it has already loaded; your searches aren&apos;t sent anywhere.</p>
         </Clause>

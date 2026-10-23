@@ -26,6 +26,21 @@
       "port": 3001
     },
     {
+      "name": "castle-dev-accounts",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3003"
+      ],
+      "env": {
+        "NEXT_PUBLIC_AUTH_PROVIDERS": "google,linkedin,microsoft,github"
+      },
+      "port": 3003
+    },
+    {
       "name": "castle-prod",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
