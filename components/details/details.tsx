@@ -16,6 +16,7 @@ import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
 import type { BuyerReaction, Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
+import { useBookActions } from "@/components/books/AddToBook";
 import { useRecordActions } from "@/components/workspace/actions";
 import { useWorkspace, type RecordKind } from "@/components/workspace/WorkspaceProvider";
 
@@ -80,6 +81,7 @@ type Tab = "overview" | "valuation" | "advisors" | "filings" | "notes";
 function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo }) {
   const { isWatched, selected } = useWorkspace();
   const { toggleWatch, copySummary, toggleCompare } = useRecordActions();
+  const { openBookMenu } = useBookActions();
   const { closeDialog, toast } = useUi();
   const watched = isWatched(kind, record.id);
   // A deal's shareable page is its tear sheet: server-rendered, with a link preview of the parties and figures.
@@ -108,6 +110,12 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
           <Icon name="comps" />
           Precedents
         </Link>
+      )}
+      {kind === "deal" && (
+        <button type="button" className="button" aria-haspopup="menu" onClick={(e) => openBookMenu(record as Deal, { anchor: e.currentTarget })}>
+          <Icon name="book" />
+          Add to book
+        </button>
       )}
       <span className="drawer-actions-spacer" />
       {kind === "deal" && (

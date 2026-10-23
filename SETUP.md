@@ -57,7 +57,9 @@ Sign-in is optional for visitors and off until you finish these steps: without t
 1. **Database.** Supabase → SQL Editor → run [`supabase/migrations/0003_accounts.sql`](supabase/migrations/0003_accounts.sql).
    Then run [`supabase/tests/0003_accounts_rls.sql`](supabase/tests/0003_accounts_rls.sql): it checks that each user can reach only
    their own workspace and that "Delete account" works, inside a transaction it rolls back. The last result must read
-   **All account checks passed**.
+   **All account checks passed**. For shared deal books, do the same with
+   [`supabase/migrations/0004_books.sql`](supabase/migrations/0004_books.sql) and
+   [`supabase/tests/0004_books_rls.sql`](supabase/tests/0004_books_rls.sql) (**All shared book checks passed**).
 2. **Return addresses.** Supabase → Authentication → URL Configuration: Site URL `https://castle-finance-hub.vercel.app`
    (later, the custom domain); Redirect URLs: `https://castle-finance-hub.vercel.app/**` and `http://localhost:3000/**`.
 3. **Google.** [Google Cloud console](https://console.cloud.google.com) → a new project "Castle" → APIs & Services:

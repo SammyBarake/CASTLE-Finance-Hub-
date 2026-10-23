@@ -4,6 +4,7 @@ import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 import { bankShortName } from "./banks";
+import { sanitizeShared, SHARE_ID, type SharedBook } from "./books";
 import { buildHubData, toPublicDeal } from "./aggregate";
 import { sampleHubData } from "./sampleData";
 import type { ActivistStake, Deal, HubData, Ipo, Macro } from "./types";
@@ -35,6 +36,24 @@ function sourceConfig() {
     forceSample: process.env.CASTLE_DATA_SOURCE === "sample" && !process.env.VERCEL,
   };
 }
+
+/**
+ * A shared deal book by its link id (supabase/migrations/0004_books.sql): the snapshot only, read through
+ * get_shared_book, the one public way in. Null for a link that doesn't exist, or before the migration has run.
+ * Memoized per request, so the page, its metadata and its preview image share one read.
+ */
+export const getSharedBook = cache(async (id: string): Promise<SharedBook | null> => {
+  if (!SHARE_ID.test(id)) return null;
+  const { url, anonKey, forceLocal } = sourceConfig();
+  if (!url || !anonKey || forceLocal) return null;
+  const db = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { data, error } = await db.rpc("get_shared_book", { p_id: id });
+  if (error) {
+    if (error.code === "PGRST202") return null; // the function isn't there yet (migration not run)
+    throw new Error(`Shared book ${id}: ${error.message}`);
+  }
+  return sanitizeShared(data);
+});
 
 /** One deal with its full detail (fairness opinions), for the drawer. Same sources as getHubData. */
 export async function getDeal(id: string): Promise<Deal | null> {

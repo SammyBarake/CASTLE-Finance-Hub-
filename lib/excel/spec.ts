@@ -45,6 +45,8 @@ export interface WorkbookSpec {
   /** ISO timestamp of the data. */
   asOf: string;
   isSample: boolean;
+  /** A paragraph on the cover above the selection (a deal book's thesis). */
+  intro?: { heading: string; text: string };
   /** The selection behind the export ("Sector: Tech", "Announced: last 3 years"). */
   selection?: string[];
   figures?: Figure[];

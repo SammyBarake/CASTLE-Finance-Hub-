@@ -6,6 +6,7 @@
  * merging two copies keeps the newer version of each item, deletions included: a note edited on a laptop and a deal
  * starred on a phone both survive, instead of the last save wiping out the other. Pure and tested.
  */
+import { sanitizeBooks, type DealBook } from "./books";
 import { DEAL_COLUMNS, DEFAULT_COLUMNS, DEFAULT_SCREEN, type DealColumn, type DealScreen } from "./screen";
 
 export interface SavedView {
@@ -23,14 +24,16 @@ export interface Prefs {
   density: "comfortable" | "compact";
   motion: boolean;
   columns: DealColumn[];
+  /** Deal books (lib/books.ts). */
+  books: DealBook[];
   /**
-   * When each item last changed (ms since 1970): "w:<record>" (watched), "n:<record>" (note), "v:<view id>", "density",
+   * When each item last changed (ms since 1970): "w:<record>" (watched), "n:<record>" (note), "v:<view id>", "b:<book id>", "density",
    * "motion", "columns". A stamp whose item is gone records a deletion, so another copy can't bring the item back.
    */
   stamps: Record<string, number>;
 }
 
-export const DEFAULT_PREFS: Prefs = { watch: [], views: [], notes: {}, density: "comfortable", motion: true, columns: DEFAULT_COLUMNS, stamps: {} };
+export const DEFAULT_PREFS: Prefs = { watch: [], views: [], notes: {}, density: "comfortable", motion: true, columns: DEFAULT_COLUMNS, books: [], stamps: {} };
 
 /** Keeps one person's copy small (the database caps a row at 256 KB too). */
 export const LIMITS = { watch: 1000, views: 50, notes: 1000, noteLength: 5000, viewName: 35 };
@@ -88,6 +91,7 @@ export function sanitize(raw: unknown): Prefs {
     density: r.density === "compact" ? "compact" : "comfortable",
     motion: r.motion !== false,
     columns: columns.length ? columns : DEFAULT_COLUMNS,
+    books: sanitizeBooks(r.books),
     stamps,
   };
 }
@@ -99,6 +103,7 @@ function present(p: Prefs, key: string): boolean {
   if (key.startsWith("w:")) return p.watch.includes(key.slice(2));
   if (key.startsWith("n:")) return key.slice(2) in p.notes;
   if (key.startsWith("v:")) return p.views.some((v) => v.id === key.slice(2));
+  if (key.startsWith("b:")) return p.books.some((b) => b.id === key.slice(2));
   return true;
 }
 
@@ -129,6 +134,9 @@ export function stampChanges(prev: Prefs, next: Prefs, now: number): Record<stri
   const pv = new Map(prev.views.map((v) => [v.id, json(v)]));
   const nv = new Map(next.views.map((v) => [v.id, json(v)]));
   for (const id of new Set([...pv.keys(), ...nv.keys()])) if (pv.get(id) !== nv.get(id)) mark(`v:${id}`);
+  const pb = new Map(prev.books.map((b) => [b.id, json(b)]));
+  const nb = new Map(next.books.map((b) => [b.id, json(b)]));
+  for (const id of new Set([...pb.keys(), ...nb.keys()])) if (pb.get(id) !== nb.get(id)) mark(`b:${id}`);
   for (const k of SCALARS) if (json(prev[k]) !== json(next[k])) mark(k);
   return prune(stamps, next);
 }
@@ -140,6 +148,7 @@ function withLegacyStamps(p: Prefs): Prefs {
   p.watch.forEach((k) => legacy(`w:${k}`));
   Object.keys(p.notes).forEach((k) => legacy(`n:${k}`));
   p.views.forEach((v) => legacy(`v:${v.id}`));
+  p.books.forEach((b) => legacy(`b:${b.id}`));
   for (const k of SCALARS) if (json(p[k]) !== json(DEFAULT_PREFS[k])) legacy(k);
   return { ...p, stamps };
 }
@@ -185,6 +194,17 @@ export function mergePrefs(a: Prefs, b: Prefs): Prefs {
     if (view) views.push(view);
   }
 
+  // A book merges as one item: the side that changed it last wins it whole (title, thesis, deals and comments).
+  const bookOf = (p: Prefs, id: string) => p.books.find((b) => b.id === id);
+  const books: DealBook[] = [];
+  for (const id of new Set([...a.books.map((x) => x.id), ...b.books.map((x) => x.id)])) {
+    const book = bookOf(
+      winner(`b:${id}`, (p) => bookOf(p, id)),
+      id,
+    );
+    if (book) books.push(book);
+  }
+
   const merged: Prefs = {
     watch,
     views,
@@ -192,6 +212,7 @@ export function mergePrefs(a: Prefs, b: Prefs): Prefs {
     density: winner("density", (p) => p.density).density,
     motion: winner("motion", (p) => p.motion).motion,
     columns: winner("columns", (p) => p.columns).columns,
+    books,
     stamps: {},
   };
   merged.stamps = prune(stamps, merged);
@@ -208,6 +229,7 @@ export function prefsEqual(a: Prefs, b: Prefs): boolean {
       density: p.density,
       motion: p.motion,
       columns: p.columns,
+      books: [...p.books].sort((x, y) => x.id.localeCompare(y.id)),
       stamps: Object.entries(p.stamps).sort(([x], [y]) => x.localeCompare(y)),
     });
   return canon(a) === canon(b);

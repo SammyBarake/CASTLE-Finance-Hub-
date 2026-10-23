@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBookActions } from "@/components/books/AddToBook";
 import { useDetails } from "@/components/details/details";
 import { exportContext } from "@/components/export/excel";
 import { ExportButton } from "@/components/export/ExportButton";
@@ -64,6 +65,7 @@ export function useRecordActions() {
   const { data } = useHubData();
   const { toast, openDialog, openMenu } = useUi();
   const { openDeal, openIpo } = useDetails();
+  const { openBookMenu } = useBookActions();
 
   const toggleWatch = (kind: RecordKind, id: string) => {
     const now = ws.toggleWatch(kind, id);
@@ -108,6 +110,7 @@ export function useRecordActions() {
           ? ([
               { kind: "rule" },
               { kind: "action", label: ws.selected.has(id) ? "Remove from comparison" : "Select for comparison", icon: "compare", onSelect: () => toggleCompare(id) },
+              { kind: "action", label: "Add to deal book…", icon: "book", onSelect: () => openBookMenu(r as Deal, at) },
             ] as const)
           : []),
         ...(r.filings[0]

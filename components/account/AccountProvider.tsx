@@ -4,6 +4,7 @@ import type { Provider, Session, SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DEFAULT_PREFS, getSnapshot, replacePrefs } from "@/components/workspace/store";
 import { AUTH_ENABLED, getClient, hasStoredSession, signInWith } from "./client";
+import { useBookSharing } from "./sharing";
 import { startSync, type Sync, type SyncState } from "./sync";
 
 export interface AccountUser {
@@ -26,6 +27,9 @@ interface AccountValue {
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   exportData: () => void;
+  /** Publishes a deal book as a read-only link; its id. Throws a readable message on failure. */
+  shareBook: (bookId: string) => Promise<string>;
+  stopSharing: (bookId: string) => Promise<void>;
   /** The latest message for the user (the account button shows it as a toast: this provider sits above the toast layer). */
   notice: { id: number; text: string } | null;
 }
@@ -73,6 +77,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [sync, setSync] = useState<SyncState | null>(null);
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
   const dbRef = useRef<SupabaseClient | null>(null);
+  const [db, setDb] = useState<SupabaseClient | null>(null);
   const syncRef = useRef<Sync | null>(null);
 
   const apply = useCallback((session: Session | null) => {
@@ -86,6 +91,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (dbRef.current) return dbRef.current;
     const db = await getClient();
     dbRef.current = db;
+    setDb(db);
     db.auth.onAuthStateChange((_event, session) => apply(session));
     const { data } = await db.auth.getSession();
     apply(data.session);
@@ -167,9 +173,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [user]);
 
+  const { shareBook, stopSharing } = useBookSharing(status === "signedIn" ? db : null, user?.id ?? null);
+
   const value = useMemo<AccountValue>(
-    () => ({ status, user, sync, syncedAt, signIn, signOut, deleteAccount, exportData, notice }),
-    [status, user, sync, syncedAt, signIn, signOut, deleteAccount, exportData, notice],
+    () => ({ status, user, sync, syncedAt, signIn, signOut, deleteAccount, exportData, shareBook, stopSharing, notice }),
+    [status, user, sync, syncedAt, signIn, signOut, deleteAccount, exportData, shareBook, stopSharing, notice],
   );
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

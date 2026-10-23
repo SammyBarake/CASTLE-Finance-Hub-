@@ -1,7 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { addDeals, BOOK_LIMITS, makeBook, type DealBook } from "@/lib/books";
 import type { DealColumn, DealScreen } from "@/lib/screen";
+import type { Deal } from "@/lib/types";
 import { LIMITS, newViewId } from "@/lib/workspace";
 import { getServerSnapshot, getSnapshot, isStorageOk, subscribe, updatePrefs, type Prefs } from "./store";
 
@@ -21,6 +23,14 @@ interface WorkspaceValue {
   setDensity: (d: Prefs["density"]) => void;
   setMotion: (on: boolean) => void;
   setColumns: (cols: DealColumn[]) => void;
+  /** A new deal book holding these deals; its id, or null at the book limit. */
+  createBook: (title: string, deals?: Deal[]) => string | null;
+  /** Adds deals a book doesn't have yet (up to its size limit). */
+  addToBook: (id: string, deals: Deal[]) => { added: number; skipped: number };
+  updateBook: (id: string, fn: (b: DealBook) => DealBook) => void;
+  deleteBook: (id: string) => void;
+  /** Adds a ready-made book (a copy of a shared one); false at the book limit. */
+  addBook: (book: DealBook) => boolean;
   /** Deals selected for comparison / bulk export (not persisted). */
   selected: Set<string>;
   toggleSelected: (id: string) => void;
@@ -90,6 +100,32 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setDensity: (density) => updatePrefs((p) => ({ ...p, density })),
       setMotion: (motion) => updatePrefs((p) => ({ ...p, motion })),
       setColumns: (columns) => updatePrefs((p) => ({ ...p, columns })),
+      createBook: (title, deals = []) => {
+        if (prefs.books.length >= BOOK_LIMITS.books) return null;
+        const book = makeBook(title, deals);
+        updatePrefs((p) => ({ ...p, books: [...p.books, book] }));
+        return book.id;
+      },
+      addToBook: (id, deals) => {
+        let result = { added: 0, skipped: 0 };
+        updatePrefs((p) => ({
+          ...p,
+          books: p.books.map((b) => {
+            if (b.id !== id) return b;
+            const r = addDeals(b, deals);
+            result = { added: r.added, skipped: r.skipped };
+            return r.book;
+          }),
+        }));
+        return result;
+      },
+      updateBook: (id, fn) => updatePrefs((p) => ({ ...p, books: p.books.map((b) => (b.id === id ? fn(b) : b)) })),
+      deleteBook: (id) => updatePrefs((p) => ({ ...p, books: p.books.filter((b) => b.id !== id) })),
+      addBook: (book) => {
+        if (prefs.books.length >= BOOK_LIMITS.books) return false;
+        updatePrefs((p) => ({ ...p, books: [...p.books, book] }));
+        return true;
+      },
       selected,
       toggleSelected,
       setSelected,

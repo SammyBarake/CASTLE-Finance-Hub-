@@ -2,6 +2,7 @@
  * The Excel workbook behind each page's Export menu, from the same rows the page (and its CSV) shows. Pure: `site` is
  * the address the links point to (the browser passes its own origin).
  */
+import type { BookRow } from "../books";
 import { companyHref, hasCompanyPage } from "../companies";
 import { dealSize, type DcfRow } from "../precedents";
 import { SECTORS } from "../sectors";
@@ -210,6 +211,76 @@ export function precedentsWorkbook(deals: Deal[], dcf: DcfRow[], ctx: ExportCont
     ],
     sheets,
     notes: DEAL_NOTES,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Deal books: the author's deals and comments as a comps sheet, the thesis on the cover
+// ---------------------------------------------------------------------------
+
+export function bookWorkbook(book: { title: string; thesis: string; byline: string }, rows: BookRow[], ctx: ExportContext): WorkbookSpec {
+  const columns: Column[] = [
+    { header: "Announced", format: "date" },
+    { header: "Target", format: "text", width: 30 },
+    { header: "Acquirer", format: "text", width: 28 },
+    { header: "Sector", format: "text", width: 12 },
+    { header: "Status", format: "text", width: 10 },
+    { header: "Consideration", format: "text", width: 12 },
+    { header: "Deal size ($M)", format: "usdM", summary: true },
+    { header: "EV / Revenue", format: "multiple", summary: true },
+    { header: "EV / EBITDA", format: "multiple", summary: true },
+    { header: "Premium", format: "pct", summary: true },
+    { header: "Offer price ($)", format: "price" },
+    { header: "Comment", format: "text", width: 44 },
+    { header: "Source", format: "text", width: 12 },
+    { header: "Castle", format: "text", width: 11 },
+  ];
+  const sheet = "Deals";
+  return {
+    fileName: stamp(ctx, "Deal_book", book.title.slice(0, 40)),
+    title: book.title,
+    subtitle: `Deal book${book.byline ? ` by ${book.byline}` : ""} · ${rows.length} ${rows.length === 1 ? "deal" : "deals"}`,
+    asOf: ctx.asOf,
+    isSample: ctx.isSample,
+    intro: book.thesis.trim() ? { heading: "THESIS", text: book.thesis } : undefined,
+    figures: [
+      { label: "Deals", sheet, column: "Announced", agg: "count" },
+      { label: "Median deal size ($M)", sheet, column: "Deal size ($M)", agg: "median" },
+      { label: "Median EV / Revenue", sheet, column: "EV / Revenue", agg: "median" },
+      { label: "Median EV / EBITDA", sheet, column: "EV / EBITDA", agg: "median" },
+      { label: "Median premium", sheet, column: "Premium", agg: "median" },
+    ],
+    sheets: [
+      {
+        name: sheet,
+        title: book.title,
+        subtitle: "In the book's order, with the author's comment on each deal",
+        columns,
+        rows: rows.map(({ item, deal: d }) =>
+          d
+            ? [
+                d.announcedDate,
+                companyCell(d.target, ctx),
+                companyCell(d.acquirer, ctx),
+                d.sector,
+                d.status,
+                d.consideration,
+                usdM(dealSize(d)),
+                num(d.evRevenue),
+                num(d.evEbitda),
+                pctFrac(d.premiumPct),
+                num(d.pricePerShare),
+                item.note || null,
+                filingCell(d),
+                link("Tear sheet", `${ctx.site}/tearsheet/deal/${encodeURIComponent(d.id)}`),
+              ]
+            : [item.date || null, item.label || item.dealId, null, null, "Not in Castle's data", null, null, null, null, null, null, item.note || null, null, null],
+        ),
+        summary: true,
+        notes: ["Deal size is enterprise value where known, else the headline deal value. Delete a row to drop an outlier: the summary rows recalculate."],
+      },
+    ],
+    notes: [...DEAL_NOTES, "The selection of deals, the thesis and the comments are the book author's; the figures come from SEC filings via Castle."],
   };
 }
 

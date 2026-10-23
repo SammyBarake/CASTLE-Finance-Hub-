@@ -97,6 +97,12 @@ test("the sign-in return page explains a sign-in that didn't finish", async ({ p
   expect(errors).toEqual([]);
 });
 
+test("a shared deal book link that doesn't exist is a 404, not an error", async ({ page }) => {
+  const res = await page.goto("/book/0123456789abcdef0123");
+  expect(res?.status()).toBe(404);
+  await expect(page.locator("h1")).toHaveText("Page not found");
+});
+
 test("an unknown address gets the Castle 404 page", async ({ page }) => {
   const res = await page.goto("/no-such-page-here");
   expect(res?.status()).toBe(404);

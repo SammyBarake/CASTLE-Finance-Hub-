@@ -258,7 +258,7 @@ export function PrivacyView() {
         </Clause>
         <Clause title={AUTH_ENABLED ? "Without an account, your workspace stays in your browser" : "Your workspace stays in your browser"}>
           <p>
-            Your watchlist, notes, saved views, columns and display settings are stored only in your browser&apos;s local storage. They are never sent to Castle&apos;s
+            Your watchlist, notes, saved views, deal books, columns and display settings are stored only in your browser&apos;s local storage. They are never sent to Castle&apos;s
             servers, so they don&apos;t follow you to another device, and clearing this site&apos;s data in your browser deletes them.
           </p>
         </Clause>
@@ -270,13 +270,17 @@ export function PrivacyView() {
                 profile picture link from it, nothing else, and never sees your password.
               </li>
               <li>
-                Castle then keeps your account and a copy of your workspace (watchlist, notes, saved views, columns and display settings) in its database, hosted by
+                Castle then keeps your account and a copy of your workspace (watchlist, notes, saved views, deal books, columns and display settings) in its database, hosted by
                 Supabase, so it follows you to any device. The database only lets you read or change your own workspace.
               </li>
               <li>Your sign-in is kept in your browser&apos;s local storage, not in a cookie. Signing out clears your workspace from that browser.</li>
               <li>
-                In your account (the initials at the top right) you can download everything stored about you, or delete your account, which removes it and your workspace
-                straight away.
+                If you share a deal book, anyone with its link can see that book&apos;s title, thesis, deals, comments and the name you choose to show (or none), until you stop
+                sharing it. Shared books aren&apos;t listed anywhere or shown to search engines, and nobody can see your email or anything else in your workspace.
+              </li>
+              <li>
+                In your account (the initials at the top right) you can download everything stored about you, or delete your account, which removes it, your workspace
+                and your shared books straight away.
               </li>
               <li>Castle doesn&apos;t email you, and doesn&apos;t use your account for anything but keeping your workspace.</li>
             </ul>

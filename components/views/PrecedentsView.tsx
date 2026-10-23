@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useBookActions } from "@/components/books/AddToBook";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
@@ -44,6 +45,7 @@ export function PrecedentsView() {
 function Precedents({ dealId }: { dealId: string | null }) {
   const { data } = useHubData();
   const { openDeal } = useDetails();
+  const { openAddToBook } = useBookActions();
   const { toast } = useUi();
   const subject = useMemo(() => data.deals.find((d) => d.id === dealId) ?? null, [data.deals, dealId]);
 
@@ -110,7 +112,25 @@ function Precedents({ dealId }: { dealId: string | null }) {
             : null
         }
         exportLabel="Export the comps table"
-        extra={<CopyLinkButton label="Copy a link to this precedent set" />}
+        extra={
+          <>
+            <CopyLinkButton label="Copy a link to this precedent set" />
+            <button
+              type="button"
+              className="button"
+              disabled={!included.length}
+              onClick={() =>
+                openAddToBook(
+                  included,
+                  subject ? `Comps: ${subject.acquirer.name} → ${subject.target.name}`.slice(0, 80) : `${screen.sector === "all" ? "M&A" : screen.sector} precedents${screen.industry.trim() ? `: ${screen.industry.trim()}` : ""}`,
+                )
+              }
+            >
+              <Icon name="book" />
+              Save as book
+            </button>
+          </>
+        }
       />
 
       <Kpis label="Precedent summary">

@@ -63,7 +63,7 @@ export function AccountButton() {
   );
 }
 
-function SignInBody() {
+export function SignInBody() {
   const { signIn } = useAccount();
   const [leaving, setLeaving] = useState<Provider | null>(null);
   return (
@@ -114,6 +114,7 @@ function AccountBody() {
     `${prefs.watch.length} watched`,
     `${Object.keys(prefs.notes).length} ${Object.keys(prefs.notes).length === 1 ? "note" : "notes"}`,
     `${prefs.views.length} saved ${prefs.views.length === 1 ? "screen" : "screens"}`,
+    `${prefs.books.length} deal ${prefs.books.length === 1 ? "book" : "books"}`,
   ].join(" · ");
   const act = (fn: () => Promise<void>) => async () => {
     setBusy(true);

@@ -205,6 +205,19 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
     r++;
   };
 
+  if (spec.intro?.text.trim()) {
+    heading(spec.intro.heading);
+    for (const para of spec.intro.text.split(/\n+/).filter((p) => p.trim())) {
+      ws.mergeCells(`B${r}:F${r}`);
+      const cell = ws.getCell(`B${r}`);
+      cell.value = para.trim();
+      cell.font = font(10);
+      cell.alignment = { wrapText: true, vertical: "top" };
+      ws.getRow(r).height = Math.max(16, Math.ceil(para.length / 95) * 14);
+      r++;
+    }
+    r++;
+  }
   if (spec.selection?.length) {
     heading("SELECTION");
     for (const s of spec.selection) {

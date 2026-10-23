@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useBookActions } from "@/components/books/AddToBook";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
@@ -99,6 +100,7 @@ export function DealFlowView() {
   const ws = useWorkspace();
   const { openRowMenu } = useRecordActions();
   const { openCompare, openSaveView, openManageViews } = useWorkspaceDialogs();
+  const { openAddToBook } = useBookActions();
 
   // The screen lives in the URL too, so a screened list is a link ("/deal-flow?sector=Tech&min=1").
   const params = useSearchParams();
@@ -343,6 +345,10 @@ export function DealFlowView() {
             <button type="button" className="button" onClick={() => exportRows(selectedDeals, "selected transactions")}>
               <Icon name="download" />
               Export selected
+            </button>
+            <button type="button" className="button" onClick={() => openAddToBook(selectedDeals)}>
+              <Icon name="book" />
+              Add to book
             </button>
             <span className="bulk-spacer" />
             <button type="button" className="small-link" onClick={() => ws.setSelected(new Set())}>

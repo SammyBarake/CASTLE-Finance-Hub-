@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { buildWorkbook } from "./build";
 import { colLetter, pctFrac, percentileInc, sheetName, summaryResult, usdM, type WorkbookSpec } from "./spec";
-import { dealRow, DEAL_COLUMNS, precedentsWorkbook } from "./workbooks";
+import { bookWorkbook, dealRow, DEAL_COLUMNS, precedentsWorkbook } from "./workbooks";
 import { SUMMARY_ROWS, summarizeComps } from "../precedents";
 import type { Deal } from "../types";
 
@@ -127,6 +127,25 @@ describe("buildWorkbook", () => {
       expect(result(row, "J")).toBeCloseTo(page.evEbitda[key]!, 6);
       expect(result(row, "K")).toBeCloseTo(page.premium[key]! / 100, 6);
     });
+  });
+
+  it("exports a deal book with its thesis on the cover and the author's comments", async () => {
+    const rows = [
+      { item: { dealId: "1-2026-01-05", note: "Anchor comp", label: "Acme Corp → Widget Inc", date: "2026-01-05" }, deal: deal({ evEbitda: 16 }) },
+      { item: { dealId: "gone", note: "", label: "Old Buyer → Old Target", date: "2024-02-01" }, deal: null },
+    ];
+    const spec = bookWorkbook({ title: "Software take-privates", thesis: "Sponsors paid up.\nRecurring revenue drove it.", byline: "J. Analyst" }, rows, ctx);
+    expect(spec.fileName).toBe("Castle_Deal_book_Software_take-privates_2026-10-19");
+    expect(spec.subtitle).toBe("Deal book by J. Analyst · 2 deals");
+    const back = new ExcelJS.Workbook();
+    await back.xlsx.load(await buildWorkbook(ExcelJS, spec, { origin: "https://castle.test" }).xlsx.writeBuffer());
+    const cover = back.getWorksheet("Summary")!.getSheetValues().flat(2).filter((v) => typeof v === "string");
+    expect(cover).toEqual(expect.arrayContaining(["THESIS", "Sponsors paid up.", "Recurring revenue drove it."]));
+    const ws = back.getWorksheet("Deals")!;
+    const comment = (ws.getRow(4).values as unknown[]).indexOf("Comment");
+    expect(ws.getRow(5).getCell(comment).value).toBe("Anchor comp");
+    expect(ws.getRow(6).getCell(2).value).toBe("Old Buyer → Old Target");
+    expect(ws.getRow(6).getCell(5).value).toBe("Not in Castle's data");
   });
 
   it("marks sample data on the cover", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
 export interface DialogContent {
@@ -41,7 +42,11 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [dialog, setDialog] = useState<DialogContent | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  // The dialog element as state too: while a modal dialog is open everything outside it is inert, so menus and toasts
+  // are placed inside it (see `layer` below).
+  const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
+  const [toastSeq, setToastSeq] = useState(0);
   const originRef = useRef<HTMLElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [menu, setMenu] = useState<{ items: MenuItem[]; at: MenuPosition; refresh?: boolean } | null>(null);
@@ -50,6 +55,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [menuClosing, setMenuClosing] = useState(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
+  const toastRef = useRef<HTMLDivElement>(null);
 
   const dialogStateRef = useRef<DialogContent | null>(null);
   const menuStateRef = useRef<{ at: MenuPosition } | null>(null);
@@ -79,6 +85,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((message: string) => {
     setToastMessage(message);
     setToastVisible(true);
+    setToastSeq((n) => n + 1);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
   }, []);
@@ -121,10 +128,26 @@ export function UiProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => () => clearTimeout(menuCloseTimer.current), []);
 
+  // Menus and toasts are popovers, in the browser's top layer, so they show above an open drawer or modal; while one is
+  // open they're also placed inside it, since the rest of the page is inert then (no clicks, hidden from screen readers).
+  const layer = dialog && dialogEl?.open ? dialogEl : null;
+
+  // Each toast (re)shows its popover, which puts it on top of anything opened since. Shown empty from the start, so
+  // screen readers know the live region before its first message.
+  useLayoutEffect(() => {
+    const el = toastRef.current;
+    if (!el || typeof el.showPopover !== "function") return;
+    if (el.matches(":popover-open")) el.hidePopover();
+    el.showPopover();
+  }, [toastSeq, layer]);
+
   // Place the menu once it has a size, keeping it inside the viewport.
   useLayoutEffect(() => {
     const el = menuRef.current;
-    if (!menu || !el || menu.refresh) return;
+    if (!menu || !el) return;
+    // Menus are popovers, in the browser's top layer, so one opened from a drawer or modal shows above it.
+    if (typeof el.showPopover === "function" && !el.matches(":popover-open")) el.showPopover();
+    if (menu.refresh) return;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
@@ -168,7 +191,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
       closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") {
+        e.preventDefault(); // closes the menu only, not the dialog it was opened from
+        closeMenu();
+      }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const items = [...(menuRef.current?.querySelectorAll<HTMLElement>("button, input") ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
@@ -189,13 +215,16 @@ export function UiProvider({ children }: { children: ReactNode }) {
     };
   }, [menu, closeMenu]);
 
+  const inLayer = (node: ReactNode) => (layer ? createPortal(node, layer) : node);
+
   return (
     <UiContext.Provider value={{ openDialog, closeDialog, toast, openMenu, closeMenu }}>
       {children}
 
-      {menu && (
+      {menu && inLayer(
         <div
           ref={menuRef}
+          popover="manual"
           className={`context-menu${menuPos?.above ? " above" : ""}${menuClosing ? " closing" : ""}`}
           role="menu"
           style={{ left: menuPos?.left ?? -9999, top: menuPos?.top ?? -9999, maxHeight: "calc(100vh - 24px)", transformOrigin: menuPos?.origin }}
@@ -229,15 +258,20 @@ export function UiProvider({ children }: { children: ReactNode }) {
               </button>
             );
           })}
-        </div>
+        </div>,
       )}
 
-      <div className={`toast ${toastVisible ? "show" : ""}`} role="status" aria-live="polite">
-        {toastMessage}
-      </div>
+      {inLayer(
+        <div ref={toastRef} popover="manual" className={`toast ${toastVisible ? "show" : ""}`} role="status" aria-live="polite">
+          {toastMessage}
+        </div>,
+      )}
 
       <dialog
-        ref={dialogRef}
+        ref={(el) => {
+          dialogRef.current = el;
+          setDialogEl(el);
+        }}
         className={`modal ${dialog?.variant === "drawer" ? "detail-drawer" : dialog?.variant === "wide" ? "compare-dialog" : ""}`}
         aria-labelledby="modal-title"
         onClose={() => {
