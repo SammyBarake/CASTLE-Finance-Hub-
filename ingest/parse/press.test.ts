@@ -342,6 +342,43 @@ DUBLIN, Ohio, October 6, 2026 - Crestline, Northwind Corporation (NYSE: NWC) ("N
     expect(p.pricePerShare).toBe(32.05);
   });
 
+  // Node 24's engine missed some (?i:...) matches in capitals and title case ("SIGN AN … AGREEMENT", "AN ENTITY
+  // CONTROLLED BY"). Every article and optional word the patterns allow, so a rewrite the engine mishandles fails here.
+  const titleCase = (s: string) => s.replace(/[A-Za-z]+/g, (w) => w[0] + w.slice(1).toLowerCase());
+
+  it("reads every 'sign / enter into / announce … agreement to acquire' in capitals and title case", () => {
+    const text = (headline: string) => `Exhibit 99.1
+${headline}
+DUBLIN, Ohio, October 6, 2026 - Crestline Partners, Northwind Corporation (NYSE: NWC) ("Northwind"), and Bluebird Health, Inc. (Nasdaq: BLBH) announced today a transaction under which Bluebird Health shareholders will receive $32.05 per share in cash.`;
+    for (const verb of ["SIGN", "ENTER INTO", "ANNOUNCE"])
+      for (const article of ["", "A ", "AN "])
+        for (const words of ["", "DEFINITIVE ", "MERGER ", "DEFINITIVE MERGER "]) {
+          const headline = `CRESTLINE AND NORTHWIND ${verb} ${article}${words}AGREEMENT TO ACQUIRE BLUEBIRD HEALTH`;
+          for (const h of [headline, titleCase(headline)]) {
+            const p = parsePressRelease(text(h), { filerName: "Northwind Corporation", filerTickers: ["NWC"] });
+            expect(p?.acquirer.name.toUpperCase(), h).toBe("CRESTLINE AND NORTHWIND");
+            expect(p?.target.name, h).toBe("Bluebird Health, Inc.");
+          }
+        }
+  });
+
+  it("reads every 'to be acquired by an entity controlled by' in capitals and title case", () => {
+    const text = (headline: string) => `Exhibit 99.1
+${headline}
+DENVER, CO - JUNE 9, 2026 - Bluebird Holdings, Inc. (NYSE: BLBH) today announced a transaction under which its shareholders will receive $18.75 per share in cash.`;
+    for (const article of ["A ", "AN "])
+      for (const newly of ["", "NEWLY FORMED "])
+        for (const toBe of ["", "TO BE "])
+          for (const verb of ["FORMED", "OWNED", "CONTROLLED"]) {
+            const headline = `BLUEBIRD HOLDINGS TO BE ACQUIRED BY ${article}${newly}ENTITY ${toBe}${verb} BY CRESTLINE PARTNERS`;
+            for (const h of [headline, titleCase(headline)]) {
+              const p = parsePressRelease(text(h), { filerName: "Bluebird Holdings, Inc.", filerTickers: ["BLBH"] });
+              expect(p?.acquirer.name.toUpperCase(), h).toBe("CRESTLINE PARTNERS");
+              expect(p?.target.name, h).toBe("Bluebird Holdings, Inc.");
+            }
+          }
+  });
+
   it("spots a carve-out whose unit carries a trademark sign", () => {
     const text = `Exhibit 99.1
 Northwind Technologies, Inc. Agrees to Acquire Bluebird Inc.'s Ophir ® Optics Business, Adding Advanced Infrared Optics Capabilities

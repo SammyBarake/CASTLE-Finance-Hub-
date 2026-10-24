@@ -147,13 +147,21 @@ function collectHeadline(lines: string[], from: number, step: 1 | -1): { start: 
 
 // Company names are matched case-sensitively (capitalised words plus a few connectors);
 // the surrounding keywords are case-insensitive via (?i:...) groups.
+// Node 24's engine (V8 13.6) silently misses some (?i:...) matches in capitals or title case when an alternative runs
+// through several optional parts ("an? (?:definitive )?(?:merger )?…"), though only where it searches ahead (after
+// \s+, or unanchored), never at ^. No simple rule predicts which shapes fail, so check every edit to these groups with
+// .scratch/modifier-check.mts (each group's phrases in every casing, and every cached release, against an exact copy).
+// It also compiles (?i:a|b) wrongly once a long run has built many i-flag regexes, so build these patterns once, at
+// load, never per call (CLAUDE.md, "Inline (?i:…) groups").
 const SUFFIX = String.raw`,\s(?:Inc|Corp|Ltd|LLC|L\.P|LP|Co|N\.V|S\.A|plc|PLC|Limited|Incorporated)\.?`;
 // A slash between letters belongs to a name ("RE/MAX Holdings" was read as "MAX Holdings"; "Quad/Graphics", "Danfoss
 // A/S"); not in dates or phone numbers ("11/14/11", "212/355-4449").
 const NAME = String.raw`([A-Z0-9][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*(?:${SUFFIX}|\s(?:[A-Z0-9&][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*|of|and|de|du|la|for|the|by))*?)`;
 // (A buy-out of the rest of a company is that company: "Ionis Pharmaceuticals to Acquire Remaining Stake in Akcea
 // Therapeutics", "ONEOK … to Acquire Remaining Public Stake in ONEOK Partners".)
-const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:outstanding )?shares of |the )?`;
+// ("an? (?:newly formed )?entity …" missed "AN ENTITY CONTROLLED BY" in capitals or title case, so the article and
+// "newly formed" are spelled out as alternatives, in the order the quantifiers tried them.)
+const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an newly formed entity (?:to be )?(?:formed|owned|controlled) by |an entity (?:to be )?(?:formed|owned|controlled) by |a newly formed entity (?:to be )?(?:formed|owned|controlled) by |a entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:outstanding )?shares of |the )?`;
 const STOP = String.raw`(?=['’]s\b|\s*(?:[,;:(]|$)|\.(?:\s|$)|\s(?i:for|in|at|to|from|with|via|and (?:expand|create|strength|accelerat|add|form)|creating|expanding|adding|strengthening|accelerating|valued|forming|through|—|-|–)(?:\b|\s))`;
 
 /** A capitalized word followed by a lowercase one (not a name connector): the start of a sub-headline. */
@@ -168,9 +176,10 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
     // Two buyers take the plural verb: "CD&R and McKesson Corporation Sign Agreement to Acquire Option Care Health" (one
     // target, bought jointly), which the "A and B sign" reading below made McKesson the target.
     // The plural forms are separate alternatives on purpose: written "signs? (?:an? )?(?:definitive )?…" inside (?i:…),
-    // Node 24's engine failed to match "GENTEX SIGNS DEFINITIVE AGREEMENT TO ACQUIRE" (190 releases lost).
+    // Node 24's engine failed to match "GENTEX SIGNS DEFINITIVE AGREEMENT TO ACQUIRE" (190 releases lost), and with
+    // "(?:an? )?" it still failed "SIGN AN DEFINITIVE AGREEMENT TO", so each article is an alternative of its own.
     re: rx(
-      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to|agree to|have agreed to|sign (?:an? )?(?:definitive )?(?:merger )?agreement to|signs agreement to|enter into (?:an? )?(?:definitive )?(?:merger )?agreement to|enters into agreement to|announce (?:an? )?(?:definitive )?(?:merger )?agreement to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
+      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to|agree to|have agreed to|sign an (?:definitive )?(?:merger )?agreement to|sign a (?:definitive )?(?:merger )?agreement to|sign (?:definitive )?(?:merger )?agreement to|signs agreement to|enter into an (?:definitive )?(?:merger )?agreement to|enter into a (?:definitive )?(?:merger )?agreement to|enter into (?:definitive )?(?:merger )?agreement to|enters into agreement to|announce an (?:definitive )?(?:merger )?agreement to|announce a (?:definitive )?(?:merger )?agreement to|announce (?:definitive )?(?:merger )?agreement to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
     ),
     roles: ["acq", "tgt"],
   },
@@ -207,6 +216,11 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
 ];
 
 const SYMMETRIC_HEADLINE = rx(String.raw`^${NAME}\s+(?i:and)\s+${NAME}\s+(?i:to combine|to merge|announce|agree to|enter into|sign)\b`);
+
+/** "<anything naming the filer> Acquires <target>": the buyer is the filer (see parsePressRelease). */
+const FILER_BUYER_HEADLINE = rx(
+  String.raw`^(.{2,90}?)\s+(?i:acquires|has acquired|completes (?:the |its )?acquisition of|announces (?:the |its )?${DEAL_ADJ}acquisition of|to acquire|agrees to acquire|announces (?:a )?(?:definitive )?agreement to acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
+);
 
 const ALL_SHARES = String.raw`(?i:a majority (?:interest|stake) in\s+|all\s+(?:of\s+)?(?:the\s+)?(?:issued\s+and\s+)?(?:outstanding\s+)?(?:shares\s+(?:of\s+(?:common\s+stock\s+of\s+)?)?)?)?`;
 
@@ -772,7 +786,7 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   // The buyer filed this 8-K: "RBC bearings Incorporated Acquires …", "The Arena Group d/b/a Paradium.AI Acquires …"
   // have buyer names the patterns can't read, so take the filer as the buyer when it's named in the headline.
   if (!parties) {
-    const buy = new RegExp(String.raw`^(.{2,90}?)\s+(?i:acquires|has acquired|completes (?:the |its )?acquisition of|announces (?:the |its )?${DEAL_ADJ}acquisition of|to acquire|agrees to acquire|announces (?:a )?(?:definitive )?agreement to acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`).exec(headline);
+    const buy = FILER_BUYER_HEADLINE.exec(headline);
     const filerWord = filerDisplay.split(/[\s,.]+/).find((w) => w.length >= 3)?.toLowerCase();
     const namesFiler = buy && ((filerWord && buy[1].toLowerCase().includes(filerWord)) || ctx.filerTickers.some((t) => new RegExp(`\\b${t}\\b`).test(buy[1])));
     if (buy && namesFiler) {
