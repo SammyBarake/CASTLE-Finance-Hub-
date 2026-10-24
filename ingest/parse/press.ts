@@ -378,6 +378,10 @@ export function extractPrice(t: string): number | null {
     if (/repurchas|buy-?backs?/i.test(clause.slice(-120))) continue;
     if (/(?:(?:average|closing|trading|market)(?: (?:stock|share|sale|trading))? price|\bVWAP)(?: of)?(?: approximately| about)?\s*$|\badditional\s*$/i.test(before)) continue;
     if (/\b(?:less|greater|more|lower|higher) than\s*$/i.test(before) && /\bprice\b|\bVWAP\b/i.test(clause.slice(-120))) continue;
+    // Nor the cash leg of cash and shares: "$3.50 per share in cash as well as 0.14625 Kimberly-Clark shares … for a
+    // total consideration … of $21.01 per share" (Kenvue). Cash plus a CVR ("and one contingent value right") is the price.
+    const tail = t.slice(m.index! + m[0].length, m.index! + m[0].length + 120);
+    if (/^\s*(?:,\s*)?(?:in cash\s*)?(?:,\s*)?(?:and|plus|as well as|together with)\s+(?:\d+(?:\.\d+)?|one|a fraction of(?: a)?)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|[Uu]nits?)\b/.test(tail)) continue;
     let score = 0;
     // "acquire[d] … for" may run past an abbreviation: "to be acquired by Dream Finders Homes, Inc. for $33.50", and past
     // a description when "for" leads straight to the amount ("will acquire Option Care Health, an independent provider of

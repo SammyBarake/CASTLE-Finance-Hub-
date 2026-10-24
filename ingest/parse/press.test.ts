@@ -376,6 +376,16 @@ NEW YORK, July 13, 2023 - Northwind Mortgage Trust, Inc. (NYSE: NWMT) today anno
     expect(extractValue("The total transaction consideration is also subject to a downward adjustment of a maximum $110 million in the event Bluebird does not achieve certain operational milestones.")).toBeNull();
   });
 
+  it("takes the total of cash and shares as the price, not the cash leg", () => {
+    expect(
+      extractPrice(
+        "Bluebird shareholders will receive $3.50 per share in cash as well as 0.14625 Northwind shares for each Bluebird share held at closing, for a total consideration to Bluebird shareholders of $21.01 per share, based on the closing price of Northwind shares.",
+      ),
+    ).toBe(21.01);
+    // Cash and a CVR: the cash is the price.
+    expect(extractPrice("Bluebird stockholders will receive $14.00 per share in cash plus one contingent value right per share.")).toBe(14);
+  });
+
   it("keeps an announcement whose first paragraph mentions an earlier deal", () => {
     const text = `Exhibit 99.1
 NORTHWIND DIGITAL ANNOUNCES ACQUISITION OF BLUEBIRD
