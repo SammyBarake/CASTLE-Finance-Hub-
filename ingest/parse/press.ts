@@ -146,13 +146,10 @@ function collectHeadline(lines: string[], from: number, step: 1 | -1): { start: 
 // ---------------------------------------------------------------------------
 
 // Company names are matched case-sensitively (capitalised words plus a few connectors);
-// the surrounding keywords are case-insensitive via (?i:...) groups.
-// Node 24's engine (V8 13.6) silently misses some (?i:...) matches in capitals or title case when an alternative runs
-// through several optional parts ("an? (?:definitive )?(?:merger )?…"), though only where it searches ahead (after
-// \s+, or unanchored), never at ^. No simple rule predicts which shapes fail, so check every edit to these groups with
-// .scratch/modifier-check.mts (each group's phrases in every casing, and every cached release, against an exact copy).
-// It also compiles (?i:a|b) wrongly once a long run has built many i-flag regexes, so build these patterns once, at
-// load, never per call (CLAUDE.md, "Inline (?i:…) groups").
+// the surrounding keywords are case-insensitive via (?i:...) groups, which rx() spells out (caseless) so the engine
+// never sees the modifier: Node 24 (V8 13.6) gets (?i:...) wrong in capitals and title case, silently, in two ways
+// (some alternatives with several optional parts, and every (?i:a|b) compiled once a long run has built many i-flag
+// regexes; CLAUDE.md, "Inline (?i:…) groups"). Build every pattern with a (?i:) group through rx().
 const SUFFIX = String.raw`,\s(?:Inc|Corp|Ltd|LLC|L\.P|LP|Co|N\.V|S\.A|plc|PLC|Limited|Incorporated)\.?`;
 // A slash between letters belongs to a name ("RE/MAX Holdings" was read as "MAX Holdings"; "Quad/Graphics", "Danfoss
 // A/S"); not in dates or phone numbers ("11/14/11", "212/355-4449").
@@ -169,7 +166,57 @@ const SUBHEAD_STOP = String.raw`(?=\s[A-Z][a-z]+\s(?!(?:of|and|de|du|la|for|the|
 /** Headline words that follow the target, never part of its name ("… BankWyse Subject to …", "… DBM Global Transaction …"). */
 const TAIL_STOP = String.raw`(?=\s(?:Subject|Transaction|Deal|Acquisition|Agreement|Following|Pending|Upon|After|Expanding|Adding|Creating|Strengthening|Establishing|Accelerating|Enhancing|Broadening|Extending|SUBJECT|TRANSACTION|DEAL|ACQUISITION|AGREEMENT|FOLLOWING|PENDING|EXPANDING|ADDING|CREATING|STRENGTHENING|ESTABLISHING|ACCELERATING|ENHANCING|BROADENING|EXTENDING)\b)`;
 
-const rx = (src: string) => new RegExp(src);
+/**
+ * The pattern with each (?i:…) group turned into a plain group with its letters spelled out ("to" → "[tT][oO]"), the
+ * same match as the `i` flag gives ASCII letters, so the engine never sees the modifier. Inside a (?i:) group only
+ * letters, escapes like \s and \b, and group syntax may stand: anything it can't spell out exactly is refused.
+ */
+export function caseless(src: string): string {
+  let out = "";
+  let ci = false;
+  const outer: boolean[] = []; // whether each enclosing group is case-insensitive
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === "\\") {
+      const e = src[i + 1] ?? "";
+      if (ci && /[A-Za-z]/.test(e) && !/[bBdDsSwWnrtfv]/.test(e)) throw new Error(`caseless: "\\${e}" inside (?i:…) in ${src}`);
+      out += c + e;
+      i++;
+    } else if (c === "[") {
+      let j = i + 1;
+      if (src[j] === "^") j++;
+      if (src[j] === "]") j++;
+      while (j < src.length && src[j] !== "]") j += src[j] === "\\" ? 2 : 1;
+      const cls = src.slice(i, j + 1);
+      if (ci && /[A-Za-z]/.test(cls.replace(/\\./g, ""))) throw new Error(`caseless: letters in ${cls} inside (?i:…) in ${src}`);
+      out += cls;
+      i = j;
+    } else if (c === "(") {
+      outer.push(ci);
+      if (src.startsWith("(?i:", i)) {
+        ci = true;
+        out += "(?:";
+        i += 3;
+        continue;
+      }
+      const open = /^\((?:\?(?::|=|!|<=|<!|<[A-Za-z_$][\w$]*>))?/.exec(src.slice(i))![0];
+      if (open === "(" && src[i + 1] === "?") throw new Error(`caseless: unknown group ${src.slice(i, i + 6)} in ${src}`);
+      out += open;
+      i += open.length - 1;
+    } else if (c === ")") {
+      ci = outer.pop() ?? false;
+      out += c;
+    } else if (ci && /[A-Za-z]/.test(c)) {
+      out += `[${c.toLowerCase()}${c.toUpperCase()}]`;
+    } else {
+      if (ci && c.charCodeAt(0) > 127 && c.toLowerCase() !== c.toUpperCase()) throw new Error(`caseless: "${c}" inside (?i:…) in ${src}`);
+      out += c;
+    }
+  }
+  return out;
+}
+
+const rx = (src: string) => new RegExp(caseless(src));
 
 const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
   {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
+import { caseless, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
 
 // Fixtures are synthetic releases written in the style of real 8-K exhibits.
 
@@ -680,5 +680,27 @@ GOTHENBURG, Sweden, September 6, 2013 - SKX and Kayden Corporation (NYSE: KDN) t
     const p = parsePressRelease(t, { filerName: "Kayden Corporation", filerTickers: ["KDN"] })!;
     expect(p.acquirer.name).toBe("SKX");
     expect(p.target.name).toBe("Kayden Corporation");
+  });
+});
+
+describe("caseless", () => {
+  it("spells out the letters of (?i:) groups and leaves the rest alone", () => {
+    expect(caseless(String.raw`^X\s+(?i:to be|agrees? to)\s+[A-Z]\w*`)).toBe(String.raw`^X\s+(?:[tT][oO] [bB][eE]|[aA][gG][rR][eE][eE][sS]? [tT][oO])\s+[A-Z]\w*`);
+    expect(caseless(String.raw`(?=['’]s\b|\s(?i:for|in|—)(?:\b|\s))`)).toBe(String.raw`(?=['’]s\b|\s(?:[fF][oO][rR]|[iI][nN]|—)(?:\b|\s))`);
+    expect(caseless(String.raw`^(.{2,90}?)\s+(?i:the (?:public )?stake)`)).toBe(String.raw`^(.{2,90}?)\s+(?:[tT][hH][eE] (?:[pP][uU][bB][lL][iI][cC] )?[sS][tT][aA][kK][eE])`);
+  });
+
+  it("matches like the i flag where Node 24's (?i:) did not", () => {
+    // The GENTEX headline: the modifier missed it after \s+.
+    const re = new RegExp(caseless(String.raw`^X\s+(?i:signs? (?:an? )?(?:definitive )?(?:merger )?agreement to)`));
+    for (const s of ["X SIGNS DEFINITIVE AGREEMENT TO", "X Signs A Definitive Merger Agreement To", "X signs agreement to"]) expect(re.test(s), s).toBe(true);
+    expect(re.test("X SIGNED AGREEMENT TO")).toBe(false);
+  });
+
+  it("refuses what it can't spell out exactly", () => {
+    expect(() => caseless("(?i:[a-z]+)")).toThrow();
+    expect(() => caseless(String.raw`(?i:\p)`)).toThrow();
+    expect(() => caseless("(?i:café)")).toThrow();
+    expect(() => caseless("(?-i:a)")).toThrow();
   });
 });
