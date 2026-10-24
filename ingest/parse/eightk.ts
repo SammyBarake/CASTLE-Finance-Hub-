@@ -5,7 +5,7 @@
  */
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
-import { cleanPartyName, isPlausibleName, sameCompany } from "./names";
+import { cleanPartyName, isPlausibleName, normalizeName, sameCompany } from "./names";
 import { extractConsideration, extractValue, type ParsedPress, type PressContext } from "./press";
 
 interface Entity {
@@ -46,6 +46,10 @@ export function item101(text: string): string | null {
   return section;
 }
 
+/** A lower-case brand and its legal form: "argenx BV", "uniQure N.V.", "bluebird bio, Inc.", "eBay Inc." */
+// (Not the end of an accented word or a number: "Dassault Systèmes SE" is no "mes SE", "23andMe, Inc." no "andMe, Inc.".)
+const LOWER_BRAND = String.raw`(?<![A-Za-z0-9À-ÖØ-öø-ÿ])(?!(?:and|or|the|with|of|by|an?|its|their|into|to|from|between|among|each|other|bio)\b)[a-z][A-Za-z0-9-]{2,}(?:\sbio)?,?\s(?:B\.?V\.?|N\.?V\.?|SE|AG|S\.A\.?|plc|Inc\.?|Ltd\.?|LLC|Corp(?:oration)?\.?|Limited|GmbH|S\.p\.A\.?|AB|A\/S|ASA|Oyj)(?=[\s,(]|$)`;
+
 /** Legal phrasing that shows a capture is a clause, not a company name. */
 const CLAUSE = /\b(?:will|shall|with and into|Merger Agreement|Pursuant|Section|approved|effective time|continuing|surviving|thereof|thereunder|commence|if any|converted|Act of)\b/i;
 
@@ -56,11 +60,12 @@ const CLAUSE = /\b(?:will|shall|with and into|Merger Agreement|Pursuant|Section|
  */
 export function definedEntities(s: string): Entity[] {
   const out: Entity[] = [];
-  // A name starts with a capital, or is a lower-case web name ("salesforce.com, inc.").
+  // A name starts with a capital, or is a lower-case web name ("salesforce.com, inc.") or brand with its legal form
+  // ("argenx BV, a private company with limited liability", which left "BV"; "uniQure N.V.", "bluebird bio, Inc.").
   // The usual terms also count without quote marks: some filings print `(the Company)`, `(Parent)` (EQT / Equitrans),
   // or `(the Company or Icosavax)`. A description never runs on across another party's definition.
   // (A slash between letters belongs to the name: "RE/MAX Holdings, Inc., a Delaware corporation (the "Company")".)
-  const re = /([A-Z](?:[A-Za-z0-9&.,'’\- ]|\/(?=[A-Za-z])){1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?)(?:,\s*(?:an?|the)\s+(?:[^()"“]|\((?!\s*(?:the\s+)?(?:Company|Parent|Merger Sub|Purchaser|Buyer)\b)[^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?(?:["“]([^"”]{1,40})["”]|(Company|Parent|Ultimate Parent|Merger Sub|Purchaser|Buyer|Acquir[eo]r|Partnership|Registrant|Guarantor))(?:\s+or\s+(?:the\s+)?(?:["“]([^"”]+)["”]|([A-Z][\w&.'’\-]*(?: [A-Z][\w&.'’\-]*){0,3})))?\s*\)/g;
+  const re = new RegExp(String.raw`([A-Z](?:[A-Za-zÀ-ÖØ-öø-ÿ0-9&.,'’\- ]|\/(?=[A-Za-z])){1,90}?|\b[a-z][\w-]*\.(?:com|net|io|ai)(?:,? inc\.?)?|${LOWER_BRAND})(?:,\s*(?:an?|the)\s+(?:[^()"“]|\((?!\s*(?:the\s+)?(?:Company|Parent|Merger Sub|Purchaser|Buyer)\b)[^()"“]{1,40}\)){2,160}?)?\s*\(\s*(?:the\s+|each,\s+a\s+)?(?:["“]([^"”]{1,40})["”]|(Company|Parent|Ultimate Parent|Merger Sub|Purchaser|Buyer|Acquir[eo]r|Partnership|Registrant|Guarantor))(?:\s+or\s+(?:the\s+)?(?:["“]([^"”]+)["”]|([A-Z][\w&.'’\-]*(?: [A-Z][\w&.'’\-]*){0,3})))?\s*\)`, "g");
   for (const m0 of s.matchAll(re)) {
     const m = [m0[0], m0[1], m0[2] ?? m0[3], m0[4] ?? m0[5]] as const;
     // "Eli Lilly and Company" is one name: keep its "and" away from the clause-word stripping below, which would
@@ -74,6 +79,10 @@ export function definedEntities(s: string): Entity[] {
     // "dated February 4, 2021, by and among the Company, Celestial-Saturn Parent Inc." -> "Celestial-Saturn Parent Inc."
     name = name.replace(/^.*\b(?:among|between|with)\s+the\s+(?:Company|Partnership|Registrant|Trust)\s*,\s*(?:and\s+)?(?=[A-Z])/, "");
     name = name.replace(/^(?:.*\b(?:with|and|among|between|by|of|that is affiliated with|affiliated with|subsidiary of)\s+)(?=[A-Z]|[a-z][\w-]*\.(?:com|net|io|ai)\b)/, "");
+    // Clause words before a lower-case brand, which the steps above only strip before a capital: "the Company, argenx BV"
+    // (not "IVERIC bio, Inc.", one name).
+    const brand = new RegExp(String.raw`(?:,\s+|\b(?:with|and|among|between|by|of)\s+)(${LOWER_BRAND})$`).exec(name);
+    if (brand) name = brand[1];
     // "Soleno Therapeutics, Inc. a Delaware corporation" -> "Soleno Therapeutics, Inc."
     name = name.replace(/,?\s+an?\s+[A-Z][\w.]*(?:\s[\w.]+){0,3}\s+(?:corporation|company|limited liability company|limited partnership|partnership|trust|société anonyme|public limited company)$/i, "");
     name = cleanPartyName(name.replace(/,$/, "").replace(/\u0001/g, " and ").replace(/\u0002/g, " & "));
@@ -87,6 +96,9 @@ export function definedEntities(s: string): Entity[] {
     // Defined securities and holders are not parties: holders of RTB's preferred stock (the "RTB Preferred Stock"), the
     // holders of Tenax's membership interests (the "Tenax Members").
     if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price|Members|Holders|Stockholders|Shareholders|Unitholders|Equityholders)$/i.test(m[2].trim())) continue;
+    // Nor are the company's own bodies: "… a wholly owned subsidiary of Ithaca. The board of directors (the "Board")" gave
+    // an "Ithaca" defined as the Board.
+    if (/^(?:Board(?: of Directors)?|(?:Special |Transaction |Independent )?Committee)$/i.test(m[2].trim())) continue;
     // Nor are defined terms for the deal itself: ... merge with and into RTB (the "Merger").
     if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger |Transaction |Arrangement |Implementation |Combination )?Agreement|Surviving Corporation|Scheme)$/i.test(m[2].trim())) continue;
     out.push({ name, nick: m[2].trim(), alias: m[3]?.trim(), index: m0.index! });
@@ -263,7 +275,22 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   }
   // An "Investor" is buying shares, not the company (NovaGold's arrangement with Paulson as "the Investor").
   const investor = (e: Entity) => /^Investors?$/i.test(e.nick) || /^Investors?$/i.test(e.alias ?? "");
-  buyer ??= entities.find((e) => !isTarget(e) && !SUB_NICK.test(e.nick) && !SHELL_NAME.test(e.name) && !SELF.test(e.nick) && !investor(e));
+  // With no other party left, the merger subsidiaries' parent, a shell too ("Oak Merger Sub 1, Inc., … a wholly owned
+  // subsidiary of Ithaca" with Ithaca Holdco, Inc.): a later release names who is behind it. Not before another party: a
+  // chain of subsidiaries would stop at its middle (Bitfarms' US subsidiary, a first merger sub, an inversion's holdco).
+  // Nor a blank-check company ("Hennessy Capital Acquisition Corp. IV", "Merida Merger Corp. I"): a de-SPAC.
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const vehicleOrSpac = (e: Entity) => /\bMerger\s?Sub(?:sidiary)?\b|\bMerge?Co\b|\bBidco\b|\bPurchaser\b|\b(?:Acquisition|Merger)\s+Corp(?:oration)?\.?(?:\s+[IVX]+\.?)?$/i.test(e.name);
+  const parentOfSub = (e: Entity) => !vehicleOrSpac(e) && new RegExp(String.raw`\bsubsidiary of (?:the\s+)?(?:${esc(e.nick)}|${esc(e.name)})(?![\w-])`).test(opening);
+  // Nor is the target's own operating partnership, named first in an Up-C deal ("Buzz Holdings L.P., ("Opco")": Bumble);
+  // the buyer's is, when the merger sub is its subsidiary (Energy XXI Gulf Coast for EPL).
+  const notBuyer = (e: Entity) => isTarget(e) || SUB_NICK.test(e.nick) || SELF.test(e.nick) || investor(e) || (/^(?:Opco|OP|Operating Partnership)$/i.test(e.nick) && !parentOfSub(e));
+  buyer ??= entities.find((e) => !notBuyer(e) && !SHELL_NAME.test(e.name)) ?? entities.find((e) => !notBuyer(e) && parentOfSub(e));
+  // Last, a "Parent" named like the target is still the buyer's ("Winner Holding Limited ("Parent")" for Winner Medical
+  // Group, owned by its chairman): who owns it is read below.
+  buyer ??= entities.find(
+    (e) => BUYER_NICKS.some((n) => n.toLowerCase() === e.nick.toLowerCase()) && e.nick.toLowerCase() !== mech.target.toLowerCase() && normalizeName(e.name) !== normalizeName(targetName),
+  );
   if (!buyer && !sameCompany(ctx.filerName, targetName)) buyer = { name: ctx.filerName, nick: "Company", index: 0 };
   if (!buyer) return null;
 
@@ -273,6 +300,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   if (ultimate && ultimate !== buyer) acquirerName = ultimate.name;
   else if (
     SHELL_NAME.test(buyer.name) ||
+    (BUYER_NICKS.includes(buyer.nick) && sameCompany(buyer.name, targetName)) ||
     /^(?:[A-Z][A-Za-z\-]+ )+(?:Parent|Purchaser|Holdings|Buyer|Bidco|BidCo)\b/.test(buyer.name) ||
     // "Parent and Purchaser are newly-formed entities established by a consortium … led by funds affiliated with Elliott"
     new RegExp(`\\b${buyer.nick.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^.]{0,60}\\b(?:are|is) (?:a |an )?newly[- ]formed`).test(section)
@@ -283,18 +311,23 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
       /(?:investment )?funds? (?:managed|advised|sponsored) by\s+|funds? affiliated with\s+|(?:acquisition|purchase) of the Company by (?:affiliates of |funds (?:managed|advised) by )?(?=[A-Z])/.exec(section),
     ];
     // "a subsidiary of Parent" names a defined term, not a sponsor.
-    const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim());
-    for (const lead of leads) {
+    const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim() || e.alias === s.trim());
+    for (const [i, lead] of leads.entries()) {
       if (!lead) continue;
       const rest = lead.input.slice(lead.index + lead[0].length);
-      const sponsor = /^([A-Z][^()"“;]{1,80}?)\s*\(/.exec(rest) ?? /^([A-Z][A-Za-z0-9&.'’\- ]{1,80}?)(?=,|\.\s|;|\s(?:and|or)\s)/.exec(rest);
-      // "the acquisition of the Company by Parent in an all cash transaction" names a defined term too.
-      // ("Oracle Corporation" defined as "Oracle" is fine: it starts with its own name.)
-      const startsWithTerm =
-        (!!sponsor && entities.some((e) => sponsor[1].startsWith(`${e.nick} `) && !sponsor[1].startsWith(e.name))) || /^(?:Parent|Purchaser|Buyer|Merger Sub)\b/.test(sponsor?.[1] ?? "");
-      const candidate = sponsor ? cleanPartyName(sponsor[1]) : "";
-      if (sponsor && !CLAUSE.test(sponsor[1]) && !isTerm(sponsor[1]) && !startsWithTerm && isPlausibleName(candidate)) {
-        acquirerName = candidate;
+      // Up to a parenthesis, else up to a comma; in the buyer's own description also the comma when the text up to the
+      // parenthesis is no name: "Mr. Jianquan Li, the chairman of the Company's board of directors (the …".
+      const toParen = /^([A-Z][^()"“;]{1,80}?)\s*\(/.exec(rest);
+      const toComma = /^([A-Z][A-Za-z0-9&.'’\- ]{1,80}?)(?=,|(?<!\b(?:Mr|Ms|Mrs|Dr|Jr|St))\.\s|;|\s(?:and|or)\s)/.exec(rest);
+      const sponsor = (i === 0 ? [toParen, toComma] : [toParen ?? toComma]).find((s) => {
+        if (!s) return false;
+        // "the acquisition of the Company by Parent in an all cash transaction" names a defined term too.
+        // ("Oracle Corporation" defined as "Oracle" is fine: it starts with its own name.)
+        const startsWithTerm = entities.some((e) => s[1].startsWith(`${e.nick} `) && !s[1].startsWith(e.name)) || /^(?:Parent|Purchaser|Buyer|Merger Sub)\b/.test(s[1]);
+        return !CLAUSE.test(s[1]) && !isTerm(s[1]) && !startsWithTerm && isPlausibleName(cleanPartyName(s[1]));
+      });
+      if (sponsor) {
+        acquirerName = cleanPartyName(sponsor[1]);
         break;
       }
     }

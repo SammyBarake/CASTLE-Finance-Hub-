@@ -331,6 +331,51 @@ NEW YORK, January 15, 2026 - Northwind and Crestline Global today announced a de
     expect(p.target).toMatchObject({ name: "Bluebird Holdings, Inc.", ticker: "BLBD" });
   });
 
+  it("reads two buyers signing one agreement to acquire a third company", () => {
+    const text = `Exhibit 99.1
+Crestline and Northwind Corporation Sign Agreement to Acquire Bluebird Health
+DUBLIN, Ohio, October 6, 2026 - Crestline, Northwind Corporation (NYSE: NWC) ("Northwind"), and Bluebird Health, Inc. (Nasdaq: BLBH) announced today that they have entered into a definitive agreement, under which Crestline and Northwind will acquire Bluebird Health for $32.05 per share, reflecting a total enterprise value of approximately $5.8 billion.`;
+    const p = parsePressRelease(text, { filerName: "Northwind Corporation", filerTickers: ["NWC"] })!;
+    expect(p.acquirer.name).toBe("Crestline and Northwind Corporation");
+    expect(p.target.name).toMatch(/^Bluebird Health/);
+    // The price after a long description of the target.
+    expect(p.pricePerShare).toBe(32.05);
+  });
+
+  it("spots a carve-out whose unit carries a trademark sign", () => {
+    const text = `Exhibit 99.1
+Northwind Technologies, Inc. Agrees to Acquire Bluebird Inc.'s Ophir ® Optics Business, Adding Advanced Infrared Optics Capabilities
+SANTA ANA, Calif., October 20, 2026 - Northwind Technologies, Inc. (NASDAQ: NWTI) today announced that it has entered into a definitive agreement to acquire the Ophir Optics business ("Ophir Optics") from Bluebird Inc. (NASDAQ: BLBD) for approximately $650 million in an all-cash transaction.`;
+    expect(parsePressRelease(text, { filerName: "Northwind Technologies, Inc.", filerTickers: ["NWTI"] })).toBeNull();
+  });
+
+  it("reads a buy-out of the rest of a company as that company, and skips stakes, branches and units", () => {
+    const rest = `Exhibit 99.1
+Northwind Pharmaceuticals to Acquire Remaining Stake in Bluebird Therapeutics
+CARLSBAD, Calif., August 31, 2020 - Northwind Pharmaceuticals, Inc. (Nasdaq: NWPH) and Bluebird Therapeutics, Inc. (Nasdaq: BLBT) today announced a definitive agreement under which Northwind will acquire all of the outstanding shares of Bluebird it does not already own for $18.15 per share in cash.`;
+    expect(parsePressRelease(rest, { filerName: "Northwind Pharmaceuticals, Inc.", filerTickers: ["NWPH"] })?.target.name).toMatch(/^Bluebird Therapeutics/);
+    const skip = (headline: string) =>
+      parsePressRelease(`Exhibit 99.1\n${headline}\nDENVER, May 1, 2024 - Northwind Corp. (NYSE: NWC) today announced the acquisition described above for $20 million.`, { filerName: "Northwind Corp.", filerTickers: ["NWC"] });
+    expect(skip("Northwind Corp. to Acquire Majority Stake in Bluebird Bank")).toBeNull();
+    expect(skip("Northwind Corp. Completes Acquisition of Seven Bluebird Savings Bank Montana Branches")).toBeNull();
+    expect(skip("Northwind Corp. to Acquire Fasteners and Components Business")).toBeNull();
+    expect(skip("Northwind Corp. Acquires Crypto Technology from Token IQ")).toBeNull();
+  });
+
+  it("skips a carve-out whose headline breaks at the possessive, an offer to the board, and a price adjustment", () => {
+    const carve = `Exhibit 99.1
+NEWS RELEASE
+Allegro to Acquire Bluebird & Decker's
+Access Technologies Business
+DUBLIN, April 22, 2022 - Allegro plc (NYSE: ALGR) today announced it will acquire Bluebird & Decker's Access Technologies Business for $900 million.`;
+    expect(parsePressRelease(carve, { filerName: "Allegro plc", filerTickers: ["ALGR"] })).toBeNull();
+    const offer = `Exhibit 99.1
+NORTHWIND MORTGAGE TRUST SUBMITS OFFER TO ACQUIRE BLUEBIRD MORTGAGE CAPITAL CORPORATION FOR IMPLIED PRICE OF $9.88 PER SHARE
+NEW YORK, July 13, 2023 - Northwind Mortgage Trust, Inc. (NYSE: NWMT) today announced that it submitted a proposal to the Board of Directors of Bluebird Mortgage Capital Corporation (NYSE: BMC) to acquire BMC.`;
+    expect(parsePressRelease(offer, { filerName: "Bluebird Mortgage Capital Corp", filerTickers: ["BMC"] })).toBeNull();
+    expect(extractValue("The total transaction consideration is also subject to a downward adjustment of a maximum $110 million in the event Bluebird does not achieve certain operational milestones.")).toBeNull();
+  });
+
   it("keeps an announcement whose first paragraph mentions an earlier deal", () => {
     const text = `Exhibit 99.1
 NORTHWIND DIGITAL ANNOUNCES ACQUISITION OF BLUEBIRD

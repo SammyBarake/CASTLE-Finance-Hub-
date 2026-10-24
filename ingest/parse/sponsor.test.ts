@@ -29,6 +29,33 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
     expect(sponsorFromText("Parent is an entity controlled by Himanshu H. Shah. The Merger is expected to close in 2025.", "Emeren Group Ltd", "Parent")).toBe("Himanshu H. Shah");
   });
 
+  it("reads affiliations, entities controlled by a firm and headlines in capitals", () => {
+    expect(
+      sponsorFromText('Parent, Intermediate and Merger Sub were formed by, and are affiliated with, Headwater Investments, LLC ("Headwater"), J. Bryan King and their respective affiliates.', "Bluebird Group, Inc.", "Eclipse Parent Acquisitions, LLC"),
+    ).toBe("Headwater Investments, LLC");
+    expect(sponsorFromText('… a definitive merger agreement under which newly formed entities controlled by Headwater Investments, LLC (collectively, "Headwater") will acquire all of the outstanding shares.', "Bluebird Group, Inc.", "Eclipse Parent Acquisitions, LLC")).toBe(
+      "Headwater Investments, LLC",
+    );
+    expect(sponsorFromText("BLUEBIRD GROUP TO BE TAKEN PRIVATE BY AFFILIATES OF HEADWATER INVESTMENTS FOR $35.00 PER COMMON SHARE IN CASH", "Bluebird Group, Inc.", "Eclipse Parent Acquisitions, LLC")).toBe("HEADWATER INVESTMENTS");
+  });
+
+  it("takes a name of its own that only starts like the vehicle's", () => {
+    expect(sponsorFromText("Bluebird Inc. to Be Acquired by Ithaca Holdings, the Long-Term Holding Company for Enduring Technology Businesses", "Bluebird Inc.", "Ithaca Holdco, Inc.")).toBe("Ithaca Holdings");
+    expect(sponsorFromText("Bluebird Inc. to Be Acquired by Sunshine for $6.05 per share", "Bluebird Inc.", "Sunshine Bidco Inc.")).toBeNull();
+  });
+
+  it("names a management buyout by the executive who leads it", () => {
+    expect(
+      sponsorFromText("… providing for Bluebird to be acquired, in an all-cash transaction, by an entity affiliated with a consortium of investors led by Max Wygod, Chairman and Chief Executive Officer, together with certain other senior executives.", "Bluebird Inc.", "2025 Acquisition Company, LLC"),
+    ).toBe("Management group led by Max Wygod");
+    expect(sponsorFromText("Buyer is controlled by the previously disclosed acquisition group led by Chief Executive Officer Timothy Damadian and consisting of certain members of the Company's management.", "Bluebird Corp", "Buyer")).toBe(
+      "Management group led by Timothy Damadian",
+    );
+    expect(sponsorFromText("Parent was formed by a group of individuals led by the Company's Chief Executive Officer, Timothy Damadian, and consisting of various executives.", "Bluebird Corp", "Parent")).toBe("Management group led by Timothy Damadian");
+    // A firm leading the group is the sponsor, not management.
+    expect(sponsorFromText("Mosaic to be acquired by an investor group led by Advent International for $26.00 per share in cash.", "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International");
+  });
+
   it("rejects defined terms, clauses, the target and the vehicle itself", () => {
     expect(sponsorFromText("Parent is a Delaware corporation and an affiliate of Parent that was formed solely for the purpose of the Merger.", "Switch, Inc.", "Sunshine Bidco Inc.")).toBeNull();
     expect(sponsorFromText("The Company agreed to be acquired by Spaceship Purchaser, Inc.", "Lattice Web, Inc.", "Spaceship Purchaser, Inc.")).toBeNull();

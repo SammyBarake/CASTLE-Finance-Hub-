@@ -151,7 +151,9 @@ const SUFFIX = String.raw`,\s(?:Inc|Corp|Ltd|LLC|L\.P|LP|Co|N\.V|S\.A|plc|PLC|Li
 // A slash between letters belongs to a name ("RE/MAX Holdings" was read as "MAX Holdings"; "Quad/Graphics", "Danfoss
 // A/S"); not in dates or phone numbers ("11/14/11", "212/355-4449").
 const NAME = String.raw`([A-Z0-9][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*(?:${SUFFIX}|\s(?:[A-Z0-9&][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*|of|and|de|du|la|for|the|by))*?)`;
-const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the )?`;
+// (A buy-out of the rest of a company is that company: "Ionis Pharmaceuticals to Acquire Remaining Stake in Akcea
+// Therapeutics", "ONEOK … to Acquire Remaining Public Stake in ONEOK Partners".)
+const LEAD_QUAL = String.raw`(?i:(?:certain )?affiliates? of |entities (?:affiliated with|managed by) |funds? (?:managed|advised) by |an? (?:newly formed )?entity (?:to be )?(?:formed|owned|controlled) by |an investor group led by |investment funds? (?:managed|advised) by |the remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:public )?(?:stake|interest|ownership interest) in |remaining (?:outstanding )?shares of |the )?`;
 const STOP = String.raw`(?=['’]s\b|\s*(?:[,;:(]|$)|\.(?:\s|$)|\s(?i:for|in|at|to|from|with|via|and (?:expand|create|strength|accelerat|add|form)|creating|expanding|adding|strengthening|accelerating|valued|forming|through|—|-|–)(?:\b|\s))`;
 
 /** A capitalized word followed by a lowercase one (not a name connector): the start of a sub-headline. */
@@ -163,8 +165,12 @@ const rx = (src: string) => new RegExp(src);
 
 const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
   {
+    // Two buyers take the plural verb: "CD&R and McKesson Corporation Sign Agreement to Acquire Option Care Health" (one
+    // target, bought jointly), which the "A and B sign" reading below made McKesson the target.
+    // The plural forms are separate alternatives on purpose: written "signs? (?:an? )?(?:definitive )?…" inside (?i:…),
+    // Node 24's engine failed to match "GENTEX SIGNS DEFINITIVE AGREEMENT TO ACQUIRE" (190 releases lost).
     re: rx(
-      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
+      String.raw`^${NAME}\s+(?i:to|will|agrees to|has agreed to|signs (?:a )?definitive (?:merger )?agreement to|enters into (?:a )?definitive (?:merger )?agreement to|announces (?:a )?(?:definitive )?(?:merger )?agreement to|announces (?:plans? )?to|agree to|have agreed to|sign (?:an? )?(?:definitive )?(?:merger )?agreement to|signs agreement to|enter into (?:an? )?(?:definitive )?(?:merger )?agreement to|enters into agreement to|announce (?:an? )?(?:definitive )?(?:merger )?agreement to)\s+(?i:acquire)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`,
     ),
     roles: ["acq", "tgt"],
   },
@@ -373,8 +379,10 @@ export function extractPrice(t: string): number | null {
     if (/(?:(?:average|closing|trading|market)(?: (?:stock|share|sale|trading))? price|\bVWAP)(?: of)?(?: approximately| about)?\s*$|\badditional\s*$/i.test(before)) continue;
     if (/\b(?:less|greater|more|lower|higher) than\s*$/i.test(before) && /\bprice\b|\bVWAP\b/i.test(clause.slice(-120))) continue;
     let score = 0;
-    // "acquire[d] … for" may run past an abbreviation: "to be acquired by Dream Finders Homes, Inc. for $33.50".
-    if (/receive|for each|in exchange for|purchase price|offer price|offer of|consideration|acquire(?:[^.]|\b(?:Inc|Corp|Co|Ltd|Bros)\.){0,80}\bfor\b|valued at|implies|implied|equal to|equivalent to|price of|at a price/i.test(before)) score += 2;
+    // "acquire[d] … for" may run past an abbreviation: "to be acquired by Dream Finders Homes, Inc. for $33.50", and past
+    // a description when "for" leads straight to the amount ("will acquire Option Care Health, an independent provider of
+    // home and alternate site infusion services, for $32.05 per share").
+    if (/receive|for each|in exchange for|purchase price|offer price|offer of|consideration|acquire(?:[^.]|\b(?:Inc|Corp|Co|Ltd|Bros)\.){0,80}\bfor\b|acquire[^.]{0,130}\bfor\s*$|valued at|implies|implied|equal to|equivalent to|price of|at a price/i.test(before)) score += 2;
     if (/^\s*(?:,\s*)?(?:in cash|net to the seller|payable in cash)/i.test(after)) score += 2;
     if (/premium/i.test(after)) score += 1;
     if (score > 0 && (!best || score > best.score)) best = { v, score };
@@ -416,6 +424,11 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // Skip non-USD currencies (C$, A$, NT$, HK$, S$ …) — we only report USD. "NT$6.8 billion (approximately US$223 million)".
     if (/(?:^|[\s(])(?:C|CA|CAD|A|AU|AUD|NT|HK|NZ|S|SG|R|MX|Mex)\$/.test(m[0])) continue;
     if (NOT_DEAL_VALUE.test(valueContext(t, m.index!, m[0].length))) continue;
+    // An adjustment to the price, not the price: "The total transaction consideration is also subject to a downward
+    // adjustment of a maximum $110 million" (Amazon / Globalstar). Only the amount the adjustment is of: "the purchase
+    // price, subject to customary adjustments, of $2.4 billion" is the price.
+    const dollar = m[0].indexOf("$");
+    if (dollar > 0 && /\b(?:adjustment|reduction|decrease|holdback|escrow)s?\s+(?:of\s+)?(?:up\s+to\s+|a\s+maximum\s+(?:of\s+)?|approximately\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
     // "$200 million of run-rate cost synergies" is not a price.
     // Nor a later instalment: "Thermo Fisher has agreed to pay $125 million in January 2027".
     const after = t.slice(m.index! + m[0].length, m.index! + m[0].length + 60);
@@ -634,8 +647,9 @@ export function isPrivateTarget(targetName: string, intro: string, targetTicker:
 }
 
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// (A unit's name may carry a trademark sign: "MKS Inc.'s Ophir ® Optics Business".)
 const PART_WORDS =
-  /^(?:\s+[\w&.,-]+){0,4}?\s+(?:business(?:es)?|division|unit|assets|operations|segments?|portfolio|subsidiar(?:y|ies)|product lines?|products|brands?|plants?|facilit(?:y|ies)|stake|interest|properties|rights)\b/i;
+  /^(?:\s+[\w&.,®™℠-]+){0,5}?\s+(?:business(?:es)?|division|unit|assets|operations|segments?|portfolio|subsidiar(?:y|ies)|product lines?|products|brands?|plants?|facilit(?:y|ies)|stake|interest|properties|rights|patent(?:s|ed)?|proprietary|technolog(?:y|ies)|intellectual property|licen[cs]es?|platforms?)\b/i;
 /** After a possessive: a part of the company ("'s valve unit", "'s Environmental Solutions Business"). */
 const PART_OF = { test: (rest: string) => /^\s+[a-z]/.test(rest) || PART_WORDS.test(rest) };
 
@@ -646,12 +660,25 @@ const PART_OF = { test: (rest: string) => /^\s+[a-z]/.test(rest) || PART_WORDS.t
 export function isCarveOut(headline: string, intro: string, targetName: string): boolean {
   const own = /(?:['’]s|s['’])(\s.*)$/.exec(targetName);
   if (own && PART_OF.test(own[1])) return true;
+  // Branches bought from a bank ("… Announce Agreement to Acquire Vision Bank Branch Locations"), a business or a joint
+  // venture ("… Remaining Ownership Interest in Mechanical Services Business", "… in Filter Joint Venture with Panasonic").
+  if (/\b(?:Branch(?:es| Locations| Offices)?|Business(?:es)?|Joint(?: Venture)?)$/i.test(targetName.trim())) return true;
   const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
   if (possessive && PART_OF.test(possessive[1])) return true;
+  // A headline that breaks off at the possessive ("Allegion to Acquire Stanley Black & Decker's"): the unit follows on
+  // the next line, which the release repeats ("… Stanley Black & Decker's Access Technologies Business"). A name can
+  // end that way too ("Dave & Buster's Entertainment, Inc."), so the release's own words decide.
+  const base = targetName.replace(/['’]s$/, "");
+  if (new RegExp(`${escapeRx(base)}['’]s\\s*$`).test(headline)) {
+    const rest = new RegExp(`${escapeRx(base)}['’]s(\\s.{0,80})`).exec(intro.slice(0, 600));
+    if (rest && PART_OF.test(rest[1])) return true;
+  }
   // The headline goes on with an asset word right after the name (or a list of them): "… Acquisition of Producing
   // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
-  // Properties Reports … Results" names the company.
-  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies))\\b`, "i").test(headline)) return true;
+  // Properties Reports … Results" names the company. Also a stake ("… Majority Stake in Digital Bank", "… Remaining
+  // Public Stake in ONEOK Partners") and technology bought from someone ("… Crypto Technology from Token IQ"; not
+  // "Linear Technology", whose name the parser cut, nor "Argotec, a Technology Leader").
+  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies)|technology\\s+from|patents?|stake|interest)\\b`, "i").test(headline)) return true;
   // The unit's own name may stand in between: "… to Acquire the L3Harris Space and Navigation Business".
   // Case matters for the unit's name (capitalised words), so the verb and the business word list both cases.
   if (new RegExp(`(?:[Aa]cquisition [Oo]f|ACQUISITION OF|[Aa]cquires?|ACQUIRES?|[Aa]cquired|ACQUIRED|[Aa]cquiring|ACQUIRING)\\s+(?:the|The|THE)\\s+${escapeRx(targetName)}\\s+(?:[A-Z][\\w&.-]*\\s+(?:and\\s+|AND\\s+|&\\s+)?){1,3}(?:Business(?:es)?|BUSINESS(?:ES)?|Division|DIVISION|Unit|UNIT|Segment|SEGMENT|Operations|OPERATIONS)\\b`).test(headline)) return true;
@@ -689,7 +716,8 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
   const dealWords = /\b(acquir|acquisition|merger|merge|combin|go private|take (?:the )?company private|going private|to be acquired|sale to)\w*/i;
   if (!dealWords.test(headline) && !/definitive (?:merger |arrangement )?agreement|agreement and plan of merger|merger agreement|arrangement agreement/i.test(intro)) return null;
   // Unsolicited proposals and non-binding bids aren't signed deals.
-  if (/\b(?:propos(?:es|ed|al)|non-binding|unsolicited|indication of interest|letter to (?:the )?board|rejects?|bid for)\b/i.test(headline) && !/definitive (?:merger )?agreement|agreement and plan of merger/i.test(headline + " " + intro.slice(0, 600))) {
+  // ("AG Mortgage Investment Trust Submits Offer to Acquire Western Asset Mortgage Capital": a proposal to the board.)
+  if (/\b(?:propos(?:es|ed|al)|non-binding|unsolicited|indication of interest|letter to (?:the )?board|rejects?|bid for|submits? (?:an? )?(?:revised |superior |competing )?(?:offer|bid))\b/i.test(headline) && !/definitive (?:merger )?agreement|agreement and plan of merger/i.test(headline + " " + intro.slice(0, 600))) {
     return null;
   }
   // Financing / capital markets releases that happen to mention "premium" — unless the body clearly

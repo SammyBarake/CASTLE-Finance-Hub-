@@ -26,7 +26,7 @@ import {
 } from "./edgar";
 import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
 import { definedEntities, item101, parseMergerItem } from "./parse/eightk";
-import { sponsorFromText } from "./parse/sponsor";
+import { namesTheShell, sponsorFromText } from "./parse/sponsor";
 import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { isClosingFiling, milestonesFrom } from "./timeline";
@@ -240,9 +240,13 @@ function resolveParty(p: PartyMention, hit: FtsHit, dir: Directory): Resolved {
   const pn = normalizeName(p.name);
   // Spacing aside: "MidWest One Financial Group" in Nicolet's 8-K is the filer MIDWESTONE FINANCIAL GROUP.
   const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+  // Not one of two buyers named together: "CD&R and McKesson Corporation" (a consortium, CD&R the majority owner) is
+  // not McKesson alone.
+  const sides = p.name.split(/\s+and\s+/i).map((s) => s.trim());
+  const joint = sides.length === 2 && sides.every((s) => s.length >= 3 && isPlausibleName(s));
   const f =
     filers.find((x) => sameCompany(x.name, p.name) || (squash(x.name).length >= 8 && squash(x.name) === squash(p.name))) ??
-    filers.find((x) => normalizeName(x.name).length >= 5 && pn.includes(normalizeName(x.name)));
+    filers.find((x) => normalizeName(x.name).length >= 5 && pn.includes(normalizeName(x.name)) && !(joint && sides.some((s) => sameCompany(x.name, s))));
   if (f?.cik) {
     const listed = dir.byCik.get(f.cik);
     // Had a ticker when it filed but is no longer in the listed-company file: delisted after the deal closed.
@@ -677,8 +681,11 @@ const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|
  * Bump to look again for the sponsor behind deals whose buyer is still an acquisition vehicle.
  * 2: "Acquirer Sub" counts as a vehicle (Amgen / Horizon).
  * 3: deals linked to a registrant a buyout firm's name collides with are re-read (Advent → Advent Technologies).
+ * 4: management buyouts ("a consortium of investors led by Max Wygod, Chairman and Chief Executive Officer"), headlines
+ *    in capitals, "entities controlled by …", and a name that only starts like the vehicle's ("Ithaca Holdings" behind
+ *    "Ithaca Holdco, Inc.").
  */
-export const SPONSOR_CHECK_VERSION = 3;
+export const SPONSOR_CHECK_VERSION = 4;
 
 /**
  * The real buyer behind an acquisition vehicle ("Spaceship Purchaser, Inc." → Permira): the target's announcement
@@ -699,7 +706,7 @@ export async function findSponsor(deal: StoredDeal, sub: Submissions): Promise<s
       const text = htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, doc), 300_000));
       const p = parsePressRelease(text, ctx);
       const headlineBuyer = p && p.kind === "announcement" && (namesCompany(p.target.name, deal.target.name) || sameCompany(p.target.name, deal.target.name)) ? cleanPartyName(p.acquirer.name) : null;
-      if (headlineBuyer && isPlausibleName(headlineBuyer) && !isPlaceholderBuyer(headlineBuyer) && !sameCompany(headlineBuyer, deal.target.name) && !sameCompany(headlineBuyer, deal.acquirer.name)) return headlineBuyer;
+      if (headlineBuyer && isPlausibleName(headlineBuyer) && !isPlaceholderBuyer(headlineBuyer) && !sameCompany(headlineBuyer, deal.target.name) && !namesTheShell(headlineBuyer, deal.acquirer.name)) return headlineBuyer;
       const named = sponsorFromText(text, deal.target.name, deal.acquirer.name);
       if (named) return named;
     }
@@ -1483,6 +1490,13 @@ export async function ingestDeals(
     else if (/^[A-Z]{2,6}$/.test(tn) && text) {
       const full = expandAbbreviation(tn, text);
       if (full) parsed = { ...parsed, target: { ...parsed.target, name: full } };
+    }
+    // The buyer too: `Francisco Partners ("FP")` … "FP has entered into a definitive agreement to acquire Weave". Not a
+    // ticker the text lists or a name of its own ("IBM (NYSE: IBM)").
+    const an = parsed.acquirer.name;
+    if (/^[A-Z]{2,6}$/.test(an) && text && !listedInText(an) && !directory.byName.has(normalizeName(an))) {
+      const full = expandAbbreviation(an, text);
+      if (full && !sameCompany(full, parsed.target.name)) parsed = { ...parsed, acquirer: { ...parsed.acquirer, name: full, ticker: null } };
     }
     // "Elon Musk SAN FRANCISCO" -> "Elon Musk"; "CANADIAN PACIFIC" -> "Canadian Pacific"
     const rawTarget = parsed.target.name;

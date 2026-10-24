@@ -17,19 +17,45 @@ const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+
 const PATTERNS: RegExp[] = [
   // "Squarespace Enters into Definitive Agreement to Be Acquired by Permira"
   new RegExp(String.raw`\b[Tt]o\s+[Bb]e\s+(?:[Aa]cquired|[Tt]aken\s+[Pp]rivate)\s+[Bb]y\s+${FUNDS}${NAME}${END}`),
-  // "Parent and Merger Sub are affiliates of investment funds managed by Thoma Bravo"
-  new RegExp(String.raw`\b(?:Parent|Purchaser|Buyer|Holdings|Merger\s+Sub|Bidco)\b[^.]{0,140}?\b(?:(?:is|are)\s+(?:each\s+)?)?(?:an?\s+)?(?:affiliates?\s+of|controlled\s+by|(?:an?\s+)?(?:indirect\s+)?(?:wholly[- ]owned\s+)?subsidiar(?:y|ies)\s+of|formed\s+by|owned\s+by|sponsored\s+by)\s+${FUNDS}${NAME}${END}`),
+  // "Parent and Merger Sub are affiliates of investment funds managed by Thoma Bravo"; "Parent, Intermediate and Merger
+  // Sub were formed by, and are affiliated with, LKCM Headwater Investments, LLC" (Distribution Solutions Group)
+  new RegExp(String.raw`\b(?:Parent|Purchaser|Buyer|Holdings|Merger\s+Sub|Bidco)\b[^.]{0,140}?\b(?:(?:is|are)\s+(?:each\s+)?)?(?:an?\s+)?(?:affiliates?\s+of|controlled\s+by|(?:an?\s+)?(?:indirect\s+)?(?:wholly[- ]owned\s+)?subsidiar(?:y|ies)\s+of|formed\s+by(?:,\s+and\s+(?:are|is)\s+affiliated\s+with,)?|affiliated\s+with|owned\s+by|sponsored\s+by)\s+${FUNDS}${NAME}${END}`),
   // "… an affiliate of funds managed by Apollo", "a portfolio company of Clearlake", "funds advised by each of Advent
   // International Corporation, Permira …" (McAfee)
   new RegExp(String.raw`\b(?:funds?|vehicles?)\s+(?:managed|advised|sponsored)(?:\s+or\s+advised)?\s+by\s+(?:affiliates\s+of\s+)?(?:each\s+of\s+)?${NAME}${END}`),
   // "to be acquired by an investor group led by Advent International"
   new RegExp(String.raw`\b(?:investor\s+group|group\s+of\s+investors|consortium|investor\s+consortium)\s+led\s+by\s+${FUNDS}${NAME}${END}`),
   new RegExp(String.raw`\bportfolio\s+company\s+of\s+${FUNDS}${NAME}${END}`),
-  // "Pillartree Limited, a newly formed private limited company wholly owned by Amgen Inc." (Irish scheme offers)
-  new RegExp(String.raw`\bnewly[- ](?:formed|incorporated)\b[^.;]{0,80}?\b(?:wholly[- ]owned\s+(?:indirect\s+)?(?:subsidiary\s+of|by)|owned\s+by|subsidiary\s+of)\s+${FUNDS}${NAME}${END}`),
+  // "Pillartree Limited, a newly formed private limited company wholly owned by Amgen Inc." (Irish scheme offers);
+  // "newly formed entities controlled by LKCM Headwater Investments, LLC"
+  new RegExp(String.raw`\bnewly[- ](?:formed|incorporated)\b[^.;]{0,80}?\b(?:wholly[- ]owned\s+(?:indirect\s+)?(?:subsidiary\s+of|by)|owned\s+by|controlled\s+by|subsidiary\s+of)\s+${FUNDS}${NAME}${END}`),
   // "Permira to Acquire Squarespace", "… announced that Thoma Bravo has agreed to acquire …" (headline first)
   new RegExp(String.raw`^\s*${NAME}\s+(?:to\s+acquire|agrees?\s+to\s+acquire|has\s+agreed\s+to\s+acquire|will\s+acquire)\s`),
+  // A headline in capitals, last so that the body's own spelling wins: "DISTRIBUTION SOLUTIONS GROUP TO BE TAKEN PRIVATE
+  // BY AFFILIATES OF LKCM HEADWATER INVESTMENTS FOR $35.00 PER COMMON SHARE IN CASH".
+  new RegExp(String.raw`\bTO\s+BE\s+(?:ACQUIRED|TAKEN\s+PRIVATE)\s+BY\s+(?:(?:CERTAIN\s+)?(?:AN?\s+)?AFFILIATES?\s+OF\s+|FUNDS\s+(?:MANAGED|ADVISED)\s+BY\s+)?([A-Z][A-Z0-9&.,'’\- ]{1,60}?)(?=\s+(?:FOR|IN|AT|THROUGH)\b|\s*[,;(]|$)`),
 ];
+
+/**
+ * A management buyout names no firm: "a consortium of investors led by Max Wygod, Chairman and Chief Executive Officer"
+ * (Forian), "an acquisition group led by Chief Executive Officer Timothy Damadian", "a group of individuals led by the
+ * Company's Chief Executive Officer, Timothy Damadian" (FONAR). The buyer is then the management group led by them.
+ */
+const TITLE = String.raw`(?:(?:Co-)?Founder|Chairman|Chairwoman|Chair|President|Chief Executive Officer|CEO|Executive Chairman)`;
+const PERSON = String.raw`((?:Mr\.|Ms\.|Mrs\.|Dr\.)?\s?[A-Z][a-z]+(?:\s[A-Z]\.)?(?:\s[A-Z][a-z'’-]+){1,2})`;
+const LED_BY = String.raw`\b(?:consortium|group)\s+(?:of\s+(?:investors|individuals|shareholders|stockholders)\s+)?led\s+by\s+`;
+const MANAGEMENT = [
+  new RegExp(String.raw`${LED_BY}(?:the\s+Company['’]s\s+|its\s+|our\s+)?${TITLE}(?:(?:,|\s+and)\s+${TITLE})*,?\s+${PERSON}(?![\w])`),
+  new RegExp(String.raw`${LED_BY}${PERSON},\s+(?:the\s+Company['’]s\s+|its\s+|our\s+)?${TITLE}`),
+];
+
+/** The vehicle's own name, or its leading words ("Sunshine" for "Sunshine Bidco"), is never the answer. */
+const plainWords = (s: string) => cleanPartyName(s).toLowerCase().replace(/[^a-z0-9& ]+/g, " ").split(/\s+/).filter((w) => w && !/^(?:inc|llc|corp|corporation|ltd|limited|lp|l|p|co)$/.test(w));
+export function namesTheShell(name: string, shell: string): boolean {
+  const a = plainWords(name);
+  const b = plainWords(shell);
+  return a.length > 0 && a.length <= b.length && a.every((w, i) => w === b[i]);
+}
 
 /** Words that make a capture a clause or a defined term, not a firm. */
 const NOT_A_FIRM =
@@ -49,9 +75,15 @@ export function sponsorFromText(text: string, target: string, shell: string): st
       // "affiliates of Silver Lake and Sixth Street" keeps both; a trailing "and" alone goes.
       name = name.replace(/\s+(?:and|&)$/i, "");
       if (!isPlausibleName(name) || name.length < 3 || NOT_A_FIRM.test(name) || clauseWord(name) || isPlaceholderBuyer(name)) continue;
-      if (namesCompany(name, target) || sameCompany(name, target) || sameCompany(name, shell)) continue;
+      // A name of its own that only starts like the vehicle's is the buyer: "Ithaca Holdings" behind "Ithaca Holdco, Inc."
+      // (Bumble).
+      if (namesCompany(name, target) || sameCompany(name, target) || namesTheShell(name, shell)) continue;
       return name;
     }
+  }
+  for (const re of MANAGEMENT) {
+    const person = re.exec(flat)?.[1]?.replace(/^(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s?/, "").trim();
+    if (person && !sameCompany(person, target)) return `Management group led by ${person}`;
   }
   return null;
 }

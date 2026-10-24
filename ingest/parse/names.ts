@@ -290,8 +290,9 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
   !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco)$/i.test(s) &&
-  // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp.
-  !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.v|s\.a|ag|gmbh)\.?$/i.test(s.trim()) &&
+  // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp; "BV" was
+  // left of "argenx BV".
+  !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.?v|b\.?v|s\.a|s\.?p\.?a|ag|gmbh|ulc)\.?$/i.test(s.trim()) &&
   // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
   // "During the five-year period following the Closing".
   !/^(?:Item|Exhibit)\s+\d/i.test(s) &&
@@ -317,7 +318,7 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   // "Equify Financial, LLC, as lender", "Third Amendment". Names keep their small words to "of", "and", "the" …
   !/^(?:Additionally|In addition|Also|However|Further(?:more)?),?\s|^(?:First|Second|Third|Fourth|Fifth)\s+(?:Amendment|Merger|Effective Time|Closing)\b|^The Company\s+[a-z]|,\s*as\s+(?:lender|agent|administrative agent|collateral agent|trustee|borrower|guarantor)\b/.test(s) &&
   // A numbered company with its number cut off: "1501016 B.C. Ltd." read as "B.C. Ltd".
-  !/^(?:B\.?\s?C\.?|Ontario|Alberta|Canada|Nova Scotia)\s+(?:Ltd|Inc|Corp|ULC|Limited)\.?$/i.test(s.trim()) &&
+  !/^(?:B\.?\s?C\.?|Ontario|Alberta|Canada|Nova Scotia|Qu[eé]bec)\s+(?:Ltd|Inc|Corp|ULC|Limited)\.?$/i.test(s.trim()) &&
   // A date run into the name: "Thoma Bravo March 10"; a moment in the deal: "Tenax at the Closing".
   !/\s(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}$/.test(s.trim()) &&
   !/\sat\s+(?:the\s+)?(?:Closing|Effective Time)$/i.test(s.trim()) &&

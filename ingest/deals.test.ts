@@ -136,6 +136,13 @@ describe("expandAbbreviation", () => {
   it("finds the full name a release defines", () => {
     expect(expandAbbreviation("MMT", 'Perimeter Solutions has agreed to acquire Medical Manufacturing Technologies, LLC ("MMT") for $685 million.')).toBe("Medical Manufacturing Technologies, LLC");
     expect(expandAbbreviation("WBD", "Paramount to acquire WBD (NASDAQ: WBD).")).toBeNull();
+    // A buyer's (applied in the ingest when the buyer is written that way).
+    expect(
+      expandAbbreviation(
+        "FP",
+        'Bluebird Communications, Inc. ("Bluebird") (NYSE: BLBD), a leading AI-powered patient engagement and payments platform purpose-built for healthcare practices, and Francisco Partners ("FP"), a leading global investment firm, today announced that FP has entered into a definitive agreement to acquire Bluebird.',
+      ),
+    ).toBe("Francisco Partners");
   });
 });
 

@@ -255,6 +255,24 @@ describe("parseMergerItem: structures the big-deal check found", () => {
     expect(web.acquirer.name).toMatch(/^salesforce\.com, inc/);
   });
 
+  it("keeps a lower-case brand whole with its legal form", () => {
+    const p = parseMergerItem(
+      item(`On July 26, 2026, Bluebird Biosciences, Inc., a Delaware corporation (the " Company "), entered into an Agreement and Plan of Merger (the " Merger Agreement ") with argenx BV, a private company with limited liability ( besloten vennootschap ) organized under Belgian Law (" Parent "), and Avena Merger Sub Inc., a Delaware corporation and a wholly owned subsidiary of Parent (" Purchaser "). The Merger Agreement provides for a tender offer followed by a merger of Purchaser with and into the Company, for $77.00 per Share, net to the seller in cash.`),
+      { filerName: "Bluebird Biosciences, Inc.", filerTickers: [] },
+    )!;
+    expect(p.acquirer.name).toBe("argenx BV");
+    expect(p.target.name).toBe("Bluebird Biosciences, Inc.");
+  });
+
+  it("takes the merger subs' parent, not the target's own operating partnership (Up-C)", () => {
+    const p = parseMergerItem(
+      item(`On October 12, 2026, Bluebird Inc., a Delaware corporation (" Bluebird " or the " Company "), entered into an Agreement and Plan of Merger (the " Merger Agreement ") by and among the Company, Buzz Holdings L.P., (" Opco "), a Delaware limited partnership, Ithaca Holdco, Inc., a Delaware corporation (" Ithaca "), Oak Merger Sub 1, Inc., a Delaware corporation and a wholly owned subsidiary of Ithaca (" Merger Sub 1 "), and Oak Merger Sub 2, LLC, a Delaware limited liability company and a wholly owned subsidiary of Ithaca (" Merger Sub 2 "). Merger Sub 1 will merge with and into the Company (the " Corporate Merger "), and Merger Sub 2 will merge with and into Opco (the " Opco Merger ").`),
+      { filerName: "Bluebird Inc.", filerTickers: [] },
+    )!;
+    expect(p.acquirer.name).toBe("Ithaca Holdco, Inc.");
+    expect(p.target.name).toBe("Bluebird Inc.");
+  });
+
   it("strips an earlier party's defined term from the front of the next name", () => {
     const p = parseMergerItem(
       item(`On June 15, 2026, Perrin Apparel International, Inc. ("Perrin" or the "Company") entered into an Agreement and Plan of Merger, by and among Perrin, Feld Holdings LLC, a Delaware limited liability company ("Parent"), and GF Merger Sub, Inc., a wholly-owned subsidiary of Parent ("Merger Sub"), providing for the merger of Merger Sub with and into the Company. Each share will be converted into the right to receive $27.50 in cash.`),
