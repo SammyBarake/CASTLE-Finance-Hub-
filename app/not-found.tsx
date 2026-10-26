@@ -12,7 +12,7 @@ export default function NotFound() {
       title="Page not found"
       actions={
         <>
-          <Link className="button primary" href="/">
+          <Link className="button primary" href="/hub">
             Go to the Hub
           </Link>
           <Link className="button" href="/deal-flow">

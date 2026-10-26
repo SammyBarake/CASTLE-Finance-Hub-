@@ -44,8 +44,59 @@ for (const width of [1366, 375]) {
         expect(errors).toEqual([]);
       });
     }
+
+    // The landing page at "/" (the Hub is at /hub, in the loop above): figures from the server, never the dataset.
+    test("Landing (/)", async ({ page }) => {
+      const errors = watchErrors(page);
+      const dataset: string[] = [];
+      page.on("request", (r) => {
+        if (new URL(r.url()).pathname.startsWith("/api/hub")) dataset.push(r.url());
+      });
+      await page.goto("/", { waitUntil: "networkidle" });
+      await expectLoaded(page);
+      await expect(page.locator('main a[href="/hub"]').first()).toBeVisible();
+      // CI sets no NEXT_PUBLIC_AUTH_PROVIDERS: no account wording, no sign-in button.
+      await expect(page.locator('a[href="/hub?signin=1"]')).toHaveCount(0);
+      await expect(page.locator(".landing-kpis .kpi")).toHaveCount(4);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, "horizontal overflow in px").toBeLessThanOrEqual(1);
+      if (width === 375) {
+        // Phone text never below 10px.
+        const tiny = await page.evaluate(() =>
+          [...document.querySelectorAll(".landing *")]
+            .filter(
+              (el) =>
+                el.getClientRects().length > 0 &&
+                [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()) &&
+                parseFloat(getComputedStyle(el).fontSize) < 10,
+            )
+            .map((el) => `${el.tagName}.${el.className}: ${getComputedStyle(el).fontSize}`),
+        );
+        expect(tiny, "phone text under 10px").toEqual([]);
+      }
+      expect(dataset, "the landing page never downloads the dataset").toEqual([]);
+      expect(errors).toEqual([]);
+    });
   });
 }
+
+test("the landing page opens the terminal, and ?signin=1 is cleaned up without breaking Back", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/", { waitUntil: "networkidle" });
+  // A soft navigation from a page with no providers into the terminal layout.
+  await page.locator('main a[href="/hub"]').first().click();
+  await expect(page).toHaveURL(/\/hub$/);
+  await expectLoaded(page);
+  // Opened with a full load (a shared link, a new tab): the parameter goes, and the router's history state stays.
+  await page.goto("/hub?signin=1", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/hub$/);
+  await page.goto("/about", { waitUntil: "networkidle" });
+  // A soft navigation back: waiting for "networkidle" here took ~28 s for nothing.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/hub$/);
+  await expectLoaded(page);
+  expect(errors).toEqual([]);
+});
 
 test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   const errors = watchErrors(page);
@@ -94,7 +145,7 @@ test("the sign-in return page explains a sign-in that didn't finish", async ({ p
   await page.goto("/auth/callback?error_description=You%20cancelled%20the%20sign-in.&next=%2F%2Felsewhere.example");
   await expect(page.locator("h1")).toHaveText("Sign-in didn't finish");
   await expect(page.locator("main")).toContainText("You cancelled the sign-in.");
-  await expect(page.locator(".status-actions a")).toHaveAttribute("href", "/");
+  await expect(page.locator(".status-actions a")).toHaveAttribute("href", "/hub");
   expect(errors).toEqual([]);
 });
 
@@ -108,7 +159,7 @@ test("an unknown address gets the Castle 404 page", async ({ page }) => {
   const res = await page.goto("/no-such-page-here");
   expect(res?.status()).toBe(404);
   await expect(page.locator("h1")).toHaveText("Page not found");
-  await expect(page.locator(".status-actions a").first()).toHaveAttribute("href", "/");
+  await expect(page.locator(".status-actions a").first()).toHaveAttribute("href", "/hub");
 });
 
 test("data feed, freshness, sitemap, robots and preview image", async ({ request }) => {

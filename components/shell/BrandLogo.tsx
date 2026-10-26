@@ -122,7 +122,8 @@ export function BrandLogo() {
   };
 
   return (
-    <Link className="brand" href="/" aria-label="Castle home" onClick={onClick}>
+    // The Hub, not the landing page at "/": leaving the terminal would unmount the logo before a click combo could build.
+    <Link className="brand" href="/hub" aria-label="Castle Hub" onClick={onClick}>
       <span className="brand-logo">
         <span className="brand-press" ref={pressRef}>
           <span className="brand-art" ref={artRef}>

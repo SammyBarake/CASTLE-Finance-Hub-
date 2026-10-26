@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Git-ignored local debug scripts.
     ".scratch/**",
+    // Other Claude Code sessions' worktrees (git-ignored copies of the repo).
+    ".claude/**",
   ]),
 ]);
 

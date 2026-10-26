@@ -25,7 +25,7 @@ export default function TerminalError({ error, retry }: { error: Error & { diges
         <button type="button" className="button primary" onClick={() => retry()}>
           Try again
         </button>
-        <Link className="button" href="/">
+        <Link className="button" href="/hub">
           Go to the Hub
         </Link>
         <a className="button" href={reportIssueUrl("Page error on Castle", error.digest ? `Reference: ${error.digest}` : "")} target="_blank" rel="noopener noreferrer">

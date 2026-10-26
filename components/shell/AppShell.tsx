@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="sample-tag">
             {data.isSample
               ? "Sample data (local development) · Fictional transactions and rankings"
-              : "SEC EDGAR · Refreshed every few hours · Not investment advice"}
+              : "SEC EDGAR · Updated several times a day · Not investment advice"}
           </span>
           <nav className="footer-links" aria-label="About Castle">
             <Link href="/about">About</Link>

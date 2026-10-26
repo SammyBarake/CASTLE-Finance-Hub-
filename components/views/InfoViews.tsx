@@ -15,10 +15,10 @@ const EFFECTIVE = "October 2026";
 
 const SECTION_BLURBS: Record<SectionId, string> = {
   hub: "The latest deals, IPOs and league table at a glance, and how complete each field is.",
-  ma: "Every announced deal with its terms, volume over time, deal protections, time to close and activist campaigns.",
+  ma: "Announced deals involving U.S.-listed companies with their terms, volume over time, deal protections, time to close and activist campaigns.",
   valuation: "Median EV / EBITDA, EV / Revenue and premiums by sector, and a precedent-transaction screen.",
   advisors: "League tables of the banks on each deal, the fees they earn and their client profiles.",
-  ipos: "Companies that filed to go public, from filing to pricing to trading, with their underwriters.",
+  ipos: "Companies that filed to list on a U.S. exchange, from filing to pricing to trading, with their underwriters.",
   macro: "GDP growth, inflation and central-bank policy rates for 11 major economies.",
   whatif: "How a shock to rates, volatility or one sector ripples through deal activity, with its backtested accuracy.",
 };
@@ -103,8 +103,9 @@ export function AboutView() {
             <li>
               <strong>Extract</strong>
               <p>
-                Rule-based parsers read each document for the parties, price, premium, value, advisers and deal terms. No AI model writes the numbers: a figure that
-                isn&apos;t clearly stated is left blank, never estimated.
+                Rule-based parsers read each document for the parties, price, premium, value, advisers and deal terms. No AI model writes the numbers: a term that
+                isn&apos;t clearly stated is left blank, and values and multiples are calculated only from stated figures (offer price × shares, reported
+                financials).
               </p>
             </li>
             <li>

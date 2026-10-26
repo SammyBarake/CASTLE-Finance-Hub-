@@ -47,7 +47,7 @@ export function AuthCallback() {
       code="Sign in"
       title="Sign-in didn't finish"
       actions={
-        <Link className="button primary" href="/">
+        <Link className="button primary" href="/hub">
           Back to Castle
         </Link>
       }

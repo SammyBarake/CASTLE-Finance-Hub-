@@ -37,7 +37,7 @@ export interface SectionDef {
 }
 
 export const ROUTES: RouteDef[] = [
-  { id: "hub", href: "/", title: "Hub", tab: "Hub", section: "hub" },
+  { id: "hub", href: "/hub", title: "Hub", tab: "Hub", section: "hub" },
   { id: "coverage", href: "/coverage", title: "Data Coverage", tab: "Coverage", section: "hub" },
   { id: "deal-flow", href: "/deal-flow", title: "Deal Flow", tab: "Deal Flow", section: "ma" },
   { id: "deal-volume", href: "/deal-volume", title: "Deal Volume", tab: "Volume", section: "ma" },
@@ -102,7 +102,7 @@ export const routeForPath = (path: string): { id: string; title: string; section
     : path.startsWith("/book/")
       ? SHARED_BOOK_ROUTE
       : (INFO_ROUTES.find((r) => path === r.href) ??
-      ROUTES.filter((r) => (r.href === "/" ? path === "/" : path === r.href || path.startsWith(`${r.href}/`))).sort((a, b) => b.href.length - a.href.length)[0] ??
+      ROUTES.filter((r) => path === r.href || path.startsWith(`${r.href}/`)).sort((a, b) => b.href.length - a.href.length)[0] ??
       ROUTES[0]);
 
 export const sectionOf = (id: SectionId | null) => SECTIONS.find((s) => s.id === id) ?? null;

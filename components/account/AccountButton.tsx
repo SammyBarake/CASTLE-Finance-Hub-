@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useUi } from "@/components/ui/UiProvider";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
-import { AUTH_PROVIDERS } from "./client";
+import { AUTH_PROVIDERS, hasStoredSession } from "./client";
 import { useAccount, type AccountUser } from "./AccountProvider";
 import type { SyncState } from "./sync";
 
@@ -37,6 +37,18 @@ export function AccountButton() {
   useEffect(() => {
     if (notice) toast(notice.text);
   }, [notice, toast]);
+
+  // The landing page's "Sign in to save" links to /hub?signin=1: open the sign-in dialog once, then drop the parameter.
+  // window.location, not useSearchParams, so /hub stays a static page with no Suspense boundary.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("signin") !== "1") return;
+    url.searchParams.delete("signin");
+    // Keep the router's own history state (as lib/urlState.ts does): null would break Back for this entry.
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    // The first run comes before AccountProvider marks a stored session "starting", so check the browser directly.
+    if (status === "signedOut" && !hasStoredSession()) openDialog({ eyebrow: "Optional account", title: "Save your work across devices", body: <SignInBody /> });
+  }, [status, openDialog]);
 
   if (status === "off") return null;
   if (status !== "signedIn" || !user)

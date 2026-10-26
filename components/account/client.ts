@@ -57,9 +57,12 @@ export function getClient(): Promise<SupabaseClient> {
   return client;
 }
 
-/** Only a path on this site may follow sign-in (never "//elsewhere" or a full URL: no open redirect). */
+/**
+ * Only a path on this site may follow sign-in (never "//elsewhere" or a full URL: no open redirect). Otherwise the
+ * Hub, where the workspace is (the landing page at "/" has none).
+ */
 export function safeNext(next: string | null): string {
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/hub";
 }
 
 /** Leaves for the provider's sign-in page; it comes back to /auth/callback, then to the page the user was on. */

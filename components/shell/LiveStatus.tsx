@@ -3,21 +3,7 @@
 import { useEffect, useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { formatTimestampET } from "@/lib/format";
-
-function ago(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 45) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h ${m % 60 ? `${m % 60}m ` : ""}ago` : `${Math.floor(h / 24)}d ago`;
-}
-
-/**
- * Full ingest runs every 6 hours (and hourly on weekdays): data older than this means updates have stopped, and the
- * pill says so instead of "Live".
- */
-export const STALE_AFTER_MS = 8 * 3_600_000;
+import { ago, STALE_AFTER_MS } from "@/lib/freshness";
 
 /**
  * The top bar's live indicator: when the data was last refreshed (ticking forward), a pulse each time the tab

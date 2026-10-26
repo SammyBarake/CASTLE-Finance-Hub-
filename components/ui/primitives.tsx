@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
+import { initials } from "@/lib/names";
 import { sectorColor } from "@/lib/sectors";
 import type { DealStatus, IpoStage, Sector } from "@/lib/types";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -26,8 +27,6 @@ export function SectorLabel({ sector }: { sector: Sector }) {
     </span>
   );
 }
-
-export const initials = (name: string) => name.replace(/[^A-Z]/g, "").slice(0, 2) || name.slice(0, 2).toUpperCase();
 
 /** Square monogram for a company or bank. */
 export function CompanyMark({ name, letters }: { name: string; letters?: string }) {
