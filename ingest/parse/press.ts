@@ -416,14 +416,48 @@ export const MAX_DEAL_VALUE = 300e9;
 const num = (s: string) => Number(s.replace(/,/g, ""));
 const unitMult = (u: string) => (/^b/i.test(u) ? 1e9 : /^t/i.test(u) ? 1e12 : 1e6);
 
+/**
+ * Another dollar written with a letter prefix: "C$1.40 per share" (Ovintiv / Logan), "A$", "NT$", "HK$", "R$". The
+ * price patterns would read the "$1.40" inside it as US dollars.
+ */
+export const otherDollar = (t: string, dollarAt: number) => /[A-Z]$/.test(t.slice(Math.max(0, dollarAt - 1), dollarAt)) && !/(?:\bUS|U\.S\.)$/.test(t.slice(Math.max(0, dollarAt - 4), dollarAt));
+
+/**
+ * The cash part of a cash-and-shares price, not the price. Cash written before the shares ("the right to receive $26.45
+ * in cash, without interest, … (the "Cash Consideration"), and 1.0340 shares": James Hardie / AZEK) or after them in a
+ * numbered list ("(i) 0.9693 shares of Class A Common Stock, par value $0.01 per share, of Parent …, and (ii) $96.00 in
+ * cash": Fox / Roku). `before` and `after` are the text either side of the amount, within its sentence.
+ */
+export function isCashLeg(before: string, after: string): boolean {
+  const shares = String.raw`(?:one|two|three|\d+(?:\.\d+)?|a fraction of(?: a| one)?)\s+(?:\(the\s[^()]{1,40}\)\s+)?(?:fully[- ]paid\s+(?:and\s+)?non-?assessable\s+)?(?:[A-Z][\w&.'’-]*\s+){0,4}(?:(?:class\s+[A-Z]\s+)?common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|[Uu]nits?)\b`;
+  const sentenceAfter = after.split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])|;/)[0];
+  // Not across another amount: "either $12.00 in cash (the "Cash Election"), or a combination of $3.00 in cash … and one
+  // Class A Share" (J. Alexander's) is a cash election worth the whole price.
+  if (new RegExp(String.raw`^(?:[^;$]{0,220}?[,)]\s*|\s*)(?:and|plus|as well as|together with)\s+(?:\([a-z0-9]{1,4}\)\s+)?${shares}`).test(sentenceAfter)) return true;
+  const sentenceBefore = before.split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z(])|;\s/).pop() ?? before;
+  return new RegExp(String.raw`(?<![$\d.,]\s?)\b${shares}(?:[^;]){0,260}?\b(?:and|plus)\s+(?:\([a-z0-9]{1,4}\)\s+)?(?:an amount (?:in cash )?equal to\s+)?$`).test(sentenceBefore);
+}
+
+/** Holders choose cash or shares: the cash on offer is then worth the whole price. */
+const ELECTION = /\belect(?:s|ing|ed)?\s+to\s+receive\b|\b(?:right|permitted|entitled|able|option)\s+to\s+elect\b|\bmay\s+elect\b|\b(?:cash|stock|share|mixed)\s+election\b|\b(?:the|their|its|his or her)\s+election\b|\bthe\s+election\s+of\s+(?:the\s+)?(?:holder|shareholder|stockholder)/i;
+
 /** Offer price per share. Needs buyout context; ignores par values, dividends, EPS and note prices. */
 export function extractPrice(t: string): number | null {
   const re =
     /(?:(?:US|U\.S\.)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)\s*(?:per|a|\/)\s*(?:(?:[A-Z][\w&.'’\-]*\s){0,4})?(?:outstanding\s|issued\s)?(?:common\s|ordinary\s)?share\b/gi;
   let best: { v: number; score: number } | null = null;
+  let mixed: boolean | undefined;
+  // "The transaction values each TopBuild share at $505" (QXO / TopBuild, a cash-or-stock election): the stated value of
+  // each share, whatever its holder elects.
+  const each = /\bvalu(?:es|ing|ed)\s+each\s+(?:outstanding\s+)?(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?share(?:\s+of\s+(?:[A-Z][\w&.'’-]*\s+){1,4}(?:common\s+stock|ordinary\s+shares)?)?\s*\bat\s+(?:approximately\s+|about\s+)?(?:US\$|\$)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)(?!,?\d|\.\d|\s*(?:million|billion))/i.exec(t);
+  if (each && !otherDollar(t, each.index! + each[0].lastIndexOf("$"))) {
+    const v = num(each[1]);
+    if (v >= 0.05 && v < 10_000) best = { v, score: 3 };
+  }
   for (const m of t.matchAll(re)) {
     const v = num(m[1]);
     if (!(v >= 0.05 && v < 10_000)) continue;
+    if (otherDollar(t, m.index!)) continue;
     const before = t.slice(Math.max(0, m.index! - 140), m.index!);
     const after = t.slice(m.index! + m[0].length, m.index! + m[0].length + 40);
     // Exclusions only look within the same clause as the amount.
@@ -431,6 +465,9 @@ export function extractPrice(t: string): number | null {
     if (/par value|dividend|distribution|exercise price|conversion price|strike|warrants?|earnings|EPS|FFO|AFFO|net (?:income|loss)|book value|NAV\b|per share data|guidance|outlook/i.test(clause.slice(-70) + after.slice(0, 20))) continue;
     // A CVR or milestone payment ("plus one CVR worth up to $3.50 per share") is not the offer price.
     if (/contingent value right|\bCVRs?\b|milestones?|earn-?out|\bup to\s*$/i.test(clause.slice(-120))) continue;
+    // Nor a debenture's conversion price: "the Debenture is convertible at the option of Solitario into Zazu Shares at a
+    // price of US$0.22 per Zazu Share".
+    if (/\bdebentures?\b|\b(?:convertible|exchangeable)\s+(?:at|into)\b|\bconvertible\s+(?:senior\s+)?(?:notes?|bonds?)\b/i.test(clause)) continue;
     // Nor a buyback in the target's earnings release ("repurchased 0.9 million shares at an average price of $23.04 per
     // share": Beazer, whose offer was $33.50), a share price quoted for reference ("based on Herman Miller's five-day
     // volume weighted average price of $43.94 per share"), a collar bound ("provided that this volume weighted average
@@ -443,7 +480,27 @@ export function extractPrice(t: string): number | null {
     // total consideration … of $21.01 per share" (Kenvue). Cash plus a CVR ("and one contingent value right") is the price.
     const tail = t.slice(m.index! + m[0].length, m.index! + m[0].length + 120);
     if (/^\s*(?:,\s*)?(?:in cash\s*)?(?:,\s*)?(?:and|plus|as well as|together with)\s+(?:\d+(?:\.\d+)?|one|a fraction of(?: a)?)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|[Uu]nits?)\b/.test(tail)) continue;
-    let score = 0;
+    if (isCashLeg(t.slice(Math.max(0, m.index! - 320), m.index!), t.slice(m.index! + m[0].length, m.index! + m[0].length + 320))) continue;
+    // …named as such in a cash-and-shares deal: "the cash consideration of $96.00 per share to be paid by FOX" (Fox's pro
+    // forma statements for Roku, a deal of 0.9693 Fox shares and $96.00 in cash).
+    // ("the total stock and cash consideration … is $11.35 per share" is the whole price, and so is the cash a holder may
+    // elect instead of shares: "stockholders electing to receive cash consideration will receive the cash consideration
+    // of $28.00 per share", Bioventus / Misonix.)
+    if (/(?<!\b(?:stock|shares?|equity)\s+(?:and|or|plus)\s+)(?<!\btotal\s+)\bcash\s+(?:consideration|portion|component|payment)\b[^.;$]{0,80}$/i.test(before) && (mixed ??= extractConsideration(t) === "Mixed" && !ELECTION.test(t))) continue;
+    // Nor a collar's bound: "LPS stockholders receive a minimum of $15.794 per share in value on the stock portion".
+    if (/\b(?:minimum|maximum)\s+(?:of\s+)?$/i.test(before)) continue;
+    // Nor the value put on the buyer's own shares issued as payment: "approximately 9 million shares of Smith & Wesson
+    // common stock, valued at $13.62 per share (i.e. the volume weighted average price per share of Smith & Wesson
+    // common stock …)" (Savage Arms).
+    if (/\bshares\s+of\s+[^,.;]{1,60}?\b(?:common\s+(?:stock|shares)|ordinary\s+shares|stock)\s*,?\s*(?:each\s+)?valued\s+at\s+(?:approximately\s+|about\s+)?$/i.test(before)) continue;
+    // (Not "(representing an approximate 37% premium to the closing share price …)", which describes an offer.)
+    if (/^\s*\(\s*(?![^()]*\bpremium\b)(?:(?:i\.e\.,?|being|which (?:is|was|represents)|equal to|representing)\s+(?:the\s+)?[^()]{0,40}?(?:volume[- ]weighted|VWAP|average|closing)|(?:the\s+)?(?:\d+[- ](?:trading[- ]|calendar[- ])?day\s+)?(?:volume[- ]weighted|VWAP))/i.test(tail)) continue;
+    // "This represents a $20.40 per share value based on the closing price of CoreWeave Class A common stock as of July 3,
+    // 2025" (CoreWeave / Core Scientific): the implied value of each target share. Not one based on an average ("… based on
+    // the buyer's 5-day VWAP"), which is not the value at the last close.
+    const valueWord = /^\s*(?:implied\s+)?value\b/i.test(after);
+    if (valueWord && /^[^.;]{0,120}?\bbased\s+(?:up)?on\s+(?:the\s+)?(?:[\w'’.&-]+\s+){0,4}?(?:\d+[- ](?:trading[- ]|calendar[- ])?day\s+)?(?:volume[- ]weighted|VWAP|average)/i.test(tail)) continue;
+    let score = valueWord ? 2 : 0;
     // "acquire[d] … for" may run past an abbreviation: "to be acquired by Dream Finders Homes, Inc. for $33.50", and past
     // a description when "for" leads straight to the amount ("will acquire Option Care Health, an independent provider of
     // home and alternate site infusion services, for $32.05 per share").
@@ -455,24 +512,54 @@ export function extractPrice(t: string): number | null {
   return best?.v ?? null;
 }
 
+/** How surely a premium's own words make it the premium over the last close: "unaffected" and "closing price" for it. */
+function premiumScore(ctx: string): number {
+  let score = 0;
+  if (/unaffected/i.test(ctx)) score += 3;
+  if (/closing (?:share |stock )?price|last (?:full )?trading day|close\b|current (?:market |share |stock |trading )?price/i.test(ctx)) score += 2;
+  // An average is never the last close, unaffected or not: "a 23.0% premium to TXNM Energy's unaffected 30-day volume
+  // weighted average price (VWAP)" (Blackstone / TXNM Energy) netted to zero and passed.
+  if (/volume[- ]weighted|VWAP|\d{1,3}[- ](?:trading[- ]|calendar[- ])?day|52[- ]week|average|month/i.test(ctx)) score -= 6;
+  return score;
+}
+
 export function extractPremium(t: string): number | null {
   const found: { v: number; score: number; i: number }[] = [];
   const re = /(?:premium of (?:approximately |about |roughly |nearly |over |more than )?(\d{1,3}(?:\.\d{1,2})?)\s?%|(\d{1,3}(?:\.\d{1,2})?)\s?% premium)/gi;
+  // With contingent value rights, the premium of "the total transaction value" counts them at their most: "The total
+  // transaction value represents … a premium of 21% to Lantheus' unaffected closing price" (Curium / Lantheus: $102.50 in
+  // cash plus CVRs of up to $12.00). The price kept is the cash, so that is not its premium.
+  const cvr = /contingent value rights?|\bCVRs?\b/i.test(t);
   for (const m of t.matchAll(re)) {
     const v = Number(m[1] ?? m[2]);
     if (!(v > 0 && v < 500)) continue;
-    // Only this premium's own clause: stop at the next "premium" or the end of the sentence.
+    // Only this premium's own clause: stop at the next "premium" or the end of the sentence, a quote's too ("… prior to the
+    // public disclosure of Ramius' unsolicited proposal. "For more than two months, …": Cypress Bioscience).
     const raw = t.slice(m.index!, m.index! + 220);
-    const stop = /\bpremium\b|\.\s+(?=[A-Z])/gi;
+    const stop = /\bpremium\b|\.\s+(?=["“]?[A-Z])/gi;
     stop.lastIndex = m[0].length;
     const ctx = raw.slice(0, stop.exec(raw)?.index ?? raw.length);
     const before = t.slice(Math.max(0, m.index! - 120), m.index!);
     if (/conversion|convertible|notes?\b|exchangeable|warrant/i.test(before + ctx.slice(0, 80))) continue;
-    let score = 0;
-    if (/unaffected/i.test(ctx)) score += 3;
-    if (/closing (?:share |stock )?price|last (?:full )?trading day|close\b/i.test(ctx)) score += 2;
-    if (/volume[- ]weighted|VWAP|\d{1,3}[- ](?:trading[- ]|calendar[- ])?day|52[- ]week|average|month/i.test(ctx)) score -= 3;
-    found.push({ v, score, i: m.index! });
+    if (cvr) {
+      const sentence = t.slice(Math.max(0, m.index! - 300), m.index!).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z"“])|[•·]\s/).pop() ?? "";
+      if (/\btotal\s+(?:(?:transaction|deal|per[- ]share|potential|merger)\s+)?(?:value|consideration)\b|\bincluding\s+(?:the\s+)?(?:CVRs?|contingent)|\binclusive\s+of\b|\bup\s+to\b/i.test(sentence)) continue;
+    }
+    // "a premium of 19.8% to TopBuild's 60-day volume-weighted average price and 23.1% to TopBuild's closing price on
+    // Friday, April 17, 2026" (QXO / TopBuild): each figure has its own reference. Only when the first names its own
+    // ("a premium of 30% and 35% to the 30- and 60-day VWAPs" shares one).
+    const more = [...ctx.matchAll(/(?:[,;]\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)(?:approximately\s+|about\s+|roughly\s+|nearly\s+)?(\d{1,3}(?:\.\d{1,2})?)\s?%\s+(?:to|over|above|relative to|compared to|in excess of|based (?:up)?on)\b/gi)].filter((x) => x.index! >= m[0].length);
+    if (more.length && /\b(?:to|over|above|relative to|compared to|in excess of|based (?:up)?on)\b/i.test(ctx.slice(m[0].length, more[0].index))) {
+      found.push({ v, score: premiumScore(ctx.slice(0, more[0].index)), i: m.index! });
+      more.forEach((x, k) => {
+        const w = Number(x[1]);
+        const score = premiumScore(ctx.slice(x.index!, more[k + 1]?.index ?? ctx.length));
+        // A later figure counts only with a reference that makes it the premium over the last close.
+        if (w > 0 && w < 500 && score > 0) found.push({ v: w, score, i: m.index! + x.index! });
+      });
+      continue;
+    }
+    found.push({ v, score: premiumScore(ctx), i: m.index! });
   }
   if (!found.length) return null;
   found.sort((a, b) => b.score - a.score || a.i - b.i);
@@ -509,26 +596,56 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.
     const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
     if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting)\b/i.test(sentenceBefore)) continue;
+    // Nor the most the sellers could get: "Selling stockholders may earn additional consideration of up to $97.5 million
+    // …, bringing total potential transaction value to approximately $455 million" (Cardinal / Hughes Brothers, bought
+    // "for $357.5 million"). A total that includes an earn-out or other contingent payment is not the price agreed.
+    // (Nor a collar's bounds: "the maximum value of the IBG common stock at closing would be approximately $11 million and
+    // the minimum value … approximately $9 million".)
+    if (/\b(?:potential|maximum|minimum)\s+(?:(?:total|aggregate)\s+)?$/i.test(sentenceBefore)) continue;
+    // "$122 Million (including contingent consideration)", "valued at up to $14.5 million, including earnouts", "The
+    // transaction, including the $75 million in contingent consideration, is valued at $216 million" (SteadyMed). Not
+    // "$20 million in upfront cash plus … potential contingent payments of up to $14 million" (Sientra / Miramar).
+    const CONTINGENT_PART = String.raw`(?:earn-?outs?|contingent|milestones?|CVRs?|additional consideration)`;
+    const afterAmount = t.slice(m.index! + m[0].length, m.index! + m[0].length + 120).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])|;/)[0];
+    if (new RegExp(String.raw`^[^.;]{0,40}?\b(?:including|includes|inclusive of|which include[sd]?)\b[^.;]{0,60}?\b${CONTINGENT_PART}`, "i").test(afterAmount)) continue;
+    const leadIn = t.slice(Math.max(0, m.index! - 300), m.index!).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])|[•·;]\s/).pop() ?? "";
+    if (new RegExp(String.raw`\b(?:including|inclusive of)\b[^.;]{0,80}?\b${CONTINGENT_PART}\b[^.;]{0,60}$|\b${CONTINGENT_PART}\b[^.;]{0,200}\bbringing\b[^.;]{0,80}$`, "i").test(leadIn)) continue;
     // The amount can come first: "Transaction at $13 Billion Equity Value and $25 Billion Consolidated Enterprise Value"
     // (Endeavor) paired "Equity Value" with the $25 billion after it.
     const amountFirst = /\bvalue$/.test(lead)
       ? /(?<![A-Z]{1,3})(?:US\$|\$|USD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\s+(?:(?:consolidated|implied|total|aggregate|approximate)\s+){0,2}$/i.exec(t.slice(Math.max(0, m.index! - 40), m.index!))
       : null;
-    const usd = amountFirst ? num(amountFirst[1]) * unitMult(amountFirst[2]) : num(m[2]) * unitMult(m[3]);
+    const usd = Math.round(amountFirst ? num(amountFirst[1]) * unitMult(amountFirst[2]) : num(m[2]) * unitMult(m[3])); // whole dollars: 1.035 × 1e9 is 1034999999.9999999
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
     const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";
     return { usd, kind };
   }
   // Private-company deals usually just say "acquired Widget Co. … for $185 million" (or "for USD 6.2 billion").
-  const priceFor =
-    /\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])){0,220}?\bfor\s+(?:a\s+(?:total|aggregate)\s+(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?(?:US\$|\$|USD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b(?!\s*(?:per share|a share))/gi;
-  for (const m of t.matchAll(priceFor)) {
-    if (NOT_DEAL_VALUE.test(t.slice(m.index! + m[0].length - 40, m.index! + m[0].length + 50))) continue;
-    const usd = num(m[1]) * unitMult(m[2]);
+  for (const m of t.matchAll(PRICE_FOR)) {
+    const end = m.index! + m[0].length;
+    // The amount's own sentence after it: "… or approximately $158,700,000, subject to customary closing adjustments.
+    // Founded in 1969, …" is a price.
+    if (NOT_DEAL_VALUE.test(t.slice(end - 40, end) + t.slice(end, end + 50).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/)[0])) continue;
+    const usd = Math.round(m[1] ? num(m[1]) * unitMult(m[2]) : num(m[3]));
     if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
   }
   return null;
 }
+
+/**
+ * Another currency before the dollar figure: "for £120 million, or approximately $158,700,000" (Alamo Group / Econ
+ * Engineering), "for an aggregate purchase price of approximately €16.0 million ($18.0 million)" (Climb / NeoVAD).
+ */
+const FOREIGN_FIRST = String.raw`(?:(?:${String.fromCharCode(0x20ac)}|${String.fromCharCode(0xa3)}|${String.fromCharCode(0xa5)}|(?:EUR|GBP|CHF|JPY|SEK|NOK|DKK|CAD|AUD)\s?|(?:C|CA|A|AU)\$)\s?\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?\s*(?:billion|million|bn|mm|mn|m|B|M)?\b\s*,?\s*(?:or\s+)?\(?\s*(?:approximately\s+|about\s+)?)`;
+/**
+ * "acquired Widget Co. … for $185 million": a name may end in an abbreviation before its defined term ("Hughes Brothers
+ * Construction Inc. ("Hughes Brothers"), a leading … contractor, for $357.5 million"), and the dollars may be written in
+ * full ("$158,700,000").
+ */
+const PRICE_FOR = new RegExp(
+  String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])|(?<=\b(?:Inc|Corp|Co|Ltd|Bros|L\.P))\.(?=\s*[(,])){0,220}?\bfor\s+(?:an?\s+(?:total\s+|aggregate\s+)?(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?${FOREIGN_FIRST}?(?:US\$|\$|USD\s?)\s?(?:(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b|(\d{1,3}(?:,\d{3}){2,})(?!,?\d|\.\d|\s*(?:billion|million|bn|mm|mn)\b))(?!\s*(?:per share|a share))(?!\s*\(?\s*(?:CAD|CDN|AUD|NZD|HKD|SGD|MXN|EUR|GBP|CHF|JPY)\b)`,
+  "gi",
+);
 
 /**
  * `forStock` is the text the stock and mixed tests read: employee-award sentences are left out of it (their conversion

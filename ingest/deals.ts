@@ -25,7 +25,7 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
-import { definedEntities, item101, parseMergerItem } from "./parse/eightk";
+import { definedEntities, item101, parseMergerItem, withItem101Price } from "./parse/eightk";
 import { namesTheShell, sponsorFromText } from "./parse/sponsor";
 import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
@@ -821,7 +821,9 @@ export interface AnnouncedTerms {
 export function looksLikePressRelease(text: string): boolean {
   const top = flatten(text).slice(0, 1500);
   const release = /\b(?:PR\s?Newswire|Business\s?Wire|GLOBE\s?NEWSWIRE|ACCESSWIRE|Newsfile|for immediate release|news release|press release)\b/i.test(top);
-  const other = /\b(?:transcript|presentation|slides?|webcast|conference call|investor call|town hall|frequently asked questions|FAQs?|the following (?:email|e-mail|memo|letter|article|message)|employees? (?:email|e-mail|memo|letter)|reprinted|Wall Street Journal|Reuters|Bloomberg)\b/i.test(top);
+  // "The following is an article that was published in the Pittsburgh Business Times …" (an EQT 425 on Range, whose
+  // reporter wrote "the $13 billion acquisition, which has an enterprise value of $50 billion": the combined company's).
+  const other = /\b(?:transcript|presentation|slides?|webcast|conference call|investor call|town hall|frequently asked questions|FAQs?|the following (?:is (?:an? |the )?)?(?:email|e-mail|memo|letter|article|message|interview|post)|employees? (?:email|e-mail|memo|letter)|(?:article|story|interview|op-ed|column) (?:that )?(?:was )?(?:first )?(?:published|appeared|ran) (?:in|on|by)|reprinted|Wall Street Journal|Reuters|Bloomberg)\b/i.test(top);
   return release || !other;
 }
 
@@ -1611,7 +1613,7 @@ export async function ingestDeals(
         continue;
       }
       const ctx = { filerName: displayName(filer.name), filerTickers: filer.tickers };
-      const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : parsePressRelease(text, ctx);
+      const parsed = hit.via === "item101" ? parseMergerItem(text, ctx) : withItem101Price(parsePressRelease(text, ctx), text);
       state.seen.add(hit.id);
       if (!parsed) continue;
       // A filer delisted since (bought: Chase Corp, Cowen, MidWestOne) isn't in today's directory: as in the backstop,

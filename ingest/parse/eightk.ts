@@ -6,7 +6,7 @@
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
 import { cleanPartyName, isPlausibleName, normalizeName, sameCompany } from "./names";
-import { extractConsideration, extractValue, type ParsedPress, type PressContext } from "./press";
+import { extractConsideration, extractValue, isCashLeg, otherDollar, type ParsedPress, type PressContext } from "./press";
 
 interface Entity {
   name: string;
@@ -128,15 +128,33 @@ export function extractMergerPrice(s: string): number | null {
     for (const m of s.matchAll(re)) {
       const dollar = m.index! + m[0].indexOf("$");
       if (CONTINGENT.test(s.slice(Math.max(0, dollar - 120), dollar))) continue;
+      // "C$1.40" is not US$1.40.
+      if (otherDollar(s, dollar)) continue;
       // Cash on top of shares is part of the price, not all of it: "the right to receive one ListCo Share and $5.00 in
       // cash" (WestRock) read as a $5.00 deal.
       if (/\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|units?)\s+and\s*$/.test(m[0].slice(0, m[0].indexOf("$")))) continue;
+      // …in either order: "the right to receive $26.45 in cash, without interest, from JHX … (the "Cash Consideration"),
+      // and 1.0340 shares" (James Hardie / AZEK), "(i) one share of Parent Class A Common Stock … and (ii) $96.00 in cash".
+      const amountEnd = s.indexOf(m[1], dollar) + m[1].length;
+      if (isCashLeg(s.slice(Math.max(0, dollar - 320), dollar), s.slice(amountEnd, amountEnd + 320))) continue;
       const v = Number(m[1]);
       if (v >= 0.05 && v < 10_000) found.push({ v, at: m.index! });
     }
   }
   // The first price stated is the headline price; later ones describe options, RSUs or CVR instalments.
   return found.sort((a, b) => a.at - b.at)[0]?.v ?? null;
+}
+
+/**
+ * An 8-K's own text read as a release (found by a release search, often refiled as a DEFA14A: Abbott / Exact Sciences)
+ * states the price the 8-K way, "will be converted into … the right to receive $105.00 in cash", which the release
+ * reader doesn't read: its Item 1.01 does. Public targets only.
+ */
+export function withItem101Price(parsed: ParsedPress | null, text: string): ParsedPress | null {
+  if (!parsed || parsed.pricePerShare != null || parsed.privateTarget) return parsed;
+  const section = item101(text);
+  const price = section ? extractMergerPrice(section) : null;
+  return price == null ? parsed : { ...parsed, pricePerShare: price };
 }
 
 /**

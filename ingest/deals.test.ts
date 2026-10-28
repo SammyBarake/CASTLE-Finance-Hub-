@@ -212,5 +212,11 @@ describe("values of the combined company are not deal values", () => {
     expect(looksLikePressRelease("PITTSBURGH, March 11, 2026 -- Atlas Energy and Ridge Midstream today announced a definitive agreement")).toBe(true);
     expect(looksLikePressRelease("Filed pursuant to Rule 425. Investor Presentation. Merger Creates the Premier Company >$35 B Enterprise Value")).toBe(false);
     expect(looksLikePressRelease("Filed pursuant to Rule 425. The following is a transcript of the investor call held on March 31, 2026.")).toBe(false);
+    // A reprinted news article: its reporter's figures are not the release's.
+    expect(
+      looksLikePressRelease(
+        "Filed pursuant to Rule 425. The following is an article that was published in the Springfield Business Journal on March 3, 2026, following an interview with the Chief Executive Officer of Atlas Energy. Atlas must pay Ridge $900 million if the $11 billion acquisition, which has an enterprise value of $40 billion, fails.",
+      ),
+    ).toBe(false);
   });
 });
