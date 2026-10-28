@@ -684,8 +684,10 @@ const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|
  * 4: management buyouts ("a consortium of investors led by Max Wygod, Chairman and Chief Executive Officer"), headlines
  *    in capitals, "entities controlled by …", and a name that only starts like the vehicle's ("Ithaca Holdings" behind
  *    "Ithaca Holdco, Inc.").
+ * 5: "… Acquisition Company, LLC" is a vehicle (Forian), and management buyouts are named "Management Group led by …",
+ *    which tidy keeps ("Management group led by …" read as prose and dropped FONAR's deal).
  */
-export const SPONSOR_CHECK_VERSION = 4;
+export const SPONSOR_CHECK_VERSION = 5;
 
 /**
  * The real buyer behind an acquisition vehicle ("Spaceship Purchaser, Inc." → Permira): the target's announcement
@@ -835,7 +837,11 @@ export function announcesDeal(text: string, target: string, acquirer: string): b
   };
   if (!named(target) || (!isPlaceholderBuyer(acquirer) && !named(acquirer))) return false;
   if (!/definitive (?:merger |arrangement )?agreement|agreement and plan of merger|merger agreement|(?:will|to) acquire\b|to be acquired|to combine|to merge/i.test(top)) return false;
-  return !/\b(?:complet(?:es|ed|ion)|closes|closed|closing of|terminat)/i.test(splitHeadline(text).headline.slice(0, 200));
+  const headline = splitHeadline(text).headline.slice(0, 200);
+  // Not the target's earnings release, which mentions the pending merger near the top and states other amounts: MGM
+  // Growth Properties' Q2 2021 results gave VICI's $17.2B purchase the "$400 million" of MGP's own MGM Springfield deal.
+  if (/\b(?:results|earnings|quarter|fiscal (?:year|20\d\d))\b/i.test(headline) && !/\bacqui|\bmerg|\bcombin/i.test(headline)) return false;
+  return !/\b(?:complet(?:es|ed|ion)|closes|closed|closing of|terminat)/i.test(headline);
 }
 
 /** The distinctive start of a name, as a release would write it: "Pioneer", "Mr. Cooper", "First Bancshares". */

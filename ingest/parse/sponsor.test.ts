@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPlaceholderBuyer, notTheSponsor } from "./names";
+import { isPlaceholderBuyer, isPlausibleName, notTheSponsor } from "./names";
 import { sponsorFromText } from "./sponsor";
 
 // Synthetic text in the style of announcement releases and merger proxies.
@@ -47,13 +47,17 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
   it("names a management buyout by the executive who leads it", () => {
     expect(
       sponsorFromText("… providing for Bluebird to be acquired, in an all-cash transaction, by an entity affiliated with a consortium of investors led by Max Wygod, Chairman and Chief Executive Officer, together with certain other senior executives.", "Bluebird Inc.", "2025 Acquisition Company, LLC"),
-    ).toBe("Management group led by Max Wygod");
+    ).toBe("Management Group led by Max Wygod");
     expect(sponsorFromText("Buyer is controlled by the previously disclosed acquisition group led by Chief Executive Officer Timothy Damadian and consisting of certain members of the Company's management.", "Bluebird Corp", "Buyer")).toBe(
-      "Management group led by Timothy Damadian",
+      "Management Group led by Timothy Damadian",
     );
-    expect(sponsorFromText("Parent was formed by a group of individuals led by the Company's Chief Executive Officer, Timothy Damadian, and consisting of various executives.", "Bluebird Corp", "Parent")).toBe("Management group led by Timothy Damadian");
+    expect(sponsorFromText("Parent was formed by a group of individuals led by the Company's Chief Executive Officer, Timothy Damadian, and consisting of various executives.", "Bluebird Corp", "Parent")).toBe("Management Group led by Timothy Damadian");
     // A firm leading the group is the sponsor, not management.
     expect(sponsorFromText("Mosaic to be acquired by an investor group led by Advent International for $26.00 per share in cash.", "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International");
+    // The name must pass the plausibility check: "Management group led by …" failed it, and tidy dropped FONAR's deal.
+    expect(isPlausibleName("Management Group led by Timothy Damadian")).toBe(true);
+    // Forian's vehicle is one, so the sponsor check looks behind it.
+    expect(isPlaceholderBuyer("2025 Acquisition Company, LLC")).toBe(true);
   });
 
   it("rejects defined terms, clauses, the target and the vehicle itself", () => {

@@ -730,14 +730,7 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   if (/\b(?:Branch(?:es| Locations| Offices)?|Business(?:es)?|Joint(?: Venture)?)$/i.test(targetName.trim())) return true;
   const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
   if (possessive && PART_OF.test(possessive[1])) return true;
-  // A headline that breaks off at the possessive ("Allegion to Acquire Stanley Black & Decker's"): the unit follows on
-  // the next line, which the release repeats ("… Stanley Black & Decker's Access Technologies Business"). A name can
-  // end that way too ("Dave & Buster's Entertainment, Inc."), so the release's own words decide.
-  const base = targetName.replace(/['’]s$/, "");
-  if (new RegExp(`${escapeRx(base)}['’]s\\s*$`).test(headline)) {
-    const rest = new RegExp(`${escapeRx(base)}['’]s(\\s.{0,80})`).exec(intro.slice(0, 600));
-    if (rest && PART_OF.test(rest[1])) return true;
-  }
+  if (breaksAtPossessive(headline, intro, targetName)) return true;
   // The headline goes on with an asset word right after the name (or a list of them): "… Acquisition of Producing
   // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
   // Properties Reports … Results" names the company. Also a stake ("… Majority Stake in Digital Bank", "… Remaining
@@ -753,6 +746,18 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // premiums, and a possessive in the text is often the whole company ("LHC Group's outstanding common stock").
   if (new RegExp(`\\bassets\\s+from\\s+${escapeRx(targetName)}`, "i").test(intro)) return true;
   return new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(start);
+}
+
+/**
+ * A headline that breaks off at the possessive ("Allegion to Acquire Stanley Black & Decker's"): the unit follows on the
+ * next line, which the release repeats ("… Stanley Black & Decker's Access Technologies Business"). A name can end that
+ * way too ("Dave & Buster's Entertainment, Inc."), so the release's own words decide.
+ */
+function breaksAtPossessive(headline: string, intro: string, targetName: string): boolean {
+  const base = targetName.replace(/['’]s$/, "");
+  if (!new RegExp(`${escapeRx(base)}['’]s\\s*$`).test(headline)) return false;
+  const rest = new RegExp(`${escapeRx(base)}['’]s(\\s.{0,80})`).exec(intro.slice(0, 600));
+  return !!rest && PART_OF.test(rest[1]);
 }
 
 const NAME_END = /^(?:for|in|at|to|from|with|via|and|or|creating|valued|transaction|deal|acquisition|agreement|merger|subject|following|per)$/i;
@@ -908,8 +913,11 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
       }
     }
   }
-  // Buying a division or assets of a named company is not buying that company.
-  if (isCarveOut(headline, intro, target.name)) return null;
+  // Buying a division or assets of a named company is not buying that company. A headline that breaks at the possessive
+  // is checked by its own name too: the listing turns "Stanley Black & Decker's" into "Stanley Black & Decker, Inc.",
+  // which the headline never writes. Only that check: the headline's name stops at any possessive ("O'Charley" of
+  // "O'Charley's for $9.85"), and the other checks would read the lower-case word after it as a unit.
+  if (isCarveOut(headline, intro, target.name) || (parties.tgt !== target.name && breaksAtPossessive(headline, intro, parties.tgt))) return null;
 
   const issuerRole: "acquirer" | "target" | null =
     sameCompany(ctx.filerName, target.name) || (target.ticker && ctx.filerTickers.includes(target.ticker))

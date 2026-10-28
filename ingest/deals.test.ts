@@ -180,6 +180,14 @@ SPRING, Texas - Atlas Oil Corporation (NYSE: ATL) and Ridge Natural Resources (N
     expect(releaseTerms(release, "Ridge Natural Resources Co", "Summit Energy Inc.")).toBeNull();
     expect(releaseTerms(release.replace("Announces Merger with", "Completes Merger with"), "Ridge Natural Resources Co", "Atlas Oil Corporation")).toBeNull();
     expect(releaseTerms("Atlas Oil and Ridge Natural Resources announce record quarterly results. Revenue was $5.1 billion.", "Ridge Natural Resources Co", "Atlas Oil Corporation")).toBeNull();
+    // The target's earnings release mentions the merger but states its own deals' amounts (MGM Growth Properties / VICI).
+    expect(
+      releaseTerms(
+        "Exhibit 99.1\nRidge Natural Resources Reports Second Quarter 2021 Financial Results\nLAS VEGAS, August 6, 2021 - Ridge Natural Resources Co (NYSE: RNR) reported results. On August 4, 2021, the Company entered into a definitive merger agreement under which Atlas Oil Corporation will acquire the Company. On May 11, 2021, the Company entered into an agreement to acquire the real estate assets of Springfield from Atlas for $400 million in cash, with an aggregate purchase price of $400 million.",
+        "Ridge Natural Resources Co",
+        "Atlas Oil Corporation",
+      ),
+    ).toBeNull();
     // A shell buyer no release names: the target alone is enough.
     expect(releaseTerms(release, "Ridge Natural Resources Co", "Bullseye Merger Sub, Inc.")?.valueUsd).toBe(59.5e9);
   });

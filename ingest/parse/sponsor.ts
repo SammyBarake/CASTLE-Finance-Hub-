@@ -83,7 +83,10 @@ export function sponsorFromText(text: string, target: string, shell: string): st
   }
   for (const re of MANAGEMENT) {
     const person = re.exec(flat)?.[1]?.replace(/^(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s?/, "").trim();
-    if (person && !sameCompany(person, target)) return `Management group led by ${person}`;
+    // "Management Group led by …": a name isPlausibleName accepts. "Management group led by" has two ordinary lower-case
+    // words, which read as prose, and tidy then dropped the whole deal (FONAR, October 2026).
+    const name = person ? `Management Group led by ${person}` : null;
+    if (name && !sameCompany(person, target) && isPlausibleName(name)) return name;
   }
   return null;
 }

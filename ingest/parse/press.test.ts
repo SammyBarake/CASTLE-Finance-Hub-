@@ -404,8 +404,13 @@ CARLSBAD, Calif., August 31, 2020 - Northwind Pharmaceuticals, Inc. (Nasdaq: NWP
 NEWS RELEASE
 Allegro to Acquire Bluebird & Decker's
 Access Technologies Business
-DUBLIN, April 22, 2022 - Allegro plc (NYSE: ALGR) today announced it will acquire Bluebird & Decker's Access Technologies Business for $900 million.`;
+DUBLIN, April 22, 2022 - Allegro plc (NYSE: ALGR) today announced it will acquire Bluebird & Decker's Access Technologies Business for $900 million from Bluebird & Decker, Inc. (NYSE: BDK).`;
     expect(parsePressRelease(carve, { filerName: "Allegro plc", filerTickers: ["ALGR"] })).toBeNull();
+    // A name with an apostrophe is no carve-out: "O'Charley's for $9.85" (the headline's name stops at "O'Charley").
+    const apostrophe = `Exhibit 99.1
+Northwind Financial, Inc. Announces Agreement to Acquire O'Bluebird's for $9.85 per Share in Cash
+JACKSONVILLE, Fla., February 6, 2012 - Northwind Financial, Inc. (NYSE: NWF) and O'Bluebird's Inc. (NASDAQ: OBLU) today announced a definitive agreement under which Northwind will acquire O'Bluebird's for $9.85 per share in cash.`;
+    expect(parsePressRelease(apostrophe, { filerName: "Northwind Financial, Inc.", filerTickers: ["NWF"] })?.target.name).toMatch(/^O'Bluebird's/);
     const offer = `Exhibit 99.1
 NORTHWIND MORTGAGE TRUST SUBMITS OFFER TO ACQUIRE BLUEBIRD MORTGAGE CAPITAL CORPORATION FOR IMPLIED PRICE OF $9.88 PER SHARE
 NEW YORK, July 13, 2023 - Northwind Mortgage Trust, Inc. (NYSE: NWMT) today announced that it submitted a proposal to the Board of Directors of Bluebird Mortgage Capital Corporation (NYSE: BMC) to acquire BMC.`;

@@ -267,7 +267,8 @@ export { titleCaseCaps } from "../../lib/names";
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
 export const isPlaceholderBuyer = (name: string) =>
   /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
-  /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Co|LLC|Inc))\b/.test(name) ||
+  // ("2025 Acquisition Company, LLC": Forian's vehicle, which "Acquisition Co" missed at the word boundary.)
+  /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Company|Co|LLC|Inc))\b/.test(name) ||
   /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
   // "Acquiror …", and "Acquirer Sub" (Amgen's vehicle in its scheme for Horizon).
   /^Acquir[eo]r\b/.test(name) ||
