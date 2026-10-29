@@ -7,6 +7,7 @@ import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
 import { cleanPartyName, isPlausibleName, normalizeName, sameCompany } from "./names";
 import { extractConsideration, extractValue, isCashLeg, otherDollar, type ParsedPress, type PressContext } from "./press";
+import { jointBuyers } from "./sponsor";
 
 interface Entity {
   name: string;
@@ -109,7 +110,7 @@ export function definedEntities(s: string): Entity[] {
 /** The filer itself under its defined term: "the Company", or "the Partnership" / "the Registrant" / "the Trust" (MLPs, REITs). */
 const SELF = /^(?:Company|Partnership|Registrant|Trust)$/i;
 const SUB_NICK = /^(?:(?:Forward |Second |First )?Merger Sub(?:\s*(?:\d|I{1,3}))?|Purchaser|Merger Subsidiary|MergeCo|(?:Acquisition|Acquirer|Acquiror|Bidder) Sub|Bidco|BidCo|Sub)$/i;
-const SHELL_NAME = /\b(?:Merger Sub|MergeCo|Merger (?:Corp|Co|LLC|Inc|Enterprises|Subsidiary)|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisitions?,? (?:Corp|Co|LLC|Inc))\b/;
+const SHELL_NAME = /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Merger (?:Corp|Co|LLC|Inc|Enterprises|Subsidiary)|Bidco|BidCo|Topco|Midco|Holdco|Purchaser|Acquisitions?,? (?:Corp|Co|LLC|Inc))\b/;
 const BUYER_NICKS = ["Ultimate Parent", "Guarantor", "Parent", "Buyer", "Acquiror", "Acquirer", "Holdings", "Topco"];
 
 /** Price per target share: "right to receive $42.15 in cash", "for $10.50 per share, net to the seller in cash". */
@@ -325,8 +326,11 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   ) {
     const after = section.slice(buyer.index, buyer.index + 400);
     const leads = [
-      /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by)\s+(?:(?:investment )?funds? (?:managed|advised) by\s+)?/.exec(after),
-      /(?:investment )?funds? (?:managed|advised|sponsored) by\s+|funds? affiliated with\s+|(?:acquisition|purchase) of the Company by (?:affiliates of |funds (?:managed|advised) by )?(?=[A-Z])/.exec(section),
+      /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by|(?:investor\s+)?consortium\s+(?:comprised|composed|consisting)\s+of)\s+(?:(?:investment )?funds? (?:managed|advised) by\s+)?/.exec(after),
+      // (A consortium is named before its members' funds: "an investor consortium comprised of The Public Investment Fund
+      // ("PIF"), private investment funds affiliated with Silver Lake …": Electronic Arts.)
+      // ("Parent is owned by a consortium comprised of investment funds advised by Apax Partners, and …": Kinetic Concepts.)
+      /\b(?:investor\s+)?consortium\s+(?:comprised|composed|consisting)\s+of\s+(?:(?:private\s+)?(?:investment\s+)?funds?\s+(?:managed|advised|sponsored)\s+by\s+)?|(?:investment )?funds? (?:managed|advised|sponsored) by\s+|funds? affiliated with\s+|(?:acquisition|purchase) of the Company by (?:affiliates of |funds (?:managed|advised) by )?(?=[A-Z])/.exec(section),
     ];
     // "a subsidiary of Parent" names a defined term, not a sponsor.
     const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim() || e.alias === s.trim());
@@ -345,7 +349,10 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
         return !CLAUSE.test(s[1]) && !isTerm(s[1]) && !startsWithTerm && isPlausibleName(cleanPartyName(s[1]));
       });
       if (sponsor) {
-        acquirerName = cleanPartyName(sponsor[1]);
+        // Joint buyers: "affiliates of funds managed by Blackstone Inc. ("Blackstone") and TPG Capital ("TPG")" (Hologic).
+        // (The buyer's own description is cut at 400 characters; the list may run past it.)
+        const list = i === 0 ? section.slice(buyer.index + lead.index + lead[0].length) : rest;
+        acquirerName = jointBuyers(list.slice(0, 500)) ?? cleanPartyName(sponsor[1]);
         break;
       }
     }
@@ -369,6 +376,10 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   const signedMs = signedText ? Date.parse(`${signedText} UTC`) : NaN;
   const signedOn = Number.isNaN(signedMs) ? undefined : new Date(signedMs).toISOString().slice(0, 10);
   const kind = amendment || (previously && !signedOn) ? ("update" as const) : ("announcement" as const);
+  // The signing date it states: "On February 3, 2026, Webster Financial Corporation … entered into a Transaction
+  // Agreement" (filed February 6).
+  const onDate = signing ? /\bOn\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})\s*,/.exec(lead)?.[1] : undefined;
+  const announcedOn = signedOn ?? (onDate && !Number.isNaN(Date.parse(`${onDate} UTC`)) ? new Date(Date.parse(`${onDate} UTC`)).toISOString().slice(0, 10) : undefined);
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
   const value = extractValue(section);
   return {
@@ -384,5 +395,6 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     acquirerAdvisors: [],
     targetAdvisors: [],
     ...(signedOn ? { signedOn } : {}),
+    ...(announcedOn ? { announcedOn } : {}),
   };
 }

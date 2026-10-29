@@ -1,8 +1,9 @@
 // Rules from the October 2026 fact-check of live deals against their filings. Synthetic text in the style of the
 // filings, with made-up names.
 import { describe, expect, it } from "vitest";
-import { extractMergerPrice, withItem101Price } from "./eightk";
-import { extractPremium, extractPrice, extractValue, parsePressRelease, type ParsedPress } from "./press";
+import { extractMergerPrice, parseMergerItem, withItem101Price } from "./eightk";
+import { extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, type ParsedPress } from "./press";
+import { jointBuyers } from "./sponsor";
 
 describe("prices: the cash leg of cash and shares is not the price", () => {
   it("skips cash written before the shares in a merger 8-K", () => {
@@ -168,5 +169,228 @@ Item 9.01 Financial Statements and Exhibits.`;
     // Never for a private target, and never over a price the release gave.
     expect(withItem101Price({ ...read, privateTarget: true }, eightK)?.pricePerShare).toBeNull();
     expect(withItem101Price({ ...read, pricePerShare: 70 }, eightK)?.pricePerShare).toBe(70);
+  });
+});
+
+describe("consideration", () => {
+  it("never reads the surviving company's or a subsidiary's own shares as the price, across a par value", () => {
+    // A cash deal whose holders' sentence runs on through the clauses for the merger sub's and subsidiaries' shares.
+    expect(
+      extractConsideration(
+        'At the effective time, (b) each share of common stock of the Company will be converted into the right to receive $23.50 in cash, without interest, and (f) each share of common stock of Merger Subsidiary will automatically be converted into and become one share of common stock, par value $0.01 per share, of the Surviving Corporation.',
+      ),
+    ).toBe("Cash");
+    // A reincorporation step first, then the share exchange with its cash leg.
+    expect(
+      extractConsideration(
+        "First, each share of Bluebird common stock will be converted into the right to receive one share of common stock, par value $0.01 per share, of the Bluebird Subsidiary. Then each share of the Bluebird Subsidiary will be exchanged for 2.0548 ordinary shares of Northwind and $48.75 in cash.",
+      ),
+    ).toBe("Mixed");
+  });
+
+  it("reads cash and equity written as amounts or a combination", () => {
+    expect(extractConsideration("The total consideration for the transaction will consist of approximately $1.89 billion of cash, subject to customary adjustments, and $82 million in equity.")).toBe("Mixed");
+    expect(extractConsideration("Upon closing, Bluebird shareholders will receive a cash payment of $350 million and 5 million shares of Northwind, Inc. common stock.")).toBe("Mixed");
+    expect(extractConsideration("The purchase price is comprised of a combination of Northwind equity and cash, consisting of approximately 9 million shares of Northwind common stock.")).toBe("Mixed");
+    expect(extractConsideration("Northwind completed its acquisition of Bluebird Holdings, Inc. for approximately $1.45 billion in upfront cash.")).toBe("Cash");
+    // A buyback's share count is not consideration.
+    expect(extractConsideration("During the quarter the Company repurchased 5 million shares of its common stock.")).toBeNull();
+  });
+});
+
+describe("consideration: amounts, lists and what is not the price", () => {
+  it("reads each leg written as an amount or a share count", () => {
+    expect(extractConsideration("Bluebird shareholders will receive consideration of $3.65 billion in cash and $1.55 billion in Northwind Exchange common shares.")).toBe("Mixed");
+    expect(extractConsideration("The transaction consideration will consist of approximately 117.3 million shares of Northwind common stock and $8 billion of cash, subject to customary adjustments.")).toBe("Mixed");
+    expect(extractConsideration("Bluebird common stockholders will receive a cash payment equal to a 15.75% premium to Bluebird's diluted book value per share and shares of Northwind common stock.")).toBe("Mixed");
+    // Cash paid for the stock is cash.
+    expect(extractConsideration("Northwind has acquired Bluebird for a total consideration of approximately $57 million in cash for the stock of the company.")).toBe("Cash");
+  });
+
+  it("skips financing and dividend payments", () => {
+    // How the offer is paid for is not what holders receive.
+    expect(extractConsideration("The additional consideration payable under the revised terms would be financed with an additional $25.0 million in equity from funds advised by Northwind.")).toBeNull();
+    // A dividend make-whole in an all-stock deal.
+    expect(
+      extractConsideration(
+        "Each share of Bluebird common stock will be converted into 0.75 shares of Northwind common stock. In addition, if Northwind pays a cash dividend before the closing, each share of Bluebird common stock will also be entitled to receive a cash payment equal to the dividend.",
+      ),
+    ).toBe("Stock");
+    // "Market share" is not shares: "approximately two share points in the category".
+    expect(extractConsideration("The purchase price will be satisfied through $4 million in cash at closing. These brands represent approximately two share points in the category.")).toBe("Cash");
+  });
+
+  it("reads legs written loosely, further on, or in full", () => {
+    expect(extractConsideration("Total consideration of $360 million is comprised of $335 million cash and $25 million of Northwind common stock.")).toBe("Mixed");
+    expect(
+      extractConsideration(
+        "Northwind will acquire Bluebird for a purchase price of approximately $500 million, consisting of approximately $425 million in cash, subject to customary adjustments for working capital, transaction expenses, cash and indebtedness, and approximately $75 million in Northwind common stock.",
+      ),
+    ).toBe("Mixed");
+    expect(extractConsideration("The purchase price includes $11.3 million in cash and approximately $6.8 million worth of Northwind common stock.")).toBe("Mixed");
+    expect(extractConsideration("Consideration for the transaction consists of 43.8 million Northwind shares and $212.5 million in cash.")).toBe("Mixed");
+    expect(extractConsideration("Total consideration consists of $3.5 million in cash and 3,067,179 shares of Northwind common stock.")).toBe("Mixed");
+    expect(extractConsideration("Upon closing, Bluebird's owner will receive total consideration comprised of approximately $688 million in cash and approximately 62.5 million Northwind common shares.")).toBe("Mixed");
+  });
+
+  it("reads past an earn-out's sentence to the upfront one", () => {
+    expect(
+      extractConsideration(
+        "Bluebird shareholders will also be eligible to receive contingent consideration consisting of 12.5 million shares of Northwind common stock. At closing, Bluebird shareholders will receive $30 million in cash and 37.5 million shares of Northwind common stock.",
+      ),
+    ).toBe("Mixed");
+  });
+
+  it("never reads a dollar amount, a count the price is worked out on, excluded shares or an offering as shares paid", () => {
+    expect(
+      extractConsideration(
+        "Northwind will commence a tender offer for all outstanding shares of Bluebird for a purchase price of $14.92 per share in cash, plus one contingent value right, for a total potential consideration of up to $126.56 per share in cash (an aggregate of up to approximately $309.6 million excluding shares held by Northwind).",
+      ),
+    ).toBe("Cash");
+    expect(extractConsideration("An affiliate of Northwind will commence an all-cash tender offer. The aggregate purchase price for the equity of Bluebird is approximately $294 million (which consists of approximately 35.9 million shares, inclusive of all shares of common stock).")).toBe("Cash");
+    expect(
+      extractConsideration(
+        "Each share of common stock of the Company (subject to certain exceptions, including shares of Common Stock owned by the Company, Merger Sub or Parent and shares of Common Stock owned by stockholders who have demanded appraisal rights) will be converted into the right to receive $61.00 in cash.",
+      ),
+    ).toBe("Cash");
+    expect(extractConsideration("Northwind will pay $9.00 per share in cash. Northwind funded the transaction with cash on hand and the proceeds of a public offering of 11,075,000 shares of common stock.")).toBe("Cash");
+  });
+});
+
+describe("advisers", () => {
+  const advisers = (text: string, acq = "Northwind Corporation", tgt = "Bluebird Holdings, Inc.") => extractAdvisors(text, acq, tgt, null, null);
+
+  it("credits a buyer's special committee to the buyer", () => {
+    const r = advisers("Barclays Capital are acting as financial advisors to the Special Committee of the Board of Directors of Northwind and Cleary Gottlieb is serving as legal counsel.");
+    expect(r.acquirerAdvisors).toEqual(["Barclays"]);
+    expect(r.targetAdvisors).toEqual([]);
+  });
+
+  it('gives "also acting as financial advisors" the previous recipient', () => {
+    const r = advisers("Centerview Partners LLC is acting as lead financial advisor to Northwind, and Citi, M. Klein & Company and LionTree Advisors are also acting as financial advisors. Evercore is serving as financial advisor to Bluebird.");
+    expect(r.acquirerAdvisors).toEqual(["Centerview", "Citigroup", "M. Klein and Company", "LionTree"]);
+    expect(r.targetAdvisors).toEqual(["Evercore"]);
+  });
+
+  it('reads banks credited without the words "financial advisor"', () => {
+    expect(advisers("Morgan Stanley is acting as lead financial advisor to Northwind. Northwind is also being advised by Goldman Sachs, Citi and Mizuho.").acquirerAdvisors).toEqual(["Morgan Stanley", "Goldman Sachs", "Citigroup", "Mizuho"]);
+    expect(advisers("Evercore acted as lead financial advisor, J.P. Morgan Securities LLC also advised Bluebird.").targetAdvisors).toEqual(["Evercore", "JPMorgan"]);
+  });
+
+  it("finds the recipient written first, last or as a defined name", () => {
+    expect(advisers("For Bluebird, Evercore is serving as lead financial advisor and Latham & Watkins as deal counsel.").targetAdvisors).toEqual(["Evercore"]);
+    expect(
+      advisers(
+        "UBS Investment Bank is acting as lead financial advisor, Goldman Sachs and J.P. Morgan are acting as co-lead financial advisors, Citi and Wells Fargo are acting as financial advisors, Davis Polk & Wardwell LLP is acting as legal counsel and Bass Berry & Sims PLC is acting as healthcare regulatory counsel to Northwind.",
+      ).acquirerAdvisors,
+    ).toContain("UBS");
+    expect(advisers('Northwind has agreed to acquire Bluebird Holdings, Inc., which operates as Bluebird Group ("BBG"). Morgan Stanley & Co. LLC acted as financial advisor to BBG.').targetAdvisors).toEqual(["Morgan Stanley"]);
+    expect(advisers("Advisors Northwind's financial advisor is Morgan Stanley & Co. LLC and Paul, Weiss is serving as legal advisor.").acquirerAdvisors).toEqual(["Morgan Stanley"]);
+  });
+
+  it("ties a defined name to its own party only", () => {
+    // A shared first word is not the same company, nor is the other party's name run in front.
+    expect(advisers('Community Health Systems, Inc. ("CHS") will acquire Health Management Associates. Goldman Sachs is serving as financial advisor to CHS.', "Community Health Systems, Inc.", "Health Management Associates, Inc.").acquirerAdvisors).toEqual(["Goldman Sachs"]);
+    expect(advisers('The merger agreement, by and among Bluebird, Northwind Corporation ("Northwind") and Merger Sub, was approved. Morgan Stanley & Co. LLC acted as exclusive financial advisor and Davis Polk acted as legal advisor to Northwind Corporation.').acquirerAdvisors).toEqual(["Morgan Stanley"]);
+    expect(advisers('Beacon Roofing Supply, Inc. ("Beacon") will acquire Roofing Supply Group ("RSG"). Citi is serving as financial advisor to Beacon.', "Beacon Roofing Supply, Inc.", "Roofing Supply Group").acquirerAdvisors).toEqual(["Citigroup"]);
+  });
+
+  it("reads each passive clause for its own party, never across a sentence", () => {
+    const r = advisers("Lazard served as financial advisor to Bluebird. Northwind was advised by Dechert LLP and Bluebird was advised by RBC Capital Markets.");
+    expect(r.acquirerAdvisors).toEqual([]);
+    expect(r.targetAdvisors).toEqual(["Lazard", "RBC Capital Markets"]);
+    expect(advisers("Evercore is acting as financial advisor to Bluebird. Northwind is advised by Goldman Sachs.").acquirerAdvisors).toEqual(["Goldman Sachs"]);
+  });
+
+  it("takes the first recipient that is a party, and ends the sentence after Inc.", () => {
+    expect(advisers("Goldman Sachs & Co. LLC and Moelis & Company LLC served as financial advisors, Wachtell served as legal counsel to Bluebird, and Gibson, Dunn served as counsel to Northwind.").targetAdvisors).toEqual(["Goldman Sachs", "Moelis"]);
+    const r = advisers("Keefe, Bruyette & Woods, Inc. served as financial advisor and Womble provided legal counsel to Northwind Corporation, Inc. Sandler O'Neill served as legal counsel to Bluebird Holdings, Inc.");
+    expect(r.acquirerAdvisors).toEqual(["Stifel"]);
+  });
+
+  it("leaves an \"also\" without a party, and reads buy-side", () => {
+    expect(advisers("Morgan Stanley is acting as lead financial advisor to the consortium. Citi is also acting as financial advisor. Evercore is serving as financial advisor to Bluebird.").targetAdvisors).toEqual(["Evercore"]);
+    expect(advisers("UBS Investment Bank is acting as lead buyside financial advisor.").acquirerAdvisors).toEqual(["UBS"]);
+  });
+
+  it("credits only the adviser of its own clause", () => {
+    // Not the parent named beside it, nor a bank named for a financing role, nor a research-coverage list.
+    expect(advisers("Greenhill, a Mizuho affiliate, served as financial advisor and Troutman Pepper served as legal advisor to Northwind.").acquirerAdvisors).toEqual(["Greenhill"]);
+    expect(advisers("B. Riley Securities, Inc. is acting as capital markets advisor and private placement agent to Northwind, and Raymond James & Associates, Inc. is acting as Northwind's financial advisor.").acquirerAdvisors).toEqual(["Raymond James"]);
+    expect(advisers("The following firms provide research coverage: • Raymond James & Associates, Inc. • Robert W. Baird & Co. Additional Information Keefe Bruyette & Woods served as financial advisor to Bluebird.").targetAdvisors).toEqual(["Stifel"]);
+  });
+
+  it("knows real estate and bank boutiques", () => {
+    expect(advisers("Olsen Palmer LLC is serving as exclusive financial advisor and rendered a fairness opinion to Bluebird's board of directors.").targetAdvisors).toEqual(["Olsen Palmer"]);
+    expect(advisers("Goldman Sachs & Co. LLC, Wells Fargo, and Eastdil Secured are serving as financial advisors to Northwind.").acquirerAdvisors).toEqual(["Goldman Sachs", "Wells Fargo", "Eastdil Secured"]);
+  });
+});
+
+describe("joint buyers", () => {
+  it("names every firm in a list", () => {
+    expect(jointBuyers('Ironwood Inc. (" Ironwood ") and TPG Capital (" TPG "). Parent has obtained equity financing commitments')).toBe("Ironwood and TPG");
+    expect(jointBuyers("Permira Advisers LLC, Warburg Pincus LLC, Francisco Partners Management, L.P. and Temasek Holdings (Private) Limited have committed to provide Parent")).toBe("Permira, Warburg Pincus, Francisco Partners and Temasek");
+    expect(
+      jointBuyers('The Public Investment Fund (" PIF "), private investment funds affiliated with Silver Lake Group, L.L.C. (" Silver Lake ") and private investment funds affiliated with Affinity Partners (" Affinity ," and, together with PIF and Silver Lake, the " Consortium ").'),
+    ).toBe("PIF, Silver Lake and Affinity Partners");
+  });
+
+  it("keeps one firm alone", () => {
+    expect(jointBuyers('Clayton, Dubilier & Rice, LLC ("CD&R"), and Anchor Merger Sub, Inc.')).toBeNull();
+    expect(jointBuyers('Headwater Investments, LLC ("Headwater"), J. Bryan King and their respective affiliates.')).toBeNull();
+    expect(jointBuyers("Thoma Bravo, L.P. and its affiliates")).toBeNull();
+  });
+
+  it("names joint sponsors behind a merger 8-K's vehicle", () => {
+    const p = parseMergerItem(
+      'Item 1.01 Entry into a Material Definitive Agreement. On October 20, 2026, Bluebird Holdings, Inc. (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Hopper Parent Inc., a Delaware corporation ("Parent"), and Hopper Merger Sub Inc., a Delaware corporation and wholly owned subsidiary of Parent ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Parent and Merger Sub are affiliates of funds managed by Ironwood Inc. (" Ironwood ") and TPG Capital (" TPG "). Each share will be converted into the right to receive $76.00 in cash.',
+      { filerName: "Bluebird Holdings, Inc.", filerTickers: [] },
+    );
+    expect(p?.acquirer.name).toBe("Ironwood and TPG");
+  });
+});
+
+describe("announcement dates", () => {
+  const release = (body: string) => parsePressRelease(body, { filerName: "Northwind Group, Inc.", filerTickers: [] });
+
+  it("reads a release's dateline and the announcement a completion refers back to", () => {
+    expect(
+      release(
+        "Northwind Group to Acquire Bluebird Construction\nRaleigh, North Carolina - October 13, 2026 - Northwind Group, Inc. (NYSE: NWG) announced today that it has entered into a definitive agreement to acquire Bluebird Construction Inc., a privately held contractor, for $357.5 million.",
+      )?.announcedOn,
+    ).toBe("2026-10-13");
+    expect(
+      release(
+        "Northwind Group Completes Acquisition of Bluebird B.V.\nTORONTO, Oct. 15, 2026 - Northwind Group, Inc. (NASDAQ: NWG) announced today that it has completed its previously announced acquisition of Bluebird B.V. Under the terms of the share purchase agreement announced on December 9, 2025, as amended, Northwind acquired all the outstanding shares of Bluebird.",
+      )?.announcedOn,
+    ).toBe("2025-12-09");
+  });
+
+  it("reads the signing date an Item 1.01 states", () => {
+    const p = parseMergerItem(
+      'Item 1.01 Entry into a Material Definitive Agreement. On February 3, 2026, Bluebird Financial Corporation (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Northwind Bancorp, Inc. ("Parent") and Northwind Merger Sub, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Each share will be converted into the right to receive $48.75 in cash.',
+      { filerName: "Bluebird Financial Corporation", filerTickers: [] },
+    );
+    expect(p?.announcedOn).toBe("2026-02-03");
+  });
+});
+
+describe("scope", () => {
+  const release = (body: string) => parsePressRelease(body, { filerName: "Northwind Energy Inc.", filerTickers: [] });
+
+  it("marks a target listed abroad only, and reads its name after a comma", () => {
+    const p = release(
+      'Northwind Announces Agreement to Acquire Montney Oil Producer,\nBluebird Energy Corp.\nCALGARY, Alberta, Oct. 26, 2026 - Northwind Energy Inc. (NYSE: NWE) announced today that it has entered into a definitive agreement to acquire Bluebird Energy Corp. ("Bluebird") (TSXV: BLU) for approximately $1.0 billion.',
+    );
+    expect(p?.target.name).toBe("Bluebird Energy Corp.");
+    expect(p?.targetListedAbroad).toBe(true);
+  });
+
+  it("joins a headline's business word on the next line, which makes it a carve-out", () => {
+    expect(
+      release(
+        "Northwind Energy Signs Definitive Agreement to Acquire Bluebird Distributors\nBusiness\nNEW YORK, Oct. 23, 2026 - Northwind Energy Inc. (NYSE: NWE) announced today that it has signed a definitive agreement to acquire the managed services business of Bluebird Distributors.",
+      ),
+    ).toBeNull();
   });
 });

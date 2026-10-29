@@ -32,8 +32,15 @@ export interface ParsedPress {
   targetAdvisors: string[];
   /** The release calls the target privately held (only then may an unlisted target become a deal). */
   privateTarget?: boolean;
+  /** The release lists the target on a foreign exchange only ("Logan Energy Corp. ("Logan") (TSXV: LGN)"): out of scope. */
+  targetListedAbroad?: boolean;
   /** Merger 8-K: the signing date it restates ("As previously announced, on April 26, 2021, … entered into …"). */
   signedOn?: string;
+  /**
+   * The date the document gives for the announcement, when it isn't the filing date: a release's dateline (an exhibit
+   * can be filed days later), the signing date an Item 1.01 states, or the announcement a completion refers back to.
+   */
+  announcedOn?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +51,16 @@ const SKIP_LINE =
   /^(?:ex-?\d|exhibit\b|\d+$|[\w-]+\.html?$|press release|news release|(?:for )?immediate (?:release|distribution)|contacts?:|media contact|investor contact|tsxv?:|nyse|nasdaq|otc|\(?nyse|\(?nasdaq|[a-z]+ \d{1,2},? \d{4}$|\d{4}$|page \d)/i;
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December|Jan\\.?|Feb\\.?|Mar\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sept?\\.?|Oct\\.?|Nov\\.?|Dec\\.?";
 const DATELINE = new RegExp(`(?:^|\\n)[^\\n]{0,160}?(?:${MONTHS})\\s*,?\\s*\\d{1,2}\\s*,\\s*(?:19|20)\\d{2}\\s*[-–—/]+\\s*`, "i");
+const ANNOUNCED_ON = new RegExp(`\\b(?:previously\\s+)?announced\\s+on\\s+(?:${MONTHS})\\s*\\d{1,2},\\s*\\d{4}`, "i");
+const DATE_IN_TEXT = new RegExp(`(${MONTHS})\\s*,?\\s*(\\d{1,2})\\s*,\\s*((?:19|20)\\d{2})`, "gi");
+const MONTH_NUMBER: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+/** The last "Month D, YYYY" in `s` as an ISO date ("Nov. 14, 2025" → "2025-11-14"). */
+export function isoDateIn(s: string | undefined): string | undefined {
+  const m = s ? [...s.matchAll(DATE_IN_TEXT)].at(-1) : undefined;
+  const month = m ? MONTH_NUMBER[m[1].slice(0, 3).toLowerCase()] : undefined;
+  if (!m || !month || Number(m[2]) < 1 || Number(m[2]) > 31) return undefined;
+  return `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+}
 
 // SEC cover-page and filing-wrapper lines that precede the actual release in 425 / DEFA14A documents.
 const COVER_LINE =
@@ -111,8 +128,16 @@ const ANNOUNCES_DEAL = new RegExp(
 const RESULTS_LINE = /^(.{2,80}?)\s+(?:Reports|Announces|Posts|Releases|Delivers)\b.*\b(?:Results|Earnings)\b/i;
 const allCaps = (l: string) => /[A-Z]/.test(l) && !/[a-z]/.test(l);
 /** Line `b` carries on the headline of line `a` (one headline wrapped over two lines), not a new sub-headline. */
+// (A line ending in a comma goes on when a name follows: "… to Acquire Montney Oil Producer," / "Logan Energy Corp.";
+// not a sub-headline: "Optum and LHC Group to Combine," / "Advancing Abilities to Extend Value-Based Care …". So does a
+// line of just the business word: "… to Acquire Advanced Technology Distributors" / "Business".)
 const wraps = (a: string, b: string) =>
-  /^[a-z]/.test(b) || CONTINUES_HEADLINE.test(b) || /\b(?:for|to|of|by|with|and|the|a|an|in|on|into|be|acquire|merge|combine|definitive)$/i.test(a) || (allCaps(a) && allCaps(b));
+  /^[a-z]/.test(b) ||
+  CONTINUES_HEADLINE.test(b) ||
+  /\b(?:for|to|of|by|with|and|the|a|an|in|on|into|be|acquire|merge|combine|definitive)$/i.test(a) ||
+  (/,$/.test(a) && /^(?![A-Za-z]+ing\b)[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,5}\.?$/.test(b)) ||
+  /^(?:Business(?:es)?|Division|Unit|Assets|Operations|Segment|Portfolio)\.?$/i.test(b) ||
+  (allCaps(a) && allCaps(b));
 
 const isBoiler = (line: string) =>
   SKIP_LINE.test(line) || COVER_LINE.test(line) || LOWERCASE_FRAGMENT.test(line) || line.length < 6 || (line.length < 120 && CONTACT_LINE.test(line));
@@ -655,34 +680,93 @@ const PRICE_FOR = new RegExp(
 function classifyConsideration(t: string, offer = false, forStock = t): Consideration | null {
   const cash =
     // "$148.50 per Biohaven share in cash", "$66.00 per Ordinary Share and ADS in Cash" (Talend)
-    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per (?:\w+\s+){0,3}?share(?:\s+and\s+ADS)?\s*,?\s*)?in cash|cash consideration|in cash for each|cash tender offer|net to the (?:seller|holder)s?(?: thereof)? in cash|(?<!contingent )(?:total |aggregate )?cash purchase price|\b(?:an?|the) cash transaction/i.test(t) ||
+    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per (?:\w+\s+){0,3}?share(?:\s+and\s+ADS)?\s*,?\s*)?in cash|cash consideration|in cash for each|cash tender offer|net to the (?:seller|holder)s?(?: thereof)? in cash|(?<!contingent )(?:total |aggregate )?cash purchase price|\b(?:an?|the) cash transaction|\bin upfront cash\b|\b(?:remainder|balance|rest)\s+of\s+the\s+(?:purchase price|consideration)\b[^.;]{0,40}?\b(?:payable|paid)\s+in\s+cash\b/i.test(t) ||
+    // The consideration in amounts: "total consideration … will consist of approximately $1.89 billion of cash … and $82
+    // million in equity" (Tradeweb / Trumid).
+    // Not its financing: "the additional consideration … would be financed with an additional $25.0 million in equity"
+    // (Plato's bid for Renaissance Learning).
+    // (Also "$335 million cash", "acquisition price", a leg further on or after a semicolon: "consisting of approximately
+    // $425 million in cash, subject to customary adjustments for …, and …"; never cash that buys out options.)
+    // (And full dollars, "$625,000 cash", or the rest "payable in cash": "The remainder of the purchase price will be paid
+    // in cash".)
+    // (Not what the total is "inclusive of": "approximately $54 million in cash and 2.5 million Sucampo shares … held by
+    // R-Tech Ueno", the target's own holdings.)
+    /\b(?:consideration|(?:purchase|acquisition) price)\b(?:(?!financ|fund|inclusive)[^.]|\.(?=\d)){0,250}?(?:\$\s?\d[\d.,]*(?:\s*(?:million|billion))?\s+(?:(?:in|of)\s+)?cash\b(?!\s+(?:flow|equivalents|balance)|\s+to\s+(?:cash\s+out|settle|holders\s+of\s+(?:stock\s+)?options))|\b(?:remainder|balance|rest)\b[^.;]{0,60}?\b(?:payable|paid)\s+in\s+cash\b|\$\s?\d[\d.,]*(?:\s*(?:million|billion))?\s+(?:will\s+be\s+)?(?:payable|paid)\s+in\s+cash\b)/i.test(t) ||
     // In the sentence saying what holders get only: "£4.39 ($7.06) in cash", "the right to receive cash in an amount
     // equal to the Offer Price" (Cerner). Not "$80 million in cash": a lump sum there is often a CVR or one part of a
     // merger of equals, and elsewhere the balance sheet.
-    (offer && /\d\)\s+in cash|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)/i.test(t));
+    (offer && /\d\)\s+in cash|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)|\breceive\s+an?\s+(?:upfront\s+)?cash\s+payment\s+(?:of\s+(?:approximately\s+|about\s+)?\$|equal\s+to\s+an?\s+[\d.]+%\s+premium)|\b(?:one-time|upfront|special)\s+cash\s+payment\s+of\s+(?:approximately\s+|about\s+)?\$[\d.,]+\s+(?:per|for each)\b/i.test(t));
   const stock =
     // Not "available to all stockholders" (Sequenom) nor a count tendered or outstanding ("35,852,857 shares of Audentes
     // common stock were validly tendered"); an aggregate count paid counts ("will receive 30,700,000 shares of HF common
     // stock").
-    /\ball[- ]stock\b(?!holder)|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|\b\d+(?:\.\d+)? (?:shares|ordinary shares|common shares) of\b(?![^.;]{0,60}?\b(?:were|are|have been|had been)\s+(?:validly\s+)?(?:tendered|issued and outstanding|outstanding))|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(forStock) ||
+    // (Not an offering's or a conversion rate's count: "a public offering of 11,075,000 shares of common stock", "a
+    // conversion rate of 166.11 shares of common stock per $1,000 of accreted value".)
+    /\ball[- ]stock\b(?!holder)|stock[- ]for[- ]stock|exchange ratio|shares? of [\w&.'’ ]{1,60}?(?:common stock|common shares|ordinary shares)? for each|(?<![\d,.])(?<!\boffering of\s)(?<!\brate of\s)\b(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?) (?:restricted )?(?:shares|ordinary shares|common shares) of\b(?![^.;]{0,60}?\b(?:were|are|have been|had been)\s+(?:validly\s+)?(?:tendered|issued and outstanding|outstanding))(?![^.;]{0,40}?\bper\s+\$)|in (?:\w+ )?(?:common )?stock of|per share in stock/i.test(forStock) ||
     // "one Union Pacific common share and $88.82 in cash", "0.5 Acme ADSs", "one ListCo Share and $5.00 in cash" (a count
     // of shares, not a $ price per share)
     // Not a tender's top-up threshold: "constitutes one Share more than 90% of the outstanding Shares", "one share of
     // Common Stock more than 80%". Nor the merger sub's own shares: "… will be converted into and become one share of
     // common stock of the surviving corporation" (Revance). Nor an ADS ratio: "(each ADS representing one ordinary
     // share)" (Talend).
-    /(?<![$\d.,]\s?)(?<!\brepresent(?:s|ing)\s)\b(?:one|two|three|\d+\.\d+|\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?)\b(?!\s+(?:outstanding|repurchase)|[^.;]{0,40}?\b(?:more|less|fewer) than\b|[^.;]{0,30}?\bof (?:the )?[Ss]urviving\b)/.test(forStock) ||
+    // (… nor across a par value: "one share of common stock, par value $0.01 per share, of the Surviving Corporation"
+    // (Surgery Partners, a cash deal), "… of the Webster Subsidiary" (Webster's reincorporation step before Santander's
+    // share exchange); the period in "$0.01" ended the old look-ahead.)
+    // (Also a ratio with no leading zero, ".30 shares of CenterState's common stock", and units: "1.3 Enterprise common
+    // units".)
+    /(?<![$\d.,]\s?)(?<!\brepresent(?:s|ing)\s)(?:\b(?:one|two|three|\d+\.\d+|\d+)|(?<=\s)\.\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|(?<=[Cc]ommon\s)[Uu]nits?)\b(?!\s+(?:outstanding|repurchase|points?)|[^.;]{0,40}?\b(?:more|less|fewer) than\b|[^;]{0,70}?\bof (?:the )?(?:[A-Z][\w&.'’-]*\s+){0,2}(?:[Ss]urviving|[Ss]ubsidiary)\b)/.test(forStock) ||
     // An exchange ratio before legal words: "3.8721 fully paid and non-assessable Parent Shares" (Penumbra).
     // Not "0.640 KMI warrants per share", nor a share count ("2.785 million shares").
     /(?<![$\d.,]\s?)\b\d+\.\d{3,4}\s+(?!million|billion)(?:[\w&.'’-]+\s+){0,6}?(?<!\bper\s)(?:[Ss]hares?|ADSs?)\b/.test(forStock) ||
     // "the right to receive 0.70 of a fully paid and nonassessable share of Martin Marietta common stock" (TXI)
-    /(?<![$\d.,]\s?)\b\d*\.\d+\s+of\s+(?:a|one)\s+(?:fully[- ]paid\s+(?:and\s+)?non-?assessable\s+)?(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:share|ADS)\b/i.test(forStock);
+    /(?<![$\d.,]\s?)\b\d*\.\d+\s+of\s+(?:a|one)\s+(?:fully[- ]paid\s+(?:and\s+)?non-?assessable\s+)?(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:share|ADS)\b/i.test(forStock) ||
+    // "… and $82 million in equity" (Trumid), and in what holders receive, a share count: "a cash payment of $350
+    // million and 5 million shares of RadNet, Inc. common stock" (ONRAD; elsewhere "5 million shares" is often a buyback).
+    // (Also "worth of" / "equivalent of", units, "acquisition price"; not the target's book equity the price is set on,
+    // "a premium on $336 million of core tangible common equity", nor employees' awards, "$20 million in restricted stock
+    // to certain employee equity holders".)
+    /\b(?:consideration|(?:purchase|acquisition) price)\b(?:(?!financ|fund|employee|award|inclusive)[^.]|\.(?=\d)){0,250}?(?<!\bon\s)\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:in|of|worth\s+of|equivalent\s+of|in\s+value\s+of)\s+(?:(?!(?:cash|for|and|or|the|of|with|plus|to|core|tangible|book)\b)[\w&.'’-]+\s+){0,4}?(?:equity|stock|shares|units)\b(?!\s+value)(?![^.;]{0,40}\b(?:employees?|members of (?:senior )?management|management team|officers|award holders|equity holders)\b)/i.test(forStock) ||
+    // "The transaction consideration will consist of approximately 117.3 million shares of Diamondback common stock and
+    // $8 billion of cash" (Endeavor). A count of shares of a stock, never a dollar amount ("an aggregate of up to
+    // approximately $309.6 million excluding shares held by Lilly") nor the count the price is worked out on ("$294
+    // million (which consists of approximately 35.9 million shares, inclusive of all shares …)": HealthGrades).
+    // ("43.8 million Talos shares and $212.5 million in cash" counts; "35.9 million shares, inclusive of …" doesn't.)
+    // (A count may follow a comma: "$136 million in cash, 3.14 million shares of Comverse's common stock".)
+    /\b(?:[Cc]onsideration|(?:[Pp]urchase|[Aa]cquisition) [Pp]rice)\b(?:(?!financ|fund|inclusive)[^.]|\.(?=\d)){0,250}?(?<![$\d.]\s?)(?<!\d,)(?<!\beach of (?:the )?(?:approximately |about )?)\b\d+(?:\.\d+)?\s+million\s+(?:[A-Z][\w&.'’-]*\s+){0,3}?(?:common\s+|ordinary\s+)?(?:shares|units)\b(?!\s*[,)])(?![^.;]{0,40}?\b(?:outstanding|tendered|repurchased|issued and|already owned|owned by|held by)\b)/.test(forStock) ||
+    // "… will receive a cash payment equal to … and shares of BSPRT common stock" (Capstead)
+    // (After the payment, never the excluded shares: "(subject to certain exceptions, including shares of Common Stock owned
+    // by the Company … and shares of Common Stock owned by stockholders who have … demanded appraisal)", iRobot.)
+    // "newly-issued stock valued at $217 million", and in what holders receive "$30 million in Intrexon common stock".
+    // (Issued stock only: "All-Cash Transaction For $25 Per Share of Common Stock Valued at Approximately $5.8 Billion".)
+    /\b(?:newly[- ]issued|issued|new)\s+(?:common\s+)?stock\s+valued\s+at\s+(?:approximately\s+)?\$\s?\d/i.test(forStock) ||
+    (offer && /\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:in|of)\s+(?:[A-Z][\w&.'’-]*\s+){1,4}(?:common\s+)?(?:stock|shares)\b/.test(forStock)) ||
+    // (Nor the target's own spin-off handed out beside the cash: "$24.25 in Cash plus Shares of Bluerock Homes Trust, …
+    // Spin-Off".)
+    (offer && /\b(?:cash|payment|\$[\d.,]+(?:\s*(?:million|billion))?)\b(?:[^.;()]|\.(?=\d)){0,120}?\b(?:and|plus)\s+(?:newly[- ]issued\s+)?shares\s+of\b(?![^.;]{0,120}\bspin-?off\b)/i.test(forStock)) ||
+    // (Not the count outstanding: "$85.00 in cash in return for each of the approximately 9.1 million shares outstanding".)
+    // "between 50% and 75% of the total consideration in the Company's common stock and the remainder will be paid in cash"
+    /\b\d{1,3}%\s+of\s+the\s+(?:total\s+|aggregate\s+)?(?:merger\s+)?consideration\s+in\s+(?:[\w'’]+\s+){0,3}(?:common\s+)?(?:stock|shares)\b/i.test(forStock) ||
+    (offer && /(?<![$\d.]\s?)(?<!\d,)(?<!\beach of (?:the )?(?:approximately |about )?)\b\d+(?:\.\d+)?\s+(?:million|billion)\s+(?:[A-Z][\w&.'’,-]*\s+){0,4}?(?:common\s+|ordinary\s+)?shares\b(?![^.;]{0,40}?\b(?:outstanding|tendered|repurchased|issued and|already owned|owned by|held by)\b)/.test(forStock));
   // A cash-or-stock election is mixed: "at the election of the holder … 3.8721 Parent Shares … or $374.00 in cash".
   const mixed =
-    /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)|stock and cash|combination of cash and|cash-and-stock|cash and stock|\b(?:cash|stock) election\b/i.test(forStock) ||
-    // "72% stock (1:1 share) and 28% cash ($88.82/share)" (Union Pacific / Norfolk Southern)
-    /\b\d{1,2}% (?:stock|cash)\b[^.;]{0,40}?\b\d{1,2}% (?:stock|cash)\b/i.test(forStock);
-  if (mixed || (cash && stock)) return "Mixed";
+    // (Not a rival's: "superior to the stock and cash proposal from GFI's management and CME", "the $5.25 per share stock
+    // and cash transaction announced by CME and GFI".)
+    /cash and (?:[\d.]+ )?(?:\w+ )?(?:common )?(?:stock|shares)(?!\s+(?:proposal|offer|bid|transaction\s+announced\s+by)\b)|stock and cash(?!\s+(?:proposal|offer|bid|transaction\s+announced\s+by)\b)|combination of cash and|cash-and-stock|cash and stock|\b(?:cash|stock) election\b/i.test(forStock) ||
+    // "a combination of Smith & Wesson equity and cash" (Savage Arms); "up to $378 million in cash, stock, and potential
+    // earn-out", "upfront cash, stock and unvested restricted stock units"
+    // (Not "(e) Represents non-cash, stock-based compensation expense".) An election between cash and shares is mixed:
+    // "At least 70% of the consideration will be paid in cash and Infinera's shareholders can elect to receive up to 30% …
+    // in the form of Nokia ADSs".
+    // (The election is between cash and shares, never two kinds of equity: "may elect to receive exchangeable shares …
+    // instead of the CTGO Shares", "BEPC shares or BEP units"; nor a financing's "issuance of common stock, cash on hand".)
+    /\bcombination of [^.;]{0,40}?\b(?:equity|shares|stock)\s+and\s+cash\b|(?<!\bnon-)\bcash,\s+(?:common\s+)?stock\b(?!-)|(?<!\bissuance of (?:common )?)\bstock,\s+cash\b(?!\s+on\s+hand)|\bcash\b[^.;]{0,200}?(?<!\bwarrants?\b[^.;]{0,80})\belect\s+to\s+receive\b[^.;]{0,120}?\b(?:ADSs?|shares|stock)\b|(?<!\bwarrants?\b[^.;]{0,80})\belect\s+to\s+receive\b[^.;]{0,120}?\b(?:(?:ADSs?|shares|stock)\b[^.;]{0,120}?\bcash|cash\b[^.;]{0,80}?\b(?:ADSs?|shares|stock))\b|\bdepending on (?:their|its|the holder['’]s) election\b/i.test(forStock) ||
+    // "72% stock (1:1 share) and 28% cash ($88.82/share)" (Union Pacific / Norfolk Southern), "36% cash ($11.25/BLFS
+    // share) and 64% stock"
+    /\b\d{1,2}% (?:stock|cash)\b(?:[^.;]|\.(?=\d)){0,40}?\b\d{1,2}% (?:stock|cash)\b/i.test(forStock);
+  // A lump sum of cash beside shares in what holders receive: "approximately 65.6 million shares of Bunge stock and
+  // approximately US$2.0 billion in cash" (Viterra). Alone, such a sum is often a CVR or one side of a merger of equals.
+  const lump = offer && /\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:(?:in|of)\s+)?cash\b(?!\s+(?:flow|equivalents|balance))/i.test(t);
+  if (mixed || (cash && stock) || (lump && stock)) return "Mixed";
   if (stock) return "Stock";
   if (cash) return "Cash";
   return null;
@@ -693,15 +777,19 @@ export function extractConsideration(raw: string): Consideration | null {
   // nothing about the price (HFF). The clause only: it often ends the holders' own sentence ("… 0.5 shares of Parent
   // common stock, with cash paid in lieu of fractional shares").
   const t = raw.replace(
-    /no cash consideration[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*|\bno fractional shares[^.;]{0,120}?(?:will|shall) be issued[^.;,]*|\bcash\s+(?:will be paid\s+|being paid\s+|paid\s+|payable\s+)?in\s+lieu\s+of\s+(?:any\s+|such\s+|the\s+)?fraction(?:al|s)[^.;,)]*/gi,
+    /no cash consideration[^.]*|\bno cash,\s+stock\b[^.]*|without (?:any )?cash[^.]*|cash and cash equivalents|no (?:new )?(?:shares|stock) (?:will be|is being) issued[^.]*|\bno fractional shares[^.;]{0,120}?(?:will|shall) be issued[^.;,]*|\bcash\s+(?:will be paid\s+|being paid\s+|paid\s+|payable\s+)?in\s+lieu\s+of\s+(?:any\s+|such\s+|the\s+)?fraction(?:al|s)[^.;,)]*/gi,
     " ",
   );
   // The sentence saying what holders get decides it. Financing talk elsewhere ("funded with cash on hand and new
   // shares") made an all-cash deal (HPE / Juniper) look mixed.
-  const offer = /(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/i.exec(t)?.[0];
+  // (Not the earn-out's sentence: "ImmPACT shareholders will also be eligible to receive contingent consideration
+  // consisting of 12.5 million shares of Lyell common stock" came before the upfront cash and shares.)
+  // (A contingent value right beside the cash is no earn-out sentence: "(i) $13.00 in cash and (ii) a non-tradeable
+  // contingent value right".)
+  const offer = [...t.matchAll(/(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/gi)].map((m) => m[0]).find((s) => !/\b(?:contingent consideration|earn-?outs?|milestone)\b/i.test(s) && !/\b(?:warrants?|options?|RSUs?)\b/i.test(s.split(/\b(?:will|would|to) receive\b/i)[0]));
   // Employee awards converted into the buyer's stock ("… denominated in shares of Oracle's common stock … an exchange
   // ratio determined by dividing the Merger Consideration …") say nothing about what holders get: Cerner read as stock.
-  const AWARDS = /\b(?:stock options?|options? to (?:purchase|acquire)|restricted stock|RSUs?|PSUs?|performance (?:share |stock )?units?|(?:deferred )?(?:stock|share) units?(?: awards?)?|equity awards?|compensatory awards?|incentive awards?)\b/i;
+  const AWARDS = /\b(?:stock options?|options? to (?:purchase|acquire)|option awards?|replacement awards?|inducement (?:grants?|awards?)|restricted stock|RSUs?|PSUs?|performance (?:share |stock )?units?|(?:deferred )?(?:stock|share) units?(?: awards?)?|equity awards?|compensatory awards?|incentive awards?)\b/i;
   // A sentence about awards names them early; a holders' sentence can run on into them later (Ryland).
   const holders = t.split(/(?<=\.)\s+(?=[A-Z(])/).filter((s) => !AWARDS.test(s.slice(0, 150))).join(" ");
   return (offer && classifyConsideration(offer, true)) || classifyConsideration(t, false, holders);
@@ -714,37 +802,142 @@ export function extractConsideration(raw: string): Consideration | null {
 export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole: "acquirer" | "target" | null, tgtTicker: string | null) {
   const acquirerAdvisors: string[] = [];
   const targetAdvisors: string[] = [];
+  // "ExxonMobil" is Exxon Mobil Corporation: compare without spaces too.
+  const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+  const same = (a: string, b: string) => sameCompany(a, b) || (squash(a).length >= 4 && squash(a) === squash(b));
+  // Names the release defines for a party: "Utility Innovation Holdings, Inc., which operates as UtilityInnovation Group
+  // ("UIG")" (Vertiv's purchase), "Walgreens Boots Alliance (NASDAQ: WBA) (the "Company" or "WBA")".
+  // The defined name must be the party's own, exactly: a shared first word is not enough ("Community Health Systems, Inc.
+  // ("CHS")" is not Health Management Associates), nor the other party's name run in front ("by and among Atrion,
+  // Nordson Corporation ("Nordson")").
+  const defined = [...t.replace(/\((?:NYSE|NASDAQ|Nasdaq|Cboe)[^)]*\)\s*/g, "").matchAll(/((?:[A-Z][\w&.'’-]*,?\s+){1,6})\(([^()]{0,80}?["“][^()]{0,80})\)/g)];
+  // It may add a word or descriptors to the party's name ("Western Midstream Partners, LP" ("WES") for Western Midstream,
+  // "National Surgical Healthcare" ("NSH")), not a name of its own ("Monroe Capital Income Plus Corporation" ("MCIP") is
+  // not Monroe Capital Corporation); a party named longer starts with it ("First Advantage Bancorp" ("FABK")).
+  const DESCRIPTOR = /^(?:partners|holdings?|group|company|corporation|bancorp|bancshares|financial|trust|incorporated|enterprises|international|global|usa|us|america|technologies|systems|resources|industries|bank)$/;
+  const aliasesOf = (name: string) =>
+    defined
+      .filter((d) => {
+        const run = d[1].trim().replace(/,$/, "").replace(/^.*,\s+(?!(?:Inc|LLC|L\.?\s?P|Ltd|Corp|Co|N\.\s?A|S\.\s?A|plc|PLC|Limited)\b)/, "");
+        const words = run.split(/\s+/);
+        const x = normalizeName(name);
+        const named = (s: string) => {
+          if (s.replace(/ /g, "").length < 2 || x.length < 2) return false;
+          if (s.replace(/ /g, "") === x.replace(/ /g, "")) return true;
+          if (!s.startsWith(`${x} `)) return false;
+          const extra = s.slice(x.length + 1).split(" ");
+          return extra.length === 1 || extra.every((w) => DESCRIPTOR.test(w));
+        };
+        const whole = normalizeName(run);
+        // A tail of the run only after a header or label in front ("WESTERN MIDSTREAM Western Midstream Partners, LP",
+        // "Advisors Acme Corp."): "Beacon Roofing Supply, Inc." is not Roofing Supply Group.
+        // (Also after another name's end, "… Corp. CVB Financial Corp." or "FORT MYERS, FL- First Busey Corporation", and the
+        // name written twice, "American Industrial Partners American Industrial Partners".)
+        const tailOk = (k: number) =>
+          k === 0 ||
+          /^[A-Z&]{2,}[-:.,]?$|[.:-]$/.test(words[k - 1]) ||
+          /^(?:Advis[eo]rs?|About|Today|Contacts?|Exhibit|Release|News|Profile|Overview):?$/i.test(words[k - 1]) ||
+          normalizeName(words.slice(0, k).join(" ")).endsWith(normalizeName(words.slice(k).join(" ")));
+        return words.some((_, k) => tailOk(k) && named(normalizeName(words.slice(k).join(" ")))) || (whole.split(" ").length >= 2 && x.startsWith(`${whole} `));
+      })
+      .flatMap((d) => [...d[2].matchAll(/["“]\s*([A-Z][\w&.'’ -]{0,30}?[\w.])\s*,?\s*["”]/g)].map((q) => q[1]))
+      .filter((a) => !/^(?:Company|Parent|Merger Sub|Purchaser|Buyer|Transaction|Merger|Agreement|Board)$/i.test(a));
+  const [tgtAliases, acqAliases] = [aliasesOf(tgt), aliasesOf(acq)];
+  const isAlias = (r: string, aliases: string[]) => aliases.some((a) => r === a || r.startsWith(`${a} `) || r.startsWith(`${a}'`) || r.startsWith(`${a}’`));
+  // A company named by the start of a party's name ("Paramount" for Paramount Skydance Corporation) or its defined name.
+  const startsName = (short: string, full: string) => {
+    const [x, y] = [normalizeName(short), normalizeName(full)];
+    return x.length >= 3 && (y === x || y.startsWith(`${x} `));
+  };
+  const ownerOf = (company: string): "acquirer" | "target" | null => {
+    const a = startsName(company, acq) || isAlias(company, acqAliases);
+    const b = startsName(company, tgt) || isAlias(company, tgtAliases);
+    return a && !b ? "acquirer" : b && !a ? "target" : null;
+  };
+  /** Whose adviser a recipient ("to Copart", "to the Special Committee of …", "to UIG") is. */
+  const partyRole = (r: string): "acquirer" | "target" | null => {
+    // A committee's own company decides: "to the Special Committee of the Board of Directors of Paramount" is the
+    // buyer's (Paramount / Warner Bros. Discovery), and so is "The ACR Special Committee" (ACR buying Broadmark).
+    // (The last "of": "the special committee of independent directors of Zoom", "… of the VMware Board of Directors".)
+    const of =
+      /\bcommittee\b.*\bof\s+(?:the\s+)?([A-Z][^,;]*)$/i.exec(r.replace(/\s+Board(?:\s+of\s+Directors)?$/i, ""))?.[1] ??
+      /^(?:[Tt]he\s+)?([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,3})\s+(?:Special|Transaction|Independent|Strategic)\s+(?:Review\s+)?Committee\b/.exec(r)?.[1];
+    const committee = /special committee|transaction committee|independent directors|strategic (?:review )?committee/i.test(r);
+    if (committee && of && ownerOf(of)) return ownerOf(of);
+    if (same(r, tgt) || isAlias(r, tgtAliases) || (tgtTicker && r.includes(tgtTicker)) || committee) return "target";
+    if (same(r, acq) || isAlias(r, acqAliases) || /investor group|buyer|purchaser|parent\b/i.test(r)) return "acquirer";
+    if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) return issuerRole;
+    return null;
+  };
   const re = /financial advis[oe]rs?\b/gi;
   let prevEnd = 0;
   // An "Advisors" section heading names whom the lines under it advise: "Herc Advisors Guggenheim Securities, LLC is
   // serving as lead financial advisor … Credit Agricole … is serving as co-financial advisor".
   let heading: { name: string; at: number } | null = null;
+  // "… are acting as lead financial advisors to Paramount, and Bank of America Securities, Citi, M. Klein & Company and
+  // LionTree Advisors are also acting as financial advisors.": "also" with no recipient is the previous one's.
+  let last: { role: "acquirer" | "target"; at: number } | null = null;
   for (const m of t.matchAll(re)) {
     const i = m.index!;
     const pre = t.slice(Math.max(prevEnd, i - 260), i);
     const post = t.slice(i + m[0].length, i + m[0].length + 220);
+    // The recipient can end a long list: "UBS Investment Bank is acting as lead financial advisor, Goldman Sachs and J.P.
+    // Morgan are acting as co-lead financial advisors, Citi and Wells Fargo …, Davis, Polk & Wardwell LLP is acting as
+    // legal counsel and Bass Berry & Sims PLC is acting as healthcare regulatory counsel to Sycamore Partners."
+    const postLong = t.slice(i + m[0].length, i + m[0].length + 420);
     prevEnd = i + m[0].length;
 
     // "<Bank> is serving as financial advisor to X" — banks precede the phrase.
     // Only the clause right before the phrase counts (after the last sentence break).
-    const clause = pre.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|Mr|Ms|Dr|U\.S))[.;]\s+(?=[A-Z])/).pop() ?? pre;
+    // (An initial is no sentence end: "Citi, M. Klein & Company and LionTree Advisors".)
+    const clause = pre.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|Mr|Ms|Dr|U\.S|[A-Z]))[.;]\s+(?=[A-Z])/).pop() ?? pre;
     // "Citi is acting as Pfizer's financial advisor": the possessive names the recipient (not a bank).
-    const possessive = /((?:[A-Z][\w&.’-]*\s+){0,4}?[A-Z][\w&.’-]*)['’]s\s+(?:lead\s+|exclusive\s+|sole\s+|co-|joint\s+|independent\s+)*$/.exec(clause);
+    // (Or a bare apostrophe after an s: "Conatus' financial advisor in the transaction is Oppenheimer & Co., Inc.")
+    const possessive = /((?:[A-Z][\w&.’-]*\s+){0,4}?[A-Z][\w&.’-]*?)(?:['’]s|(?<=s)['’])\s+(?:lead\s+|exclusive\s+|sole\s+|co-|joint\s+|independent\s+)*$/.exec(clause);
+    // Not the section heading in front: "Advisors AbbVie's financial advisor is Morgan Stanley & Co. LLC".
+    const owner = possessive?.[1].replace(/^(?:[\w&.’-]+\s+)*?Advis[oe]rs:?\s+(?=\S)/, "");
     const headed = /(?:^|\s)((?:[A-Z][\w&.'’-]*\s){0,3}?[A-Z][\w&.'’-]*)\s+Advis[oe]rs\s*:?\s+(?=[A-Z])/.exec(clause);
     if (headed && !findBanks(headed[1]).length) heading = { name: headed[1], at: i };
-    let banks = findBanks(possessive ? clause.slice(0, possessive.index) : clause);
+    // A contact list's label is no statement: "Goldman Sachs (financial advisor) Tim Ingrassia, +1 …".
+    // ("Deutsche Bank (financial advisor to Warner Chilcott)" is one.) Nor are a broker's own advisers: "welcome the
+    // talented financial advisors, their teams and clients to Raymond James".
+    if (/\(\s*(?:lead\s+|exclusive\s+|co-)?$/i.test(pre) && /^\s*\)/.test(post)) continue;
+    // (A count of them, "1,200 financial advisors"; not a footnote mark, "also served as 2 financial advisors to MetLife".)
+    if (/\b(?:talented|experienced|veteran|wealth|retail|\d{2,}[\d,]*)\s+$/i.test(pre) || /^\s*,?\s*(?:their|and their|who)\b/i.test(post)) continue;
+    // Banks only from the adviser's own clause: not a parent named beside it ("Greenhill, a Mizuho affiliate"), not one
+    // named earlier for another role ("B. Riley FBR, Inc. is acting as capital markets advisor and private placement agent
+    // to Trinity, and Raymond James … is acting as Trinity's financial advisor"), not a research-coverage list run in.
+    let scan = (possessive ? clause.slice(0, possessive.index) : clause)
+      .replace(/,\s+an?\s+(?:[A-Z][\w.&'’-]*\s+){1,3}(?:affiliate|company|subsidiary|member)\b,?/gi, " ")
+      .replace(/^.*\b(?:acting|serving|served|acted)\s+as\s+(?:its\s+|the\s+)?(?:exclusive\s+|sole\s+)?(?:capital markets|placement|legal|tax|accounting|regulatory|debt|structuring)\b[^.;]*?(?:,\s*and\s+|;\s*)/i, "");
+    // (The list is bullets: "… Raymond James & Associates, Inc. • Robert W. Baird … Additional Information Keefe Bruyette
+    // & Woods … served as financial advisor …".)
+    if (/research coverage|•/i.test(scan)) scan = /\bAdditional Information\s+([\s\S]*)$/.exec(scan)?.[1] ??(/research coverage/i.test(scan) ? "" : scan.slice(scan.lastIndexOf("•") + 1));
+    let banks = findBanks(scan);
     // Recipient: "... to Copart", "... and provided a fairness opinion to ACV", "... to H.I.G., and ..."
-    const RECIPIENT = String.raw`(?:to|for)\s+(?:the\s+)?((?:[A-Z]\.)+[A-Z]?\.?[^,;]{0,60}?|[^,;.]{1,90}?)(?=[,;]|\.\s|\.$|\s+(?:and|in connection|on|with|in)\s|$)`;
+    // (A name's own period may come first: "… financial advisor to Apex Global Brands Inc., while …".)
+    const RECIPIENT = String.raw`(?:to|for)\s+(?:the\s+)?((?:[A-Z]\.)+[A-Z]?\.?[^,;]{0,60}?|[^,;.]{1,90}?)(?=\.?[,;]|\.\s|\.$|\s+(?:and|in connection|on|with|in)\s|$)`;
     let recipientText = new RegExp(String.raw`^\s*(?:and [^,;]{0,90}?\s)?,?\s*(?:respectively\s*,?\s*)?${RECIPIENT}`).exec(post)?.[1] ?? "";
+    // The recipient first: "For Clario, Evercore is serving as lead financial advisor and Latham & Watkins as deal counsel."
+    if (!recipientText) recipientText = /^\s*(?:For|To)\s+(?:the\s+)?([A-Z][^,;]{1,60}?),\s/.exec(clause)?.[1] ?? "";
     // Otherwise, the recipient named at the end of the same sentence:
     // "Ardea is serving as lead financial advisor, Davis Polk ... and MarshBerry ... to The Baldwin Group."
+    // (Or the one it says was advised: "Evercore acted as lead financial advisor, J.P. Morgan Securities LLC also advised
+    // Range.")
+    // The sentence ends at a period before a capital, a number, "###" or a web address, and after "Inc." too ("… to
+    // Crescent Financial Bancshares, Inc. Sandler O'Neill … served as legal counsel to ECB Bancorp, Inc."); the long window
+    // only when the sentence runs past the short one. Of its recipients, the first that is a party: a list of one side's
+    // advisers and counsel can end with the other side's lawyers (", and Gibson, Dunn … served as counsel to Berkshire
+    // Hathaway"), and the first "to" can be no party at all ("leading up to the Proposed Transaction").
     if (!recipientText) {
-      const sentence = post.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|U\.S))\.\s+(?=[A-Z])/)[0];
-      const all = [...sentence.matchAll(new RegExp(String.raw`\s${RECIPIENT}`, "g"))];
-      recipientText = all.at(-1)?.[1] ?? "";
+      const END = /(?<![A-Z]\.[A-Z]|\b(?:Co|Corp|Ltd|L\.P|LLC|U\.S|No|Mr|Ms|Mrs|Dr|[A-Z]))\.\s+(?=[A-Z0-9#]|www\.)/;
+      const short = post.split(END)[0];
+      const sentence = short.length < post.trimEnd().length - 1 ? short : postLong.split(END)[0];
+      const all = [...sentence.matchAll(new RegExp(String.raw`\s${RECIPIENT}`, "g"))].map((x) => x[1]);
+      recipientText = all.find((x) => partyRole(x.trim())) ?? all.at(-1) ?? /\badvised\s+(?!by\b)(?:the\s+)?([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})/.exec(sentence)?.[1] ?? "";
     }
 
-    if (possessive && !findBanks(possessive[1]).length) recipientText = possessive[1];
+    if (owner && !findBanks(owner).length) recipientText = owner;
     // "Financial advisors to Clearlake include Morgan Stanley, Goldman Sachs, JP Morgan, …"
     const listed = /^\s*(?:to|for)\s+(?:the\s+)?([^,;.]{1,60}?)\s+(?:include|includes|included|are|were)\s+([^.;]{2,300})/.exec(post);
     if (!banks.length && listed && findBanks(listed[2]).length) {
@@ -757,29 +950,66 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     // "the Company and its financial advisor, BofA Securities, ..."
     if (!banks.length) {
       const after = /^\s*,?\s*([^,.;]{2,60})/.exec(post)?.[1] ?? "";
-      banks = findBanks(after);
+      // (Not the recipient's own name: "Perkins Advisors LLC acted as financial advisor to Cowen".)
+      banks = /^\s*,?\s*to\s/i.test(post) && findBanks(recipientText.trim().split(/\s+/)[0] ?? "").length ? [] : findBanks(after);
       if (banks.length) recipientText = /\bits\s*$/i.test(pre) ? "the Company" : recipientText;
     }
     if (!banks.length) continue;
 
     let role: "acquirer" | "target" | null = null;
     const r = recipientText.trim();
-    // "ExxonMobil" is Exxon Mobil Corporation: compare without spaces too.
-    const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
-    const same = (a: string, b: string) => sameCompany(a, b) || (squash(a).length >= 4 && squash(a) === squash(b));
     // A short form in a possessive: "Bel's financial advisor" (BEL Fuse Inc.), "ANB's" (ANB Holdings, Inc.).
     const short = (a: string, full: string) => {
       const [x, y] = [normalizeName(a), normalizeName(full)];
       return !!possessive && x.length >= 3 && (y === x || y.startsWith(`${x} `));
     };
     if (!r) role = /\bits\s*$/i.test(pre) ? issuerRole : null;
-    else if (r === possessive?.[1] && short(r, tgt) !== short(r, acq)) role = short(r, tgt) ? "target" : "acquirer";
-    else if (same(r, tgt) || (tgtTicker && r.includes(tgtTicker)) || /special committee|transaction committee|independent directors/i.test(r)) role = "target";
-    else if (same(r, acq) || /investor group|buyer|purchaser|parent\b/i.test(r)) role = "acquirer";
-    else if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) role = issuerRole;
+    else if (r === owner && short(r, tgt) !== short(r, acq)) role = short(r, tgt) ? "target" : "acquirer";
+    else role = partyRole(r);
     if (!role && heading && i - heading.at < 700) role = same(heading.name, tgt) ? "target" : same(heading.name, acq) ? "acquirer" : null;
-    if (!role) continue;
+    if (!role && !r && last && i - last.at < 600 && /\balso\b/i.test(clause)) role = last.role;
+    // "UBS Investment Bank is acting as lead buyside financial advisor."
+    if (!role && !r) role = /\bbuy[- ]?side\s+$/i.test(pre) ? "acquirer" : /\bsell[- ]?side\s+$/i.test(pre) ? "target" : null;
+    // A recipient that is neither party ("to the consortium", "to Mr. Musk"), or none, leaves nothing for an "also" to
+    // inherit.
+    if (!role) {
+      last = null;
+      continue;
+    }
+    last = { role, at: i };
     (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...banks);
+  }
+  // Banks credited without the words "financial advisor": "QXO is also being advised by Goldman Sachs, Citi, Centerview,
+  // Credit Agricole, Wells Fargo and Mizuho." The party starts a sentence or a clause ("…, and TripIt was advised by
+  // Deutsche Bank") and never runs back across a period ("… to Chase. KKR is advised by …"); its list stops at the next
+  // party's ("Legg Mason was advised by Dechert, LLP and QS Investors was advised by RBC Capital Markets", "… and Oritani
+  // by …").
+  const SENTENCE_END = /(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|U\.S|No|[A-Z]))\.\s|;/;
+  // (A name may hold periods, "PersonalizationMall.com", "Kaleyra S.p.A", "S.T. Specialty Foods", but a word ends in one
+  // only as an abbreviation; a page header may run in: "Page 2 of 6 GLOBAL EAGLE ENTERTAINMENT GEE was advised by Citi".)
+  const WORD = String.raw`[A-Z][\w&'’-]*(?:\.[\w&'’-]+)*(?:(?<=\b(?:Inc|Co|Corp|Ltd|L\.P|[A-Z]))\.)?`;
+  for (const m of t.matchAll(new RegExp(String.raw`((?:${WORD}\s+){0,4}?${WORD})\s+(?:is|are|was|were|has been|have been)\s+(?:also\s+)?(?:being\s+)?advised\s+by\s+`, "g"))) {
+    // The party is the subject's longest tail that names one: "L.L.P. First M&F Corporation" (an abbreviation ended the
+    // sentence before), "D.C. The Nashua Bank".
+    const words = m[1].replace(/^(?:.*\s)?Advis[eo]rs?:?\s+/, "").split(/\s+/);
+    const tails = words.map((_, k) => words.slice(k).join(" ")).filter((s) => normalizeName(s).length >= 3);
+    const role = tails.map((s) => partyRole(s)).find(Boolean) ?? null;
+    const end = m.index! + m[0].length;
+    // The list ends where the next party's "… was advised by" begins, also after an abbreviation's period ("… Phelps
+    // Dunbar, L.L.P. First M&F Corporation was advised by …", "Stephens Inc. SBI was advised by …").
+    const list = t
+      .slice(end, end + 300)
+      .split(/\b(?:is|are|was|were|has been|have been)\s+(?:also\s+)?(?:being\s+)?advised\b/)[0]
+      .split(SENTENCE_END)[0]
+      .split(/\s+(?:and|while|whereas)\s+(?:the\s+)?[A-Z][\w&'’-]*(?:\s+[A-Z][\w&'’-]*){0,4}\s+(?:(?:is|are|was|were|has been|have been)\s+(?:also\s+)?(?:being\s+)?advised|by)\s|,?\s+(?:while|whereas)\s/)[0];
+    if (role) (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...findBanks(list));
+  }
+  // "J.P. Morgan Securities LLC also advised Range." (Only the banks of its own clause: "Jefferies LLC served as financial
+  // advisor to CECO while William Blair & Company advised Met-Pro".)
+  for (const m of t.matchAll(/\s(?:also\s+)?advised\s+(?!by\b)(?:the\s+)?([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})/g)) {
+    const role = partyRole(m[1]);
+    const before = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[;,]\s|\s(?:while|whereas)\s|(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|U\.S|[A-Z]))\.\s+(?=[A-Z])/).pop() ?? "";
+    if (role) (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...findBanks(before));
   }
   const uniq = (xs: string[]) => [...new Set(xs)];
   return { acquirerAdvisors: uniq(acquirerAdvisors), targetAdvisors: uniq(targetAdvisors) };
@@ -1000,8 +1230,13 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     // Or only the text does: "FRANKLIN ELECTRIC ACQUIRES WATER TREATMENT COMPANY … has acquired Puronics, Inc.".
     else if (usable(bodyParties?.tgt)) parties.tgt = bodyParties!.tgt;
   } else if (/\s(?:Leader|Provider|Maker|Developer|Specialist|Producer|Creator|Manufacturer|Supplier|Distributor)$/.test(parties.tgt)) {
+    // The name after a comma: "Ovintiv Announces Agreement to Acquire Montney Oil Producer, Logan Energy Corp.".
+    const afterComma = new RegExp(`${escapeRx(parties.tgt)},\\s+([A-Z][\\w.&'’-]*(?:\\s+[A-Z][\\w.&'’-]*){0,3})(?=$|,|\\s+[a-z])`).exec(headline);
     const named = runOn();
-    if (runOnOk(named)) parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
+    // (Not a verb: "Exactech Acquires Key Supplier, Secures Proprietary …".)
+    const verb = /^(?:Secures?|Expands?|Adds?|Strengthens?|Extends?|Enhances?|Creates?|Bolsters?|Broadens?|Accelerates?|Advances?|Enters?|Completes?|Acquires?|Announces?|Further\w*|\w+ing)\b/;
+    if (afterComma && !verb.test(afterComma[1]) && isPlausibleName(cleanPartyName(afterComma[1])) && !sameCompany(afterComma[1], parties.acq)) parties.tgt = cleanPartyName(afterComma[1]);
+    else if (runOnOk(named)) parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
   }
 
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
@@ -1045,12 +1280,32 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
 
   const value = extractValue(terms);
   const advisors = extractAdvisors(flatten(text), acquirer.name, target.name, issuerRole, target.ticker);
+  // The release's own date: its dateline (Cardinal's release of October 13, 2026 for Hughes Brothers came with an 8-K
+  // on October 19), or for a completion, the announcement it refers back to ("the definitive share sale and purchase
+  // agreement … announced on December 9, 2025": Cronos / CanAdelaar). The ingest decides how far back it may reach.
+  const announcedOn =
+    kind === "announcement"
+      ? isoDateIn(DATELINE.exec(text)?.[0])
+      : kind === "completion"
+        ? isoDateIn(ANNOUNCED_ON.exec(flatten(text).slice(0, 4000))?.[0])
+        : undefined;
+
+  // A target the release lists abroad only: "Logan Energy Corp. ("Logan") (TSXV: LGN)" (Ovintiv). Not one listed in the US
+  // too ("(TSX: ABC, NYSE: ABC)").
+  const tgtCore = escapeRx(target.name.replace(/,?\s+(?:Inc|Corp|Ltd|LLC|Limited|Corporation|plc)\.?$/, ""));
+  const listing = target.ticker ? undefined : new RegExp(`${tgtCore}(?:,?\\s+(?:Inc|Corp|Ltd|LLC|Limited|Corporation|plc)\\.?)?\\s*(?:\\([^()]*["“][^()]*\\)\\s*)?\\(([^()]*:[^()]*)\\)`).exec(flatten(text).slice(0, 8000))?.[1];
+  const ABROAD = /^(?:TSXV?|TSX-V|CSE|ASX|LSE|AIM|NEO|Euronext|SIX|HKEX|SGX|JSE|TASE)$/;
+  const targetListedAbroad = target.exchange
+    ? ABROAD.test(target.exchange)
+    : !!listing && /\b(?:TSXV?|TSX-V|CSE|ASX|LSE|AIM|NEO|Euronext|SIX|HKEX|SGX|JSE|TASE)\s*:/.test(listing) && !/\b(?:NYSE|NASDAQ|Nasdaq|Cboe)\b/.test(listing);
 
   return {
     kind,
     headline,
     acquirer,
     target,
+    ...(announcedOn ? { announcedOn } : {}),
+    ...(targetListedAbroad ? { targetListedAbroad } : {}),
     privateTarget: isPrivateTarget(target.name, intro, target.ticker),
     pricePerShare: extractPrice(terms),
     premiumPct: extractPremium(terms),

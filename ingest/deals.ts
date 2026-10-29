@@ -578,6 +578,12 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
         )
       : undefined);
 
+  // The date the document gives, when it is the announcement's and comes before the filing: a release's dateline (an
+  // exhibit filed six days later: Cardinal / Hughes Brothers), an Item 1.01's signing date (Santander / Webster, three
+  // days), or for a private deal first seen at its completion, the announcement it refers back to (Cronos / CanAdelaar).
+  const gap = parsed.announcedOn && parsed.announcedOn < hit.fileDate ? daysApart(parsed.announcedOn, hit.fileDate) : null;
+  const announced = gap != null && ((parsed.kind === "announcement" && gap <= 10) || (parsed.kind === "completion" && isPrivate && gap <= 730)) ? parsed.announcedOn! : hit.fileDate;
+
   if (!deal) {
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
     // Private deals are often signed and closed at once ("Acme has acquired Widget"): a completion creates them.
@@ -590,7 +596,7 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
     deal = {
       id,
       ...(isPrivate ? { privateTarget: true } : {}),
-      announcedDate: hit.fileDate,
+      announcedDate: announced,
       acquirer: company(parsed.acquirer, acquirer),
       target: company(parsed.target, target),
       valueUsd: null,
@@ -617,7 +623,7 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
 
   // Documents are processed oldest-first, so the first announcement sets the terms;
   // later documents only fill gaps (or replace terms if they predate what we have).
-  const prefer = parsed.kind === "announcement" && hit.fileDate < deal.announcedDate;
+  const prefer = parsed.kind === "announcement" && announced < deal.announcedDate;
   const set = <K extends "valueUsd" | "pricePerShare" | "premiumPct" | "consideration">(k: K, v: StoredDeal[K]) => {
     if (v != null && (deal![k] == null || prefer)) deal![k] = v;
   };
@@ -628,13 +634,19 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
     deal.valueUsd = parsed.valueUsd;
     deal.valueKind = parsed.valueKind;
   }
-  if (prefer && hit.fileDate < deal.announcedDate) deal.announcedDate = hit.fileDate;
+  if (prefer) deal.announcedDate = announced;
   // Longer names are usually the legal names ("ACV" -> "ACV Auctions Inc.").
   if (parsed.target.name.length > deal.target.name.length) deal.target.name = parsed.target.name;
   if ((isPlaceholderBuyer(deal.acquirer.name) || !isPlausibleName(deal.acquirer.name)) && !isPlaceholderBuyer(parsed.acquirer.name)) {
     // Replace a shell / defined-term buyer ("Anchor Parent, LLC", "Parent"), or a junk one ("Netherlands"), with the real name.
     deal.acquirer = company(parsed.acquirer, acquirer);
-  } else if (parsed.acquirer.name.length > deal.acquirer.name.length && sameCompany(parsed.acquirer.name, deal.acquirer.name)) {
+  } else if (
+    parsed.acquirer.name.length > deal.acquirer.name.length &&
+    sameCompany(parsed.acquirer.name, deal.acquirer.name) &&
+    // Not a subsidiary sharing the listed buyer's first word: Cidara's merger 8-K named "Merck Sharp & Dohme LLC", which
+    // renamed Merck & Co., Inc. (NYSE: MRK) from the press release.
+    (!deal.acquirer.cik || acquirer.cik === deal.acquirer.cik)
+  ) {
     deal.acquirer.name = parsed.acquirer.name;
   }
   deal.acquirer.ticker ??= acquirer.ticker;
@@ -1575,8 +1587,9 @@ export async function ingestDeals(
       }
       // A premium means a traded stock: an OTC or foreign-listed company, out of scope. (A per-share price
       // alone is common for private banks and stays.) This also catches releases read backwards
-      // ("GenMark acquires Roche": the premium is GenMark's).
-      if (parsed.premiumPct != null) return null;
+      // ("GenMark acquires Roche": the premium is GenMark's). So is a target the release lists abroad only
+      // ("Logan Energy Corp. (TSXV: LGN)", bought by Ovintiv).
+      if (parsed.premiumPct != null || parsed.targetListedAbroad) return null;
       stats.parsed++;
       stats.privateDeals++;
       const valueUsd = parsed.valueUsd != null && parsed.valueUsd > MAX_PRIVATE_DEAL_VALUE ? null : parsed.valueUsd;

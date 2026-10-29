@@ -17,10 +17,10 @@ describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
     // An Irish scheme's Rule 2.7 announcement names the bidder company, then its owner.
     expect(sponsorFromText("RECOMMENDED CASH OFFER for LAKESIDE THERAPEUTICS PLC by Birchwood Limited, a newly formed private limited company wholly owned by Amgen Inc. to be implemented by way of a scheme of arrangement", "Lakeside Therapeutics plc", "Acquirer Sub")).toBe("Amgen Inc");
     // Consortiums and firm descriptions before the names.
-    expect(sponsorFromText("Corvid Health has entered into a definitive agreement to be acquired by a consortium of private investment firms composed of Elliott Investment Management, Patient Square Capital, and Veritas Capital for $43.00 per share.", "Corvid Health, Inc.", "Star Parent, Inc.")).toBe("Elliott Investment Management, Patient Square Capital, and Veritas Capital");
-    expect(sponsorFromText("Lumen Bio today announced that it has entered into a definitive agreement to be acquired by funds managed by global investment firms Carlyle (NASDAQ: CG) and SK Capital Partners, LP.", "Lumen Bio, Inc.", "Beacon Parent Holdings, L.P.")).toBe("Carlyle");
+    expect(sponsorFromText("Corvid Health has entered into a definitive agreement to be acquired by a consortium of private investment firms composed of Elliott Investment Management, Patient Square Capital, and Veritas Capital for $43.00 per share.", "Corvid Health, Inc.", "Star Parent, Inc.")).toBe("Elliott Investment Management, Patient Square Capital and Veritas Capital");
+    expect(sponsorFromText("Lumen Bio today announced that it has entered into a definitive agreement to be acquired by funds managed by global investment firms Carlyle (NASDAQ: CG) and SK Capital Partners, LP.", "Lumen Bio, Inc.", "Beacon Parent Holdings, L.P.")).toBe("Carlyle and SK Capital Partners");
     // "funds advised by each of …" and "an investor group led by …" (McAfee).
-    expect(sponsorFromText('Affiliates of funds advised by each of Advent International Corporation and Permira Advisers LLC (each, a "Sponsor") have committed to capitalize Parent.', "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International Corporation and Permira Advisers LLC");
+    expect(sponsorFromText('Affiliates of funds advised by each of Advent International Corporation and Permira Advisers LLC (each, a "Sponsor") have committed to capitalize Parent.', "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International and Permira");
     expect(sponsorFromText("Mosaic to be acquired by an investor group led by Advent International for $26.00 per share in cash.", "Mosaic Corp.", "Condor BidCo, Inc.")).toBe("Advent International");
   });
 

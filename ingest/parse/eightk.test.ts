@@ -182,7 +182,7 @@ describe("parseMergerItem: structures the big-deal check found", () => {
       { filerName: "Orbit Holdings plc", filerTickers: [] },
     )!;
     expect(p.target.name).toBe("Orbit Holdings plc");
-    expect(p.acquirer.name).toBe("Elliott Investment Management L.P. and Brookfield Asset Management");
+    expect(p.acquirer.name).toBe("Elliott Investment Management and Brookfield Asset Management");
   });
 
   it('keeps a name with an honorific period and a second defined term ("Mr. Cooper" or the "Company")', () => {
@@ -224,7 +224,7 @@ describe("parseMergerItem: structures the big-deal check found", () => {
       { filerName: "CoreMap, Inc.", filerTickers: [] },
     )!;
     expect(p.target.name).toBe("CoreMap, Inc.");
-    expect(p.acquirer.name).toBe("Stone Point Capital Partners");
+    expect(p.acquirer.name).toBe("Stone Point Capital Partners and Insight Partners");
     expect(p.pricePerShare).toBe(80);
   });
 

@@ -12,7 +12,7 @@ const NAME = String.raw`([A-Z][A-Za-z0-9&.,'’\- ]{1,80}?)`;
 const END = String.raw`(?=\s*\(|,\s+(?:a|an|the|which|who|one|together|collectively|L\.?P\.?\s*\(|and\s+its)\b|;|(?<!\b[A-Z])\.\s|\s+(?:and|or)\s+(?:its|their|certain|other|[a-z])|\s+(?:in|for|at|to|on|through|pursuant|under|with)\s+[a-z]|\s+(?:for|in)\s+(?:a\s+)?(?:US)?\$|\s+(?:For|In|At)\s+(?:US)?\$|$)`;
 // "a consortium of private investment firms composed of Elliott …" (Syneos); "funds managed by global investment firms
 // Carlyle …" (bluebird).
-const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+|private\s+equity\s+|infrastructure\s+)?(?:funds?|vehicles?|entities|accounts)\s+(?:managed|advised|sponsored|controlled)(?:\s+or\s+advised)?\s+by\s+|affiliates?\s+of\s+|an?\s+affiliate\s+of\s+|an?\s+(?:consortium|investor\s+group)\s+(?:of\s+(?:[a-z-]+\s+){1,4}?)?(?:composed\s+of|consisting\s+of|comprised\s+of|comprising|including)\s+)?(?:(?:global|leading|private|alternative)\s+){0,2}(?:(?:investment|private[- ]equity|asset\s+management)\s+firms?\s+)?`;
+const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+|private\s+equity\s+|infrastructure\s+)?(?:funds?|vehicles?|entities|accounts)\s+(?:managed|advised|sponsored|controlled)(?:\s+or\s+advised)?\s+by\s+|affiliates?\s+of\s+|an?\s+affiliate\s+of\s+|an?\s+(?:consortium|investor\s+(?:group|consortium))\s+(?:of\s+(?:[a-z-]+\s+){1,4}?)?(?:composed\s+of|consisting\s+of|comprised\s+of|comprising|including)\s+)?(?:(?:global|leading|private|alternative)\s+){0,2}(?:(?:investment|private[- ]equity|asset\s+management)\s+firms?\s+)?`;
 
 const PATTERNS: RegExp[] = [
   // "Squarespace Enters into Definitive Agreement to Be Acquired by Permira"
@@ -57,6 +57,61 @@ export function namesTheShell(name: string, shell: string): boolean {
   return a.length > 0 && a.length <= b.length && a.every((w, i) => w === b[i]);
 }
 
+/** "Permira Advisers LLC" → "Permira", "Silver Lake Group, L.L.C." → "Silver Lake", "Temasek Holdings Limited" → "Temasek". */
+function firmShortName(name: string): string {
+  let s = name.replace(/\s+/g, " ").trim().replace(/^The\s+/, "");
+  const SUFFIX = /[\s,]+(?:Inc|Corp|Corporation|Co|Ltd|Limited|LLC|L\.\s?L\.\s?C|LP|L\.\s?P|plc)\.?$/i;
+  while (SUFFIX.test(s)) s = s.replace(SUFFIX, "");
+  // The firm without its management company ("Francisco Partners Management"); not "Elliott Investment Management".
+  while (/\s(?:Advis[eo]rs|Group|Holdings)$|\s(?:Partners|Capital)\sManagement$/.test(s)) s = s.replace(/\s\S+$/, "");
+  return s;
+}
+
+/**
+ * Joint buyers named one after another: "affiliates of funds managed by Blackstone Inc. ("Blackstone") and TPG Capital
+ * ("TPG")" (Hologic), "funds affiliated with Permira Advisers LLC, Warburg Pincus LLC, Francisco Partners Management,
+ * L.P. and Temasek Holdings (Private) Limited have committed …" (Clearwater), "an investor consortium comprised of The
+ * Public Investment Fund ("PIF"), private investment funds affiliated with Silver Lake Group, L.L.C. ("Silver Lake") and
+ * private investment funds affiliated with Affinity Partners ("Affinity," …)" (Electronic Arts). `list` starts at the
+ * first firm's name. "Blackstone and TPG", "PIF, Silver Lake and Affinity Partners"; null when it names one firm.
+ */
+export function jointBuyers(list: string): string | null {
+  const terms: string[] = [];
+  // Defined terms become markers (an acronym is the better name: "PIF", "TPG"); other parentheses go ("(Private)").
+  let s = list.replace(/\s+/g, " ").replace(/\s*\(([^()]*)\)/g, (_, inner: string) => {
+    const term = /^\s*(?:the\s+)?["“]\s*([^"”]+?)\s*,?\s*["”]/.exec(inner)?.[1];
+    if (!term) return "";
+    terms.push(term);
+    return ` #${terms.length - 1}#`;
+  });
+  // The list ends at the sentence's verb or end.
+  s = s.split(/(?<!\b(?:Inc|Co|Ltd|Corp|[A-Z]))\.(?:\s|$)|;|\s(?:have|has|are|is|were|was|will|for|to|in|pursuant|on|as|that|which)\s/)[0];
+  // A legal suffix after a comma belongs to the name: "Francisco Partners Management, L.P.". So do the commas of a name
+  // joined by "&": "Clayton, Dubilier & Rice, LLC".
+  s = s.replace(/,\s*(L\.\s?L\.\s?C\.?|L\.\s?P\.?|LLC|LP|Inc\.?|Ltd\.?|Limited)(?=[\s,]|$)/g, " $1");
+  s = s.replace(/\b[A-Z][\w'’-]*(?:,\s+[A-Z][\w'’-]*)+\s+&\s+[A-Z][\w'’-]*/g, (x) => x.replace(/,/g, "~~"));
+  const LEAD = /^(?:certain\s+)?(?:(?:private\s+)?(?:investment\s+|equity\s+)?(?:funds?|vehicles?|entities|affiliates)\s+(?:affiliated\s+with|managed\s+by|advised\s+by|of)|affiliates\s+of)\s+/i;
+  const members: string[] = [];
+  for (const piece of s.split(/\s*,\s*(?:and\s+)?|\s+and\s+/)) {
+    const marker = /\s*#(\d+)#\s*$/.exec(piece);
+    const name = piece.replace(/\s*#\d+#\s*$/, "").replace(LEAD, "").replace(/~~/g, ",").trim();
+    // A founder named beside the firm is not another buyer: "Headwater Investments, LLC ("Headwater"), J. Bryan King and
+    // their respective affiliates".
+    if (/^(?:[A-Z]\.\s?)+[A-Z][a-z'’-]+(?:\s[A-Z][a-z'’-]+)?$/.test(name)) continue;
+    // Not a vehicle or a person's title: "Gores Logistics Sub", "Tiger Acquisition" (Oracle's merger sub), "Chairman".
+    if (!/^[A-Z]/.test(name) || !isPlausibleName(name) || NOT_A_FIRM.test(name) || clauseWord(name) || isPlaceholderBuyer(name)) break;
+    if (/\b(?:Sub|Subsidiary|Acquisition|Acquisitions|Merger)\b/.test(name) || /^(?:Chairman|Chairwoman|Chair|Chief|CEO|President|Founder|Co-Founder|Management|Directors?|Officers?)\b/.test(name)) break;
+    const term = marker ? terms[Number(marker[1])] : null;
+    const short = firmShortName(name);
+    // An acronym the firm goes by ("TPG" for TPG Capital, "PIF" for The Public Investment Fund); not one coined for the
+    // filing ("FP" for Francisco Partners).
+    const acronym = !!term && /^[A-Z]{2,5}$/.test(term) && (short.split(" ")[0] === term || short.split(" ").length >= 3);
+    members.push(acronym ? term! : short);
+  }
+  if (members.length < 2) return null;
+  return `${members.slice(0, -1).join(", ")} and ${members.at(-1)}`;
+}
+
 /** Words that make a capture a clause or a defined term, not a firm. */
 const NOT_A_FIRM =
   /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Merger Sub|Holdings|Board|Sponsor|Sponsors|Investors?|Guarantors?|Equity Investors?|Merger|Transaction|Offer|Intermediate|Holdco|Topco|Midco)$|^(?:the\s+)?(?:Parent|Purchaser|Buyer|Merger Sub)\b|\b(?:Agreement|Merger|stockholders?|shareholders?|Company['’]s|Aggregator)\b/i;
@@ -78,7 +133,10 @@ export function sponsorFromText(text: string, target: string, shell: string): st
       // A name of its own that only starts like the vehicle's is the buyer: "Ithaca Holdings" behind "Ithaca Holdco, Inc."
       // (Bumble).
       if (namesCompany(name, target) || sameCompany(name, target) || namesTheShell(name, shell)) continue;
-      return name;
+      // The firms it names together: "Electronic Arts to be Acquired by PIF, Silver Lake and Affinity Partners".
+      const start = m.index! + m[0].length - m[1].length;
+      const joint = jointBuyers(flat.slice(start, start + 500));
+      return joint && !namesCompany(joint, target) ? joint : name;
     }
   }
   for (const re of MANAGEMENT) {
