@@ -27,10 +27,14 @@ describe("isResaleOnly", () => {
 });
 
 describe("IPO parsers", () => {
-  it("reads the fee table total and treats the $100M default as unknown", () => {
+  it("reads the fee table total and treats a round placeholder as unknown", () => {
     const fee = "Security Type Equity Proposed Maximum Aggregate Offering Price (1) $ 250,000,000.00 Fee Rate 0.0001531 Amount of Registration Fee $ 38,275";
     expect(extractMaxAggregate(fee)).toBe(250e6);
     expect(parseRegistration("", "Maximum Aggregate Offering Price $100,000,000").expectedRaiseUsd).toBeNull();
+    // Round figures are placeholders whatever their size; a real figure is shares × price.
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $1,000,000,000").expectedRaiseUsd).toBeNull();
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $270,500,000").expectedRaiseUsd).toBe(270.5e6);
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $15,000,000").expectedRaiseUsd).toBe(15e6);
   });
 
   it("prefers the price-range midpoint over the fee table", () => {

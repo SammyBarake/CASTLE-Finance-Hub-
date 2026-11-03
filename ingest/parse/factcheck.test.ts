@@ -2,7 +2,7 @@
 // filings, with made-up names.
 import { describe, expect, it } from "vitest";
 import { extractMergerPrice, parseMergerItem, withItem101Price } from "./eightk";
-import { extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, type ParsedPress } from "./press";
+import { extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, isCarveOut, parsePressRelease, type ParsedPress } from "./press";
 import { jointBuyers } from "./sponsor";
 
 describe("prices: the cash leg of cash and shares is not the price", () => {
@@ -392,5 +392,32 @@ describe("scope", () => {
         "Northwind Energy Signs Definitive Agreement to Acquire Bluebird Distributors\nBusiness\nNEW YORK, Oct. 23, 2026 - Northwind Energy Inc. (NYSE: NWE) announced today that it has signed a definitive agreement to acquire the managed services business of Bluebird Distributors.",
       ),
     ).toBeNull();
+  });
+});
+
+describe("landing-page review: numbers a banker would catch", () => {
+  it("a buyer described as a firm's portfolio company doesn't hide the deal's value; a firm's holdings still do", () => {
+    expect(extractValue("Proofpoint, a portfolio company of Thoma Bravo, will acquire Harlow Systems in a transaction valued at approximately $6.3 billion.")?.usd).toBe(6.3e9);
+    expect(extractValue("Thoma Bravo's portfolio companies have a total value of approximately $50 billion.")).toBeNull();
+  });
+
+  it("the combined companies' enterprise value isn't the price", () => {
+    expect(extractValue("The merger will create a leader, with an enterprise value for the combined companies of approximately $17 billion.")).toBeNull();
+  });
+
+  it("the buyer's share price that a stock deal is worked out from isn't the offer price", () => {
+    expect(extractPrice("Holders of Target will receive 7,692,308 shares of Buyer common stock (determined as $200 million divided by $26.00 per share).")).toBeNull();
+    expect(extractPrice("Stockholders will receive $26.00 per share in cash.")).toBe(26);
+  });
+
+  it("the value's own words name its kind, and a ceiling isn't a price", () => {
+    expect(extractValue("The transaction values Harlow at an enterprise value of approximately $55 billion.")).toEqual({ usd: 55e9, kind: "enterprise" });
+    expect(extractValue("The transaction values Harlow at an equity value of approximately $4 billion.")).toEqual({ usd: 4e9, kind: "equity" });
+    expect(extractValue("in an all-stock transaction valued at up to $1.3 billion. The acquisition extends the platform.")).toBeNull();
+  });
+
+  it("a refinery or a plant bought from someone isn't a company", () => {
+    expect(isCarveOut("Valero to Acquire Former Houston Refinery from LyondellBasell", "", "Former Houston")).toBe(true);
+    expect(isCarveOut("Acme to Acquire Plant Therapeutics from its founders", "", "Plant Therapeutics")).toBe(false);
   });
 });

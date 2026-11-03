@@ -425,10 +425,12 @@ function termsSection(body: string): string {
  * Numbers that describe a market, a combined company or a firm's history, not this deal's price. A firm's track record
  * names a count of deals ("376 transactions completed, valued at $212 billion in the year ended March 31, 2020";
  * "80 investments … 200 add-on acquisitions … with a total value of approximately $50 billion"), and a debt buyer's
- * portfolio has a face value ("a face value of over $130 billion").
+ * portfolio has a face value ("a face value of over $130 billion"). "Portfolio companies" is a firm's holdings; "Proofpoint,
+ * a portfolio company of Thoma Bravo" only describes the buyer, and hid "valued at approximately $6.3 billion". "An
+ * enterprise value for the combined companies of approximately $17 billion" is Cabot and Cimarex together, not the price.
  */
 const NOT_DEAL_VALUE =
-  /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:company|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio compan\w*|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions))\b/i;
+  /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:compan(?:y|ies)|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio companies|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions))\b/i;
 // The amount's own sentence only: "… an all-stock transaction valued at $35 billion. The combination will create the
 // industry's leading …" (AMD / Xilinx) is a deal value.
 const valueContext = (t: string, index: number, length: number) =>
@@ -514,6 +516,9 @@ export function extractPrice(t: string): number | null {
     if (/(?<!\b(?:stock|shares?|equity)\s+(?:and|or|plus)\s+)(?<!\btotal\s+)\bcash\s+(?:consideration|portion|component|payment)\b[^.;$]{0,80}$/i.test(before) && (mixed ??= extractConsideration(t) === "Mixed" && !ELECTION.test(t))) continue;
     // Nor a collar's bound: "LPS stockholders receive a minimum of $15.794 per share in value on the stock portion".
     if (/\b(?:minimum|maximum)\s+(?:of\s+)?$/i.test(before)) continue;
+    // Nor the buyer's share price a stock deal is worked out from: "7,692,308 shares (determined as $200 million divided
+    // by $26.00 per share)" (Revolution Medicines / EQRx, which read as a $12.7B deal for about $1.07B).
+    if (/\bdivided\s+by\s+(?:the\s+)?(?:(?:price|value)\s+of\s+)?$/i.test(before)) continue;
     // Nor the value put on the buyer's own shares issued as payment: "approximately 9 million shares of Smith & Wesson
     // common stock, valued at $13.62 per share (i.e. the volume weighted average price per share of Smith & Wesson
     // common stock …)" (Savage Arms).
@@ -606,6 +611,9 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // price, subject to customary adjustments, of $2.4 billion" is the price.
     const dollar = m[0].indexOf("$");
     if (dollar > 0 && /\b(?:adjustment|reduction|decrease|holdback|escrow)s?\s+(?:of\s+)?(?:up\s+to\s+|a\s+maximum\s+(?:of\s+)?|approximately\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
+    // A ceiling, not the price: "valued at up to $1.3 billion", which the release goes on to explain "includes up to $150
+    // million in earnout" in another sentence (IonQ / Elisity).
+    if (dollar > 0 && /\bup\s+to\s+(?:approximately\s+|about\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
     // "$200 million of run-rate cost synergies" is not a price.
     // Nor a later instalment: "Thermo Fisher has agreed to pay $125 million in January 2027".
     const after = t.slice(m.index! + m[0].length, m.index! + m[0].length + 60);
@@ -642,7 +650,9 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
       : null;
     const usd = Math.round(amountFirst ? num(amountFirst[1]) * unitMult(amountFirst[2]) : num(m[2]) * unitMult(m[3])); // whole dollars: 1.035 × 1e9 is 1034999999.9999999
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
-    const kind = lead.includes("enterprise") ? "enterprise" : lead.includes("equity") ? "equity" : "transaction";
+    // The words up to the amount, not just the lead: "values EA at an enterprise value of approximately $55 billion".
+    const named = (dollar > 0 ? m[0].slice(0, dollar) : m[0]).toLowerCase();
+    const kind = named.includes("enterprise value") || lead.includes("enterprise") ? "enterprise" : named.includes("equity value") || lead.includes("equity") ? "equity" : "transaction";
     return { usd, kind };
   }
   // Private-company deals usually just say "acquired Widget Co. … for $185 million" (or "for USD 6.2 billion").
@@ -1082,8 +1092,9 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // Properties in the Gulf", "… of South32's Bauxite, Alumina, and Aluminum Assets". Only after the verb: "Rouse
   // Properties Reports … Results" names the company. Also a stake ("… Majority Stake in Digital Bank", "… Remaining
   // Public Stake in ONEOK Partners") and technology bought from someone ("… Crypto Technology from Token IQ"; not
-  // "Linear Technology", whose name the parser cut, nor "Argotec, a Technology Leader").
-  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies)|technology\\s+from|patents?|stake|interest)\\b`, "i").test(headline)) return true;
+  // "Linear Technology", whose name the parser cut, nor "Argotec, a Technology Leader"), and a site bought from someone
+  // ("Valero to Acquire Former Houston Refinery from LyondellBasell").
+  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies)|technology\\s+from|(?:refiner(?:y|ies)|plants?|facilit(?:y|ies)|terminals?|mines?|sites?)\\s+from|patents?|stake|interest)\\b`, "i").test(headline)) return true;
   // The unit's own name may stand in between: "… to Acquire the L3Harris Space and Navigation Business".
   // Case matters for the unit's name (capitalised words), so the verb and the business word list both cases.
   if (new RegExp(`(?:[Aa]cquisition [Oo]f|ACQUISITION OF|[Aa]cquires?|ACQUIRES?|[Aa]cquired|ACQUIRED|[Aa]cquiring|ACQUIRING)\\s+(?:the|The|THE)\\s+${escapeRx(targetName)}\\s+(?:[A-Z][\\w&.-]*\\s+(?:and\\s+|AND\\s+|&\\s+)?){1,3}(?:Business(?:es)?|BUSINESS(?:ES)?|Division|DIVISION|Unit|UNIT|Segment|SEGMENT|Operations|OPERATIONS)\\b`).test(headline)) return true;

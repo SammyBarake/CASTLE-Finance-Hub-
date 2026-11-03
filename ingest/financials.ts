@@ -44,7 +44,7 @@ const SHARES = ["EntityCommonStockSharesOutstanding"];
  * Bump when the figures or multiples change: every stored deal's are recomputed once.
  * 2: D&A and EBIT fallbacks, figures from the last 15 months only, notes as debt, no EV when debt can't be read.
  */
-export const FINANCIALS_VERSION = 2;
+export const FINANCIALS_VERSION = 3;
 
 const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;

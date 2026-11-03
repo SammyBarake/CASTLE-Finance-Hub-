@@ -107,7 +107,7 @@ export function extractDescription(text: string): string | null {
  * Bump after changing these parsers: stored pipeline records are then re-read on the next ingest.
  * 5: US$ prices and the cover table's total (SK hynix, Londian Wason).
  */
-export const IPO_PARSER_VERSION = 5;
+export const IPO_PARSER_VERSION = 6;
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or
@@ -141,15 +141,19 @@ export interface IpoTerms {
 }
 
 /** Terms from a registration statement (pre-pricing). */
-/** Initial S-1s commonly register a round $100,000,000 "for fee purposes" before any real sizing. */
-export const PLACEHOLDER_RAISE = 100_000_000;
+/**
+ * Initial S-1s commonly register a round figure "for fee purposes" before any real sizing: usually $100,000,000, and
+ * $1,000,000,000 for a very large company (Anthropic's S-1/A, with no price range yet). Real sizing is shares × price, and
+ * never lands on a round multiple of $50M.
+ */
+export const isPlaceholderRaise = (usd: number | null) => usd != null && usd >= 100_000_000 && usd % 50_000_000 === 0;
 
 export function parseRegistration(mainText: string, feeText: string | null): IpoTerms {
   const range = extractPriceRange(mainText);
   const shares = extractSharesOffered(mainText);
   const fromRange = range && shares ? ((range.low + range.high) / 2) * shares : null;
   const feeRaw = extractMaxAggregate(feeText ?? mainText);
-  const fee = feeRaw === PLACEHOLDER_RAISE ? null : feeRaw;
+  const fee = isPlaceholderRaise(feeRaw) ? null : feeRaw;
   return {
     expectedRaiseUsd: fromRange ?? fee,
     offerPrice: null,
