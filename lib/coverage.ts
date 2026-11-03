@@ -1,6 +1,6 @@
 /**
  * Data coverage: how complete each field is, for the Coverage page. Pure: computed in the browser from the feed.
- * A blank is often right (an undisclosed price, a loss-making target with no EV / EBITDA), so these are shares of
+ * A blank is often right (an undisclosed price, a loss-making target with no EV / Adj. EBITDA), so these are shares of
  * deals with the figure, not error rates.
  */
 import type { Deal, Ipo } from "./types";
@@ -25,7 +25,7 @@ export const PUBLIC_FIELDS: Field<Deal>[] = [
   { key: "value", label: "Deal value", has: (d) => d.valueUsd != null, note: "Mergers of equals often state only the combined size" },
   { key: "price", label: "Price per share", has: (d) => d.pricePerShare != null },
   { key: "premium", label: "Premium", has: (d) => d.premiumPct != null, note: "Only over the unaffected or last close; never over a VWAP" },
-  { key: "evEbitda", label: "EV / EBITDA", has: (d) => d.evEbitda != null, note: "None for loss-making targets, banks and insurers" },
+  { key: "evEbitda", label: "EV / Adj. EBITDA", has: (d) => d.evEbitda != null, note: "None for loss-making targets, banks and insurers" },
   { key: "evRevenue", label: "EV / Revenue", has: (d) => d.evRevenue != null },
   { key: "targetAdvisors", label: "Target adviser", has: (d) => d.targetAdvisors.length > 0 },
   { key: "acquirerAdvisors", label: "Buyer adviser", has: (d) => d.acquirerAdvisors.length > 0, note: "The target's proxy names only its own bank" },
@@ -94,7 +94,7 @@ export function coverageTakeaways(pub: Coverage, priv: Coverage): string[] {
   const premium = pct(get(pub, "premium"));
   if (value != null && premium != null) out.push(`${value}% of public-target deals have a deal value and ${premium}% a premium over the unaffected price.`);
   const ev = pct(get(pub, "evEbitda"));
-  if (ev != null) out.push(`EV / EBITDA is known for ${ev}%: loss-making targets, banks and insurers have none by design.`);
+  if (ev != null) out.push(`EV / Adj. EBITDA is known for ${ev}%: loss-making targets, banks and insurers have none by design.`);
   const tgt = pct(get(pub, "targetAdvisors"));
   const buyer = pct(get(pub, "acquirerAdvisors"));
   if (tgt != null && buyer != null) out.push(`Target advisers are named for ${tgt}% of deals, buyer advisers for ${buyer}%.`);

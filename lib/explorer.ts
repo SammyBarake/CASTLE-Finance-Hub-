@@ -80,7 +80,7 @@ export function selectionStats(deals: Deal[]): SelectionStats {
 
 const usd = (v: number) => (v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${Math.round(v / 1e6)}M`);
 
-/** Two to four plain-English observations about a selection, for someone learning how M&A works. */
+/** Two to four plain-English observations about a selection. */
 export function insights(s: SelectionStats): string[] {
   const out: string[] = [];
   if (!s.count) return out;

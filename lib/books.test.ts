@@ -72,7 +72,7 @@ describe("books", () => {
     ];
     const market = [10, 11, 12, 13, 14].map((m, i) => deal(`m${i}`, { evEbitda: m, premiumPct: 25, announcedDate: "2025-05-01" }));
     const lines = bookTakeaways(bookRows(makeBook("x", mine, 1, "by").items, new Map(mine.map((d) => [d.id, d]))), [...mine, ...market]);
-    expect(lines[0]).toBe("Median EV / EBITDA 20.0x, 8.0x above the 12.0x for all Tech deals Castle tracked over the same dates.");
+    expect(lines[0]).toBe("Median EV / Adj. EBITDA 20.0x, 8.0x above the 12.0x for all Tech deals Castle tracked over the same dates.");
     expect(lines[1]).toBe("Median premium 40.0%, 15.0% above the 25.0% for all Tech deals Castle tracked over the same dates.");
     expect(lines).toContain("Goldman Sachs advised on 2 of the 3 deals, more than any other bank.");
     expect(lines.length).toBeLessThanOrEqual(4);

@@ -7,6 +7,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { SECTIONS, type SectionId } from "@/components/shell/routes";
 import { Kpi, Kpis, PageHeading, PanelHead } from "@/components/ui/primitives";
 import { coverageStart } from "@/lib/aggregate";
+import { ADJ_EBITDA_DEFINITION } from "@/lib/metrics";
 import { reportIssueUrl } from "@/lib/site";
 
 /** The footer's site pages: About (with live counts from the shared dataset), Terms of Use and Privacy. */
@@ -16,7 +17,7 @@ const EFFECTIVE = "October 2026";
 const SECTION_BLURBS: Record<SectionId, string> = {
   hub: "The latest deals, IPOs and league table at a glance, and how complete each field is.",
   ma: "Announced deals involving U.S.-listed companies with their terms, volume over time, deal protections, time to close and activist campaigns.",
-  valuation: "Median EV / EBITDA, EV / Revenue and premiums by sector, and a precedent-transaction screen.",
+  valuation: "Median EV / Adj. EBITDA, EV / Revenue and premiums by sector, and a precedent-transaction screen.",
   advisors: "League tables of the banks on each deal, the fees they earn and their client profiles.",
   ipos: "Companies that filed to list on a U.S. exchange, from filing to pricing to trading, with their underwriters.",
   macro: "GDP growth, inflation and central-bank policy rates for 11 major economies.",
@@ -151,6 +152,7 @@ export function AboutView() {
               Castle reads filings automatically, so it will sometimes miss a deal or read a figure wrong, and it covers the deals it can find in SEC filings, not the
               whole market. Every deal links to the filing it came from: check a figure there before relying on it.
             </p>
+            <p>{ADJ_EBITDA_DEFINITION}</p>
             <p>Spotted something wrong? Reports go straight into fixing the parsers, so the same mistake doesn&apos;t happen again.</p>
             <Report />
           </div>
@@ -160,8 +162,7 @@ export function AboutView() {
           <PanelHead title="Who builds it" />
           <div className="info-body">
             <p>
-              Castle is built and maintained independently by a finance student, as a free resource for students and analysts learning the deal market. It costs nothing
-              to use and needs no account{AUTH_ENABLED ? " (signing in only saves your workspace across devices)" : ""}.
+              Castle is built and maintained independently. It costs nothing to use and needs no account{AUTH_ENABLED ? " (signing in only saves your workspace across devices)" : ""}.
             </p>
             <p>
               Castle isn&apos;t affiliated with the SEC or with any company or bank it covers, and nothing on it is investment advice. See the{" "}

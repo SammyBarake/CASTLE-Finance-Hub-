@@ -56,7 +56,7 @@ export function BookFigures({ rows, all }: { rows: BookRow[]; all: Deal[] }) {
     <>
       <Kpis label="Book summary">
         <Kpi label="Deals" value={s.count} note={s.missing ? `${s.missing} no longer in Castle's data` : s.totalValueUsd != null ? `${formatUsd(s.totalValueUsd)} total value` : "No values disclosed"} />
-        <Kpi label="Median EV / EBITDA" value={formatMultiple(s.evEbitda.median)} note={s.evEbitda.n ? `${formatMultiple(s.evEbitda.p25)} – ${formatMultiple(s.evEbitda.p75)} middle half · ${n(s.evEbitda)}` : "No multiples disclosed"} />
+        <Kpi label="Median EV / Adj. EBITDA" value={formatMultiple(s.evEbitda.median)} note={s.evEbitda.n ? `${formatMultiple(s.evEbitda.p25)} – ${formatMultiple(s.evEbitda.p75)} middle half · ${n(s.evEbitda)}` : "No multiples disclosed"} />
         <Kpi label="Median EV / Revenue" value={formatMultiple(s.evRevenue.median)} note={s.evRevenue.n ? n(s.evRevenue) : "No multiples disclosed"} />
         <Kpi label="Median premium" value={formatPct(s.premium.median)} note={s.premium.n ? n(s.premium) : "Public targets only"} />
       </Kpis>
@@ -84,7 +84,7 @@ export function BookTable({ rows, onNote, onRemove }: { rows: BookRow[]; onNote?
             <th scope="col">TARGET</th>
             <th scope="col">ACQUIRER</th>
             <th scope="col" className="right">DEAL VALUE</th>
-            <th scope="col" className="right">EV / EBITDA</th>
+            <th scope="col" className="right">EV / ADJ. EBITDA</th>
             <th scope="col" className="right">PREMIUM</th>
             <th scope="col">STATUS</th>
             <th scope="col">COMMENT</th>

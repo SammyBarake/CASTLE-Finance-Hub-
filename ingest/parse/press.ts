@@ -544,18 +544,49 @@ export function extractPrice(t: string): number | null {
   return best?.v ?? null;
 }
 
+/**
+ * A premium stated over a high, which is no last close, "unaffected" or not: "a 13% premium to Altair's unaffected all-time
+ * high closing price", "33% to Kellanova's unaffected 52-week high", "a 9.5% premium to our all-time peak trading price",
+ * "over the Common Stock's 5-year high closing price", "the highest closing price". Only in the premium's own reference:
+ * "… closing share price of $52.57 on March 14, 2018 and exceeds Connecticut Water's all-time high price of $69.72", "…
+ * closing price of $.97 and is 34% above Magellan's 52-week high" are premiums over the close. ("Peak" in lower case only:
+ * Peak Resorts and Jagged Peak are companies, High River a bidder.)
+ */
+export function isOverAHigh(ctx: string): boolean {
+  const own = ctx.split(/\bexceed\w*|[;•·]|,?\s+which\s+(?:was|is)\b|,?\s+and\s+(?:is\s+)?(?:an?\s+)?(?:approximately\s+|about\s+)?\d/i)[0];
+  return (
+    /52\)?\s*[- ]?\s*(?:weeks?|wk)\b|\bfifty[- ]two\b|\bhighest\b|\ball[- ]\s*time\b|\b(?:record|historic(?:al)?|intra-?day|lifetime|year-to-date|(?:month|year)s?)\s+(?:(?:closing|trading|stock|share|price)\s+)*(?:highs?|peak)\b/i.test(own) ||
+    // In lower case: "$4.55/share High level of certainty" runs in from a slide's next line.
+    /\b(?:trading|closing|stock|share|price)\s+(?:highs?|peak)\b|\bhigh\s+(?:(?:closing|trading|stock|share)\s+)*price\b|\bhigh\s+of\s+\$|\bpeak\b/.test(own)
+  );
+}
+
+/**
+ * A premium over something other than the market price: a bid ("33.3% to Dell's offer price", "over the $18 offered by
+ * Acme"), net asset value, book value, enterprise value. Only as its reference, after the "to" or "over", and read up to any
+ * market price the sentence goes on to name: "a 40% premium to the pre-offer closing price", "over the price of CPEX shares on
+ * January 7, the day prior to … an unsolicited offer" are over the market; "a 41% premium or approximately 0.85x tangible book
+ * value" (Ready Capital / Broadmark) and "the 15.9% premium offered by VICI" (MGM Growth Properties) don't name one.
+ */
+export function isOverAnotherValue(ctx: string): boolean {
+  const own = ctx.split(/\b(?:closing|close[ds]?|unaffected|last (?:full )?trading|last (?:reported )?sale|(?:market|stock|share|trading)\s+price)\b|(?<!\boffer(?:ed)?\s)\bprice\b(?!\s+offered)/i)[0];
+  return /\b(?:to|over|above|on|from)\s+[^;]{0,160}?(?:(?<!pre-)\b(?:offer(?:ed)?|bid|proposal)\b(?!-)|\bper[- ]share (?:transaction|deal|merger)\b|\bnet asset values?\b|\bNAVs?\b|\b(?:tangible\s+)?book(?:\s+value)?\b|\benterprise value\b|\bliquidation value\b)/i.test(own);
+}
+
 /** How surely a premium's own words make it the premium over the last close: "unaffected" and "closing price" for it. */
 function premiumScore(ctx: string): number {
   let score = 0;
   if (/unaffected/i.test(ctx)) score += 3;
   if (/closing (?:share |stock )?price|last (?:full )?trading day|close\b|current (?:market |share |stock |trading )?price/i.test(ctx)) score += 2;
   // An average is never the last close, unaffected or not: "a 23.0% premium to TXNM Energy's unaffected 30-day volume
-  // weighted average price (VWAP)" (Blackstone / TXNM Energy) netted to zero and passed.
-  if (/volume[- ]weighted|VWAP|\d{1,3}[- ](?:trading[- ]|calendar[- ])?day|52[- ]week|average|month/i.test(ctx)) score -= 6;
+  // weighted average price (VWAP)" (Blackstone / TXNM Energy) netted to zero and passed. Nor is a high (isOverAHigh).
+  if (/volume[- ]weighted|VWAP|\d{1,3}[- ](?:trading[- ]|calendar[- ])?day|average|month/i.test(ctx) || isOverAHigh(ctx) || isOverAnotherValue(ctx)) score -= 6;
   return score;
 }
 
-export function extractPremium(t: string): number | null {
+export function extractPremium(text: string): number | null {
+  // "a premium of approximately 30 percent" (KnowBe4, PROS).
+  const t = text.replace(/(\d)\s+per\s?cent\b/gi, "$1%");
   const found: { v: number; score: number; i: number }[] = [];
   const re = /(?:premium of (?:approximately |about |roughly |nearly |over |more than )?(\d{1,3}(?:\.\d{1,2})?)\s?%|(\d{1,3}(?:\.\d{1,2})?)\s?% premium)/gi;
   // With contingent value rights, the premium of "the total transaction value" counts them at their most: "The total
@@ -573,6 +604,9 @@ export function extractPremium(t: string): number | null {
     const ctx = raw.slice(0, stop.exec(raw)?.index ?? raw.length);
     const before = t.slice(Math.max(0, m.index! - 120), m.index!);
     if (/conversion|convertible|notes?\b|exchangeable|warrant/i.test(before + ctx.slice(0, 80))) continue;
+    // "Core deposit premium of 18.2%", "deposits were acquired at a premium of approximately 1.6%", "Tangible book value premium
+    // of 185%": what a bank pays over its deposits or book.
+    if (/\b(?:deposits?\b[^.]{0,40}|book(?:\s+value)?\s+|NAV\s+)$/i.test(before)) continue;
     if (cvr) {
       const sentence = t.slice(Math.max(0, m.index! - 300), m.index!).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z"“])|[•·]\s/).pop() ?? "";
       if (/\btotal\s+(?:(?:transaction|deal|per[- ]share|potential|merger)\s+)?(?:value|consideration)\b|\bincluding\s+(?:the\s+)?(?:CVRs?|contingent)|\binclusive\s+of\b|\bup\s+to\b/i.test(sentence)) continue;
@@ -639,6 +673,27 @@ const UPFRONT = new RegExp(
 );
 const amountOf = (m: RegExpExecArray | null) => (m ? Math.round(num(m[1] ?? m[3]) * unitMult(m[2] ?? m[4])) : 0);
 
+const CONTRACT_THEN_VALUE =
+  /\b(?:(?:sub)?contracts?|awards?|orders?|backlog|extensions?|renewals?)(?:\s+(?:extension|renewal|award|win|modification))?\s*,?\s*(?:(?:that|which|is|was|are|were|has|have|currently|now)\s+)*(?:(?:with|having|for|of|at)\s+)?(?:(?:an?|the)\s+)?(?:(?:total|aggregate|combined|estimated|potential|approximate|initial|maximum|ceiling|lifetime|annual|notional|fair|contract)\s+){0,3}$/i;
+const CONTRACT_EARLIER =
+  /\b(?:(?:sub)?contracts?(?!\s+(?:manufactur|research|development|logistics|drilling|sales|services?|packag|electronics|compression|pharma|labor|staffing|mining|operator))|(?<=\b(?:an|the)\s)award(?![- ]winning)|(?<!\bin\s)orders?|extensions?|renewals?)\b/i;
+const DEAL_WORD = /\b(?:acqui\w*|merge\w*|transactions?|deal|buy\w*|bought|sale|sell\w*|purchase(?!\s+orders?\b)|takeover|combination|tender offer|(?:share|stock)holders?)\b/i;
+
+/**
+ * A customer contract valued in the amount's sentence, not the deal: "a contract extension valued at more than $45 million
+ * from a longstanding customer" (IEC's results, in the release announcing its sale), "an executed contract and awarded
+ * order value of approximately $416 million" (STI Norland), "the largest order in MTS history …, valued at over $70
+ * million", "operations contract (total contract value of $4.6 billion)", and an employee's "award of … restricted shares …
+ * not to exceed a total value of $3.8 million" (Meta / Crestmark). Only a plain "valued at" or "value of", with the
+ * contract right before it or earlier in the sentence and no word of a deal there: "the contract manufacturing business …
+ * in an all-cash transaction valued at $8.0 million" (Sparton) and "under the terms of the merger agreement" are deals.
+ */
+function valuesAContract(t: string, index: number, lead: string): boolean {
+  if (!/^(?:valued at|value of|(?:total|aggregate)\s+value)$/.test(lead)) return false;
+  const sentence = t.slice(Math.max(0, index - 240), index).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])|[;•·●○■▪◾]\s/).pop() ?? "";
+  return CONTRACT_THEN_VALUE.test(sentence) || (CONTRACT_EARLIER.test(sentence) && !DEAL_WORD.test(sentence));
+}
+
 export function extractValue(t: string): { usd: number; kind: ParsedPress["valueKind"] } | null {
   // Once a ceiling has been skipped, the amounts after it explain it (the earn-out, the warrants, the financing).
   let ceiling = 0;
@@ -650,6 +705,7 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // Skip non-USD currencies (C$, A$, NT$, HK$, S$ …) — we only report USD. "NT$6.8 billion (approximately US$223 million)".
     if (/(?:^|[\s(])(?:C|CA|CAD|A|AU|AUD|NT|HK|NZ|S|SG|R|MX|Mex)\$/.test(m[0])) continue;
     if (NOT_DEAL_VALUE.test(valueContext(t, m.index!, m[0].length))) continue;
+    if (valuesAContract(t, m.index!, lead)) continue;
     // An adjustment to the price, not the price: "The total transaction consideration is also subject to a downward
     // adjustment of a maximum $110 million" (Amazon / Globalstar). Only the amount the adjustment is of: "the purchase
     // price, subject to customary adjustments, of $2.4 billion" is the price.
@@ -933,8 +989,20 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
       /\bcommittee\b.*\bof\s+(?:the\s+)?([A-Z][^,;]*)$/i.exec(r.replace(/\s+Board(?:\s+of\s+Directors)?$/i, ""))?.[1] ??
       /^(?:[Tt]he\s+)?([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,3})\s+(?:Special|Transaction|Independent|Strategic)\s+(?:Review\s+)?Committee\b/.exec(r)?.[1];
     const committee = /special committee|transaction committee|independent directors|strategic (?:review )?committee/i.test(r);
-    if (committee && of && ownerOf(of)) return ownerOf(of);
-    if (same(r, tgt) || isAlias(r, tgtAliases) || (tgtTicker && r.includes(tgtTicker)) || committee) return "target";
+    // Or its name in front, in lower case or a possessive too: "BGC's special committee", "the SmartStop special committee".
+    const before = /^(?:[Tt]he\s+)?([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,3}?)(?:['’]s?)?\s+(?:independent\s+)?(?:[Ss]pecial|[Tt]ransaction|[Ii]ndependent|[Ss]trategic|[Cc]onflicts)\s+(?:[Rr]eview\s+)?[Cc]ommittee\b/.exec(r)?.[1];
+    const whose = [of, before].find((x) => x && ownerOf(x));
+    if (committee && whose) return ownerOf(whose);
+    // A name the buyer's own name is inside, and the target's isn't ("First Busey Corporation" for Busey, against First
+    // Community: same() matches on the shared first word).
+    const has = (name: string, text: string) => {
+      const n = normalizeName(name);
+      return n.length >= 4 && ` ${normalizeName(text)} `.includes(` ${n} `);
+    };
+    if (has(acq, r) && !has(tgt, r)) return "acquirer";
+    // A ticker as a word (ticker "S" isn't any capital S), and never when the name is the buyer's.
+    const ticker = !!tgtTicker && (tgtTicker.length >= 2 ? r.includes(tgtTicker) : new RegExp(`(?:^|[^A-Za-z0-9])${tgtTicker}(?:$|[^A-Za-z0-9])`).test(r)) && !same(r, acq) && !isAlias(r, acqAliases);
+    if (same(r, tgt) || isAlias(r, tgtAliases) || ticker || committee) return "target";
     if (same(r, acq) || isAlias(r, acqAliases) || /investor group|buyer|purchaser|parent\b/i.test(r)) return "acquirer";
     if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) return issuerRole;
     return null;
@@ -959,8 +1027,10 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
 
     // "<Bank> is serving as financial advisor to X" — banks precede the phrase.
     // Only the clause right before the phrase counts (after the last sentence break).
-    // (An initial is no sentence end: "Citi, M. Klein & Company and LionTree Advisors".)
-    const clause = pre.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|Mr|Ms|Dr|U\.S|[A-Z]))[.;]\s+(?=[A-Z])/).pop() ?? pre;
+    // (An initial is no sentence end: "Citi, M. Klein & Company and LionTree Advisors". A sentence that opens with the phrase
+    // has no clause before it: "… J.P. Morgan Securities LLC and legal advisor is Kirkland & Ellis LLP. Financial advisor to
+    // General Parts International Inc. are Wells Fargo Advisors, LLC" credited Advance Auto Parts' banks to General Parts.)
+    const clause = pre.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|Mr|Ms|Dr|U\.S|[A-Z]))[.;]\s+(?=[A-Z]|$)/).pop() ?? pre;
     // "Citi is acting as Pfizer's financial advisor": the possessive names the recipient (not a bank).
     // (Or a bare apostrophe after an s: "Conatus' financial advisor in the transaction is Oppenheimer & Co., Inc.")
     const possessive = /((?:[A-Z][\w&.’-]*\s+){0,4}?[A-Z][\w&.’-]*?)(?:['’]s|(?<=s)['’])\s+(?:lead\s+|exclusive\s+|sole\s+|co-|joint\s+|independent\s+)*$/.exec(clause);
@@ -977,7 +1047,11 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     // Banks only from the adviser's own clause: not a parent named beside it ("Greenhill, a Mizuho affiliate"), not one
     // named earlier for another role ("B. Riley FBR, Inc. is acting as capital markets advisor and private placement agent
     // to Trinity, and Raymond James … is acting as Trinity's financial advisor"), not a research-coverage list run in.
+    // ("… to Patterson-UTI, while Morgan Stanley is acting as financial advisor to Seventy Seven", and a sentence that ended
+    // on an abbreviation: "SunTrust Robinson Humphrey, Inc. Greenhill & Co. is serving as financial advisor".)
     let scan = (possessive ? clause.slice(0, possessive.index) : clause)
+      .replace(/^.*(?:,\s*while|\bwhereas)\s+/i, "")
+      .replace(/^.*\b(?:Inc|Corp|Ltd|LLC|L\.P)\.\s+(?:\d\s+)?(?!(?:LLC|L\.L\.C|LP|L\.P|Inc|Corp|Ltd|Co)\b)(?=[A-Z][\w&.'’-]*(?:,?\s+[A-Z&][\w&.'’-]*){0,5},?\s+(?:is|are|was|were|has|have|acted|served|acting|serving)\b)/, "")
       .replace(/,\s+an?\s+(?:[A-Z][\w.&'’-]*\s+){1,3}(?:affiliate|company|subsidiary|member)\b,?/gi, " ")
       .replace(/^.*\b(?:acting|serving|served|acted)\s+as\s+(?:its\s+|the\s+)?(?:exclusive\s+|sole\s+)?(?:capital markets|placement|legal|tax|accounting|regulatory|debt|structuring)\b[^.;]*?(?:,\s*and\s+|;\s*)/i, "");
     // (The list is bullets: "… Raymond James & Associates, Inc. • Robert W. Baird … Additional Information Keefe Bruyette
@@ -1014,12 +1088,17 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
       banks = findBanks(listed[2]);
       recipientText = listed[1];
     }
-    // "Lazard is acting as lead financial advisor with BofA Securities acting as co-advisor …"
-    const co = /^\s*,?\s*(?:with|and)\s+([^,;.]{2,80}?)\s+(?:acting|serving)\s+as\s+(?:a\s+)?co-(?:financial\s+)?advis[oe]r/.exec(post);
+    // "Lazard is acting as lead financial advisor with BofA Securities acting as co-advisor …", "ROTH Capital Partners acted
+    // as the lead financial advisor to Navarre and Craig-Hallum acted as co-advisor", "Credit Suisse is serving as lead
+    // financial advisor to IPC Healthcare and Evercore provided a fairness opinion".
+    const co = /^\s*,?\s*(?:to\s+[^,;.]{1,60}?\s+)?(?:with|and)\s+([^,;.]{2,80}?)\s+(?:(?:acting|serving|acted|served)\s+as\s+(?:a\s+)?co-(?:financial\s+)?advis[oe]r|provided\s+(?:a|the)\s+fairness\s+opinion)/.exec(post);
     if (banks.length && co) banks = [...banks, ...findBanks(co[1])];
     // "the Company and its financial advisor, BofA Securities, ..."
     if (!banks.length) {
-      const after = /^\s*,?\s*([^,.;]{2,60})/.exec(post)?.[1] ?? "";
+      // (Not another adviser's own clause after the recipient: "LUMA Securities acted as the financial advisor to Millennial
+      // Media and GCA Savvian acted as the financial advisor to Nexage", where the first firm isn't on the bank list.)
+      const wide = /^\s*,?\s*([^,.;]{2,140})/.exec(post)?.[1] ?? "";
+      const after = (/^\s*,?\s*(?:to|for)\s/i.test(post) ? wide.split(/\s+and\s+(?=[^,;.]*?\b(?:acted|acting|served|serving|is|was|are|were|has|have|will)\b)/)[0] : wide).slice(0, 60);
       // (Not the recipient's own name: "Perkins Advisors LLC acted as financial advisor to Cowen".)
       banks = /^\s*,?\s*to\s/i.test(post) && findBanks(recipientText.trim().split(/\s+/)[0] ?? "").length ? [] : findBanks(after);
       if (banks.length) recipientText = /\bits\s*$/i.test(pre) ? "the Company" : recipientText;
@@ -1350,7 +1429,8 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
         : null;
 
   const value = extractValue(terms);
-  const advisors = extractAdvisors(flatten(text), acquirer.name, target.name, issuerRole, target.ticker);
+  // (A ticker both sides read as is the buyer's: PAETEC / XETA's release lists only PAET.)
+  const advisors = extractAdvisors(flatten(text), acquirer.name, target.name, issuerRole, target.ticker === acquirer.ticker ? null : target.ticker);
   // The release's own date: its dateline (Cardinal's release of October 13, 2026 for Hughes Brothers came with an 8-K
   // on October 19), or for a completion, the announcement it refers back to ("the definitive share sale and purchase
   // agreement … announced on December 9, 2025": Cronos / CanAdelaar). The ingest decides how far back it may reach.

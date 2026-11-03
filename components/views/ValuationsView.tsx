@@ -52,7 +52,7 @@ export function ValuationsView() {
 
   const exportRows = () => {
     const csv = toCsv(["Sector", ...quarters.map(formatQuarter)], SECTORS.map((s, i) => [s, ...series[i].data]), data.isSample);
-    downloadCsv(csv, `Castle_Valuations_${m.tab.replace("/", "-")}${data.isSample ? "_Sample" : ""}.csv`);
+    downloadCsv(csv, `Castle_Valuations_${m.tab.replace(/\W+/g, "-")}${data.isSample ? "_Sample" : ""}.csv`);
     toast("Valuations exported.");
   };
 

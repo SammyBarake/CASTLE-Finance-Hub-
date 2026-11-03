@@ -16,13 +16,13 @@ function GroupCard({ g, blurb }: { g: BuyerGroup; blurb: string }) {
         </span>
       </div>
       <p className="buyer-blurb">{blurb}</p>
-      <dl className="buyer-stats">
+      <dl className="buyer-stats items-end">
         <div>
           <dt>Median premium</dt>
           <dd>{formatPct(g.medianPremium, 0)}</dd>
         </div>
         <div>
-          <dt>Median EV / EBITDA</dt>
+          <dt>Median EV / Adj. EBITDA</dt>
           <dd>{formatMultiple(g.medianEvEbitda)}</dd>
         </div>
         <div>

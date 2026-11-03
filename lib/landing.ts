@@ -25,7 +25,7 @@ export const YTD_MIN_DEALS = 25;
 export const RECORD_MIN_USD = 1e9;
 /** The engraved league ring needs this much lettering to fill its circle (fewer scatters single letters around it). */
 export const LEAGUE_RING_MIN_CHARS = 120;
-/** A comps set needs this many deals stating both EV / EBITDA and a premium. */
+/** A comps set needs this many deals stating both EV / Adj. EBITDA and a premium. */
 export const COMPS_MIN = 8;
 
 export interface LandingKpi {

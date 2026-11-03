@@ -1273,6 +1273,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     const m = computeMultiples(deal, fin, { sic: sub?.sic, name: deal.target.name });
     deal.enterpriseValueUsd = m.enterpriseValueUsd;
     deal.evEbitda = m.evEbitda;
+    deal.evEbitdaReported = m.evEbitdaReported;
     deal.evRevenue = m.evRevenue;
     if (deal.valueUsd == null && m.impliedEquityUsd != null && m.impliedEquityUsd >= 1e6) {
       deal.valueUsd = Math.round(m.impliedEquityUsd);
@@ -1358,7 +1359,7 @@ export async function ingestDeals(
       let id = base;
       for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
       const seller = deal.acquirer;
-      Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evRevenue: null, status: "Announced", statusDate: null });
+      Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evEbitdaReported: null, evRevenue: null, status: "Announced", statusDate: null });
       deal.acquirer = { name: displayName(nameOn(sub, deal.announcedDate)), cik: deal.target.cik, ticker: deal.target.ticker };
       deal.target = { name: seller.name, cik: null, ticker: null };
       [deal.acquirerAdvisors, deal.targetAdvisors] = [deal.targetAdvisors, deal.acquirerAdvisors];
@@ -1856,7 +1857,7 @@ export async function ingestDeals(
           for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
           // "Pending" came from the registrant's own proxy: a private deal starts again from "Announced", and the private
           // checks below (the buyer's 8-K Item 2.01, its later filings) settle it.
-          Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evRevenue: null, status: "Announced", statusDate: null });
+          Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evEbitdaReported: null, evRevenue: null, status: "Announced", statusDate: null });
           deal.target = { ...deal.target, cik: null, ticker: null };
           deal.milestones = deal.terms = deal.fairness = undefined;
           deal.registrantCheck = REGISTRANT_CHECK_VERSION;

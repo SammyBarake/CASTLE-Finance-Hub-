@@ -235,7 +235,7 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
 // ---------------------------------------------------------------------------
 
 export const VALUATION_METRICS: Record<ValuationMetric, { tab: string; title: string; unit: string; deltaUnit: string }> = {
-  evEbitda: { tab: "EV/EBITDA", title: "Median EV / EBITDA", unit: "x", deltaUnit: "x" },
+  evEbitda: { tab: "EV/Adj. EBITDA", title: "Median EV / Adj. EBITDA", unit: "x", deltaUnit: "x" },
   evRevenue: { tab: "EV/Revenue", title: "Median EV / Revenue", unit: "x", deltaUnit: "x" },
   premium: { tab: "Premium", title: "Median premium paid", unit: "%", deltaUnit: " pts" },
 };

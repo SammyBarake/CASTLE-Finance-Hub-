@@ -10,7 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useUi, type MenuPosition } from "@/components/ui/UiProvider";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { dealsWorkbook } from "@/lib/excel/workbooks";
-import { considerationLabel, formatDateLong, formatPct, formatPrice, formatRaise, formatUsd } from "@/lib/format";
+import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatUsd } from "@/lib/format";
 import type { DealScreen } from "@/lib/screen";
 import type { Deal, Ipo } from "@/lib/types";
 import { useWorkspace, type RecordKind } from "./WorkspaceProvider";
@@ -136,8 +136,8 @@ function CompareBody({ deals, isSample }: { deals: Deal[]; isSample: boolean }) 
     ["Deal value", (d) => formatUsd(d.valueUsd)],
     ["Offer price", (d) => formatPrice(d.pricePerShare)],
     ["Premium", (d) => formatPct(d.premiumPct)],
-    ["EV / EBITDA", (d) => (d.evEbitda == null ? "—" : `${d.evEbitda.toFixed(1)}x`)],
-    ["EV / Revenue", (d) => (d.evRevenue == null ? "—" : `${d.evRevenue.toFixed(1)}x`)],
+    ["EV / Adj. EBITDA", (d) => formatMultiple(d.evEbitda)],
+    ["EV / Revenue", (d) => formatMultiple(d.evRevenue)],
     ["Sector", (d) => d.sector],
     ["Status", (d) => d.status],
     ["Announced", (d) => formatDateLong(d.announcedDate)],

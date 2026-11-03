@@ -1,0 +1,33 @@
+name: Keep scheduled workflows active
+
+# GitHub disables scheduled workflows in a public repository after 60 days without repository activity. That would
+# silently stop the ingest, the data monitor and the monthly history whenever the repository goes quiet for two months.
+# So this checks every day and pushes an empty commit once main has had no commit for 30 days: a monthly run would miss
+# the limit after one dropped run (61-62 days), and GitHub drops many. It changes no files, and [skip ci] keeps CI from
+# running on it. While commits are landing it does nothing, so it causes no extra Vercel builds.
+on:
+  schedule:
+    - cron: "17 4 * * *" # off the hour: GitHub delays and drops scheduled runs most at the top of the hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-24.04 # pinned, like ci.yml
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main # a manual run started from another branch still commits on main, and only this commit
+      - name: Empty commit to main if it has been quiet for 30 days
+        run: |
+          if [ $(( $(date +%s) - $(git log -1 --format=%ct) )) -le 2592000 ]; then
+            echo "main had a commit in the last 30 days: nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Keep scheduled workflows active [skip ci]"
+          git push origin main

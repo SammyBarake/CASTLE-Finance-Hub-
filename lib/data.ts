@@ -122,7 +122,7 @@ const CHUNK = 500;
 /** The deal fields the site uses; ingest bookkeeping (checked-at dates, source lists) stays in the database. */
 const DEAL_FIELDS = [
   "id", "announcedDate", "acquirer", "target", "valueUsd", "pricePerShare", "premiumPct", "consideration", "sector", "industry", "status", "statusDate",
-  "enterpriseValueUsd", "evEbitda", "evRevenue", "acquirerAdvisors", "targetAdvisors", "filings", "milestones", "privateTarget", "terms", "fairness",
+  "enterpriseValueUsd", "evEbitda", "evEbitdaReported", "evRevenue", "acquirerAdvisors", "targetAdvisors", "filings", "milestones", "privateTarget", "terms", "fairness",
   // Share prices (ingest/prices.ts). A field missing here never reaches the live site, whatever toPublicDeal passes.
   "arb", "reaction",
   // Internal (server side, for filtering by value type); toPublicDeal leaves it out of the browser feed.

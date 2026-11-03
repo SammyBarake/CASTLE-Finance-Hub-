@@ -107,7 +107,7 @@ export function extractDescription(text: string): string | null {
  * Bump after changing these parsers: stored pipeline records are then re-read on the next ingest.
  * 5: US$ prices and the cover table's total (SK hynix, Londian Wason).
  */
-export const IPO_PARSER_VERSION = 6;
+export const IPO_PARSER_VERSION = 7;
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or

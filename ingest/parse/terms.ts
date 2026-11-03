@@ -89,7 +89,7 @@ function goShopTerms(t: string): Pick<DealTerms, "goShop" | "goShopDays"> {
 }
 
 /** Independent advisory firms don't lend: a mention near "financing" is their advisory role. */
-const ADVISORY_ONLY = /^(?:Lazard|Moelis|PJT Partners|Centerview|Evercore|Perella Weinberg|Qatalyst|Houlihan Lokey|Allen & Company|Greenhill|Solomon Partners|Ardea Partners|MarshBerry|Rothschild & Co|Ducera|Kroll|Duff & Phelps|LionTree|Raine|Guggenheim|Robert W\. Baird|Piper Sandler|William Blair|Stephens|Hovde Group|Janney|Keefe, Bruyette & Woods|KBW|Raymond James|Stifel|TD Cowen|Leerink Partners|Needham|Oppenheimer|Cantor Fitzgerald|BTIG|Canaccord Genuity|Craig-Hallum|Roth Capital|Maxim Group|ThinkEquity|Benchmark)$/;
+const ADVISORY_ONLY = /^(?:Lazard|Moelis|PJT Partners|Centerview|Evercore|Perella Weinberg|Qatalyst|Houlihan Lokey|Allen & Company|Greenhill|Solomon Partners|Ardea Partners|MarshBerry|Rothschild & Co|Ducera|Kroll|Duff & Phelps|LionTree|Raine|Guggenheim|Robert W\. Baird|Piper Sandler|William Blair|Stephens|Hovde Group|Janney|Keefe, Bruyette & Woods|KBW|Raymond James|Stifel|TD Cowen|Leerink Partners|Needham|Oppenheimer|Cantor Fitzgerald|BTIG|Canaccord Genuity|Craig-Hallum|Roth Capital|Maxim Group|ThinkEquity|Benchmark|FT Partners|Foros|DH Capital|Chardan|Harris Williams|Lincoln International|MTS Health Partners|Intrepid Partners|Robert A\. Stanger|Sandler O'Neill|Stone Key|Gordon Dyal|Cain Brothers|Mooreland Partners|.* Advisors|Blackstone Advisory Partners)$/;
 
 function financingTerms(t: string): Pick<DealTerms, "financingCondition" | "financingBanks"> {
   let financingCondition: boolean | null = null;

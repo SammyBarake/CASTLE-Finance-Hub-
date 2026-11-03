@@ -170,6 +170,12 @@ export function headlineFigures(deals: Deal[], ipos: Ipo[]): Headline {
 
 export type ValuationMetric = "evEbitda" | "evRevenue" | "premium";
 
+/** What "EV / Adj. EBITDA" means, in one place: the definitions dialog, About, Precedents, tear sheets, Excel notes and the landing page. */
+export const ADJ_EBITDA_DEFINITION =
+  "Adj. EBITDA is operating income + D&A + impairment, restructuring, deal costs and stock compensation, last twelve months, from the target's filings. Calculated by Castle, so it can differ from a bank's adjusted figure.";
+/** The figure with nothing added back, for the two places that show it (the deal drawer, the Excel Precedents sheet). */
+export const REPORTED_EBITDA_DEFINITION = "EV / Reported EBITDA is the same enterprise value over operating income + D&A, with nothing added back.";
+
 const VALUATION_FIELD: Record<ValuationMetric, keyof SectorValuation> = {
   evEbitda: "medianEvEbitda",
   evRevenue: "medianEvRevenue",

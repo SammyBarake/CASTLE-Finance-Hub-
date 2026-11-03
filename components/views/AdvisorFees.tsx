@@ -20,7 +20,7 @@ export function AdvisorFees() {
   const league = useMemo(() => feeLeague(records), [records]);
   const bySize = useMemo(() => feesBySize(records), [records]);
   const notes = useMemo(() => feeInsights(records, league, bySize), [records, league, bySize]);
-  const paydays = useMemo(() => [...records].sort((a, b) => b.feeUsd - a.feeUsd), [records]);
+  const largestFees = useMemo(() => [...records].sort((a, b) => b.feeUsd - a.feeUsd), [records]);
   const [shown, setShown] = useState(PAGE);
 
   if (!detailsReady) return <SectionLoading title="Fee league table" />; // fees come with the details
@@ -109,7 +109,7 @@ export function AdvisorFees() {
       </div>
 
       <section className="panel">
-        <PanelHead title="Biggest paydays" subtitle="Largest single fees · click a row for the deal" />
+        <PanelHead title="Largest fees" subtitle="Per bank, per deal · click a row for the deal" />
         <div className="table-scroll">
           <table>
             <caption className="sr-only">Largest disclosed fees</caption>
@@ -125,7 +125,7 @@ export function AdvisorFees() {
               </tr>
             </thead>
             <tbody>
-              {paydays.slice(0, shown).map((r) => (
+              {largestFees.slice(0, shown).map((r) => (
                 <RowLink key={`${r.deal.id}-${r.bank}`} label={`${r.bank} fee on ${r.deal.target.name}`} onOpen={() => openDeal(r.deal)}>
                   <td className="company">{r.bank}</td>
                   <td className="company">
@@ -138,11 +138,11 @@ export function AdvisorFees() {
                   <td className="right mono">{formatBps(r.bps)}</td>
                 </RowLink>
               ))}
-              {!paydays.length && <EmptyRow colSpan={7}>No fees.</EmptyRow>}
+              {!largestFees.length && <EmptyRow colSpan={7}>No fees.</EmptyRow>}
             </tbody>
           </table>
         </div>
-        <ShowMore shown={shown} total={paydays.length} onMore={() => setShown((n) => n + PAGE * 2)} />
+        <ShowMore shown={shown} total={largestFees.length} onMore={() => setShown((n) => n + PAGE * 2)} />
       </section>
       <AboutData>
         <p>

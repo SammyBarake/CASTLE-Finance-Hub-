@@ -15,7 +15,7 @@
  */
 import type { ActivistStake, Deal, FeeRow, HubData } from "./types";
 
-export const DETAIL_FIELDS = ["terms", "reaction", "dcf", "milestones"] as const;
+export const DETAIL_FIELDS = ["terms", "reaction", "dcf", "milestones", "evEbitdaReported"] as const;
 export type DealDetails = Partial<Pick<Deal, (typeof DETAIL_FIELDS)[number]>>;
 
 export interface HubDetails {

@@ -124,10 +124,10 @@ async function main() {
   const show = (o: (typeof outlook)[number]) => `  ${o.bank.padEnd(26)} ${usd(o.changeUsd.mid).padStart(9)} [${usd(o.changeUsd.low)}, ${usd(o.changeUsd.high)}]  ${o.changePct.mid >= 0 ? "+" : ""}${o.changePct.mid}% of baseline${o.driver ? `, mostly ${o.driver}` : ""}`;
   const rise = outlook.filter((o) => o.changeUsd.mid > 0);
   const fall = outlook.filter((o) => o.changeUsd.mid < 0).reverse();
-  console.log(" Positioned to rise:");
+  console.log(" More deal value:");
   if (rise.length) rise.slice(0, 8).forEach((o) => console.log(show(o)));
   else console.log("  none in this scenario");
-  console.log(" Positioned to fall:");
+  console.log(" Less deal value:");
   if (fall.length) fall.slice(0, 8).forEach((o) => console.log(show(o)));
   else console.log("  none in this scenario");
 }

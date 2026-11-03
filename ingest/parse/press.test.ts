@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { bankShortName, findBanks } from "../../lib/banks";
 import { caseless, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
 
 // Fixtures are synthetic releases written in the style of real 8-K exhibits.
@@ -452,6 +453,130 @@ describe("term extractors", () => {
     expect(extractPremium("a premium of 49% to the 30-day volume-weighted average price")).toBeNull();
   });
 
+  it("never takes a premium over a high, unaffected or not", () => {
+    // Kellanova's release states a VWAP and a 52-week high and no close: blank here, and the proxy states the close.
+    expect(extractPremium("The transaction price represents a premium of approximately 44% to Kellanova's unaffected 30-trading day volume weighted average price and a premium of approximately 33% to Kellanova's unaffected 52-week high as of August 2, 2024.")).toBeNull();
+    expect(extractPremium("represents a 19% premium to the closing price of Altair common stock on October 21, 2024, the last trading day prior to media speculation regarding a potential transaction, and a 13% premium to Altair's unaffected all-time high closing price.")).toBe(19);
+    for (const t of [
+      "a premium of approximately 20% to Panera's all-time high closing stock price as of that same date",
+      "a 9.5% premium to our all-time peak trading price",
+      "a premium of 7.4% over the Common Stock's 5-year high closing price of $6.75",
+      "an 18% premium to the highest closing price in the Company's history",
+      "a 12% premium to the unaffected record high of the shares",
+      "a premium of 16% to the stock's unaffected all time high",
+      "a premium of 11% to the fifty-two week high",
+      "a 27% premium to the 52 week high",
+    ]) expect(extractPremium(t), t).toBeNull();
+  });
+
+  it("reads a premium written as percent", () => {
+    expect(extractPremium("a premium of approximately 30 percent to the closing price on the last trading day")).toBe(30);
+    expect(extractPremium("represents a 44.1 percent premium over KnowBe4's unaffected closing share price")).toBe(44.1);
+    expect(extractPremium("a premium of 25 per cent to the closing price")).toBe(25);
+    expect(extractPremium("a premium of 49 percent to the 30-day volume-weighted average price")).toBeNull();
+  });
+
+  it("never takes a premium over a bid, net asset value or book value", () => {
+    for (const s of [
+      "a premium of 33.3% to Dell's offer price",
+      "a 15% premium over the $18.00 per share offered by Acme",
+      "a premium of 12% to the prior proposal",
+      "a premium of 8% to net asset value",
+      "a 40% premium to NAV per share",
+      "a 150% premium to tangible book value per share",
+      "a premium of 20% over book value",
+    ])
+      expect(extractPremium(s)).toBeNull();
+    expect(extractPremium("a premium of approximately 39% to Double-Take's enterprise value")).toBeNull();
+    expect(extractPremium("Reckitt Benckiser's offer represents a premium of 23.5% over the $34.00 per share transaction announced on October 30, 2012 by Bayer HealthCare LLC")).toBeNull();
+    expect(extractPremium("Core deposit premium of 18.2%")).toBeNull();
+    expect(extractPremium("Most of the deposits were acquired at a premium of approximately 1.6%.")).toBeNull();
+    expect(extractPremium("Tangible book value premium of 185 percent exclusive of purchase accounting adjustments")).toBeNull();
+    // A hurdle for a better bid, not this deal's premium.
+    expect(extractPremium("a hurdle that represents a 20% premium to the value of the consideration payable under this transaction and, concurrently therewith, the Definitive Agreement is terminated for a superior proposal")).toBeNull();
+    // Over the market, whatever else the sentence names.
+    expect(extractPremium("representing a 41% premium or approximately 0.85x tangible book value as of December 31, 2022")).toBe(41);
+    expect(extractPremium("evidenced by the 15.9% premium offered by VICI in this transaction")).toBe(15.9);
+    expect(extractPremium("The transaction price represents a 142% premium over the price of CPEX shares on January 7, 2010, the day prior to the date a third party publicly stated its intention to make an unsolicited offer for CPEX")).toBe(142);
+    expect(extractPremium("a 40% premium to the pre-offer closing price")).toBe(40);
+    expect(extractPremium("a premium of 28% to the closing price on the day before the offer")).toBe(28);
+    expect(extractPremium("a premium of 12% to Dell's offer price and a premium of 30% to the closing price on Friday")).toBe(30);
+  });
+
+  it("keeps a premium over the close when a high is only mentioned beside it", () => {
+    expect(extractPremium("a significant premium of 33% to Connecticut Water's unaffected closing share price of $52.57 on March 14, 2018 and exceeds Connecticut Water's all-time high price of $69.72 per common share")).toBe(33);
+    expect(extractPremium("the offer provides a 137% premium to Magellan's shareholders based on Friday's closing price of $.97 and is 34% above Magellan's 52-week high of $1.72.")).toBe(137);
+    expect(extractPremium("a 46% premium to Pericom's unaffected closing price on September 2, 2015, and exceeds the five-year trading high in Pericom shares by 8%")).toBe(46);
+    expect(extractPremium("a premium of 38% to Airgas' closing price today of $43.53 and 18% above its 52-week high")).toBe(38);
+    // A slide's next line, not a high.
+    expect(extractPremium("represents more than an 80% premium to the share price before announcement of the transaction on July 30, 2014 Represents increase of 23% from initial announced price of $4.55/share High level of certainty in path towards completion")).toBe(80);
+    // Companies, not highs.
+    expect(extractPremium("a 116% premium to Peak Resorts' closing stock price on July 19, 2019")).toBe(116);
+    expect(extractPremium("a premium of approximately 69% over Cadus' closing stock price on September 19, 2017, the last trading day before High River's announcement")).toBe(69);
+  });
+
+  it("knows the banks filings keep naming, by whole names only", () => {
+    for (const [text, bank] of [
+      ["Stephens Inc. served as exclusive", "Stephens"],
+      ["Stephens, Inc. acted as", "Stephens"],
+      ["Stephens served as exclusive", "Stephens"],
+      ["Financial Technology Partners LP", "FT Partners"],
+      ["FT Partners acted as", "FT Partners"],
+      ["Harris Williams & Co.", "Harris Williams"],
+      ["Lincoln International LLC", "Lincoln International"],
+      ["Credit Suisse Securities (USA) LLC", "Credit Suisse"],
+      ["Sandler O'Neill + Partners, L.P.", "Sandler O'Neill"],
+      ["Sandler O’Neill & Partners", "Sandler O'Neill"],
+      ["Sandler O 'Neill + Partners, L.P.", "Sandler O'Neill"],
+      ["Piper Jaffray & Co.", "Piper Sandler"],
+      ["SunTrust Robinson Humphrey, Inc.", "Truist Securities"],
+      ["Peter J. Solomon Company", "Solomon Partners"],
+      ["PJ SOLOMON", "Solomon Partners"],
+      ["ROTH Capital Partners", "Roth Capital"],
+      ["Duff & Phelps, LLC", "Kroll"],
+      ["Blackstone Advisory Partners L.P.", "Blackstone Advisory Partners"],
+      ["Chardan is acting as", "Chardan"],
+    ]) expect(findBanks(text), text).toEqual([bank]);
+    for (const text of [
+      "Lincoln National Corporation",
+      "Lincoln Electric Holdings",
+      "Satterlee Stephens Burke & Burke LLP is acting as legal advisor",
+      "Mr. Stephens served as Chairman",
+      "John Stephens, Chief Financial Officer",
+      "Blackstone is acting as",
+      "Imperial Capital Bank",
+      "Chardan Healthcare Acquisition Corp.",
+      "Locust Walk Acquisition Corp.",
+      "Kroll Bond Rating Agency",
+    ]) expect(findBanks(text), text).toEqual([]);
+    expect(bankShortName("Stephens")).toBe("STEP");
+    expect(bankShortName("Credit Suisse")).toBe("CS");
+  });
+
+  it("credits the new banks to the right side", () => {
+    const hubbell = "Stephens Inc. is serving as financial advisor to Hubbell, and Holland & Knight LLP is serving as legal advisor. Harris Williams and Lincoln International are serving as financial advisor to Golden Gate Capital, and Paul, Weiss is serving as legal advisor.";
+    expect(extractAdvisors(hubbell, "Hubbell Incorporated", "Golden Gate Capital", null, null)).toEqual({ acquirerAdvisors: ["Stephens"], targetAdvisors: ["Harris Williams", "Lincoln International"] });
+    // Each bank to its own party: the clause ends at "while", and after a name ending in "Inc.".
+    expect(extractAdvisors("Piper Jaffray & Co. / Simmons & Company is serving as financial advisor to Patterson-UTI, while Morgan Stanley is acting as financial advisor to Seventy Seven.", "Patterson-UTI Energy", "Seventy Seven Energy", null, null).targetAdvisors).toEqual(["Morgan Stanley"]);
+    expect(extractAdvisors("Debt financing is being arranged by SunTrust Robinson Humphrey, Inc. Greenhill & Co. is acting as financial advisor to TNS.", "Siris Capital", "TNS, Inc.", null, null).targetAdvisors).toEqual(["Greenhill"]);
+    // A committee is its own company's, wherever the name stands.
+    expect(extractAdvisors("Sandler O'Neill + Partners, L.P. acted as financial advisor to BGC's special committee.", "BGC Partners", "Berkeley Point", null, null)).toEqual({ acquirerAdvisors: ["Sandler O'Neill"], targetAdvisors: [] });
+    expect(extractAdvisors("Robert A. Stanger & Co. is serving as financial advisor to the SmartStop special committee.", "SmartStop Self Storage", "Strategic Storage Trust", null, null)).toEqual({ acquirerAdvisors: ["Robert A. Stanger"], targetAdvisors: [] });
+    // The buyer's whole name in the recipient, though the two share a first word.
+    expect(extractAdvisors("Stephens Inc. served as financial advisor to First Busey Corporation.", "First Busey", "First Community Financial Partners", null, null)).toEqual({ acquirerAdvisors: ["Stephens"], targetAdvisors: [] });
+    // A ticker of one letter is a word, not any capital letter.
+    expect(extractAdvisors("Moelis & Company LLC acted as financial advisor to Sprint Corporation.", "Softbank", "Clearwire", null, "S").targetAdvisors).toEqual([]);
+    // Each side's bank stays on its side.
+    expect(extractAdvisors("Piper Jaffray & Co. is serving as financial advisor to OceanFirst. Sandler O'Neill + Partners, L.P. is serving as financial advisor to Sun.", "OceanFirst Financial Corp.", "Sun Bancorp, Inc.", null, null)).toEqual({ acquirerAdvisors: ["Piper Sandler"], targetAdvisors: ["Sandler O'Neill"] });
+    // A firm off the list leaves its recipient without a bank, not with the next firm's.
+    expect(extractAdvisors("LUMA Securities acted as the financial advisor to Millennial Media and GCA Savvian acted as the financial advisor to Nexage.", "Millennial Media", "Nexage", null, null)).toEqual({ acquirerAdvisors: [], targetAdvisors: ["GCA"] });
+    // A sentence that opens with the phrase takes nothing from the sentence before.
+    expect(extractAdvisors("Financial advisors to Advance Auto Parts are Blackstone Advisory Partners L.P. and J.P. Morgan Securities LLC and legal advisor is Kirkland & Ellis LLP. Financial advisor to General Parts International Inc. are Wells Fargo Advisors, LLC and The Orr Group, LLC.", "Advance Auto Parts, Inc.", "General Parts International", null, null).targetAdvisors).toEqual([]);
+    // A known lead no longer hides the bank named after the recipient.
+    expect(extractAdvisors("ROTH Capital Partners acted as the lead financial advisor to Navarre and Craig-Hallum acted as co-advisor.", "Navarre Corp.", "SpeedFC", null, null).acquirerAdvisors).toEqual(["Roth Capital", "Craig-Hallum"]);
+    expect(extractAdvisors("Credit Suisse is serving as lead financial advisor to IPC Healthcare and Evercore provided a fairness opinion.", "TeamHealth", "IPC Healthcare, Inc.", null, null).targetAdvisors).toEqual(["Credit Suisse", "Evercore"]);
+  });
+
   it("reads value kind and units", () => {
     expect(extractValue("representing an enterprise value of approximately $866 million")).toEqual({ usd: 866e6, kind: "enterprise" });
     expect(extractValue("an all-cash transaction valued at approximately $7.7 billion")).toEqual({ usd: 7.7e9, kind: "transaction" });
@@ -544,6 +669,31 @@ describe("termination headlines", () => {
   });
 });
 describe("extractValue: figures that are not the price", () => {
+  it("skips a customer contract valued in the sentence", () => {
+    // IEC Electronics' results, in the release announcing its sale to Creation Technologies.
+    expect(extractValue("a solid book to bill ratio of 1.76:1 in the third fiscal quarter, which included a contract extension valued at more than $45 million from a longstanding customer.")).toBeNull();
+    expect(extractValue("STI Norland reported an executed contract and awarded order value of approximately $416 million as of September 30th.")).toBeNull();
+    expect(extractValue("Poole was recently awarded a five-year prime contract with a ceiling value of $150 million to provide systems engineering.")).toBeNull();
+    expect(extractValue("primarily driven by the award of the largest order in MTS history for an advanced seismic simulation system in China, valued at over $70 million.")).toBeNull();
+    expect(extractValue("Near-term potential awards for delivery and operations contract (total contract value of $4.6 billion).")).toBeNull();
+    expect(extractValue("We received a purchase order valued at $30 million.")).toBeNull();
+    expect(extractValue("The company won contract awards with an estimated value of $550 million.")).toBeNull();
+    expect(extractValue("will enter into a Restricted Stock Agreement with respect to an award of a number of restricted shares of Company Common Stock not to exceed a total value of $3.8 million.")).toBeNull();
+    // A contract's ceiling is not the deal's: the price after it still counts.
+    expect(extractValue("The Company won a contract valued at up to $900 million. Acme will acquire the Company in a transaction valued at approximately $2.5 billion.")).toEqual({ usd: 2.5e9, kind: "transaction" });
+  });
+
+  it("keeps deal sentences that mention a contract, an order or an award", () => {
+    expect(extractValue("has signed a definitive agreement to acquire certain assets related to the contract manufacturing business of Delphi Medical Systems, LLC in an all-cash transaction valued at $8.0 million")).toEqual({ usd: 8e6, kind: "transaction" });
+    expect(extractValue("to be acquired by GXO Logistics, the world's largest pure-play contract logistics provider, for an equity value of approximately $181 million.")).toEqual({ usd: 181e6, kind: "equity" });
+    expect(extractValue("Trustmark will acquire HealthFitness, an award-winning provider of fitness services, in an all-cash transaction valued at approximately $97 million.")).toEqual({ usd: 97e6, kind: "transaction" });
+    expect(extractValue("Under the terms of the merger agreement, the total value of the transaction is approximately $1.2 billion.")?.usd).toBe(1.2e9);
+    expect(extractValue("In order to acquire contract manufacturer Beta, Acme agreed to a price valued at $500 million.")?.usd).toBe(500e6);
+    expect(extractValue("The contract price is not disclosed. Acme will acquire Beta for $300 million.")?.usd).toBe(300e6);
+    // The bullet before it spoke of employees' awards (K1 / MariaDB).
+    expect(extractValue("held by MariaDB Equity Award Holders and MariaDB Warrants held by MariaDB Warrant Holders calculated by applying the treasury stock method. ● The value of approximately $39.5 million for the entire issued share capital.")?.usd).toBe(39.5e6);
+  });
+
   it("skips synergies, costs, value creation and later instalments", () => {
     expect(extractValue(`• II-VI proposal represents 24.0% premium over implied value of MKS Instruments' acquisition proposal • $200 million of run-rate cost synergies expected within 36 months`)).toBeNull();
     expect(extractValue(`The transaction is expected to generate more than $2.8 billion in value creation from synergies, net of ~$400 million in expected one-time transaction and integration costs. The transaction values NFP at $13.4 billion.`)?.usd).toBe(13.4e9);

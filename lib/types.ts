@@ -97,8 +97,10 @@ export interface Deal {
   reaction?: BuyerReaction;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
-  /** EV / last-twelve-months EBITDA of the target. */
+  /** EV / last-twelve-months adjusted EBITDA of the target: operating income + D&A + impairment, restructuring, deal costs and stock compensation. */
   evEbitda: number | null;
+  /** EV / last-twelve-months EBITDA as reported: operating income + D&A, with no add-backs. */
+  evEbitdaReported?: number | null;
   /** EV / last-twelve-months revenue of the target. */
   evRevenue: number | null;
   /** Financial advisors, lead first. */

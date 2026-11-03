@@ -87,7 +87,7 @@ export function CoverageView() {
       <Kpis label="Coverage summary">
         <Kpi label="Public-target deals" value={pub.total.toLocaleString("en-US")} note={`Since ${start.slice(0, 4)}, not terminated`} />
         <Kpi label="With a deal value" value={pct(pub, "value")} note={`Premium ${pct(pub, "premium")}`} text />
-        <Kpi label="With EV / EBITDA" value={pct(pub, "evEbitda")} note={`EV / Revenue ${pct(pub, "evRevenue")}`} text />
+        <Kpi label="With EV / Adj. EBITDA" value={pct(pub, "evEbitda")} note={`EV / Revenue ${pct(pub, "evRevenue")}`} text />
         <Kpi label="Private-target deals" value={priv.total.toLocaleString("en-US")} note={`${pct(priv, "value")} disclose a price`} />
       </Kpis>
       <Takeaways items={takeaways} />
@@ -114,8 +114,9 @@ export function CoverageView() {
           filings are read every hour on weekdays and every six hours otherwise.
         </p>
         <p>
-          A blank means the filings don&apos;t state the figure clearly: Castle never estimates one. Some blanks are expected. A merger of equals often states only the
-          combined company&apos;s size, a premium is shown only over the unaffected or last closing price, loss-making targets have no EV / EBITDA, and banks and
+          A blank means the filings don&apos;t state the figure clearly, or a calculated multiple failed a sanity check. Values and multiples are calculated only from
+          stated figures. Some blanks are expected. A merger of equals often states only the
+          combined company&apos;s size, a premium is shown only over the unaffected or last closing price, loss-making targets have no EV / Adj. EBITDA, and banks and
           insurers have no enterprise value at all. Most private-company purchases don&apos;t disclose a price.
         </p>
         <p>Terminated deals are left out of the public-deal table: an abandoned bid rarely reaches a merger proxy, where much of the detail comes from.</p>

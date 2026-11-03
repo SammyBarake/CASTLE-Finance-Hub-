@@ -1,6 +1,6 @@
 import { buyerType } from "@/lib/buyers";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatUsd } from "@/lib/format";
-import { median } from "@/lib/metrics";
+import { ADJ_EBITDA_DEFINITION, median } from "@/lib/metrics";
 import { feeLabel, feeUsd, financingLabel, goShopLabel, termsRows } from "@/lib/terms";
 import type { Deal, HubData } from "@/lib/types";
 import { SheetFigures, SheetRows, SheetSection, TearSheet } from "./TearSheet";
@@ -99,6 +99,7 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
     <TearSheet
       kind="Transaction tear sheet"
       asOf={data.asOf}
+      fine={deal.evEbitda != null || ctx?.evEbitda != null ? ADJ_EBITDA_DEFINITION : undefined}
       sources={
         <ul>
           {deal.filings.slice(0, 6).map((f) => (
@@ -127,7 +128,7 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
         items={[
           ["Deal value", formatUsd(deal.valueUsd), deal.enterpriseValueUsd ? `EV ${formatUsd(deal.enterpriseValueUsd)}` : undefined],
           ["Premium", formatPct(deal.premiumPct), "To unaffected price"],
-          ["EV / EBITDA", formatMultiple(deal.evEbitda), deal.evRevenue != null ? `${formatMultiple(deal.evRevenue)} EV / Revenue` : undefined],
+          ["EV / Adj. EBITDA", formatMultiple(deal.evEbitda), deal.evRevenue != null ? `${formatMultiple(deal.evRevenue)} EV / Revenue` : undefined],
           ["Consideration", considerationLabel(deal.consideration), deal.pricePerShare != null ? `${formatPrice(deal.pricePerShare)} per share` : undefined],
         ]}
       />
@@ -177,7 +178,7 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
               rows={[
                 ["Comparable deals", `${ctx.n} in the prior 24 months`],
                 ["Premium", vs(deal.premiumPct, ctx.premium, (v) => formatPct(v))],
-                ["EV / EBITDA", vs(deal.evEbitda, ctx.evEbitda, (v) => formatMultiple(v))],
+                ["EV / Adj. EBITDA", vs(deal.evEbitda, ctx.evEbitda, (v) => formatMultiple(v))],
                 ["Break fee", vs(pctOf(t?.targetFeeUsd, deal.valueUsd), ctx.breakFee, (v) => formatPct(v))],
               ]}
             />

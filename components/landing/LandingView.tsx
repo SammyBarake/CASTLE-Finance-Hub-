@@ -4,6 +4,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 import { ROUTES, type RouteId } from "@/components/shell/routes";
 import { formatSignedPct } from "@/lib/format";
 import type { LandingCounts, LandingDeal, LandingFigures, LandingKpi, LandingRecord, LandingSpecimens } from "@/lib/landing";
+import { ADJ_EBITDA_DEFINITION } from "@/lib/metrics";
 import { reportIssueUrl } from "@/lib/site";
 import { newsreader } from "./fonts";
 import { LandingBook } from "./LandingBook";
@@ -41,7 +42,7 @@ const FEATURES: { id: SpecimenId; name: string; line: string; count: (c: Landing
   {
     id: "precedents",
     name: "Precedents",
-    line: "Build a comps set with EV / EBITDA, EV / Revenue and premium quartiles and the banks' DCF ranges, then take it to Excel with live formulas.",
+    line: "Build a comps set with EV / Adj. EBITDA, EV / Revenue and premium quartiles and the banks' DCF ranges, then take it to Excel with live formulas.",
     count: (c) => (c.multiples == null ? null : `${n(c.multiples)} in the past 24 months`),
   },
   {
@@ -182,6 +183,8 @@ function Tombstone({ d, i }: { d: LandingDeal; i: number }) {
 const LEFT_COLUMNS = new Set(["Target", "Acquirer", "Advisor", "Company", "Lead bookrunner", "Stage", "Date"]);
 /** Columns that go first where a table has no room (phones). */
 const OPTIONAL_COLUMNS = new Set(["EV / Revenue", "Date", "Stage"]);
+/** The longest head may take two lines, only where the table has no room for it on one (a phone: "Premium" went off the edge). */
+const WRAPPING_COLUMNS = new Set(["EV / Adj. EBITDA"]);
 
 function ExhibitTable({ head, children }: { head: string[]; children: ReactNode }) {
   return (
@@ -190,7 +193,7 @@ function ExhibitTable({ head, children }: { head: string[]; children: ReactNode 
         <thead>
           <tr>
             {head.map((h) => (
-              <th key={h} scope="col" className={`${LEFT_COLUMNS.has(h) ? "l" : ""}${OPTIONAL_COLUMNS.has(h) ? " opt" : ""}`.trim() || undefined}>
+              <th key={h} scope="col" className={`${LEFT_COLUMNS.has(h) ? "l" : ""}${OPTIONAL_COLUMNS.has(h) ? " opt" : ""}`.trim() || undefined} style={WRAPPING_COLUMNS.has(h) ? { whiteSpace: "normal" } : undefined}>
                 {h || <span className="lx-sr">Rank</span>}
               </th>
             ))}
@@ -240,7 +243,7 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
       )}
       {s.precedents && (
         <Exhibit id="precedents" title={`Comps · ${s.precedents.screen} · ${n(s.precedents.n)} deals`} href={s.precedents.href} cta="Open this screen" active>
-          <ExhibitTable head={["Target", "Deal value", "EV / EBITDA", "EV / Revenue", "Premium"]}>
+          <ExhibitTable head={["Target", "Deal value", "EV / Adj. EBITDA", "EV / Revenue", "Premium"]}>
             {s.precedents.rows.map((r) => (
               <tr key={r.id}>
                 <td className="name" title={r.target}>
@@ -262,7 +265,7 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
               </tr>
             ))}
           </ExhibitTable>
-          <p className="lx-exhibit-note">As on Precedents: deal value is the enterprise value where it&apos;s known, else the headline value, and each statistic counts the deals that state it. EBITDA as reported, not adjusted.</p>
+          <p className="lx-exhibit-note">As on Precedents: deal value is the enterprise value where it&apos;s known, else the headline value, and each statistic counts the deals that state it. {ADJ_EBITDA_DEFINITION}</p>
         </Exhibit>
       )}
       {s.advisors.rows.length > 0 && (
@@ -342,7 +345,7 @@ function RecordCard({ r }: { r: LandingRecord }) {
     ["Offer price", r.price],
     ["Premium", r.premium],
     ["Payment", r.payment],
-    ["EV / EBITDA", r.evEbitda],
+    ["EV / Adj. EBITDA", r.evEbitda],
     ["EV / Revenue", r.evRevenue],
     [r.targetAdvisors.includes(",") ? "Target's advisors" : "Target's advisor", r.targetAdvisors],
     [r.acquirerAdvisors.includes(",") ? "Acquirer's advisors" : "Acquirer's advisor", r.acquirerAdvisors],

@@ -8,7 +8,7 @@ import { dealSize, type DcfRow } from "../precedents";
 import { SECTORS } from "../sectors";
 import type { Company, Deal, Economy, Ipo, LeagueTableEntry, SectorValuation } from "../types";
 import { dataDay } from "../freshness";
-import type { VolumeMatrix } from "../metrics";
+import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION, type VolumeMatrix } from "../metrics";
 import { fileName, link, num, pctFrac, usdM, type CellValue, type Column, type Figure, type WorkbookSpec } from "./spec";
 
 export interface ExportContext {
@@ -28,6 +28,7 @@ const quarterLabel = (q: string) => q.replace(/^(\d{4})-Q(\d)$/, "Q$2 $1");
 const DEAL_NOTES = [
   "Deal value is the headline transaction value as announced; enterprise value adds the target's net debt (none for banks, insurers and brokers).",
   "Premium is over the unaffected or last closing price only; premiums over VWAPs or 52-week highs are left out.",
+  ADJ_EBITDA_DEFINITION,
 ];
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ export const DEAL_COLUMNS: Column[] = [
   { header: "Offer price ($)", format: "price" },
   { header: "Premium", format: "pct", summary: true },
   { header: "EV / Revenue", format: "multiple", summary: true },
-  { header: "EV / EBITDA", format: "multiple", summary: true },
+  { header: "EV / Adj. EBITDA", format: "multiple", summary: true },
   { header: "Acquirer advisors", format: "text", width: 30 },
   { header: "Target advisors", format: "text", width: 30 },
   { header: "Source", format: "text", width: 12 },
@@ -87,7 +88,7 @@ const dealFigures = (sheet: string): Figure[] => [
   { label: "Total deal value ($M)", sheet, column: "Deal value ($M)", agg: "sum" },
   { label: "Median deal value ($M)", sheet, column: "Deal value ($M)", agg: "median" },
   { label: "Median premium", sheet, column: "Premium", agg: "median" },
-  { label: "Median EV / EBITDA", sheet, column: "EV / EBITDA", agg: "median" },
+  { label: "Median EV / Adj. EBITDA", sheet, column: "EV / Adj. EBITDA", agg: "median" },
   { label: "Median EV / Revenue", sheet, column: "EV / Revenue", agg: "median" },
 ];
 
@@ -134,7 +135,8 @@ export function precedentsWorkbook(deals: Deal[], dcf: DcfRow[], ctx: ExportCont
     { header: "Consideration", format: "text", width: 12 },
     { header: "Deal size ($M)", format: "usdM", summary: true },
     { header: "EV / Revenue", format: "multiple", summary: true },
-    { header: "EV / EBITDA", format: "multiple", summary: true },
+    { header: "EV / Adj. EBITDA", format: "multiple", summary: true },
+    { header: "EV / Reported EBITDA", format: "multiple", width: 13, summary: true },
     { header: "Premium", format: "pct", summary: true },
     { header: "Offer price ($)", format: "price" },
     { header: "Source", format: "text", width: 12 },
@@ -156,12 +158,13 @@ export function precedentsWorkbook(deals: Deal[], dcf: DcfRow[], ctx: ExportCont
         usdM(dealSize(d)),
         num(d.evRevenue),
         num(d.evEbitda),
+        num(d.evEbitdaReported),
         pctFrac(d.premiumPct),
         num(d.pricePerShare),
         filingCell(d),
       ]),
       summary: true,
-      notes: ["Deal size is enterprise value where known, else the headline deal value. Delete a row to drop an outlier: the summary rows recalculate."],
+      notes: ["Deal size is enterprise value where known, else the headline deal value. Delete a row to drop an outlier: the summary rows recalculate.", ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION],
     },
   ];
   if (dcf.length)
@@ -207,7 +210,7 @@ export function precedentsWorkbook(deals: Deal[], dcf: DcfRow[], ctx: ExportCont
       { label: "Precedents", sheet: "Precedents", column: "Announced", agg: "count" },
       { label: "Median deal size ($M)", sheet: "Precedents", column: "Deal size ($M)", agg: "median" },
       { label: "Median EV / Revenue", sheet: "Precedents", column: "EV / Revenue", agg: "median" },
-      { label: "Median EV / EBITDA", sheet: "Precedents", column: "EV / EBITDA", agg: "median" },
+      { label: "Median EV / Adj. EBITDA", sheet: "Precedents", column: "EV / Adj. EBITDA", agg: "median" },
       { label: "Median premium", sheet: "Precedents", column: "Premium", agg: "median" },
     ],
     sheets,
@@ -229,7 +232,7 @@ export function bookWorkbook(book: { title: string; thesis: string; byline: stri
     { header: "Consideration", format: "text", width: 12 },
     { header: "Deal size ($M)", format: "usdM", summary: true },
     { header: "EV / Revenue", format: "multiple", summary: true },
-    { header: "EV / EBITDA", format: "multiple", summary: true },
+    { header: "EV / Adj. EBITDA", format: "multiple", summary: true },
     { header: "Premium", format: "pct", summary: true },
     { header: "Offer price ($)", format: "price" },
     { header: "Comment", format: "text", width: 44 },
@@ -248,7 +251,7 @@ export function bookWorkbook(book: { title: string; thesis: string; byline: stri
       { label: "Deals", sheet, column: "Announced", agg: "count" },
       { label: "Median deal size ($M)", sheet, column: "Deal size ($M)", agg: "median" },
       { label: "Median EV / Revenue", sheet, column: "EV / Revenue", agg: "median" },
-      { label: "Median EV / EBITDA", sheet, column: "EV / EBITDA", agg: "median" },
+      { label: "Median EV / Adj. EBITDA", sheet, column: "EV / Adj. EBITDA", agg: "median" },
       { label: "Median premium", sheet, column: "Premium", agg: "median" },
     ],
     sheets: [
@@ -278,7 +281,7 @@ export function bookWorkbook(book: { title: string; thesis: string; byline: stri
             : [item.date || null, item.label || item.dealId, null, null, "Not in Castle's data", null, null, null, null, null, null, item.note || null, null, null],
         ),
         summary: true,
-        notes: ["Deal size is enterprise value where known, else the headline deal value. Delete a row to drop an outlier: the summary rows recalculate."],
+        notes: ["Deal size is enterprise value where known, else the headline deal value. Delete a row to drop an outlier: the summary rows recalculate.", ADJ_EBITDA_DEFINITION],
       },
     ],
     notes: [...DEAL_NOTES, "The selection of deals, the thesis and the comments are the book author's; the figures come from SEC filings via Castle."],
@@ -461,15 +464,15 @@ export function valuationsWorkbook(valuations: SectorValuation[], quarters: stri
   return {
     fileName: stamp(ctx, "Valuations"),
     title: "Transaction Valuations",
-    subtitle: "Median EV / EBITDA, EV / Revenue and premium paid by sector, quarter by quarter",
+    subtitle: "Median EV / Adj. EBITDA, EV / Revenue and premium paid by sector, quarter by quarter",
     asOf: ctx.asOf,
     isSample: ctx.isSample,
     sheets: [
-      metric("Median EV / EBITDA", "EV-EBITDA", (v) => v.medianEvEbitda, "multiple", (v) => v.sample.evEbitda),
+      metric("Median EV / Adj. EBITDA", "EV-Adj. EBITDA", (v) => v.medianEvEbitda, "multiple", (v) => v.sample.evEbitda),
       metric("Median EV / Revenue", "EV-Revenue", (v) => v.medianEvRevenue, "multiple", (v) => v.sample.evRevenue),
       metric("Median premium paid", "Premium", (v) => v.medianPremiumPct, "pct", (v) => v.sample.premium),
     ],
-    notes: ["Multiples cover public targets with EV and LTM financials; none for banks and insurers, or loss-making targets (EV / EBITDA)."],
+    notes: ["Multiples cover public targets with EV and LTM financials; none for banks and insurers, or loss-making targets (EV / Adj. EBITDA).", ADJ_EBITDA_DEFINITION],
   };
 }
 

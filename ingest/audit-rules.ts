@@ -37,7 +37,7 @@ export function auditDeal(d: Deal, asOf: string): Finding[] {
   // Premium and multiples
   if (d.premiumPct != null && (d.premiumPct < -50 || d.premiumPct > 300)) add("premium-out-of-range", `${d.premiumPct}%`);
   if (d.privateTarget && d.premiumPct != null) add("private-with-premium", `${d.premiumPct}%`);
-  if (d.evEbitda != null && (d.evEbitda <= 0 || d.evEbitda > 100)) add("ev-ebitda-out-of-range", `${d.evEbitda}x`);
+  if (d.evEbitda != null && (d.evEbitda <= 0 || d.evEbitda > 50)) add("ev-ebitda-out-of-range", `${d.evEbitda}x`);
   if (d.evRevenue != null && (d.evRevenue <= 0 || d.evRevenue > 60)) add("ev-revenue-out-of-range", `${d.evRevenue}x`);
 
   // Dates and status

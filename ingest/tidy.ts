@@ -111,7 +111,7 @@ function merge(keep: StoredDeal, later: StoredDeal) {
   if (later.acquirer.name.length > keep.acquirer.name.length && !isPlaceholderBuyer(later.acquirer.name)) keep.acquirer.name = later.acquirer.name;
   keep.acquirer.cik ??= later.acquirer.cik;
   keep.acquirer.ticker ??= later.acquirer.ticker;
-  for (const k of ["valueUsd", "pricePerShare", "premiumPct", "consideration", "enterpriseValueUsd", "evEbitda", "evRevenue"] as const) {
+  for (const k of ["valueUsd", "pricePerShare", "premiumPct", "consideration", "enterpriseValueUsd", "evEbitda", "evEbitdaReported", "evRevenue"] as const) {
     if (keep[k] == null && later[k] != null) (keep as unknown as Record<string, unknown>)[k] = later[k];
   }
   if (keep.valueKind == null) keep.valueKind = later.valueKind;

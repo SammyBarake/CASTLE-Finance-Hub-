@@ -25,7 +25,7 @@ export function dealsToCsv(deals: Deal[], isSample: boolean): string {
       "Sector",
       "Status",
       "Enterprise value (USD)",
-      "EV/EBITDA",
+      "EV/Adj. EBITDA",
       "EV/Revenue",
       "Acquirer advisors",
       "Target advisors",

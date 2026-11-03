@@ -118,7 +118,6 @@ export function timelineStats(deals: Deal[], asOf: string): TimelineStats {
 
 export const months = (days: number | null) => (days == null ? "—" : days < 45 ? `${days} days` : `${(days / 30.44).toFixed(1)} months`);
 
-/** Plain-English takeaways for someone learning how deals get done. */
 /** Short, number-led findings for the takeaways strip (the KPIs already carry the headline median and break rate). */
 export function timelineInsights(s: TimelineStats): string[] {
   const out: string[] = [];

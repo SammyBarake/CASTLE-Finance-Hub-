@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildWorkbook } from "./build";
 import { colLetter, pctFrac, percentileInc, sheetName, summaryResult, usdM, type WorkbookSpec } from "./spec";
 import { bookWorkbook, dealRow, DEAL_COLUMNS, precedentsWorkbook } from "./workbooks";
+import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION } from "../metrics";
 import { SUMMARY_ROWS, summarizeComps } from "../precedents";
 import type { Deal } from "../types";
 
@@ -72,7 +73,7 @@ describe("deal rows", () => {
 
 describe("buildWorkbook", () => {
   it("writes a cover, a styled comps table and live summary formulas that Excel can read back", async () => {
-    const deals = [deal({ evEbitda: 10 }), deal({ id: "b", evEbitda: 14, premiumPct: 40 }), deal({ id: "c", evEbitda: null, premiumPct: 20 })];
+    const deals = [deal({ evEbitda: 10, evEbitdaReported: 69.5 }), deal({ id: "b", evEbitda: 14, premiumPct: 40 }), deal({ id: "c", evEbitda: null, premiumPct: 20 })];
     const spec: WorkbookSpec = precedentsWorkbook(deals, [], ctx, { subtitle: "Tech · last 3 years", selection: ["Sector: Tech"], sector: "Tech" });
     const wb = buildWorkbook(ExcelJS, spec, { origin: "https://castle.test" });
     const back = new ExcelJS.Workbook();
@@ -85,11 +86,15 @@ describe("buildWorkbook", () => {
     expect(ws.getCell("A4").value).toBe("Announced");
     expect(ws.getCell("A5").value).toBeInstanceOf(Date);
     expect((ws.getCell("A5").value as Date).toISOString().slice(0, 10)).toBe("2026-01-05");
-    const ev = 10; // "EV / EBITDA" is the comps sheet's 10th column (J)
-    expect(ws.getCell(4, ev).value).toBe("EV / EBITDA");
+    const ev = 10; // "EV / Adj. EBITDA" is the comps sheet's 10th column (J), "EV / Reported EBITDA" the 11th (K)
+    expect(ws.getCell(4, ev).value).toBe("EV / Adj. EBITDA");
     expect(ws.getCell(5, ev).numFmt).toBe('0.0"x"');
-    expect(ws.getCell("K6").value).toBeCloseTo(0.4);
-    expect(ws.getCell("K6").numFmt).toBe("0.0%");
+    expect(ws.getCell(4, ev + 1).value).toBe("EV / Reported EBITDA");
+    expect(ws.getCell(5, ev + 1).value).toBe(69.5);
+    expect(ws.getCell(5, ev + 1).numFmt).toBe('0.0"x"');
+    expect(ws.getCell(6, ev + 1).value).toBeNull(); // a deal without one stays an empty cell
+    expect(ws.getCell("L6").value).toBeCloseTo(0.4);
+    expect(ws.getCell("L6").numFmt).toBe("0.0%");
     expect(ws.getCell("B5").value).toMatchObject({ text: "Widget Inc", hyperlink: "https://castle.test/company/2" });
     // Summary rows two below the last data row (7): High at 9, Median at 12, with formulas and cached results.
     expect(ws.getCell("A12").value).toBe("Median");
@@ -100,8 +105,12 @@ describe("buildWorkbook", () => {
     const cover = back.getWorksheet("Summary")!;
     const cells = cover.getSheetValues().flat(2).filter(Boolean);
     expect(cells).toContain("KEY FIGURES");
-    const median = cover.getColumn(3).values.find((v) => typeof v === "object" && v !== null && "formula" in v && /EV \/ EBITDA|J5:J7/.test(String((v as { formula: string }).formula)));
+    const median = cover.getColumn(3).values.find((v) => typeof v === "object" && v !== null && "formula" in v && /EV \/ Adj\. EBITDA|J5:J7/.test(String((v as { formula: string }).formula)));
     expect(median).toMatchObject({ formula: "IFERROR(MEDIAN('Precedents'!J5:J7),\"\")", result: 12 });
+    expect(cells).toContain("Median EV / Adj. EBITDA");
+    // The one definition, under the table and among the cover's notes.
+    expect(cells).toContain(ADJ_EBITDA_DEFINITION);
+    expect(ws.getSheetValues().flat(2)).toEqual(expect.arrayContaining([ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION]));
   });
 
   it("gives the same summary figures as the Precedents page", async () => {
@@ -125,7 +134,7 @@ describe("buildWorkbook", () => {
       expect(result(row, "H")).toBeCloseTo(page.size[key]! / 1e6, 0);
       expect(result(row, "I")).toBeCloseTo(page.evRevenue[key]!, 6);
       expect(result(row, "J")).toBeCloseTo(page.evEbitda[key]!, 6);
-      expect(result(row, "K")).toBeCloseTo(page.premium[key]! / 100, 6);
+      expect(result(row, "L")).toBeCloseTo(page.premium[key]! / 100, 6);
     });
   });
 

@@ -24,6 +24,21 @@ describe("extractProxyPremium", () => {
     expect(extractProxyPremium(t)).toBeNull();
   });
 
+  it("skips a premium over a high, unaffected or not", () => {
+    // Kellanova: the 33% over the 52-week high isn't read; the same 33% over the close, in the board's reasons, is.
+    const kellanova = `The Merger Consideration represents a premium of approximately 44% to Kellanova's unaffected 30-trading day volume weighted average price and a premium of approximately 33% to Kellanova's unaffected 52-week high as of August 2, 2024.`;
+    expect(extractProxyPremium(kellanova)).toBeNull();
+    expect(extractProxyPremium(`${kellanova} • the fact that the Merger Consideration of $83.50 per share to be received by Kellanova shareowners in the Merger represents a premium of: • approximately 33% over the closing price per share as of August 2, 2024, the last full trading day prior to Reuters' published article reporting that Mars was exploring an acquisition of Kellanova (the "Unaffected Date");`)).toBe(33);
+    for (const t of [
+      `This is a 15 percent premium over our all time high of the undisturbed share price before the transaction leaked.`,
+      `The Merger Consideration represents a 15% premium to the Company's unaffected 52-week high.`,
+      `The Merger Consideration represents a 9.5% premium to the unaffected peak trading price.`,
+      `The Merger Consideration represents a 7% premium to the unaffected five-year trading high.`,
+    ]) expect(extractProxyPremium(t), t).toBeNull();
+    // A high beside the close leaves the close standing.
+    expect(extractProxyPremium(`The Merger Consideration represents a premium of 33% to the unaffected closing share price of $52.57 on March 14, 2018 and exceeds the all-time high price of $69.72 per share.`)).toBe(33);
+  });
+
   it("ignores precedent statistics and ranges", () => {
     const t = `Goldman Sachs reviewed a median premium of 44% over the closing price of targets. QXO proposed a premium of 20% to 30% over the undisturbed share price. The median premium of 30% to the unaffected price was noted.`;
     expect(extractProxyPremium(t)).toBeNull();

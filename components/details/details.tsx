@@ -15,6 +15,7 @@ import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
+import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION } from "@/lib/metrics";
 import type { BuyerReaction, Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
 import { useBookActions } from "@/components/books/AddToBook";
 import { useRecordActions } from "@/components/workspace/actions";
@@ -217,7 +218,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
               <b>{formatPct(deal.premiumPct)}</b>
             </div>
             <div>
-              <span>EV / EBITDA</span>
+              <span>EV / Adj. EBITDA</span>
               <b>{formatMultiple(deal.evEbitda)}</b>
             </div>
             <div>
@@ -235,6 +236,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Consideration">{considerationLabel(deal.consideration)}</DetailItem>
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / Revenue">{formatMultiple(deal.evRevenue)}</DetailItem>
+            {deal.evEbitdaReported != null && <DetailItem label="EV / Reported EBITDA">{formatMultiple(deal.evEbitdaReported)}</DetailItem>}
             {deal.arb && (
               <DetailItem label="Merger-arb spread">
                 {formatPct(deal.arb.spreadPct)}
@@ -285,7 +287,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
                   <span className="mono">{formatUsd(d.enterpriseValueUsd ?? d.valueUsd)}</span>
                   {(d.evEbitda != null || d.premiumPct != null) && (
                     <small className="mono">
-                      {[d.evEbitda != null ? `${formatMultiple(d.evEbitda)} EBITDA` : null, d.premiumPct != null ? `${formatPct(d.premiumPct)} premium` : null].filter(Boolean).join(" · ")}
+                      {[d.evEbitda != null ? `${formatMultiple(d.evEbitda)} Adj. EBITDA` : null, d.premiumPct != null ? `${formatPct(d.premiumPct)} premium` : null].filter(Boolean).join(" · ")}
                     </small>
                   )}
                 </span>
@@ -516,7 +518,8 @@ function Definitions({ isSample }: { isSample: boolean }) {
     ["Deal volume", "Monthly totals of announced deals by sector, through the last complete month. YTD comparisons use the same months of the prior year."],
     ["IPO pipeline", "Filed: first-time S-1 / F-1 registrant. Priced: priced in the last 7 days (final 424B4 prospectus filed). Trading: priced more than 7 days ago. Expected raise is gross proceeds before fees (price range midpoint × shares, or the fee table)."],
     ["Advisor rankings", "Year to date by deal value. A transaction is credited to every named financial advisor, so totals include shared mandates. Rank change compares with the end of the prior quarter."],
-    ["Valuations", "Median transaction EV / EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. EBITDA and revenue are the target's last twelve months from XBRL filings."],
+    ["Valuations", "Median transaction EV / Adj. EBITDA, EV / Revenue and premium by sector and quarter. EV is the stated enterprise value, or equity value plus debt minus cash. Adjusted EBITDA and revenue are the target's last twelve months from XBRL filings."],
+    ["EV / Adj. EBITDA", `${ADJ_EBITDA_DEFINITION} ${REPORTED_EBITDA_DEFINITION}`],
     [
       "Activist investors",
       "Schedule 13D filings (structured format, since December 2024) where the company is U.S.-listed and the investor is a known activist fund or describes a concrete campaign in Item 4: nominating directors, a letter to the board, a settlement agreement, a special meeting. Founders, insiders, SPAC sponsors, holders above 50% and shares bought from the company are left out. Stake = the largest percentage reported by the related funds.",

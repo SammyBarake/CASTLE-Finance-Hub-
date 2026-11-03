@@ -143,7 +143,7 @@ export const DEAL_COLUMNS: { key: DealColumn; label: string; locked?: boolean; s
   { key: "status", label: "Status" },
   { key: "advisor", label: "Acquirer advisor" },
   { key: "consideration", label: "Consideration" },
-  { key: "evEbitda", label: "EV / EBITDA", right: true },
+  { key: "evEbitda", label: "EV / Adj. EBITDA", right: true },
 ];
 
 export const DEFAULT_COLUMNS: DealColumn[] = ["date", "acquirer", "target", "value", "premium", "sector", "status"];

@@ -20,8 +20,9 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     subtitle: book.thesis.trim() ? book.thesis.trim().replace(/\s+/g, " ").slice(0, 110) + (book.thesis.length > 110 ? "…" : "") : undefined,
     stats: [
       { label: "Deals", value: String(stats.count) },
-      { label: "Median EV / EBITDA", value: formatMultiple(stats.evEbitda.median) },
-      { label: "Median premium", value: formatPct(stats.premium.median) },
+      // "Median EV / Adj. EBITDA" takes two lines at this size and drops its figure below the others.
+      { label: "Med. EV / Adj. EBITDA", value: formatMultiple(stats.evEbitda.median) },
+      { label: "Med. premium", value: formatPct(stats.premium.median) },
       { label: "Total value", value: formatUsd(stats.totalValueUsd) },
     ],
   });

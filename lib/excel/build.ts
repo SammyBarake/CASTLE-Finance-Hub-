@@ -252,7 +252,7 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
   r++;
   const notes = [
     ...(spec.notes ?? []),
-    "Money is in U.S. dollars, millions ($M). Percentages are shown as %, multiples as x. A blank means the filings don't state the figure: Castle never estimates one.",
+    "Money is in U.S. dollars, millions ($M). Percentages are shown as %, multiples as x. A blank means the filings don't state the figure clearly, or a calculated multiple failed a sanity check. Values and multiples are calculated only from stated figures.",
     "Summary rows and key figures are live formulas: edit or delete rows and they recalculate.",
   ];
   heading("NOTES");

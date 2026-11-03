@@ -2,10 +2,13 @@ import type { ReactNode } from "react";
 import { formatDateLong } from "@/lib/format";
 import { dataDay } from "@/lib/freshness";
 
-/** A printable Letter-size page: logo header, content, sources and disclaimer footer. */
-export function TearSheet({ kind, asOf, children, sources }: { kind: string; asOf: string; children: ReactNode; sources: ReactNode }) {
+/**
+ * A printable Letter-size page: logo header, content, sources and disclaimer footer. `fine` is a line of small print
+ * above the disclaimer; many sheets fill the page exactly, so printing with it takes a little from the gaps between sections.
+ */
+export function TearSheet({ kind, asOf, children, sources, fine }: { kind: string; asOf: string; children: ReactNode; sources: ReactNode; fine?: string }) {
   return (
-    <article className="sheet" aria-label={`${kind} tear sheet`}>
+    <article className={fine ? "sheet print:gap-3.5" : "sheet"} aria-label={`${kind} tear sheet`}>
       <header className="sheet-head">
         {/* The cream logo is drawn dark on paper (CSS filter), keeping its transparent background. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -21,6 +24,7 @@ export function TearSheet({ kind, asOf, children, sources }: { kind: string; asO
           <span className="sheet-label">Sources</span>
           {sources}
         </div>
+        {fine && <p>{fine}</p>}
         <p>Prepared with Castle from public SEC EDGAR filings. Figures are extracted automatically; verify against the source documents. Not investment advice.</p>
       </footer>
     </article>

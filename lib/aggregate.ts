@@ -192,6 +192,7 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     statusDate: d.statusDate,
     enterpriseValueUsd: d.enterpriseValueUsd,
     evEbitda: d.evEbitda,
+    ...(d.evEbitdaReported != null ? { evEbitdaReported: d.evEbitdaReported } : {}),
     evRevenue: d.evRevenue,
     acquirerAdvisors: d.acquirerAdvisors,
     targetAdvisors: d.targetAdvisors,

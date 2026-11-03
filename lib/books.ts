@@ -140,7 +140,7 @@ export function bookTakeaways(rows: BookRow[], all: Deal[]): string[] {
     const side = Math.abs(gap) < 0.05 * Math.abs(theirs.median) ? "in line with" : gap > 0 ? `${fmt(Math.abs(gap))} above` : `${fmt(Math.abs(gap))} below`;
     out.push(`Median ${label} ${fmt(mine.median)}, ${side} the ${fmt(theirs.median)} for all ${scope} Castle tracked over the same dates.`);
   };
-  compare("EV / EBITDA", (d) => d.evEbitda, formatMultiple);
+  compare("EV / Adj. EBITDA", (d) => d.evEbitda, formatMultiple);
   compare("premium", (d) => d.premiumPct, (v) => formatPct(v));
 
   const paid = deals.filter((d) => d.consideration);

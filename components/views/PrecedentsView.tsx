@@ -16,6 +16,7 @@ import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { precedentsWorkbook } from "@/lib/excel/workbooks";
 import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { ADJ_EBITDA_DEFINITION } from "@/lib/metrics";
 import {
   dcfRows,
   dealSize,
@@ -80,7 +81,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
   const exportRows = () => {
     const fmt = (v: number | null, digits = 1) => (v == null ? null : Number(v.toFixed(digits)));
     const csv = toCsv(
-      ["Announced", "Target", "Acquirer", "Deal size (USD)", "EV / EBITDA", "EV / Revenue", "Premium (%)", "Consideration", "Status"],
+      ["Announced", "Target", "Acquirer", "Deal size (USD)", "EV / Adj. EBITDA", "EV / Revenue", "Premium (%)", "Consideration", "Status"],
       [
         ...included.map((d) => [d.announcedDate, d.target.name, d.acquirer.name, dealSize(d), d.evEbitda, d.evRevenue, d.premiumPct, d.consideration, d.status]),
         [],
@@ -143,7 +144,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
       <Kpis label="Precedent summary">
         <Kpi label="Precedents" value={included.length} note={excluded.size ? `${rows.length - included.length} excluded by you` : `${rows.length} match the screen`} />
         <Kpi
-          label="Median EV / EBITDA"
+          label="Median EV / Adj. EBITDA"
           value={formatMultiple(stats.evEbitda.median)}
           note={(subject && vsMedian(subject.evEbitda, stats.evEbitda.median)) ?? range(stats.evEbitda, formatMultiple)}
         />
@@ -207,7 +208,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
                 <th scope="col">TARGET</th>
                 <th scope="col">ACQUIRER</th>
                 <th scope="col" className="right">DEAL VALUE</th>
-                <th scope="col" className="right">EV / EBITDA</th>
+                <th scope="col" className="right">EV / ADJ. EBITDA</th>
                 <th scope="col" className="right">EV / REVENUE</th>
                 <th scope="col" className="right">PREMIUM</th>
                 <th scope="col">CONSIDERATION</th>
@@ -285,7 +286,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
         </div>
         <div className="panel-foot">
           <span>
-            Statistics use ticked rows only · n = {stats.evEbitda.n} (EV / EBITDA), {stats.evRevenue.n} (EV / Revenue), {stats.premium.n} (premium)
+            Statistics use ticked rows only · n = {stats.evEbitda.n} (EV / Adj. EBITDA), {stats.evRevenue.n} (EV / Revenue), {stats.premium.n} (premium)
           </span>
           <span>Deal size = enterprise value, else headline value</span>
         </div>
@@ -293,9 +294,10 @@ function Precedents({ dealId }: { dealId: string | null }) {
       <PrecedentsDcf deals={included} onOpen={openDeal} />
       <AboutData>
         <p>
-          Multiples use the target&apos;s last-twelve-month revenue and EBITDA from its XBRL filings. EV is the stated enterprise value, or equity value plus debt
-          minus cash. A dash means not disclosed; blanks are left out of the statistics, never counted as zero.
+          Multiples use the target&apos;s last-twelve-month revenue and adjusted EBITDA from its XBRL filings. EV is the stated enterprise value, or equity value plus debt
+          minus cash. A dash means not disclosed, or a calculated multiple that failed a sanity check; blanks are left out of the statistics, never counted as zero.
         </p>
+        <p>{ADJ_EBITDA_DEFINITION}</p>
         <p>
           The DCF panel reads the target board&apos;s bank: the discounted cash flow range of value per share in its fairness opinion, as the merger proxy
           summarises it, with the discount rate and terminal growth it used. An offer above the range means the bank&apos;s own cash-flow view valued the company

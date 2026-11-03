@@ -60,7 +60,7 @@ export const DEAL_HEADERS = [
   "Offer price ($)",
   "Premium (%)",
   "EV / Revenue",
-  "EV / EBITDA",
+  "EV / Adj. EBITDA",
   "Acquirer advisors",
   "Target advisors",
   "Source filing",
@@ -100,7 +100,7 @@ export const dealsTable = (deals: Deal[], site: string): LiveTable => ({ headers
 // Precedents: the comps screen (?sector=…&deal=<subject>&x=<unticked ids>)
 // ---------------------------------------------------------------------------
 
-const COMPS_HEADERS = ["Announced", "Target", "Acquirer", "Sector", "Industry", "Status", "Consideration", "Deal size ($M)", "EV / Revenue", "EV / EBITDA", "Premium (%)", "Offer price ($)", "Source filing", "Castle tear sheet"];
+const COMPS_HEADERS = ["Announced", "Target", "Acquirer", "Sector", "Industry", "Status", "Consideration", "Deal size ($M)", "EV / Revenue", "EV / Adj. EBITDA", "Premium (%)", "Offer price ($)", "Source filing", "Castle tear sheet"];
 
 const compsCells = (d: Deal, site: string): Cell[] => [
   d.announcedDate,

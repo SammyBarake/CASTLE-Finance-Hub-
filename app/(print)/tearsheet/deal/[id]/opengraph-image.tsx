@@ -1,4 +1,4 @@
-import { formatDateLong, formatPct, formatUsd } from "@/lib/format";
+import { formatDateLong, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { getDeal } from "@/lib/data";
 import { OG_SIZE, ogCard } from "@/lib/ogCard";
 
@@ -19,7 +19,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
       { label: "Deal value", value: formatUsd(deal.valueUsd) },
       { label: "Premium", value: formatPct(deal.premiumPct) },
       { label: "Status", value: deal.status },
-      ...(deal.evEbitda != null ? [{ label: "EV / EBITDA", value: `${deal.evEbitda.toFixed(1)}x` }] : []),
+      ...(deal.evEbitda != null ? [{ label: "EV / Adj. EBITDA", value: formatMultiple(deal.evEbitda) }] : []),
     ],
   });
 }

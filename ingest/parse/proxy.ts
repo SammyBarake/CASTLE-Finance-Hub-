@@ -5,7 +5,7 @@
  */
 import { findBanks } from "../../lib/banks";
 import { namesCompany, sameCompany } from "./names";
-import { extractAdvisors } from "./press";
+import { extractAdvisors, isOverAHigh } from "./press";
 
 export interface ParsedProxy {
   premiumPct: number | null;
@@ -75,7 +75,9 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     if (/\b(?:\d+|one|two|three|six|twelve)\s+(?:calendar\s+|trading\s+)?(?:days?|weeks?|months?|years?)\s+(?:prior|before)\b(?!\s+(?:to\s+)?the\s+(?:public\s+)?announcement)/i.test(ctx.slice(0, 160))) continue;
     const closing = /\b(?:closing|close|unaffected|undisturbed)\b[^.;]{0,40}\b(?:price|share price|stock price|trading price)s?\b|\bunaffected\b/i.test(ctx);
     if (!closing) continue;
-    if (/volume[- ]weighted|VWAP|average|\b\d+[- ](?:trading[- ]|calendar[- ])?day\b|\bhighest\b|\ball-time high\b|52\)?[- ]week|fifty-two|\d+-month/i.test(ctx)) continue;
+    // ("Unaffected" reads as a close above, and a high is none: "a premium of 33% to Kellanova's unaffected 52-week high",
+    // "a 15 percent premium over our all time high of the undisturbed share price".)
+    if (/volume[- ]weighted|VWAP|average|\b\d+[- ](?:trading[- ]|calendar[- ])?day\b|\d+-month/i.test(ctx) || isOverAHigh(ctx)) continue;
     const pct = Number(m[1]);
     if (!(pct > 0 && pct < 300)) continue;
     const score =

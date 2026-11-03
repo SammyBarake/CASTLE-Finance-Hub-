@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/ui/Icon";
 import { CompanyMark, PanelHead, SectorLabel } from "@/components/ui/primitives";
 import { bankShortName } from "@/lib/banks";
 import type { AdviserOutlook } from "@/lib/ripple/advisers";
@@ -27,7 +28,7 @@ function Row({ o, rank, largest, onOpen, assumed }: { o: AdviserOutlook; rank: n
         <span>
           <strong>
             {o.bank}
-            {assumed && <span className="ripple-mark inline" title="Leans mostly on hand-set links (assumption)" aria-hidden="true" />}
+            {assumed && <span className="ripple-mark in-name" title="Leans mostly on hand-set links (assumption)" aria-hidden="true" />}
           </strong>
           <small>{o.driver ? <SectorLabel sector={o.driver} /> : "No sector exposure"}</small>
         </span>
@@ -54,23 +55,36 @@ export function AdviserPanel({ outlook, window, quarters, onOpen, assumed }: { o
   const anyAssumed = [...rise, ...fall].some(assumed);
   return (
     <section className="panel">
-      <PanelHead title="Advisers" subtitle={`Each bank's share of sector deal value (${window}) × the predicted change in deal value over ${quarters} quarters · click for why`}>
-        {anyAssumed && (
-          <span className="panel-legend">
-            <span className="ripple-mark static" aria-hidden="true" /> assumption
-          </span>
-        )}
-      </PanelHead>
-      <div className="adviser-split">
-        <div>
-          <h3 className="adviser-split-head">Positioned to rise</h3>
-          {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
+      <PanelHead title="Advisers" subtitle="Estimated effect on banks' deal value, by sector exposure. A model estimate, not a view on any bank." />
+      {/* Folded: these lists name real banks from a model whose links are mostly still assumptions. The heading stays outside the summary, where screen readers still list it. */}
+      <details className="about-data adviser-fold">
+        <summary>
+          <Icon name="chevron" />
+          Banks in this scenario
+        </summary>
+        <div className="adviser-fold-body">
+          <div className="adviser-fold-note">
+            <span>
+              Each bank&apos;s share of sector deal value ({window}) × the predicted change in deal value over {quarters} quarters · click a row for why
+            </span>
+            {anyAssumed && (
+              <span className="panel-legend">
+                <span className="ripple-mark static" aria-hidden="true" /> assumption
+              </span>
+            )}
+          </div>
+          <div className="adviser-split">
+            <div>
+              <h3 className="adviser-split-head">More deal value</h3>
+              {rise.length ? rise.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank gains deal value in this scenario.</div>}
+            </div>
+            <div>
+              <h3 className="adviser-split-head">Less deal value</h3>
+              {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
+            </div>
+          </div>
         </div>
-        <div>
-          <h3 className="adviser-split-head">Positioned to fall</h3>
-          {fall.length ? fall.map((o, i) => <Row key={o.bank} o={o} rank={i + 1} largest={largest} onOpen={onOpen} assumed={assumed(o)} />) : <div className="empty-small">No bank loses deal value in this scenario.</div>}
-        </div>
-      </div>
+      </details>
     </section>
   );
 }
