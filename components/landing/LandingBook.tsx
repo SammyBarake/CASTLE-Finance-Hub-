@@ -97,6 +97,14 @@ export function LandingBook() {
     // Which leaf is on top: a covered leaf's animations rest, and the fixed button and fore-edge follow along.
     const sentinels = [...root.querySelectorAll<HTMLElement>(".lx-sentinel")];
     const edge = [...root.querySelectorAll<HTMLElement>(".lx-fore a")];
+    // Only the reader's own scrolling clears a hash, never the browser's jump to it on load.
+    let reading = false;
+    const startReading = () => {
+      reading = true;
+    };
+    const READING = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
+    READING.forEach((n) => window.addEventListener(n, startReading, { passive: true, once: true }));
+    cleanups.push(() => READING.forEach((n) => window.removeEventListener(n, startReading)));
     const syncTop = () => {
       const mid = window.innerHeight * 0.5;
       let top = 0;
@@ -105,6 +113,8 @@ export function LandingBook() {
       });
       leaves.forEach((l, i) => l.classList.toggle("covered", sentinels[i + 1]?.getBoundingClientRect().top <= 0));
       edge.forEach((a, i) => (i === top ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
+      // A hash the reader has scrolled away from would pull Back and Reload to that leaf, not the one they left.
+      if (reading && location.hash && sentinels.findIndex((s) => `#${s.id}` === location.hash) !== top) window.history.replaceState(window.history.state, "", location.pathname + location.search);
       root.dataset.top = String(top);
       root.dataset.last = top === leaves.length - 1 ? "1" : "0";
       // The fixed button's colours follow the leaf under the button itself, near the top of the window.
@@ -207,15 +217,24 @@ export function LandingBook() {
     });
 
     // The fore-edge: a plain hash link would make a history entry the router doesn't own, and Back from any page reached
-    // after it would change the address and leave the other page on screen. So: scroll, and keep the router's entry.
-    const fore = root.querySelector(".lx-fore");
-    const onFore = (e: Event) => {
+    // after it would change the address and leave the other page on screen. So it scrolls and nothing else: the address
+    // stays, since Back and Reload would then go to that leaf, not the one the reader had moved on to.
+    const fore = root.querySelector<HTMLElement>(".lx-fore");
+    const onFore = (e: MouseEvent) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
       const link = (e.target as HTMLElement).closest?.<HTMLAnchorElement>("a[href^='#']");
       const to = link && document.getElementById(link.hash.slice(1));
       if (!to) return;
       e.preventDefault();
-      window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY, behavior: html.classList.contains("lx") ? "smooth" : "auto" });
-      window.history.replaceState(window.history.state, "", link.hash);
+      // Enter on a hairline (a click with no pointer): the next Tab starts in the leaf it asked for.
+      const keyboard = e.detail === 0;
+      window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY, behavior: html.classList.contains("lx") && !keyboard ? "smooth" : "instant" });
+      const leaf = to.nextElementSibling;
+      if (keyboard && leaf instanceof HTMLElement) {
+        leaf.tabIndex = -1;
+        leaf.focus({ preventScroll: true });
+        leaf.addEventListener("blur", () => leaf.removeAttribute("tabindex"), { once: true });
+      }
     };
     fore?.addEventListener("click", onFore);
     cleanups.push(() => fore?.removeEventListener("click", onFore));

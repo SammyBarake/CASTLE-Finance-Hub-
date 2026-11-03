@@ -6,6 +6,7 @@
  */
 import { coverageStart } from "./aggregate";
 import { considerationLabel, formatDateFull, formatDateLong, formatMonth, formatMultiple, formatPct, formatPrice, formatRaise, formatTimestampET, formatUsd, formatUsdB1 } from "./format";
+import { dataDay } from "./freshness";
 import { buildVolumeMatrix, completeMonths, headlineFigures, sum, ytdSummary, type VolumeMatrix, type YtdSummary } from "./metrics";
 import { initials, isPlaceholderBuyer, withoutLegalForm } from "./names";
 import { monthAngle, plateSeries, spokeTip } from "./plate";
@@ -61,7 +62,6 @@ export interface LandingDeal {
   value: string;
   /** Set large, in at most three significant figures: "$115B", "$5.71B". */
   figure: string;
-  sector: Sector;
   /** "to acquire", or "acquired" once closed. */
   verb: string;
   /** The lead bank on each side, the target's first. */
@@ -260,7 +260,6 @@ function landingDeal(d: Deal): LandingDeal {
     dateFull: formatDateFull(d.announcedDate),
     value: formatUsd(d.valueUsd),
     figure: formatUsdShort(d.valueUsd),
-    sector: d.sector,
     verb: verbOf(d),
     advisors: lead,
     moreAdvisors: all.size - lead.length,
@@ -462,7 +461,7 @@ export function landingFigures(data: HubData): LandingFigures {
   };
 
   // 2. Announced M&A value: the Hub's year to date, or the last 12 complete months while the year is young.
-  const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf.slice(0, 7));
+  const matrix = buildVolumeMatrix(data.monthlyVolume, dataDay(data.asOf).slice(0, 7));
   const ytd = ytdSummary(matrix, data.yearToDate);
   let value: LandingKpi;
   let valueOgLabel: string;
@@ -545,8 +544,8 @@ export function landingFigures(data: HubData): LandingFigures {
     plate: landingPlate(data, matrix, data.asOf),
     counts: {
       deals: data.totalDeals,
-      // As Precedents counts them: terminated deals are out by default.
-      multiples: fullFeed ? data.deals.filter((d) => d.status !== "Terminated" && (d.evEbitda != null || d.evRevenue != null)).length : null,
+      // What the row opens: Precedents' default screen.
+      multiples: fullFeed ? screenPrecedents(data.deals, DEFAULT_PRECEDENTS, data.asOf).length : null,
       banks: entries.length,
       ipos: headline.ipoFiledCount,
       terms: fullFeed && terms ? terms : null,

@@ -183,7 +183,7 @@ describe("landingFigures: latest deals", () => {
     const f = landingFigures(hub({ deals }));
     expect(f.deals.map((d) => d.id)).toEqual(["a", "b", "c", "d"]);
     expect(f.dealsNote).toBe("$500M and up");
-    expect(f.deals[0]).toMatchObject({ target: "Alpha Robotics", mark: "AR", date: "Oct 20", value: "$1.00B", sector: "Tech" });
+    expect(f.deals[0]).toMatchObject({ target: "Alpha Robotics", mark: "AR", date: "Oct 20", value: "$1.00B" });
   });
 
   it("falls back to the newest with any disclosed value, and hides the panel under 3", () => {

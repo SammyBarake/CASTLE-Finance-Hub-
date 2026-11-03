@@ -42,7 +42,7 @@ const FEATURES: { id: SpecimenId; name: string; line: string; count: (c: Landing
     id: "precedents",
     name: "Precedents",
     line: "Build a comps set with EV / EBITDA, EV / Revenue and premium quartiles and the banks' DCF ranges, then take it to Excel with live formulas.",
-    count: (c) => (c.multiples == null ? null : `${n(c.multiples)} with multiples`),
+    count: (c) => (c.multiples == null ? null : `${n(c.multiples)} in the past 24 months`),
   },
   {
     id: "advisors",
@@ -151,20 +151,16 @@ function Tombstone({ d, i }: { d: LandingDeal; i: number }) {
         className="lx-tomb-link"
         href={`/tearsheet/deal/${encodeURIComponent(d.id)}`}
         prefetch={false}
-        title={d.advisorsTitle || undefined}
-        aria-label={`${d.acquirer} ${d.verb} ${d.target}: open the tear sheet${d.advisorsTitle ? `. ${d.advisorsTitle}` : ""}`}
+        title={[d.value, d.advisorsTitle].filter(Boolean).join(" · ")}
+        aria-label={`${d.acquirer} ${d.verb} ${d.target}, ${d.value}: open the tear sheet${d.advisorsTitle ? `. ${d.advisorsTitle}` : ""}`}
       />
       <i className="lx-tomb-frame" aria-hidden="true" />
       <h3 className="lx-tomb-names">
         <strong>{d.acquirer}</strong> <em>{d.verb}</em> <strong>{d.target}</strong>
       </h3>
-      <div className="lx-tomb-value" title={d.value}>
-        {d.figure}
-      </div>
+      <div className="lx-tomb-value">{d.figure}</div>
       <div className="lx-tomb-foot">
-        <span>
-          {d.dateFull} · {d.sector}
-        </span>
+        <span>{d.dateFull}</span>
         <span className="lx-tomb-adv">
           {d.advisors.length > 0 && (
             <>
@@ -229,8 +225,12 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
             {s.dealFlow.rows.map((r) => (
               <tr key={r.id}>
                 <td className="opt">{r.date}</td>
-                <td className="name">{r.acquirer}</td>
-                <td className="name">{r.target}</td>
+                <td className="name" title={r.acquirer}>
+                  {r.acquirer}
+                </td>
+                <td className="name" title={r.target}>
+                  {r.target}
+                </td>
                 <td className="num">{r.value}</td>
                 <td className="num">{r.premium}</td>
               </tr>
@@ -243,7 +243,9 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
           <ExhibitTable head={["Target", "Deal value", "EV / EBITDA", "EV / Revenue", "Premium"]}>
             {s.precedents.rows.map((r) => (
               <tr key={r.id}>
-                <td className="name">{r.target}</td>
+                <td className="name" title={r.target}>
+                  {r.target}
+                </td>
                 <td className="num">{r.value}</td>
                 <td className="num">{r.evEbitda}</td>
                 <td className="num opt">{r.evRevenue}</td>
@@ -269,7 +271,7 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
             {s.advisors.rows.map((r) => (
               <tr key={r.name}>
                 <td className="num rank">{r.rank}</td>
-                <td className="name">
+                <td className="name" title={r.name}>
                   {r.name}
                   <i className="lx-bar" style={{ "--share": r.share } as CSSProperties} aria-hidden="true" />
                 </td>
@@ -284,11 +286,15 @@ function Exhibits({ s }: { s: LandingSpecimens }) {
         <ExhibitTable head={["Company", "Stage", "Date", "Expected raise", "Lead bookrunner"]}>
           {s.ipos.rows.map((r) => (
             <tr key={r.company + r.date}>
-              <td className="name">{r.company}</td>
+              <td className="name" title={r.company}>
+                {r.company}
+              </td>
               <td className="opt">{r.stage}</td>
               <td className="opt">{r.date}</td>
               <td className="num">{r.raise}</td>
-              <td className="name">{r.bank}</td>
+              <td className="name" title={r.bank}>
+                {r.bank}
+              </td>
             </tr>
           ))}
         </ExhibitTable>
@@ -372,7 +378,7 @@ const LEAVES: { id: string; name: string }[] = [
   { id: "transactions", name: "Recent transactions" },
   { id: "terminal", name: "In the terminal" },
   { id: "notes", name: "Notes on the data" },
-  { id: "close", name: "Open the terminal" },
+  { id: "close", name: "Back cover" },
 ];
 
 export function LandingView({ figures, authEnabled }: { figures: LandingFigures; authEnabled: boolean }) {

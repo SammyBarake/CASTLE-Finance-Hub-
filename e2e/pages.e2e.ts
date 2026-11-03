@@ -122,9 +122,11 @@ test("Back works after the landing page's fore-edge, and a link from a low leaf 
   const errors = watchErrors(page);
   await page.goto("/", { waitUntil: "networkidle" });
   await page.evaluate(() => document.documentElement.classList.add("lx-test"));
-  await page.locator('.lx-fore a[href="#terminal"]').click();
-  await expect(page).toHaveURL(/#terminal$/);
-  await expect.poll(() => page.evaluate(() => Math.abs(document.getElementById("terminal")!.getBoundingClientRect().top))).toBeLessThan(2);
+  await page.locator('.lx-fore a[href="#notes"]').click();
+  await expect.poll(() => page.evaluate(() => Math.abs(document.getElementById("notes")!.getBoundingClientRect().top))).toBeLessThan(2);
+  // The address stays as it was: a hash would pull Back and Reload to that leaf once the reader has moved on.
+  expect(new URL(page.url()).hash).toBe("");
+  await page.evaluate(() => window.scrollTo({ top: document.getElementById("terminal")!.getBoundingClientRect().top + window.scrollY, behavior: "instant" }));
   const leaf = await page.evaluate(() => window.scrollY);
   await page.locator('.lx-row[data-s="deal-flow"]').click();
   await expect(page).toHaveURL(/\/deal-flow$/);
@@ -134,6 +136,16 @@ test("Back works after the landing page's fore-edge, and a link from a low leaf 
   await expect(page.locator(".landing")).toBeAttached();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(leaf);
   expect(errors).toEqual([]);
+});
+
+test("Enter on a fore-edge hairline carries keyboard focus into that leaf", async ({ page }) => {
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.locator('.lx-fore a[href="#terminal"]').focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains("lx-terminal"))).toBe(true);
+  await expect.poll(() => page.evaluate(() => Math.abs(document.getElementById("terminal")!.getBoundingClientRect().top))).toBeLessThan(2);
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => !!document.activeElement?.closest(".lx-terminal"))).toBe(true);
 });
 
 test("the landing page is complete with motion off: nothing waits for an animation", async ({ browser }) => {

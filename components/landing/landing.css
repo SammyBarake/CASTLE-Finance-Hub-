@@ -151,7 +151,7 @@ html:not(.lx) .lx-light { display: none; }
 .lx-hint-touch { display: none; }
 @media (hover: none) { .lx-hint-pointer { display: none; } .lx-hint-touch { display: inline; } }
 .lx-dial { justify-self: center; width: min(86svh, 100%); }
-.lx-dial-hit { position: absolute; inset: 0; border-radius: 50%; cursor: crosshair; touch-action: pan-y; outline-offset: 6px; }
+.lx-dial-hit { position: absolute; inset: 0; border-radius: 50%; cursor: crosshair; touch-action: pan-y pinch-zoom; outline-offset: 6px; }
 .lx-year { paint-order: stroke; stroke: #000; stroke-width: 10px; fill: var(--grey); font-size: calc(10.5px * var(--lx-u, 2.4)); font-family: var(--font-inter), system-ui, sans-serif; letter-spacing: 0.04em; }
 .lx-league { fill: #8a8882; font-size: calc(10px * var(--lx-u, 2.4)); font-family: var(--font-inter), system-ui, sans-serif; font-weight: 500; }
 .lx-needle { position: absolute; left: 50%; top: 0; width: 0; height: 50%; transform-origin: 50% 100%; pointer-events: none; transition: transform 0.14s var(--ease); }
@@ -162,13 +162,13 @@ html:not(.lx) .lx-light { display: none; }
 .lx-readout-value { margin-top: 2px; font-family: var(--serif); font-weight: 220; font-size: clamp(34px, 5.6svh, 54px); line-height: 1.05; letter-spacing: -0.03em; }
 .lx-readout-deals { font-size: 11px; color: var(--grey); }
 .lx-readout-largest { display: block; min-height: 4.2em; margin-top: 8px; font-size: 10.5px; line-height: 1.4; color: var(--silver); text-decoration: none; pointer-events: auto; cursor: pointer; }
-.lx-readout-largest > span:first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lx-readout-largest > span:first-child { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .lx-readout-largest-value { display: block; }
 .lx-readout-largest:hover { color: var(--ivory); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---------- IV. tombstones ---------- */
 .lx-transactions > .lx-sheet { gap: clamp(14px, 2.6vh, 28px); }
-.lx-tombs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.6vw, 26px); height: clamp(380px, min(68vh, 41vw), 760px); margin-top: auto; }
+.lx-tombs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.6vw, 26px); min-height: clamp(380px, min(68vh, 41vw), 760px); margin-top: auto; }
 .lx-tomb-note { margin-bottom: auto; }
 .lx-tombs.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .lx-tomb { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto 1fr; align-items: center; gap: 18px; padding: clamp(26px, 5vh, 48px) clamp(16px, 1.6vw, 26px); text-align: center; border: 1px solid var(--press); }
@@ -207,6 +207,7 @@ html:not(.lx) .lx-light { display: none; }
 .lx-exhibits { position: relative; display: grid; align-self: center; }
 .lx-exhibit { grid-area: 1 / 1; min-width: 0; opacity: 0; pointer-events: none; transition: opacity 0.35s var(--ease); }
 html:not(.lx-ok) .lx-exhibit:focus-within { opacity: 1; }
+html:not(.lx-ok) .lx-contents:has(.lx-exhibit:focus-within) .lx-exhibit:not(:focus-within) { opacity: 0; }
 .lx-contents:not(:has(.lx-exhibit)) { grid-template-columns: minmax(0, 1fr); }
 .lx-exhibit figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding-bottom: 12px; font-size: 11.5px; color: var(--silver); }
 .lx-exhibit figcaption a { flex: none; color: var(--ivory); text-decoration: none; font-weight: 500; }
@@ -285,13 +286,15 @@ html:not(.lx-ok) .lx-exhibit:focus-within { opacity: 1; }
 
 /* ---------- furniture: the fixed button and the fore-edge, shown only in motion mode on a wide screen ---------- */
 .lx-float, .lx-fore { display: none; }
-.lx-leaving .lx-book, .lx-leaving .lx-fore, .lx .landing.lx-leaving .lx-float { opacity: 0; pointer-events: none; transition: opacity 0.22s ease-out; }
+.lx-leaving .lx-book, .lx-leaving .lx-fore, .lx .landing.lx-leaving:not([data-top="0"])[data-top]:not([data-last="1"]) .lx-float { opacity: 0; pointer-events: none; transition: opacity 0.22s ease-out; }
 .lx-leaving::before { content: ""; position: fixed; z-index: 40; left: 0; right: 0; top: 0; height: 1px; background: var(--ivory); transform-origin: left; animation: lx-progress 7s cubic-bezier(0.08, 0.7, 0.2, 1) 0.3s both; }
 @keyframes lx-progress { from { transform: scaleX(0); } to { transform: scaleX(0.92); } }
 
 /* ---------- focus: ivory on black, press black on paper ---------- */
 .landing :where(a, [tabindex]):focus-visible { outline: 2px solid var(--ivory); outline-offset: 3px; }
 .landing .paper :where(a, [tabindex]):focus-visible { outline-color: var(--press); }
+/* A leaf that took focus from a fore-edge hairline: the outline would run round the whole window. */
+.landing .lx-leaf:focus-visible { outline: none; }
 html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :focus-visible { outline: none; }
 
 /* ======================================== motion: only under html.lx ======================================== */
@@ -425,10 +428,18 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
   .lx-plate { --lx-u: 3.2; }
 }
 
+/* The comps table has one name column, which can have the room. */
+@media (min-width: 1021px) and (max-width: 1400px) {
+  .lx-exhibit[data-s="precedents"] .lx-table td.name { max-width: clamp(150px, 15.4vw, 200px); }
+}
+
 /* Laptops narrower than the tables want: more room for the exhibit, tighter cells. */
-@media (max-width: 1170px) {
+@media (max-width: 1250px) {
   .lx-contents { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 28px; }
   .lx-table td, .lx-table th { padding-inline: 6px; }
+  .lx-dial .lx-peak.right { display: none; }
+}
+@media (max-width: 1170px) {
   .lx-table td.name { max-width: 130px; }
 }
 
@@ -456,6 +467,7 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
 @media (max-width: 1020px) {
   .lx-crop { width: 118vw; left: 38vw; top: auto; bottom: -46vw; opacity: 0.32; }
   .lx-cover-scrim { display: none; }
+  .lx-crop-peak { display: none; }
   .lx-cover-body { margin-block: 8vh auto; }
   .lx-title { font-size: clamp(36px, min(10.6vw, 15svh), 104px); }
   .lx-sub { max-width: 620px; }
@@ -463,7 +475,7 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
   .lx-figure { font-size: clamp(92px, 27vw, 240px); }
   .lx-plate-grid { grid-template-columns: minmax(0, 1fr); padding-top: 16px; }
   .lx-dial { width: min(100%, 620px); }
-  .lx-tombs { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; margin-top: 0; }
+  .lx-tombs { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; margin-top: 0; }
   .lx-tomb-note { margin-bottom: 0; }
   .lx-tombs.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .lx-tomb { min-height: 300px; }
@@ -499,7 +511,6 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
   .lx-league, .lx-hint-league { display: none; }
   .lx-needle i { top: 8.2%; height: 52.6%; }
   .lx-peak { display: none; }
-  .lx-crop-peak { display: none; }
   .lx-dial { position: relative; margin-bottom: 150px; }
   .lx-readout { position: absolute; left: 0; right: 0; top: calc(100% + 12px); width: auto; transform: none; }
   .lx-readout-month { font-size: 12px; }
@@ -532,6 +543,8 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
 @media (pointer: coarse) {
   .lx-footer a, .lx-more a, .lx-exhibit figcaption a { display: inline-block; padding-block: 8px; }
   .lx-tomb-foot a { padding-block: 8px; }
+  /* Hairlines 18 px tall are no target for a finger, and they only repeat scrolling. */
+  .lx .lx-fore { display: none; }
 }
 
 /* The narrowest phones: the comps table still fits. */
@@ -568,8 +581,9 @@ html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :foc
   .landing *, .landing *::before { animation: none !important; transition: none !important; }
   .landing .r, .landing .w > span, .landing .g > span, .landing .lx-row, .landing .lx-rule, .landing .lx-tomb-frame, .landing .lx-exhibits, .landing .lx-peak, .landing .lx-league, .landing .lx-year { opacity: 1 !important; transform: none !important; }
   .lx-exhibit:not([data-s="precedents"]) { display: none; }
-  .lx-exhibit[data-s="precedents"] { opacity: 1; }
-  .lx-tombs { height: auto; margin-top: 0; }
+  .lx-exhibit[data-s="precedents"] { opacity: 1; break-inside: avoid; }
+  .lx-table td, .lx-table th { border-color: #ccc !important; }
+  .lx-tombs { min-height: 0; margin-top: 0; }
   .lx-tomb { min-height: 240px; break-inside: avoid; }
   .lx-year { stroke: none; fill: #333; }
   .lx-dial { width: min(480px, 100%); break-inside: avoid; }

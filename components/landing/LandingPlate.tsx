@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { LandingPlate as PlateData } from "@/lib/landing";
 import { monthAngle, monthAt, peakLabelFits, PLATE, shortestTurn } from "@/lib/plate";
 
@@ -68,6 +68,13 @@ function useReveal(ready: boolean, onCutStart?: () => void) {
   const img = useRef<HTMLImageElement | null>(null);
   const onImg = useCallback((el: HTMLImageElement | null) => {
     img.current = el;
+  }, []);
+  // onError can't see an image that failed before hydration, and a broken image draws its icon on the page.
+  useEffect(() => {
+    const image = img.current;
+    image?.decode().catch(() => {
+      if (image.complete && !image.naturalWidth) root.current?.classList.add("lx-noimg");
+    });
   }, []);
   useEffect(() => {
     const el = root.current;
@@ -213,9 +220,10 @@ function PeakLabel({ plate, reach, breakAt }: { plate: PlateData; reach: number;
   const b = polar(angle, reach);
   const end = angle > 180;
   const gapIn = breakAt == null ? null : polar(angle, breakAt - 34);
-  const gapOut = breakAt == null ? null : polar(angle, breakAt + 16);
+  const gapOut = breakAt == null ? null : polar(angle, breakAt + 32);
+  // On the right, the label heads for the window's edge: where the dial fills the leaf, the CSS leaves it out.
   return (
-    <g className="lx-peak">
+    <g className={`lx-peak${angle > 50 && angle < 130 ? " right" : ""}`}>
       {gapIn && gapOut ? (
         <>
           <line x1={a.x} y1={a.y} x2={gapIn.x} y2={gapIn.y} />
@@ -286,7 +294,7 @@ export function PlateDial({ plate }: { plate: PlateData }) {
     }
   };
 
-  const read = (e: ReactPointerEvent<HTMLDivElement>) => {
+  const read = (e: ReactMouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
@@ -325,9 +333,10 @@ export function PlateDial({ plate }: { plate: PlateData }) {
             </text>
           );
         })}
-        {peakLabelFits(plate.peak.angle) && <PeakLabel plate={plate} reach={ring + 34} breakAt={plate.league.length ? ring : undefined} />}
+        {peakLabelFits(plate.peak.angle) && <PeakLabel plate={plate} reach={ring + 48} breakAt={plate.league.length ? ring : undefined} />}
         {plate.league.length > 0 && (
-          <text className="lx-league">
+          // Both places: Firefox reads textLength only on the <text>, the others on the <textPath>.
+          <text className="lx-league" textLength={(2 * Math.PI * ring * 0.985).toFixed(0)} lengthAdjust="spacing">
             <textPath href="#lx-league-ring" textLength={(2 * Math.PI * ring * 0.985).toFixed(0)} lengthAdjust="spacing">
               {plate.league.map((b) => `${b.toUpperCase()}  ·  `).join("")}
             </textPath>
@@ -348,7 +357,9 @@ export function PlateDial({ plate }: { plate: PlateData }) {
         aria-valuenow={index}
         aria-valuetext={`${month.label}${inProgress ? " to date" : ""}, ${month.value}, ${month.deals} deals`}
         onPointerMove={(e) => e.pointerType !== "touch" && read(e)}
-        onPointerDown={read}
+        // A finger reads on a tap (a click never follows a scroll): a swipe past the dial mustn't move the needle.
+        onPointerDown={(e) => e.pointerType !== "touch" && read(e)}
+        onClick={read}
         onKeyDown={onKey}
       />
       <div className="lx-readout">
@@ -359,7 +370,7 @@ export function PlateDial({ plate }: { plate: PlateData }) {
         <span className="lx-readout-value">{month.value}</span>
         <span className="lx-readout-deals">{month.deals.toLocaleString("en-US")} deals</span>
         {month.largest && (
-          <Link className="lx-readout-largest" href={`/tearsheet/deal/${encodeURIComponent(month.largest.id)}`} prefetch={false} title="Open the tear sheet">
+          <Link className="lx-readout-largest" href={`/tearsheet/deal/${encodeURIComponent(month.largest.id)}`} prefetch={false} title={`${month.largest.label}: open the tear sheet`}>
             <span>Largest: {month.largest.label}</span>
             <span className="lx-readout-largest-value">{month.largest.value}</span>
           </Link>
