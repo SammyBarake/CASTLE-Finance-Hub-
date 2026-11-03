@@ -554,10 +554,53 @@ describe("extractValue: figures that are not the price", () => {
 
   it("pairs a label with the amount written before it, and reads only the amount's own sentence", () => {
     // Endeavor's headline.
-    expect(extractValue(`Transaction at $13 Billion Equity Value and $25 Billion Consolidated Enterprise Value is Largest Private Equity Take-Private in 10 Years`)).toEqual({ usd: 13e9, kind: "equity" });
-    // AMD / Xilinx: "industry" in the next sentence is not this figure's context.
+    expect(extractValue(`Transaction at $13 Billion Equity Value and $25 Billion Consolidated Enterprise Value is Largest Private Equity Take-Private in 10 Years`)).toEqual({ usd: 25e9, kind: "enterprise" });    // AMD / Xilinx: "industry" in the next sentence is not this figure's context.
     expect(extractValue(`AMD will acquire Xilinx in an all-stock transaction valued at $35 billion. The combination will create the industry's leading high performance computing company.`)).toEqual({ usd: 35e9, kind: "transaction" });
     expect(extractValue(`The global semiconductor market was valued at $600 billion in 2024.`)).toBeNull();
+  });
+
+  it("names an amount by the words after it, and prefers an enterprise value stated beside it", () => {
+    // Thrive / ADT: the release's headline is the $15.3 billion.
+    expect(extractValue(`The transaction values ADT at approximately $7.6 billion in equity value and $15.3 billion in enterprise value.`)).toEqual({ usd: 15.3e9, kind: "enterprise" });
+    expect(extractValue(`The transaction values Acme at approximately $7.6 billion in equity value.`)).toEqual({ usd: 7.6e9, kind: "equity" });
+    expect(extractValue(`Salesforce will acquire Informatica for approximately $8 billion in equity value, net of its current investment.`)).toEqual({ usd: 8e9, kind: "equity" });
+    expect(extractValue(`The deal has an implied equity value of $3.2 billion and an enterprise value of approximately $3.9 billion.`)).toEqual({ usd: 3.9e9, kind: "enterprise" });
+    // A cash-rich target: the headline stays what the buyer pays. The next sentence is not this amount's.
+    expect(extractValue(`The deal has an implied equity value of $1.2 billion and an enterprise value of $1.0 billion.`)).toEqual({ usd: 1.2e9, kind: "equity" });
+    expect(extractValue(`The deal has an implied equity value of $3.2 billion. Separately, its enterprise value is $3.9 billion.`)).toEqual({ usd: 3.2e9, kind: "equity" });
+    // The size of what the deal creates.
+    expect(extractValue(`The transaction is valued at $5 billion, creating a company with an enterprise value of $20 billion.`)).toEqual({ usd: 5e9, kind: "transaction" });
+    expect(extractValue(`Following the merger, CMFT will be one of the largest REITs with approximately $6.1 billion in enterprise value and in excess of $3.1 billion in equity value.`)).toBeNull();
+    // The whole company's, beside the stake being bought (Emerson / AspenTech).
+    expect(extractValue(`The transaction values the minority stake being acquired at $7.2 billion, and values the total company at a fully diluted market capitalization of $17.0 billion with an enterprise value of $16.8 billion.`)).toEqual({ usd: 7.2e9, kind: "transaction" });
+    // A bullet is a sentence of its own; a footnote stuck to a figure isn't part of it.
+    expect(extractValue(`Total equity value of $1.7 billion · $6.6 billion implied total enterprise value`)).toEqual({ usd: 1.7e9, kind: "equity" });
+    expect(extractValue(`Net debt of $378 million and equity value of $208 million, and excludes minority interests. nTelos Acquisition $5861 million enterprise value`)?.usd).toBe(208e6);
+  });
+
+  it("doesn't take a ceiling for the price, or an amount after a ceiling that only explains it", () => {
+    expect(extractValue(`IonQ will acquire Elisity in an all-stock transaction valued at up to $1.3 billion.`)).toBeNull();
+    // Navitas / Claros, LEO / Timber, Endo / HealthTronics.
+    expect(extractValue(`The acquisition is valued at up to $232.8 million. It also includes performance based compensation having a value of approximately $28.9 million.`)).toBeNull();
+    expect(extractValue(`A transaction valued at up to $36 million. The Black Scholes value of such warrants is approximately $5.1 million.`)).toBeNull();
+    expect(extractValue(`The merger consideration is valued at up to $130 million. Endo sold a business earlier this year for a total value of $25 million.`)).toBeNull();
+    // Coherus / Surface: the sum after it is no more the price.
+    expect(extractValue(`Coherus will acquire Surface in a deal valued at up to $65 million. The consideration is the sum of $40 million plus Surface's net cash.`)).toBeNull();
+    // DigitalBridge / ArcLight; AtlasClear's "$1 million at closing" is some other payment; a financing isn't the price.
+    expect(extractValue(`… for a total transaction value of up to $1.05 billion. The consideration includes a base purchase price of $650 million, plus up to an additional $400 million.`)).toEqual({ usd: 650e6, kind: "transaction" });
+    expect(extractValue(`Total consideration of up to $24.5 million. The seller receives $1 million at closing.`)).toBeNull();
+    expect(extractValue(`Quince will acquire Orphai for up to $187 million. It raises $115 million in upfront financing.`)).toBeNull();
+    // What's paid at closing is the price.
+    expect(extractValue(`The transaction is valued at up to $129 million, with a total consideration of $100 million payable at closing.`)?.usd).toBe(100e6);
+    // "for up to" is a ceiling too, and a plain "for" still reads.
+    expect(extractValue(`Take-Two will acquire Nordeus for up to $378 million.`)).toBeNull();
+    expect(extractValue(`Take-Two will acquire Nordeus for up to $378 million, comprised of $225 million in cash upfront and earn-outs.`)).toEqual({ usd: 225e6, kind: "transaction" });
+    expect(extractValue(`Graham acquired Barber-Nichols in a deal valued at up to $72 million. It acquired the rest for $18.0 million in cash.`)).toEqual({ usd: 18e6, kind: "transaction" });
+  });
+
+  it("doesn't take the deal's financing or pay for its value", () => {
+    expect(extractValue(`Cross Country financed the purchase price using $55 million in new subordinated debt.`)).toBeNull();
+    expect(extractValue(`Management will receive compensation with a total value of $12 million.`)).toBeNull();
   });
 
   it("skips track records, face values and other currencies", () => {

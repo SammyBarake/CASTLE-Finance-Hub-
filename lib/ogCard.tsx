@@ -39,7 +39,7 @@ export async function ogCard({ kicker, title, subtitle, stats = [] }: OgCard): P
               <div style={{ display: "flex", fontSize: s.value.length > 15 ? 32 : 40, fontWeight: 700 }}>{s.value}</div>
             </div>
           ))}
-          {!stats.length && <div style={{ display: "flex", fontSize: 24, color: "#8d8d8d" }}>Free terminal for U.S. M&A, IPOs and advisers, built from SEC EDGAR filings</div>}
+          {!stats.length && <div style={{ display: "flex", fontSize: 24, color: "#8d8d8d" }}>Free terminal for U.S. M&A, IPOs and advisors, built from SEC EDGAR filings</div>}
         </div>
       </div>
     ),

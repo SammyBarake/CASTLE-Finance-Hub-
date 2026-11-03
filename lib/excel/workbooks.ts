@@ -7,6 +7,7 @@ import { companyHref, hasCompanyPage } from "../companies";
 import { dealSize, type DcfRow } from "../precedents";
 import { SECTORS } from "../sectors";
 import type { Company, Deal, Economy, Ipo, LeagueTableEntry, SectorValuation } from "../types";
+import { dataDay } from "../freshness";
 import type { VolumeMatrix } from "../metrics";
 import { fileName, link, num, pctFrac, usdM, type CellValue, type Column, type Figure, type WorkbookSpec } from "./spec";
 
@@ -17,7 +18,7 @@ export interface ExportContext {
   site: string;
 }
 
-const today = (ctx: ExportContext) => ctx.asOf.slice(0, 10);
+const today = (ctx: ExportContext) => dataDay(ctx.asOf);
 const stamp = (ctx: ExportContext, ...parts: (string | null | undefined)[]) => fileName("Castle", ...parts, ctx.isSample ? "Sample" : null, today(ctx));
 const companyCell = (c: Company, ctx: ExportContext): CellValue => (hasCompanyPage(c) ? link(c.name, `${ctx.site}${companyHref(c)}`) : c.name);
 const filingCell = (d: { filings?: { url: string }[] }, text = "SEC filing"): CellValue => link(text, d.filings?.[0]?.url ?? null);

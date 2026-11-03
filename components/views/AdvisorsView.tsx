@@ -12,6 +12,7 @@ import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { leagueWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatUsd, formatUsdB1 } from "@/lib/format";
+import { dataDay } from "@/lib/freshness";
 import { sum } from "@/lib/metrics";
 import { matchAdvisor } from "@/lib/search";
 
@@ -186,7 +187,7 @@ export function AdvisorsView() {
         </div>
         <div className="panel-foot">
           <span>
-            {data.leagueTable.period} · Through {formatDate(data.asOf.slice(0, 10))}
+            {data.leagueTable.period} · Through {formatDate(dataDay(data.asOf))}
           </span>
           <span>Rank change vs. prior quarter · {sort === "value" ? "by deal value" : "by deal count"}</span>
         </div>

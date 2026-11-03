@@ -18,10 +18,11 @@ export const isPlaceholderBuyer = (name: string) =>
 
 /** "Varonis Systems Inc" -> "Varonis Systems": a tombstone's name, set large, reads unfinished with its legal form. */
 const LEGAL_FORM =
-  /,?\s+(?:Public (?:Limited Company|Ltd Co)|Inc\.?|Incorporated|Corp\.?|Corporation|Ltd\.?|Limited|LLC|L\.L\.C\.|plc|PLC|N\.V\.|N V|NV|S\.A\.|S A|SA|S\.E\.|SE|AG|L\.P\.|LP|PBC|(?<!&\s)Co\.?)$/;
+  /,?\s+(?:Public (?:Limited Company|Ltd Co)|Inc\.?|Incorporated|Corp\.?|Corporation|Ltd\.?|Limited|Pte\.?|LLC|L\.L\.C\.|LLP|plc\.?|PLC\.?|N\.V\.|N V|NV|B\.V\.|BV|S\.A\.S\.|SAS|S\.A\.|S A|SA|S\.p\.A\.|SpA|S\.E\.|SE|AG|A\/S|GmbH|L\.P\.|LP|PBC|(?<!&\s)Co\.?)$/;
 export function withoutLegalForm(name: string): string {
-  // Repeatedly: "Noble Corp plc", "Franklin Electric Co Inc", "Sapiens International Corp N V".
-  let s = name;
+  // Repeatedly: "Noble Corp plc", "Franklin Electric Co Inc", "Sapiens International Corp N V". A joint buyer's too:
+  // "Elliott Investment Management L.P. and Brookfield Asset Management".
+  let s = name.replace(/,?\s+(?:L\.P\.|LP|LLC|Inc\.?|Corp\.?)(?=,?\s+and\s)/g, "");
   for (let next = s.replace(LEGAL_FORM, ""); next !== s && next; next = s.replace(LEGAL_FORM, "")) s = next;
   return s || name;
 }
@@ -30,7 +31,7 @@ const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|R
 const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: "Corp", "CORP.": "Corp.", LTD: "Ltd", "LTD.": "Ltd.", CO: "Co", "CO.": "Co.", HOLDINGS: "Holdings", GROUP: "Group" };
 // Short English words that are words, not acronyms, in an all-capitals name.
 const MINOR = new Set(["OF", "AND", "FOR", "AT", "IN", "ON", "BY", "TO", "THE", "A", "AN"]);
-const SHORT_WORDS = new Set(["AIR", "OIL", "GAS", "SEA", "SUN", "BAY", "CAR", "NEW", "ONE", "TWO", "BIG", "RED", "TOP", "WAY", "FOX", "KEY", "ART", "LAW", "PRO", "BIO", "ITS", "OLD", "ICE", "SKY", "BAR", "WAR", "LAB", "EYE", "DOG", "CAT", "BOX", "HUB"]);
+const SHORT_WORDS = new Set(["AIR", "OIL", "GAS", "SEA", "SUN", "BAY", "CAR", "NEW", "ONE", "TWO", "BIG", "RED", "TOP", "WAY", "FOX", "KEY", "ART", "LAW", "PRO", "BIO", "ITS", "OLD", "ICE", "SKY", "BAR", "WAR", "LAB", "EYE", "DOG", "CAT", "BOX", "HUB", "LED", "RIO", "OWL", "DOT", "PET", "INN", "NET", "BOW"]);
 
 const capWord = (w: string) =>
   w.replace(/[A-Z][A-Z'’&-]*/g, (t) => t[0] + t.slice(1).toLowerCase()).replace(/\b([A-Z])(['’])([a-z])/g, (_, a: string, q: string, c: string) => a + q + c.toUpperCase());
@@ -86,7 +87,9 @@ const applyBrands = (s: string) =>
     .replace(/\bKimberly Clark\b/i, "Kimberly-Clark")
     .replace(/\bEli Lilly\b/i, "Eli Lilly")
     .replace(/\bAir Lease\b/i, "Air Lease")
-    .replace(/\bConsortium Led by\b/, "Consortium led by")
+    .replace(/\b(Consortium|Group) Led by\b/, "$1 led by")
+    // The name in use: "Maplebear Inc. d/b/a Instacart" announces itself as Instacart.
+    .replace(/\bMaplebear\b/i, "Instacart")
     // "STAMPS.COM Inc" -> "Stamps.com Inc"
     .replace(/\b([A-Z])([A-Z]+)\.COM\b/g, (_, a: string, b: string) => a + b.toLowerCase() + ".com")
     .replace(/\b[A-Za-z][A-Za-z0-9]*\b/g, (w) => BRANDS.get(w.toLowerCase()) ?? w);

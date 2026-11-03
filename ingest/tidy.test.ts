@@ -1,8 +1,64 @@
 import { describe, expect, it } from "vitest";
 import { completedAround, isSigningFor, listedOn, provablyUnlistedOn, registrantMatches, takenOverAround } from "./deals";
 import { nameOn } from "./edgar";
-import { junkReason, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
+import { junkReason, putReleaseFirst, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
 import type { StoredDeal } from "./store";
+
+describe("putReleaseFirst", () => {
+  const base = "https://www.sec.gov/Archives/edgar/data/1361113/000121390026109901/";
+
+  it("links the release a deal was read from, ahead of the bare form it came with", () => {
+    const d = { filings: [{ form: "8-K", filedDate: "2026-10-15", url: `${base}ea0308610-8k_varonis.htm` }], sources: ["0001213900-26-109901:ea0308610-8k_varonis.htm", "0001213900-26-109901:ea030861001ex99-1.htm"] };
+    putReleaseFirst(d);
+    expect(d.filings[0]).toEqual({ form: "8-K (EX-99)", filedDate: "2026-10-15", url: `${base}ea030861001ex99-1.htm` });
+    expect(d.filings[1].form).toBe("8-K");
+    // Running again changes nothing.
+    putReleaseFirst(d);
+    expect(d.filings).toHaveLength(2);
+  });
+
+  it("puts a same-day release first, and never moves an earlier filing behind a later one", () => {
+    const d = {
+      filings: [
+        { form: "8-K", filedDate: "2026-10-15", url: `${base}a.htm` },
+        { form: "DEFA14A (EX-99.1)", filedDate: "2026-10-15", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000002/b.htm" },
+        { form: "8-K (EX-99.1)", filedDate: "2026-10-20", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000003/c.htm" },
+      ],
+      sources: [],
+    };
+    putReleaseFirst(d);
+    expect(d.filings.map((f) => f.form)).toEqual(["DEFA14A (EX-99.1)", "8-K", "8-K (EX-99.1)"]);
+    const later = { filings: [{ form: "8-K", filedDate: "2026-10-15", url: `${base}a.htm` }, { form: "8-K (EX-99.1)", filedDate: "2026-10-20", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000003/c.htm" }], sources: [] };
+    putReleaseFirst(later);
+    expect(later.filings[0].form).toBe("8-K");
+  });
+
+  it("on the same day, prefers an 8-K's exhibit to another form's memo or deck, and a 99.1 to a 99.2", () => {
+    const d = {
+      filings: [
+        { form: "SC TO-C (EX-99.2)", filedDate: "2022-11-01", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000001/deck.htm" },
+        { form: "8-K (EX-99.2)", filedDate: "2022-11-01", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000002/ex992.htm" },
+        { form: "8-K", filedDate: "2022-11-01", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000002/a.htm" },
+        { form: "8-K (EX-99)", filedDate: "2022-11-01", url: "https://www.sec.gov/Archives/edgar/data/1/000000000000000002/ex991.htm" },
+      ],
+      sources: [],
+    };
+    putReleaseFirst(d);
+    expect(d.filings.map((f) => f.form)).toEqual(["8-K (EX-99)", "8-K (EX-99.2)", "SC TO-C (EX-99.2)", "8-K"]);
+    const pick = { filings: [{ form: "8-K", filedDate: "2026-10-15", url: `${base}a.htm` }], sources: ["0001213900-26-109901:a.htm", "0001213900-26-109901:ex99-2.htm", "0001213900-26-109901:ex99-1.htm"] };
+    putReleaseFirst(pick);
+    expect(pick.filings[0].url).toBe(`${base}ex99-1.htm`);
+  });
+
+  it("leaves a deal alone when no release is on record, and doesn't take another filing's exhibit", () => {
+    const d = { filings: [{ form: "8-K", filedDate: "2026-10-15", url: `${base}a.htm` }], sources: ["0001213900-26-109901:a.htm", "0009999999-26-000001:ex99-1.htm", "0001213900-26-109901:ex10-1.htm"] };
+    putReleaseFirst(d);
+    expect(d.filings).toHaveLength(1);
+    const none = { filings: [], sources: [] };
+    putReleaseFirst(none);
+    expect(none.filings).toEqual([]);
+  });
+});
 
 let n = 0;
 function deal(over: Partial<StoredDeal> = {}): StoredDeal {

@@ -106,6 +106,9 @@ describe("yearToDate", () => {
       deal({ announcedDate: "2025-10-20", valueUsd: 7e9 }), // later in last October: not the same period
     ];
     expect(yearToDate(deals, "2026-10-07T23:04:00Z")).toEqual({ through: "2026-10-07", value: 3e9, count: 2, priorValue: 5e9, priorCount: 1 });
+    // In the evening in New York it's already tomorrow in UTC: the data's day is still today.
+    expect(yearToDate(deals, "2026-10-08T02:08:00Z").through).toBe("2026-10-07");
+    expect(yearToDate(deals, "2026-10-08").through).toBe("2026-10-08");
   });
 });
 

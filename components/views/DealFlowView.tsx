@@ -17,6 +17,7 @@ import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { dealsWorkbook } from "@/lib/excel/workbooks";
 import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { dataDay } from "@/lib/freshness";
 import { median, sum } from "@/lib/metrics";
 import {
   activeFilters,
@@ -455,7 +456,7 @@ export function DealFlowView() {
           <span>
             {rows.length} of {data.deals.length} transactions
           </span>
-          <span>USD · As of {formatDate(data.asOf.slice(0, 10))}</span>
+          <span>USD · As of {formatDate(dataDay(data.asOf))}</span>
         </div>
       </section>
     </>

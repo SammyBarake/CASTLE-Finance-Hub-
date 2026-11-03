@@ -80,3 +80,29 @@ describe("withoutLegalForm", () => {
     expect(withoutLegalForm(raw)).toBe(shown);
   });
 });
+
+describe("what a large setting shows", () => {
+  it("drops foreign legal forms too, and a joint buyer's", () => {
+    for (const [raw, want] of [
+      ["Alkermes plc.", "Alkermes"],
+      ["Chiesi Farmaceutici S.p.A.", "Chiesi Farmaceutici"],
+      ["Genmab A/S", "Genmab"],
+      ["Servier S.A.S.", "Servier"],
+      ["Ipsen Pharma SAS", "Ipsen Pharma"],
+      ["Karta Halten B.V.", "Karta Halten"],
+      ["argenx BV", "argenx"],
+      ["Apax Partners LLP", "Apax Partners"],
+      ["Samsung Display GmbH", "Samsung Display"],
+      ["Foo Holdings Pte. Ltd.", "Foo Holdings"],
+      ["Elliott Investment Management L.P. and Brookfield Asset Management", "Elliott Investment Management and Brookfield Asset Management"],
+    ]) expect(withoutLegalForm(raw)).toBe(want);
+  });
+
+  it("reads short capitalised words as words, and a registrant by the name it trades under", () => {
+    expect(displayCompanyName("RIO TINTO PLC")).toBe("Rio Tinto PLC");
+    expect(displayCompanyName("BLUE OWL CAPITAL INC.")).toBe("Blue Owl Capital Inc.");
+    expect(displayCompanyName("CENTRAL GARDEN & PET CO")).toBe("Central Garden & Pet Co");
+    expect(displayCompanyName("INVESTOR GROUP LED BY HELLMAN & FRIEDMAN")).toBe("Investor Group led by Hellman & Friedman");
+    expect(displayCompanyName("Maplebear Inc.")).toBe("Instacart Inc.");
+  });
+});

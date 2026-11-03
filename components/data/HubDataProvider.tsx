@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { dataDay } from "@/lib/freshness";
 import { buildVolumeMatrix, headlineFigures, ytdSummary, type VolumeMatrix, type YtdSummary } from "@/lib/metrics";
 import type { HubData } from "@/lib/types";
 import { expandCore, withDetails, type HubDetails, type WireCore } from "@/lib/wire";
@@ -189,7 +190,7 @@ export function HubDataProvider({ data: boot, children }: { data: HubData; child
   const data = useMemo(() => (full ? withDetails(full, details) : boot), [full, details, boot]);
   const value = useMemo(() => {
     // The data's own month is still in progress: shown, but marked and kept out of month-on-month comparisons.
-    const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf ? data.asOf.slice(0, 7) : null);
+    const matrix = buildVolumeMatrix(data.monthlyVolume, data.asOf ? dataDay(data.asOf).slice(0, 7) : null);
     // Computed with the full lists on the server, so the boot copy (newest few deals only) shows the same figures.
     const headline = data.headline ?? headlineFigures(data.deals, data.ipos);
     return {

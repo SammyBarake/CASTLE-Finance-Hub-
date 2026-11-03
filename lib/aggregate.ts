@@ -3,6 +3,7 @@
  * from raw deals. Pure and deterministic, so it works on sample or real data.
  */
 import { feeRows } from "./fees";
+import { dataDay } from "./freshness";
 import { headlineFigures, median } from "./metrics";
 import { dcfOf } from "./precedents";
 import { displayCompanyName } from "./names";
@@ -50,8 +51,8 @@ const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso
  * that last one as a month in progress (`VolumeMatrix.partial`) and leaves it out of month-on-month comparisons.
  */
 export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[] {
-  const now = new Date(asOf);
-  const first = coverageStart(deals) ?? asOf.slice(0, 10);
+  const now = new Date(dataDay(asOf));
+  const first = coverageStart(deals) ?? dataDay(asOf);
   const span = (now.getUTCFullYear() - Number(first.slice(0, 4))) * 12 + (now.getUTCMonth() - (Number(first.slice(5, 7)) - 1));
   const length = Math.min(MAX_MONTHS, Math.max(MONTHS, span));
   const months = Array.from({ length: length + 1 }, (_, i) => monthKey(now.getUTCFullYear(), now.getUTCMonth() - length + i));
@@ -72,7 +73,7 @@ export function monthlyVolume(deals: Deal[], asOf: string): MonthlySectorVolume[
  * in progress compared with the whole of last year's month would make every October look like a slump.
  */
 export function yearToDate(deals: Deal[], asOf: string): NonNullable<HubData["yearToDate"]> {
-  const through = asOf.slice(0, 10);
+  const through = dataDay(asOf);
   const year = Number(through.slice(0, 4));
   const total = (from: string, to: string) => {
     let value = 0;
@@ -104,8 +105,9 @@ function rankAdvisors(deals: Deal[]) {
 
 /** Year-to-date league table by deal value; rank change versus the end of the previous quarter. */
 export function leagueTable(deals: Deal[], asOf: string, shortName: (name: string) => string): HubData["leagueTable"] {
-  const year = asOf.slice(0, 4);
-  const q = Math.floor((Number(asOf.slice(5, 7)) - 1) / 3);
+  const day = dataDay(asOf);
+  const year = day.slice(0, 4);
+  const q = Math.floor((Number(day.slice(5, 7)) - 1) / 3);
   const priorQuarterEnd = `${year}-${String(q * 3).padStart(2, "0")}-31`;
   const ytd = deals.filter((d) => d.announcedDate.startsWith(year) && d.status !== "Terminated");
   const current = rankAdvisors(ytd);
@@ -137,7 +139,7 @@ export const MIN_VALUATION_SAMPLE = 3;
 const LTM_QUARTERS = 4;
 
 export function sectorValuations(deals: Deal[], asOf: string): SectorValuation[] {
-  const now = new Date(asOf);
+  const now = new Date(dataDay(asOf));
   const span = QUARTERS + LTM_QUARTERS - 1;
   const all = Array.from({ length: span }, (_, i) => quarterOf(monthKey(now.getUTCFullYear(), now.getUTCMonth() - 3 * (span - 1 - i))));
   const round1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);

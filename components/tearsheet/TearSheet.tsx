@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { formatDateLong } from "@/lib/format";
+import { dataDay } from "@/lib/freshness";
 
 /** A printable Letter-size page: logo header, content, sources and disclaimer footer. */
 export function TearSheet({ kind, asOf, children, sources }: { kind: string; asOf: string; children: ReactNode; sources: ReactNode }) {
@@ -11,7 +12,7 @@ export function TearSheet({ kind, asOf, children, sources }: { kind: string; asO
         <img className="sheet-logo" src="/castle-logo.png" alt="Castle" width={64} height={49} />
         <div className="sheet-head-meta">
           <span className="sheet-kind">{kind}</span>
-          <span>Data as of {formatDateLong(asOf.slice(0, 10))}</span>
+          <span>Data as of {formatDateLong(dataDay(asOf))}</span>
         </div>
       </header>
       {children}

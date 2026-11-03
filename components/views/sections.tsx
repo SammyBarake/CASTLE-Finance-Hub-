@@ -194,7 +194,8 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
                 >
                   <SectorDot sector={s} />
                   {s}
-                  {change != null && <span className={`legend-change mono ${change >= 0 ? "up" : "down"}`}>{formatSignedPct(change)}</span>}
+                  {/* Off a near-empty month a change means nothing: a banker's "n.m.", with the figure in the tooltip. */}
+                  {change != null && <span className={`legend-change mono ${change >= 0 ? "up" : "down"}`}>{Math.abs(change) >= 1000 ? "n.m." : formatSignedPct(change)}</span>}
                 </button>
               );
             })}

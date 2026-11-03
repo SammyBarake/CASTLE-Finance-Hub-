@@ -428,9 +428,11 @@ function termsSection(body: string): string {
  * portfolio has a face value ("a face value of over $130 billion"). "Portfolio companies" is a firm's holdings; "Proofpoint,
  * a portfolio company of Thoma Bravo" only describes the buyer, and hid "valued at approximately $6.3 billion". "An
  * enterprise value for the combined companies of approximately $17 billion" is Cabot and Cimarex together, not the price.
+ * Nor pay, warrants or the deal's financing: "performance based compensation having a value of approximately $28.9 million"
+ * (Navitas), "the Black Scholes value of such warrants", "financed the purchase price using $55 million in new debt".
  */
 const NOT_DEAL_VALUE =
-  /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:compan(?:y|ies)|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio companies|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions))\b/i;
+  /\b(?:market|markets|TAM|industry|opportunit\w*|combined (?:compan(?:y|ies)|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed|deployed)|assets under management|AUM|portfolio companies|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|compensation|Black[- ]Scholes|value of (?:such |the )?warrants|(?:financ|fund)(?:ed|ing) the purchase price (?:using|with|through|from)|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions))\b/i;
 // The amount's own sentence only: "… an all-stock transaction valued at $35 billion. The combination will create the
 // industry's leading …" (AMD / Xilinx) is a deal value.
 const valueContext = (t: string, index: number, length: number) =>
@@ -597,7 +599,49 @@ export function extractPremium(t: string): number | null {
   return found[0].score >= 0 ? found[0].v : null;
 }
 
+const SENTENCE_END = /(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/;
+const DOLLARS = String.raw`(?<![A-Z])(?:US\$|\$|USD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b`;
+const ABOUT = String.raw`(?:(?:approximately|about|roughly|nearly|over)\s+)?`;
+
+/** The words after an amount can name it: "values ADT at approximately $7.6 billion in equity value". */
+const LABEL_AFTER = /^\s*(?:(?:in|of)\s+)?(?:(?:total|implied|consolidated|aggregate|approximate)\s+){0,2}(enterprise|equity)\s+value\b/i;
+
+const EV_BESIDE = new RegExp(
+  String.raw`${DOLLARS}\s+(?:(?:in|of)\s+)?(?:(?:total|implied|consolidated|aggregate|approximate)\s+){0,2}enterprise\s+value\b|\benterprise\s+value\s+(?:(?:of|is|at)\s+)?${ABOUT}${DOLLARS}`,
+  "i",
+);
+
+/**
+ * An enterprise value stated beside the amount, in its sentence: the deal's size as a banker quotes it, and usually the
+ * release's own headline ("ADT to be Acquired by Thrive Holdings in $15.3 Billion Transaction": "approximately $7.6 billion
+ * in equity value and $15.3 billion in enterprise value"). Only when it's the larger: with a cash-rich target the headline
+ * stays what the buyer pays. Not the size of what the deal creates ("… $5 billion, creating a company with an enterprise
+ * value of $20 billion"), nor the whole company's beside a stake ("values the minority stake being acquired at $7.2 billion,
+ * and values the total company at … an enterprise value of $16.8 billion": Emerson / AspenTech). A bullet is a sentence, and
+ * "$586¹ million" (a footnote on a slide: NTELOS) is no "$5861 million".
+ */
+function enterpriseValueBeside(t: string, from: number, usd: number): number | null {
+  const sentence = t.slice(from, from + 400).split(SENTENCE_END)[0].split(/[•·●]/)[0];
+  const m = EV_BESIDE.exec(sentence);
+  if (!m || /\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting|pro forma|stake|minority|remaining|total company)\b/i.test(sentence.slice(0, m.index + m[0].length))) return null;
+  const figure = m[1] ?? m[3];
+  if (/^\d{4,}$/.test(figure)) return null;
+  const ev = Math.round(num(figure) * unitMult(m[2] ?? m[4]));
+  return ev > usd && ev <= MAX_DEAL_VALUE ? ev : null;
+}
+
+/** A headline that's a ceiling: "will acquire Nordeus for up to $378 million", "a transaction valued up to $1.1 billion". */
+const CEILING = new RegExp(String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b[^.;]{0,220}?\bfor\s+up\s+to\s+${ABOUT}${DOLLARS}|\bvalued\s+up\s+to\s+${ABOUT}${DOLLARS}`, "i");
+/** What's paid at once under a ceiling: "$225 million in cash upfront". Not a financing's ("$115 million in upfront proceeds"). */
+const UPFRONT = new RegExp(
+  String.raw`${DOLLARS}\s+(?:(?:in|of)\s+)?(?:(?:cash|stock|equity)\s+)?(?:upfront|up-front|at\s+closing)\b(?!\s+(?:financing|funding|proceeds|investment))|\b(?:upfront|up-front)\s+(?:(?:cash\s+)?(?:payment|consideration|purchase\s+price|price|amount)\s+)?of\s+${ABOUT}${DOLLARS}`,
+  "i",
+);
+const amountOf = (m: RegExpExecArray | null) => (m ? Math.round(num(m[1] ?? m[3]) * unitMult(m[2] ?? m[4])) : 0);
+
 export function extractValue(t: string): { usd: number; kind: ParsedPress["valueKind"] } | null {
+  // Once a ceiling has been skipped, the amounts after it explain it (the earn-out, the warrants, the financing).
+  let ceiling = 0;
   const re =
     /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|valued at|valuing\b[\w\s,]{0,40}?\bat|value of|values? [\w\s']{0,40}? at)[^$.;•]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
   for (const m of t.matchAll(re)) {
@@ -613,7 +657,10 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     if (dollar > 0 && /\b(?:adjustment|reduction|decrease|holdback|escrow)s?\s+(?:of\s+)?(?:up\s+to\s+|a\s+maximum\s+(?:of\s+)?|approximately\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
     // A ceiling, not the price: "valued at up to $1.3 billion", which the release goes on to explain "includes up to $150
     // million in earnout" in another sentence (IonQ / Elisity).
-    if (dollar > 0 && /\bup\s+to\s+(?:approximately\s+|about\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
+    if (dollar > 0 && /\bup\s+to\s+(?:approximately\s+|about\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) {
+      ceiling = num(m[2]) * unitMult(m[3]);
+      continue;
+    }
     // "$200 million of run-rate cost synergies" is not a price.
     // Nor a later instalment: "Thermo Fisher has agreed to pay $125 million in January 2027".
     const after = t.slice(m.index! + m[0].length, m.index! + m[0].length + 60);
@@ -628,7 +675,8 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     // value over $35 billion" (EQT / Equitrans), "the resulting company will have …".
     // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.
     const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
-    if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting)\b/i.test(sentenceBefore)) continue;
+    // ("Following the merger, CMFT will be one of the largest credit-focused REITs with approximately $6.1 billion in enterprise value".)
+    if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting|following\s+the\s+(?:merger|transaction|combination|closing|acquisition))\b/i.test(sentenceBefore)) continue;
     // Nor the most the sellers could get: "Selling stockholders may earn additional consideration of up to $97.5 million
     // …, bringing total potential transaction value to approximately $455 million" (Cardinal / Hughes Brothers, bought
     // "for $357.5 million"). A total that includes an earn-out or other contingent payment is not the price agreed.
@@ -652,19 +700,31 @@ export function extractValue(t: string): { usd: number; kind: ParsedPress["value
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
     // The words up to the amount, not just the lead: "values EA at an enterprise value of approximately $55 billion".
     const named = (dollar > 0 ? m[0].slice(0, dollar) : m[0]).toLowerCase();
-    const kind = named.includes("enterprise value") || lead.includes("enterprise") ? "enterprise" : named.includes("equity value") || lead.includes("equity") ? "equity" : "transaction";
-    return { usd, kind };
+    // (A later amount named as the deal's whole value counts: "CVRs valued at up to $1 billion … a total equity value of
+    // $4.8 billion", Bristol Myers / Mirati.)
+    if (ceiling && !/\b(?:upfront|up-front|at closing|base purchase price|(?:enterprise|equity) value)\b/i.test(t.slice(Math.max(0, m.index! - 5), m.index!) + named + after)) continue;
+    const label = amountFirst ? undefined : LABEL_AFTER.exec(after)?.[1].toLowerCase();
+    const kind = label ? (label as "enterprise" | "equity") : named.includes("enterprise value") || lead.includes("enterprise") ? "enterprise" : named.includes("equity value") || lead.includes("equity") ? "equity" : "transaction";
+    const ev = kind === "enterprise" ? null : enterpriseValueBeside(t, m.index! + Math.max(0, dollar), usd);
+    return ev ? { usd: ev, kind: "enterprise" } : { usd, kind };
   }
   // Private-company deals usually just say "acquired Widget Co. … for $185 million" (or "for USD 6.2 billion").
   for (const m of t.matchAll(PRICE_FOR)) {
     const end = m.index! + m[0].length;
     // The amount's own sentence after it: "… or approximately $158,700,000, subject to customary closing adjustments.
     // Founded in 1969, …" is a price.
-    if (NOT_DEAL_VALUE.test(t.slice(end - 40, end) + t.slice(end, end + 50).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/)[0])) continue;
+    if (NOT_DEAL_VALUE.test(t.slice(end - 40, end) + t.slice(end, end + 50).split(SENTENCE_END)[0])) continue;
     const usd = Math.round(m[1] ? num(m[1]) * unitMult(m[2]) : num(m[3]));
-    if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
+    if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
+    // "… for approximately $8 billion in equity value" (Salesforce / Informatica).
+    const label = LABEL_AFTER.exec(t.slice(end, end + 60))?.[1].toLowerCase() as "enterprise" | "equity" | undefined;
+    const ev = label === "enterprise" ? null : enterpriseValueBeside(t, end, usd);
+    return ev ? { usd: ev, kind: "enterprise" } : { usd, kind: label ?? "transaction" };
   }
-  return null;
+  // Only a real share of the ceiling: "$1 million at closing" under "up to $24.5 million" is some other payment.
+  const top = ceiling || amountOf(CEILING.exec(t));
+  const upfront = top ? amountOf(UPFRONT.exec(t)) : 0;
+  return upfront >= 1e6 && upfront >= top * 0.1 && upfront < top ? { usd: upfront, kind: "transaction" } : null;
 }
 
 /**
@@ -678,7 +738,7 @@ const FOREIGN_FIRST = String.raw`(?:(?:${String.fromCharCode(0x20ac)}|${String.f
  * full ("$158,700,000").
  */
 const PRICE_FOR = new RegExp(
-  String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])|(?<=\b(?:Inc|Corp|Co|Ltd|Bros|L\.P))\.(?=\s*[(,])){0,220}?\bfor\s+(?:an?\s+(?:total\s+|aggregate\s+)?(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+|up to\s+)?${FOREIGN_FIRST}?(?:US\$|\$|USD\s?)\s?(?:(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b|(\d{1,3}(?:,\d{3}){2,})(?!,?\d|\.\d|\s*(?:billion|million|bn|mm|mn)\b))(?!\s*(?:per share|a share))(?!\s*\(?\s*(?:CAD|CDN|AUD|NZD|HKD|SGD|MXN|EUR|GBP|CHF|JPY)\b)`,
+  String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])|(?<=\b(?:Inc|Corp|Co|Ltd|Bros|L\.P))\.(?=\s*[(,])){0,220}?\bfor\s+(?:an?\s+(?:total\s+|aggregate\s+)?(?:purchase price|consideration)\s+of\s+)?(?:approximately\s+|about\s+)?${FOREIGN_FIRST}?(?:US\$|\$|USD\s?)\s?(?:(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b|(\d{1,3}(?:,\d{3}){2,})(?!,?\d|\.\d|\s*(?:billion|million|bn|mm|mn)\b))(?!\s*(?:per share|a share))(?!\s*\(?\s*(?:CAD|CDN|AUD|NZD|HKD|SGD|MXN|EUR|GBP|CHF|JPY)\b)`,
   "gi",
 );
 

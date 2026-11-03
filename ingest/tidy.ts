@@ -9,6 +9,32 @@ import type { StoredDeal } from "./store";
 const DAY = 86_400_000;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / DAY;
 
+const RELEASE_FORM = /EX-99/i;
+const RELEASE_FILE = /ex[-_ ]?99|exhibit[-_ ]?99|press[-_ ]?release/i;
+
+/**
+ * The site links a deal to its first filing, and a bare 8-K or 425 often states the price and little else, while the press
+ * release in the same filing states the value, the premium and the banks. A deal keeps one link per filing, so whichever
+ * document was read first won. So: a release the deal was read from gets a link of its own, and on the same day a release
+ * comes first. (Varonis's first link was the 8-K cover, with the $6.3 billion release beside it in the same accession.)
+ */
+export function putReleaseFirst(d: Pick<StoredDeal, "filings" | "sources">): void {
+  const first = d.filings[0];
+  if (first && !RELEASE_FORM.test(first.form)) {
+    const path = /^(.*\/(\d{18})\/)[^/]*$/.exec(first.url);
+    // By name, so an exhibit 99.1 comes before its 99.2, usually the deck.
+    const file = path && d.sources.map((s) => s.split(":")).filter(([adsh, name]) => adsh?.replace(/-/g, "") === path[2] && name && RELEASE_FILE.test(name)).map(([, name]) => name).sort()[0];
+    if (path && file && !d.filings.some((f) => f.url.endsWith(`/${file}`))) d.filings.push({ form: `${first.form} (EX-99)`, filedDate: first.filedDate, url: path[1] + file });
+  }
+  d.filings.sort((a, b) => a.filedDate.localeCompare(b.filedDate) || releaseRank(a.form) - releaseRank(b.form));
+}
+
+/**
+ * Same day: an 8-K's exhibit is the release; a 425 or a tender communication's is as often an employee memo or a deck (J&J /
+ * Abiomed's "Investor Presentation", Novartis / Avidity's "All Employee Q&A"), and a 99.2 more often than a 99.1.
+ */
+const releaseRank = (form: string) => (!RELEASE_FORM.test(form) ? 4 : (/^8-K/i.test(form) ? 0 : 2) + (/EX-99\.[2-9]/i.test(form) ? 1 : 0));
+
 /** Why a record isn't a deal Castle should show, or null when it is fine. */
 export function junkReason(d: StoredDeal): string | null {
   for (const c of [d.acquirer, d.target]) if (!isPlausibleName(c.name) && !isPlaceholderBuyer(c.name)) return `implausible name "${c.name}"`;
@@ -124,6 +150,7 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     const why = junkReason(d);
     if (why) drop(d, why);
     else if (changed) result.sanitized++;
+    if (!why) putReleaseFirst(d);
   }
 
   // The same deal under two registrants of the same name (SailPoint, bought in 2022, relisted in 2025 under a new CIK,

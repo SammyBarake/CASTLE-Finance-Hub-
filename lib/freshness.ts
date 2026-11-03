@@ -9,6 +9,19 @@
  */
 export const STALE_AFTER_MS = 8 * 3_600_000;
 
+const NEW_YORK = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/**
+ * The calendar day the data is as of, in New York, the zone its label uses: a run at 22:08 ET is already tomorrow in UTC, and
+ * "Jan 1 – Nov 3" beside "Nov 2 · 22:08 ET" would be a day ahead of every deal in the data.
+ */
+export function dataDay(asOf: string): string {
+  const at = new Date(asOf);
+  if (asOf.length <= 10 || Number.isNaN(at.getTime())) return asOf.slice(0, 10);
+  const part = (type: string) => NEW_YORK.formatToParts(at).find((p) => p.type === type)!.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 /** "just now", "12 min ago", "3h 5m ago", "2d ago". */
 export function ago(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));

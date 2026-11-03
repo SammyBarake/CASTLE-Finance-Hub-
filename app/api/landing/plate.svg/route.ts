@@ -1,4 +1,5 @@
 import { getHubData } from "@/lib/data";
+import { dataDay } from "@/lib/freshness";
 import { buildVolumeMatrix } from "@/lib/metrics";
 import { emptyPlateSvg, plateSeries, plateSvg, rosetteSvg } from "@/lib/plate";
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   if (d === "rosette" || d === "rosette-phone") return svgResponse(rosetteSvg(d === "rosette" ? "full" : "phone"), "public, max-age=31536000, immutable");
   const data = await getHubData();
   if (data.dataError || !data.asOf) return svgResponse(emptyPlateSvg(), "public, max-age=60, s-maxage=60");
-  const series = plateSeries(buildVolumeMatrix(data.monthlyVolume, data.asOf.slice(0, 7)));
+  const series = plateSeries(buildVolumeMatrix(data.monthlyVolume, dataDay(data.asOf).slice(0, 7)));
   // A page older than the data asks with its own version: answer, but don't keep this picture under that name for long.
   const current = params.get("v") === data.asOf;
   return svgResponse(plateSvg(series, d === "phone" ? "phone" : "full"), current ? "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400" : "public, max-age=60, s-maxage=60");

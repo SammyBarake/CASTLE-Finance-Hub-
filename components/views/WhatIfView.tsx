@@ -11,6 +11,7 @@ import { RippleGrid, type Selection } from "@/components/whatif/RippleGrid";
 import { ScenarioPanel } from "@/components/whatif/ScenarioPanel";
 import { WhyPanel } from "@/components/whatif/WhyPanel";
 import { formatDate } from "@/lib/format";
+import { dataDay } from "@/lib/freshness";
 import { adviserOutlook, adviserShares } from "@/lib/ripple/advisers";
 import type { SectorBaseline } from "@/lib/ripple/baseline";
 import { explain, runRipple } from "@/lib/ripple/engine";
@@ -85,7 +86,7 @@ export function WhatIfView() {
   const shocked = useMemo(() => new Set(shocks.filter((s) => s.target.kind === "feature" && s.size).map((s) => (s.target.kind === "feature" ? `${s.target.sector}|${s.target.feature}` : ""))), [shocks]);
   const insights = useMemo(() => rippleInsights(result, shock, ipoReady), [result, shock, ipoReady]);
   const span = useMemo(() => {
-    const to = data.asOf.slice(0, 10);
+    const to = dataDay(data.asOf);
     const from = new Date(Date.parse(to) - S.adviserWindowYears * 365.25 * 86_400_000).toISOString().slice(0, 10);
     return { from, to };
   }, [data.asOf]);
