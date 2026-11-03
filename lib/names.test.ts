@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayCompanyName, titleCaseCaps } from "./names";
+import { displayCompanyName, titleCaseCaps, withoutLegalForm } from "./names";
 
 describe("displayCompanyName", () => {
   it.each([
@@ -10,6 +10,15 @@ describe("displayCompanyName", () => {
     ["CANADIAN PACIFIC", "Canadian Pacific"],
     ["NVIDIA Corp", "NVIDIA Corp"],
     ["BIO-TECHNE Corp", "BIO-TECHNE Corp"],
+    ["CVS HEALTH Corp", "CVS Health Corp"],
+    ["ELI LILLY & Co", "Eli Lilly & Co"],
+    ["AIR LEASE Corp", "Air Lease Corp"],
+    ["LEGALZOOM.COM INC", "LegalZoom.com Inc"],
+    ["MARINEMAX INC", "MarineMax Inc"],
+    ["Marinemax Inc", "MarineMax Inc"],
+    ["Flir Systems Inc", "FLIR Systems Inc"],
+    ["KIMBERLY CLARK CORP", "Kimberly-Clark Corp"],
+    ["STAMPS.COM INC", "Stamps.com Inc"],
     // Mixed-case brands title-casing can't recover.
     ["VMWARE, INC.", "VMware, Inc."],
     ["Irobot Corp", "iRobot Corp"],
@@ -49,5 +58,25 @@ describe("titleCaseCaps", () => {
     // Only the Mc prefix: "Macy's" and "Mack" are left alone.
     expect(displayCompanyName("Macy's, Inc.")).toBe("Macy's, Inc.");
     expect(titleCaseCaps("MACK TRUCKS")).toBe("Mack Trucks");
+  });
+});
+
+describe("withoutLegalForm", () => {
+  it.each([
+    ["Varonis Systems Inc", "Varonis Systems"],
+    ["Proofpoint, Inc.", "Proofpoint"],
+    ["Boeing Co", "Boeing"],
+    ["Schneider Electric SE", "Schneider Electric"],
+    ["Novartis AG", "Novartis"],
+    ["Sapiens International Corp N V", "Sapiens International"],
+    ["Franklin Electric Co Inc", "Franklin Electric"],
+    ["Noble Corp plc", "Noble"],
+    ["Anthropic, PBC", "Anthropic"],
+    ["Horizon Therapeutics Public Ltd Co", "Horizon Therapeutics"],
+    // "& Co" is part of the name.
+    ["Eli Lilly & Co", "Eli Lilly & Co"],
+    ["Hunter Fan Company", "Hunter Fan Company"],
+  ])("%s -> %s", (raw, shown) => {
+    expect(withoutLegalForm(raw)).toBe(shown);
   });
 });

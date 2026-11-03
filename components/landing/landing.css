@@ -1,0 +1,578 @@
+/*
+ * The landing page (components/landing). Its own file, imported by LandingView, so terminal pages never pay for it.
+ *
+ * Rules that keep it honest:
+ * - Base styles are the finished page. Hidden and moving states exist only under html.lx (set before paint when motion is
+ *   allowed, and taken away again if the page's script hasn't arrived 6 s later), so with no script, reduced motion or the
+ *   terminal's animations setting the page is complete and still.
+ * - Everything that moves is a transform or an opacity. No filters, no blend modes, no background-clip repaints.
+ * - Light is made by black shapes moving over a bright image. That needs one solid background behind the plate.
+ */
+
+.landing {
+  --ink: #000;
+  --ivory: #eceae4;
+  --silver: #b6b4ae;
+  --grey: #8e8c86;
+  --hair: #262626;
+  --paper: #e9e6df;
+  --press: #0b0b0a;
+  --paper-grey: #5f5d57;
+  --paper-hair: rgba(11, 11, 10, 0.22);
+  --platinum: #c8c2b2;
+  --m: clamp(24px, 4.4vw, 84px);
+  --serif: var(--font-news), Georgia, "Times New Roman", serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow-x: clip;
+  background: var(--ink);
+  color: var(--ivory);
+  font-size: 15px;
+}
+.landing ::selection { background: var(--platinum); color: #000; }
+.landing a { color: inherit; }
+.landing :where(h1, h2, h3, p, figure, ol, dl, dd) { margin: 0; padding: 0; font: inherit; }
+.lx-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- the binding ---------- */
+.lx-book { display: block; }
+.lx-sentinel { display: block; height: 0; scroll-margin-top: 0; }
+.lx-leaf { position: relative; background: var(--ink); }
+.lx-leaf.paper { background: var(--paper); color: var(--press); }
+.lx-leaf > .lx-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  padding: clamp(22px, 3.4vh, 36px) var(--m) clamp(22px, 3.4vh, 36px);
+  background: inherit;
+  overflow: clip;
+}
+.lx-head { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; }
+.lx-kicker, .lx-fig-label { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grey); }
+.paper .lx-kicker { color: var(--paper-grey); }
+.lx-folio { font-family: var(--serif); font-size: 15px; color: var(--grey); letter-spacing: 0.04em; }
+.paper .lx-folio { color: var(--paper-grey); }
+.lx-rule { display: block; height: 1px; background: var(--hair); transform-origin: left; }
+.lx-h2 { font-family: var(--serif); font-weight: 240; font-size: clamp(36px, min(4.2vw, 7.4vh), 68px); line-height: 1.04; letter-spacing: -0.022em; text-wrap: balance; }
+.lx-link { display: inline-flex; gap: 8px; align-items: baseline; font-size: 12px; font-weight: 500; text-decoration: none; background: linear-gradient(currentColor, currentColor) left bottom / 100% 1px no-repeat; padding-bottom: 3px; transition: background-size 0.45s var(--ease); }
+.lx-link:hover { background-size: 0 1px; background-position: right bottom; }
+
+/* A word in its mask. The padding keeps ascenders and an italic's overhang out of the clip. */
+.w, .g { display: inline-block; overflow: clip; padding: 0.14em 0.16em 0.2em; margin: -0.14em -0.16em -0.2em; vertical-align: top; }
+.w > span, .g > span { display: inline-block; }
+
+/* ---------- I. cover ---------- */
+.lx-cover > .lx-sheet { padding-top: clamp(20px, 3.2vh, 34px); }
+.lx-cover-logo { position: relative; width: 94px; opacity: 0.94; }
+.lx-cover-logo img { display: block; width: 100%; height: auto; }
+.lx-cover-logo { aspect-ratio: 1094 / 838; }
+.lx-cover-body { position: relative; margin-block: auto; padding-block: 28px; }
+.lx-title { font-family: var(--serif); font-weight: 210; font-size: clamp(44px, min(6.6vw, 12vh), 146px); line-height: 1.03; letter-spacing: -0.024em; color: var(--ivory); }
+.lx-title .ln { display: block; white-space: nowrap; }
+.lx-title .it { font-style: italic; }
+.lx-sub { max-width: 500px; margin-top: clamp(20px, 3.2vh, 34px); font-family: var(--serif); font-weight: 340; font-size: 17px; line-height: 1.5; color: var(--silver); }
+.lx-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: clamp(20px, 3.4vh, 36px); }
+.lx-button { position: relative; display: inline-flex; align-items: center; gap: 12px; height: 52px; padding: 0 26px; background: var(--ivory); color: #000 !important; font-size: 13px; font-weight: 500; text-decoration: none; overflow: clip; isolation: isolate; transition: transform 0.2s var(--ease); }
+.lx-button::before { content: ""; position: absolute; inset: 0; z-index: -1; background: #d4d1c8; transform: scaleY(0); transform-origin: bottom; transition: transform 0.32s var(--ease); }
+.lx-button:hover::before { transform: scaleY(1); }
+.lx-button:active { transform: scale(0.985); }
+.lx-button .arrow { display: inline-block; transition: transform 0.32s var(--ease); }
+.lx-button:hover .arrow { transform: translateX(4px); }
+.lx-button.quiet { background: none; color: var(--ivory) !important; box-shadow: inset 0 0 0 1px #4a4a48; }
+.lx-button.quiet::before { display: none; }
+.lx-button.quiet:hover { box-shadow: inset 0 0 0 1px #8e8c86; }
+.lx-live { display: flex; align-items: center; gap: 9px; margin-top: 16px; font-size: 11px; color: var(--grey); }
+.lx-live i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--platinum); }
+.lx-live.stale { color: var(--platinum); }
+.lx-live.off i { background: #4a4a4a; }
+.lx-cue { position: absolute; left: var(--m); bottom: 0; width: 1px; height: 7vh; background: linear-gradient(transparent, #55554f); transform-origin: top; }
+
+/* ---------- the plate ---------- */
+.lx-plate { --size: 100%; --lx-u: 2.4; position: relative; aspect-ratio: 1; }
+.lx-noimg .lx-plate-img, .lx-noimg .lx-rosette, .lx-noimg .lx-light { display: none; }
+.lx-plate-img, .lx-rosette, .lx-rosette img, .lx-wipe, .lx-light, .lx-crop-peak, .lx-dial-marks { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lx-plate picture:first-child { position: absolute; inset: 0; display: block; }
+.lx-rosette { opacity: 0.55; transform-origin: center; }
+.lx-light { overflow: hidden; border-radius: 50%; pointer-events: none; }
+/*
+ * A sheet of black with one soft hole, three plates wide so the hole can travel without an edge showing. Three nested
+ * moves: the pointer (a translate, in script), the idle orbit (a slow turn), and the arm that holds the hole off-centre,
+ * which folds away while someone is pointing, so the hole then sits exactly under the pointer.
+ */
+.lx-light-follow { position: absolute; inset: -100%; }
+.lx-crop .lx-light-follow { left: -125%; right: -75%; }
+.lx-light-orbit, .lx-light-sheet { position: absolute; inset: 0; }
+.lx-light-sheet { background: radial-gradient(circle at center, transparent 0, transparent 4%, rgba(0, 0, 0, 0.42) 21%); transform: translateX(11%); transition: transform 1.1s var(--ease); }
+.lx-plate.pointing .lx-light-sheet { transform: none; }
+html:not(.lx) .lx-light { display: none; }
+.lx-wipe { display: none; border-radius: 50%; overflow: hidden; pointer-events: none; }
+.lx-blade { position: absolute; top: -1%; bottom: -1%; width: 51%; overflow: hidden; }
+.lx-blade.right { left: 50%; }
+.lx-blade.left { right: 50%; }
+.lx-blade i { position: absolute; inset: 0; background: var(--ink); will-change: transform; }
+.lx-blade.right i { transform-origin: 0% 50%; }
+.lx-blade.left i { transform-origin: 100% 50%; }
+.lx-burin { position: absolute; left: calc(50% - 0.5px); top: 2.6%; width: 1px; height: 27.8%; background: var(--ivory); transform-origin: 50% 170.5%; opacity: 0.9; }
+
+/* The cover's crop: the dial bleeds off the right edge, its centre just past it. */
+.lx-crop { position: absolute; width: min(150svh, 104vw); left: calc(100% - min(75svh, 52vw) + 6vw); top: calc(50% - min(75svh, 52vw)); pointer-events: none; }
+.lx-cover-scrim { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #000 44%, transparent 62%); }
+.lx-crop-peak, .lx-dial-marks { overflow: visible; }
+.lx-peak line { stroke: var(--platinum); stroke-width: 1.6; opacity: 0.85; }
+.lx-peak text { fill: var(--platinum); font-size: calc(11px * var(--lx-u, 2.4)); font-family: var(--font-inter), system-ui, sans-serif; font-weight: 500; }
+
+
+/* ---------- II. highlights ---------- */
+.lx-highlights > .lx-sheet { justify-content: flex-start; gap: clamp(14px, 3vh, 30px); }
+.landing-kpis { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: clamp(20px, 4vh, 44px); min-height: 0; }
+.lx-fig-value { display: grid; grid-template-columns: max-content minmax(240px, 380px); align-items: end; gap: clamp(24px, 4vw, 72px); }
+.lx-figure { position: relative; font-family: var(--serif); font-weight: 200; font-size: clamp(96px, min(calc(113vw / var(--len, 5)), 44vh), 400px); line-height: 0.92; letter-spacing: -0.04em; color: var(--ivory); white-space: nowrap; font-feature-settings: "lnum"; }
+
+.lx-fig-side { position: relative; z-index: 1; padding-bottom: clamp(8px, 2vh, 26px); }
+.lx-fig-label { font-family: inherit; }
+.lx-fig-note { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: var(--silver); }
+.lx-change { color: var(--ivory); font-weight: 500; white-space: nowrap; }
+.lx-fig-claim { margin-top: 14px; font-family: var(--serif); font-weight: 340; font-size: 15.5px; line-height: 1.45; color: var(--silver); }
+.lx-fig-row { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: clamp(24px, 4vw, 72px); }
+.lx-fig.text .lx-fig-num { white-space: normal; text-wrap: balance; }
+.lx-fig-num { margin-top: 10px; font-family: var(--serif); font-weight: 220; font-size: clamp(40px, min(5.2vw, 9.2vh), 90px); line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
+.lx-fig.text .lx-fig-num { letter-spacing: -0.02em; }
+
+.landing-kpis .kpi { padding: 0; border: 0; background: none; min-width: 0; }
+
+/* ---------- III. the dial ---------- */
+.lx-plate-leaf > .lx-sheet { gap: 8px; }
+.lx-plate-grid { flex: 1; display: grid; grid-template-columns: minmax(300px, 28vw) minmax(0, 1fr); gap: clamp(24px, 3vw, 56px); align-items: center; min-height: 0; }
+.lx-plate-copy p { margin-top: 18px; font-family: var(--serif); font-weight: 340; font-size: 16.5px; line-height: 1.5; color: var(--silver); }
+.lx-plate-copy .lx-note { font-family: inherit; font-size: 12.5px; line-height: 1.55; color: var(--grey); }
+.lx-plate-copy .lx-link { margin-top: 20px; }
+.lx-nowrap { white-space: nowrap; }
+.lx-hint-touch { display: none; }
+@media (hover: none) { .lx-hint-pointer { display: none; } .lx-hint-touch { display: inline; } }
+.lx-dial { justify-self: center; width: min(86svh, 100%); }
+.lx-dial-hit { position: absolute; inset: 0; border-radius: 50%; cursor: crosshair; touch-action: pan-y; outline-offset: 6px; }
+.lx-year { paint-order: stroke; stroke: #000; stroke-width: 10px; fill: var(--grey); font-size: calc(10.5px * var(--lx-u, 2.4)); font-family: var(--font-inter), system-ui, sans-serif; letter-spacing: 0.04em; }
+.lx-league { fill: #8a8882; font-size: calc(10px * var(--lx-u, 2.4)); font-family: var(--font-inter), system-ui, sans-serif; font-weight: 500; }
+.lx-needle { position: absolute; left: 50%; top: 0; width: 0; height: 50%; transform-origin: 50% 100%; pointer-events: none; transition: transform 0.14s var(--ease); }
+/* From the bezel's long ticks in to the edge of the readout. */
+.lx-needle i { position: absolute; left: -0.5px; top: 5.2%; width: 1px; height: 55.6%; background: var(--platinum); }
+.lx-readout { position: absolute; left: 50%; top: 50%; width: 34%; transform: translate(-50%, -50%); text-align: center; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.lx-readout-month { font-size: 11.5px; color: var(--silver); }
+.lx-readout-value { margin-top: 2px; font-family: var(--serif); font-weight: 220; font-size: clamp(34px, 5.6svh, 54px); line-height: 1.05; letter-spacing: -0.03em; }
+.lx-readout-deals { font-size: 11px; color: var(--grey); }
+.lx-readout-largest { display: block; min-height: 4.2em; margin-top: 8px; font-size: 10.5px; line-height: 1.4; color: var(--silver); text-decoration: none; pointer-events: auto; cursor: pointer; }
+.lx-readout-largest > span:first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lx-readout-largest-value { display: block; }
+.lx-readout-largest:hover { color: var(--ivory); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- IV. tombstones ---------- */
+.lx-transactions > .lx-sheet { gap: clamp(14px, 2.6vh, 28px); }
+.lx-tombs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 1.6vw, 26px); height: clamp(380px, min(68vh, 41vw), 760px); margin-top: auto; }
+.lx-tomb-note { margin-bottom: auto; }
+.lx-tombs.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lx-tomb { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto 1fr; align-items: center; gap: 18px; padding: clamp(26px, 5vh, 48px) clamp(16px, 1.6vw, 26px); text-align: center; border: 1px solid var(--press); }
+.lx-tomb-frame { position: absolute; inset: 6px; border: 1px solid var(--paper-hair); pointer-events: none; transition: transform 0.3s var(--ease), border-color 0.3s; }
+.lx-tomb:hover .lx-tomb-frame { transform: scale(0.982); border-color: rgba(11, 11, 10, 0.5); }
+.lx-tomb-link { position: absolute; inset: 0; z-index: 1; }
+.lx-tomb-names { align-self: start; }
+.lx-tomb-names strong { display: block; font-family: var(--serif); font-weight: 360; font-size: clamp(19px, 1.75vw, 27px); line-height: 1.16; letter-spacing: -0.012em; text-wrap: balance; }
+.lx-tomb-names em { display: block; margin: 6px 0; font-family: var(--serif); font-weight: 340; font-style: italic; font-size: 15px; color: var(--paper-grey); }
+.lx-tomb-value { font-family: var(--serif); font-weight: 220; font-size: clamp(44px, 4.4vw, 80px); line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
+.lx-tomb-foot { align-self: end; display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.45; color: var(--paper-grey); }
+.lx-tomb-adv { min-height: 2.9em; text-wrap: balance; }
+.lx-tomb-foot a { position: relative; z-index: 2; align-self: center; color: var(--press); text-decoration: underline; text-decoration-color: var(--paper-hair); text-underline-offset: 3px; transition: text-decoration-color 0.2s; }
+.lx-tomb-foot a:hover { text-decoration-color: var(--press); }
+.lx-tomb-note { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; font-family: var(--serif); font-weight: 340; font-style: italic; font-size: 15px; color: var(--paper-grey); }
+.lx-tomb-note .lx-link { font-family: var(--font-inter), system-ui, sans-serif; font-style: normal; color: var(--press); white-space: nowrap; }
+
+/* ---------- V. contents and exhibits ---------- */
+.lx-terminal { background: #080808; }
+.lx-terminal > .lx-sheet { gap: clamp(10px, 2vh, 22px); }
+.lx-contents { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(28px, 4vw, 72px); align-items: center; min-height: 0; }
+.lx-rows { display: block; }
+.lx-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 4px; align-items: baseline; padding: clamp(10px, 2vh, 20px) 0; border-top: 1px solid var(--hair); text-decoration: none; transition: opacity 0.25s; }
+.lx-row:last-child { border-bottom: 1px solid var(--hair); }
+.lx-row-name { font-family: var(--serif); font-weight: 240; font-size: clamp(28px, min(3.2vw, 5.8vh), 52px); line-height: 1.08; letter-spacing: -0.02em; }
+.lx-row-name > span { display: inline-block; transition: transform 0.4s var(--ease); }
+.lx-row-count { font-size: 11.5px; color: var(--platinum); text-align: right; white-space: nowrap; }
+.lx-row-line { grid-column: 1 / -1; grid-row: 2; max-width: 56ch; font-size: 12.5px; line-height: 1.5; color: var(--grey); transition: color 0.25s; }
+@media (hover: hover) {
+  .lx-rows:hover .lx-row:not(:hover) { opacity: 0.42; }
+  .lx-row:hover .lx-row-name > span { transform: translateX(10px); }
+  .lx-row:hover .lx-row-line { color: var(--silver); }
+}
+[data-active="deal-flow"] .lx-row[data-s="deal-flow"], [data-active="precedents"] .lx-row[data-s="precedents"], [data-active="advisors"] .lx-row[data-s="advisors"], [data-active="ipo-pipeline"] .lx-row[data-s="ipo-pipeline"], [data-active="deal-terms"] .lx-row[data-s="deal-terms"] { border-top-color: #6f6d68; }
+[data-active="deal-flow"] .lx-row[data-s="deal-flow"] .lx-row-line, [data-active="precedents"] .lx-row[data-s="precedents"] .lx-row-line, [data-active="advisors"] .lx-row[data-s="advisors"] .lx-row-line, [data-active="ipo-pipeline"] .lx-row[data-s="ipo-pipeline"] .lx-row-line, [data-active="deal-terms"] .lx-row[data-s="deal-terms"] .lx-row-line { color: var(--silver); }
+.lx-exhibits { position: relative; display: grid; align-self: center; }
+.lx-exhibit { grid-area: 1 / 1; min-width: 0; opacity: 0; pointer-events: none; transition: opacity 0.35s var(--ease); }
+html:not(.lx-ok) .lx-exhibit:focus-within { opacity: 1; }
+.lx-contents:not(:has(.lx-exhibit)) { grid-template-columns: minmax(0, 1fr); }
+.lx-exhibit figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding-bottom: 12px; font-size: 11.5px; color: var(--silver); }
+.lx-exhibit figcaption a { flex: none; color: var(--ivory); text-decoration: none; font-weight: 500; }
+.lx-exhibit figcaption a:hover { text-decoration: underline; text-underline-offset: 3px; }
+[data-active="deal-flow"] .lx-exhibit[data-s="deal-flow"],
+[data-active="precedents"] .lx-exhibit[data-s="precedents"],
+[data-active="advisors"] .lx-exhibit[data-s="advisors"],
+[data-active="ipo-pipeline"] .lx-exhibit[data-s="ipo-pipeline"],
+[data-active="deal-terms"] .lx-exhibit[data-s="deal-terms"] { opacity: 1; pointer-events: auto; transition: opacity 0.45s var(--ease) 0.05s; }
+.lx-table-wrap { overflow-x: auto; }
+.lx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.lx-table th { padding: 9px 10px; border-top: 1px solid #55554f; border-bottom: 1px solid var(--hair); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; color: var(--grey); text-align: right; white-space: nowrap; }
+.lx-table th:first-child, .lx-table td:first-child { padding-left: 0; text-align: left; }
+.lx-table th:last-child, .lx-table td:last-child { padding-right: 0; }
+.lx-table td { padding: 9px 10px; border-bottom: 1px solid #161616; color: var(--silver); white-space: nowrap; }
+.lx-table td.name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; text-align: left; color: var(--ivory); }
+.lx-table td.num { text-align: right; }
+.lx-table td.rank { width: 18px; color: var(--grey); text-align: left; }
+.lx-table th.l { text-align: left; }
+.lx-table td:not(.num):not(.name) { text-align: left; }
+.lx-table tr.sum th { border-top: 0; border-bottom: 1px solid #161616; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ivory); text-align: left; font-family: var(--serif); font-style: italic; }
+.lx-table tr.sum td { color: var(--ivory); }
+.lx-table tr.sum:first-of-type th, .lx-table tr.sum:first-of-type td { border-top: 1px solid #55554f; }
+.lx-table tr.sum:last-child th, .lx-table tr.sum:last-child td { border-bottom: 1px solid #55554f; }
+.lx-table tbody tr:not(.sum) + tr.sum th, .lx-table tbody tr:not(.sum) + tr.sum td { border-top: 1px solid #55554f; }
+.lx-table td.name .lx-bar { display: block; height: 2px; margin-top: 6px; background: #3f3e3a; transform: scaleX(var(--share)); transform-origin: left; }
+.lx-terms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding-bottom: 18px; }
+.lx-terms dt { min-height: 2.6em; font-size: 10.5px; line-height: 1.3; color: var(--grey); }
+.lx-terms dd { margin-top: 6px; font-family: var(--serif); font-weight: 240; font-size: clamp(26px, 2.8vw, 40px); line-height: 1; letter-spacing: -0.02em; }
+.lx-exhibit-note { margin-top: 10px; font-size: 11px; line-height: 1.45; color: var(--grey); }
+.lx-more { font-size: 12px; line-height: 1.8; color: var(--grey); }
+.lx-more a { color: var(--silver); text-decoration: none; transition: color 0.2s; }
+.lx-more a:hover { color: var(--ivory); text-decoration: underline; text-underline-offset: 3px; }
+.lx-more-item { white-space: nowrap; }
+
+/* ---------- VI. notes ---------- */
+.lx-notes > .lx-sheet { gap: clamp(14px, 2.6vh, 28px); }
+.lx-notes-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 96px); align-items: center; }
+.lx-notes-grid.single { grid-template-columns: minmax(0, 720px); }
+.lx-steps { max-width: 70ch; margin-top: clamp(16px, 3.2vh, 34px); list-style: none; counter-reset: note; display: grid; gap: clamp(10px, 1.8vh, 18px); }
+.lx-steps li { counter-increment: note; padding-left: 28px; position: relative; font-family: var(--serif); font-weight: 360; font-size: clamp(15px, 2.1vh, 17px); line-height: 1.46; }
+.lx-steps li::before { content: counter(note); position: absolute; left: 0; top: 0.1em; font-size: 12px; color: var(--paper-grey); font-feature-settings: "lnum"; }
+.lx-steps strong { font-weight: 500; }
+.lx-steps a, .lx-limits a { text-decoration: underline; text-decoration-color: var(--paper-hair); text-underline-offset: 3px; transition: text-decoration-color 0.2s; }
+.lx-steps a:hover, .lx-limits a:hover { text-decoration-color: var(--press); }
+.lx-limits { max-width: 86ch; margin-top: clamp(12px, 2.4vh, 24px); padding-top: clamp(10px, 2vh, 18px); border-top: 1px solid var(--paper-hair); font-size: 12px; line-height: 1.55; color: var(--paper-grey); }
+.lx-record { border: 1px solid var(--press); padding: clamp(16px, 2.8vh, 28px) clamp(18px, 2vw, 32px); }
+.lx-record figcaption { font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper-grey); }
+.lx-record-names { margin-top: clamp(8px, 1.6vh, 14px); padding-bottom: clamp(8px, 1.6vh, 14px); border-bottom: 1px solid var(--press); font-family: var(--serif); font-weight: 340; font-size: clamp(20px, min(2vw, 3.4vh), 30px); line-height: 1.16; letter-spacing: -0.012em; }
+.lx-record-names a { text-decoration: none; }
+.lx-record-names a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.lx-record-names em { color: var(--paper-grey); }
+.lx-record-names small { display: block; margin-top: 4px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 11.5px; letter-spacing: 0; color: var(--paper-grey); }
+.lx-record dl > div { display: flex; justify-content: space-between; gap: 18px; padding: clamp(4px, 0.85vh, 8px) 0; border-bottom: 1px solid var(--paper-hair); font-size: 12.5px; }
+.lx-record dt { color: var(--paper-grey); }
+.lx-record dd { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.lx-record dd.blank { color: var(--paper-grey); font-weight: 400; }
+.lx-record-source { display: block; margin-top: clamp(10px, 1.8vh, 16px); font-size: 12px; font-weight: 500; text-underline-offset: 3px; text-decoration: underline; text-decoration-color: var(--paper-hair); transition: text-decoration-color 0.2s; }
+.lx-record-source:hover { text-decoration-color: var(--press); }
+
+/* ---------- VII. back cover ---------- */
+.lx-close > .lx-sheet { justify-content: flex-end; }
+.lx-close-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.lx-close-link { display: inline-block; align-self: flex-start; font-family: var(--serif); font-weight: 200; font-size: clamp(64px, min(14vw, 27vh), 300px); line-height: 0.98; letter-spacing: -0.035em; text-decoration: none; }
+.lx-close-line { display: block; white-space: nowrap; }
+.lx-close-link .it { font-style: italic; }
+.lx-close-link .arrow { display: inline-block; margin-left: 0.14em; font-size: 0.72em; font-weight: 200; transition: transform 0.5s var(--ease); }
+.lx-close-link:hover .arrow { transform: translateX(0.12em); }
+.lx-close-link:active { transform: scale(0.997); }
+.lx-close-body p { margin-top: clamp(14px, 3vh, 32px); font-family: var(--serif); font-weight: 340; font-size: 18px; color: var(--silver); }
+.lx-close-body p a { color: var(--ivory); text-underline-offset: 3px; }
+.lx-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-top: 16px; border-top: 1px solid var(--hair); font-size: 11.5px; color: var(--grey); }
+.lx-footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.lx-footer a { color: var(--silver); text-decoration: none; transition: color 0.2s; }
+.lx-footer a:hover { color: var(--ivory); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- furniture: the fixed button and the fore-edge, shown only in motion mode on a wide screen ---------- */
+.lx-float, .lx-fore { display: none; }
+.lx-leaving .lx-book, .lx-leaving .lx-fore, .lx .landing.lx-leaving .lx-float { opacity: 0; pointer-events: none; transition: opacity 0.22s ease-out; }
+.lx-leaving::before { content: ""; position: fixed; z-index: 40; left: 0; right: 0; top: 0; height: 1px; background: var(--ivory); transform-origin: left; animation: lx-progress 7s cubic-bezier(0.08, 0.7, 0.2, 1) 0.3s both; }
+@keyframes lx-progress { from { transform: scaleX(0); } to { transform: scaleX(0.92); } }
+
+/* ---------- focus: ivory on black, press black on paper ---------- */
+.landing :where(a, [tabindex]):focus-visible { outline: 2px solid var(--ivory); outline-offset: 3px; }
+.landing .paper :where(a, [tabindex]):focus-visible { outline-color: var(--press); }
+html[data-input="mouse"] .landing :focus, html[data-input="mouse"] .landing :focus-visible { outline: none; }
+
+/* ======================================== motion: only under html.lx ======================================== */
+@keyframes lx-rise { from { transform: translateY(140%); } }
+@keyframes lx-fade-rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes lx-fade { from { opacity: 0; } }
+@keyframes lx-rake { from { opacity: 0.1; } }
+@keyframes lx-draw-down { from { transform: scaleY(0); } }
+/* Cut in two halves that meet at the same speed: one blade per half, and the burin across both. */
+@keyframes lx-blade-a { 0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); } 50%, 100% { transform: rotate(180deg); } }
+@keyframes lx-blade-b { 0%, 50% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.1, 0.4, 0.5, 1); } 100% { transform: rotate(180deg); } }
+@keyframes lx-burin { 0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); opacity: 0.9; } 50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.1, 0.4, 0.5, 1); } 94% { opacity: 0.9; } 100% { transform: rotate(360deg); opacity: 0; } }
+@keyframes lx-breathe { from { transform: rotate(-0.22deg); } to { transform: rotate(0.22deg); } }
+@keyframes lx-orbit { to { transform: rotate(360deg); } }
+
+/* Cover entrance. The H1 waits for its font (html.lx-go, at most 700 ms) so a word never rises in Times and then swaps. */
+.lx:not(.lx-go) .lx-title .w > span { transform: translateY(140%); }
+.lx.lx-go .lx-title .w > span { animation: lx-rise 1.35s var(--ease) both; animation-delay: calc(120ms + var(--i, 0) * 55ms); }
+.lx .lx-title .it > span { animation-delay: calc(240ms + var(--i, 0) * 55ms) !important; }
+.lx .lx-cover-logo { animation: lx-rake 1.3s ease-out 0.1s both; }
+.lx .lx-sub { animation: lx-fade-rise 0.95s var(--ease) 0.95s both; }
+.lx .lx-actions { animation: lx-fade-rise 0.95s var(--ease) 1.12s both; }
+.lx .lx-live { animation: lx-fade 0.9s ease-out 1.35s both; }
+.lx .lx-cue { animation: lx-draw-down 1.2s var(--ease) 2s both; }
+.lx.lx-again .lx-title .w > span { animation-duration: 0.5s; animation-delay: 0s !important; }
+.lx.lx-again .lx-sub, .lx.lx-again .lx-actions, .lx.lx-again .lx-live, .lx.lx-again .lx-cue { animation-delay: 0s; animation-duration: 0.4s; }
+
+/* Plate: covered by the blades until the image is here, then cut clockwise, then at rest with its slow movements. */
+.lx .lx-plate[data-cut="pending"] .lx-wipe, .lx .lx-plate[data-cut="run"] .lx-wipe, .lx .lx-plate:not([data-cut]) .lx-wipe { display: block; }
+.lx .lx-plate[data-cut="pending"] .lx-burin, .lx .lx-plate:not([data-cut]) .lx-burin { opacity: 0; }
+.lx .lx-plate[data-cut="run"] .lx-blade.right i { animation: lx-blade-a 2.4s linear both; }
+.lx .lx-plate[data-cut="run"] .lx-blade.left i { animation: lx-blade-b 2.4s linear both; }
+.lx .lx-plate[data-cut="run"] .lx-burin { animation: lx-burin 2.4s linear both; }
+.lx .lx-crop .lx-wipe { transform: rotate(180deg); }
+.lx .lx-crop[data-cut="run"] .lx-blade.right i, .lx .lx-crop[data-cut="run"] .lx-blade.left i, .lx .lx-crop[data-cut="run"] .lx-burin { animation-duration: 3s; }
+.lx .lx-plate[data-cut="fade"] picture:first-child { animation: lx-fade 0.9s ease-out both; }
+.lx .lx-plate .lx-rosette { animation: lx-breathe 22s ease-in-out infinite alternate; }
+.lx .lx-plate[data-cut="fade"] .lx-rosette { animation: lx-breathe 22s ease-in-out infinite alternate, lx-fade 0.9s ease-out both; }
+.lx .lx-plate .lx-light-orbit { animation: lx-orbit 34s linear infinite; }
+.lx .lx-plate:not([data-cut]) .lx-readout-largest, .lx .lx-plate[data-cut="pending"] .lx-readout-largest, .lx .lx-plate[data-cut="run"] .lx-readout-largest { pointer-events: none; }
+/* The burin does the turning during the cut; the needle comes in where it rests. */
+.lx .lx-dial .lx-needle { transition: transform 0.14s var(--ease), opacity 0.7s ease-out; }
+.lx .lx-dial:not([data-cut]) .lx-needle, .lx .lx-dial[data-cut="pending"] .lx-needle, .lx .lx-dial[data-cut="run"] .lx-needle { opacity: 0; }
+.lx .lx-crop .lx-peak, .lx .lx-dial .lx-peak { opacity: 0; transition: opacity 0.9s ease-out; }
+.lx .lx-plate[data-cut="done"] .lx-peak, .lx .lx-plate[data-cut="fade"] .lx-peak { opacity: 1; }
+.lx .lx-dial .lx-league, .lx .lx-dial .lx-year { opacity: 0; transition: opacity 1.4s ease-out 0.4s; }
+.lx .lx-dial[data-cut="run"] .lx-league, .lx .lx-dial[data-cut="done"] .lx-league, .lx .lx-dial[data-cut="fade"] .lx-league,
+.lx .lx-dial[data-cut="run"] .lx-year, .lx .lx-dial[data-cut="done"] .lx-year, .lx .lx-dial[data-cut="fade"] .lx-year { opacity: 1; }
+/* Nothing runs for a leaf under another, an idle reader, or a page in a background tab. */
+.lx .covered .lx-rosette, .lx .covered .lx-light-orbit, .lx-idle .lx-rosette, .lx-idle .lx-light-orbit { animation-play-state: paused !important; }
+
+/* One-shot reveals, hidden only until the observer fires. The slow, staggered timing holds until .settled, so hovers are quick afterwards. */
+.lx [data-r]:not(.in) .r { opacity: 0; transform: translateY(12px); }
+.lx [data-r] .r { transition: opacity 0.9s var(--ease), transform 0.9s var(--ease); transition-delay: calc(var(--i, 0) * 70ms); }
+.lx [data-r]:not(.in) .w > span, .lx [data-r]:not(.in) .g > span { transform: translateY(140%); }
+.lx [data-r] .w > span, .lx [data-r] .g > span { transition: transform 1.25s var(--ease); transition-delay: calc(var(--i, 0) * 60ms); }
+/* Light crosses the figure once, as a dimming sheet slides off it. A black shape over bright type: no repaint, and no foil. */
+.lx .lx-figure::after { content: ""; position: absolute; top: -22%; bottom: -22%; left: 0; width: 320%; background: linear-gradient(90deg, transparent 0 40%, rgba(0, 0, 0, 0.5) 50% 100%); pointer-events: none; opacity: 0; }
+.lx [data-r]:not(.in) .lx-figure::after { opacity: 1; transform: translateX(-53%); }
+.lx [data-r].in .lx-figure::after { animation: lx-sweep 2.1s cubic-bezier(0.45, 0, 0.25, 1) 0.35s backwards; }
+@keyframes lx-sweep { from { opacity: 1; transform: translateX(-53%); } to { opacity: 1; transform: translateX(0); } }
+.lx [data-r]:not(.in) .lx-rule { transform: scaleX(0); }
+.lx [data-r] .lx-rule { transition: transform 1.1s var(--ease) 0.25s; }
+.lx [data-r]:not(.in) .lx-tomb-frame { transform: scale(1.03); opacity: 0; }
+.lx [data-r]:not(.settled) .lx-tomb-frame { transition: transform 0.9s var(--ease), opacity 0.7s ease-out, border-color 0.3s; transition-delay: calc(var(--i, 0) * 140ms); }
+.lx [data-r] .lx-tomb.r { transition-delay: calc(var(--i, 0) * 140ms); }
+.lx [data-r]:not(.in) .lx-row { opacity: 0; transform: translateY(12px); }
+.lx [data-r]:not(.settled) .lx-row { transition: opacity 0.8s var(--ease), transform 0.8s var(--ease); transition-delay: calc(var(--i, 0) * 70ms); }
+.lx [data-r]:not(.in) .lx-exhibits { opacity: 0; }
+.lx [data-r] .lx-exhibits { transition: opacity 1s ease-out 0.35s; }
+
+/* The stack: only with room for it, and only with motion on. Each leaf lies on the one before. */
+@media (min-width: 1021px) and (min-height: 700px) {
+  .lx .lx-leaf:not(:last-child) { position: sticky; top: var(--stick, 0px); }
+  .lx .lx-leaf { z-index: var(--z, 1); }
+  /* A dark leaf's edge has to show, or black sliding over black just slices the words on the sheet below. */
+  .lx .lx-leaf:not(.paper):not(.lx-cover) > .lx-sheet { box-shadow: inset 0 1px 0 #2e2e2c; }
+  /* The fore-edge shows the page's position, so here (only here) the scrollbar goes: its gutter would stand as a black bar beside the paper leaves. */
+  html.lx:has(.landing) { scrollbar-gutter: auto; scrollbar-width: none; }
+  html.lx:has(.landing)::-webkit-scrollbar { display: none; }
+
+  /* The fixed button, after the cover. Ivory on the dark leaves, press black on paper, with the cover button's hover. */
+  .lx .lx-float { position: fixed; z-index: 30; display: inline-flex; gap: 10px; align-items: center; right: calc(var(--m) + 44px); top: clamp(14px, 2.4vh, 26px); height: 34px; padding: 0 14px; background: var(--ivory); color: #000; font-size: 11.5px; font-weight: 500; text-decoration: none; opacity: 0; pointer-events: none; transform: translateY(-6px); transition: opacity 0.35s var(--ease), transform 0.35s var(--ease), background-color 0.25s, color 0.25s; }
+  .lx .landing[data-paper="1"] .lx-float { background: var(--press); color: var(--paper); }
+  .lx .lx-float .arrow { display: inline-block; transition: transform 0.32s var(--ease); }
+  .lx .lx-float:hover .arrow { transform: translateX(3px); }
+  .lx .lx-float:hover { background: #d4d1c8; }
+  .lx .landing[data-paper="1"] .lx-float:hover { background: #2c2c2a; }
+  .lx .landing:not([data-top="0"])[data-top]:not([data-last="1"]) .lx-float { opacity: 1; pointer-events: auto; transform: none; }
+
+  /* The fore-edge: seven hairlines down the right margin, like the edge of a book's pages. */
+  .lx .lx-fore { position: fixed; z-index: 30; display: flex; flex-direction: column; gap: 0; right: 0; top: 50%; transform: translateY(-50%); }
+  .lx .lx-fore a { position: relative; display: block; width: 34px; height: 18px; }
+  .lx .lx-fore a::before { content: ""; position: absolute; right: 8px; top: 50%; width: 14px; height: 1px; background: #6f6d68; transform-origin: right; transition: transform 0.3s var(--ease), background-color 0.2s; }
+  .lx .lx-fore a[aria-current]::before { transform: scaleX(1.9); height: 2px; }
+  .lx .lx-fore a:hover::before, .lx .lx-fore a:focus-visible::before { transform: scaleX(2.4); }
+  .landing .lx-fore a:focus-visible { outline: 2px solid #6f6d68; outline-offset: -2px; }
+  .lx .lx-fore a span { position: absolute; right: 48px; top: 50%; padding: 3px 8px; background: #000; color: var(--ivory); font-size: 10.5px; white-space: nowrap; opacity: 0; transform: translate(4px, -50%); pointer-events: none; transition: opacity 0.2s, transform 0.2s var(--ease); }
+  .lx .lx-fore a:hover span, .lx .lx-fore a:focus-visible span { opacity: 1; transform: translate(0, -50%); }
+  .lx .lx-fore a:first-child { display: none; }
+}
+
+/* The turn: scroll-linked, on the compositor. The old sheet sinks away as the next lays down over it. */
+@supports (animation-timeline: view()) {
+  @media (min-width: 1021px) and (min-height: 700px) {
+    @keyframes lx-recede { to { transform: scale(0.965) translateY(-2vh); opacity: 0.3; } }
+    @keyframes lx-recede-cover { to { transform: translateY(-2vh); opacity: 0.3; } }
+    @keyframes lx-lay { from { transform: perspective(2400px) rotateX(2.5deg); } }
+    @keyframes lx-turn-crop { to { transform: rotate(-3deg); } }
+    .lx .lx-book { timeline-scope: --t-highlights, --t-plate, --t-transactions, --t-terminal, --t-notes, --t-close; }
+    .lx #highlights { view-timeline: --t-highlights block; }
+    .lx #plate { view-timeline: --t-plate block; }
+    .lx #transactions { view-timeline: --t-transactions block; }
+    .lx #terminal { view-timeline: --t-terminal block; }
+    .lx #notes { view-timeline: --t-notes block; }
+    .lx #close { view-timeline: --t-close block; }
+    .lx .lx-leaf > .lx-sheet { animation-timing-function: linear; animation-fill-mode: both; animation-range: cover 0% cover 100%; transform-origin: 50% 100%; }
+    .lx .landing:not(.lx-lite) .lx-cover > .lx-sheet { animation-name: lx-recede-cover; animation-timeline: --t-highlights; }
+    .lx .landing:not(.lx-lite) .lx-highlights > .lx-sheet { animation-name: lx-recede; animation-timeline: --t-plate; }
+    .lx .landing:not(.lx-lite) .lx-plate-leaf > .lx-sheet { animation-name: lx-recede; animation-timeline: --t-transactions; }
+    .lx .landing:not(.lx-lite) .lx-transactions > .lx-sheet { animation-name: lx-lay, lx-recede; animation-timeline: --t-transactions, --t-terminal; }
+    .lx .landing:not(.lx-lite) .lx-terminal > .lx-sheet { animation-name: lx-recede; animation-timeline: --t-notes; }
+    .lx .landing:not(.lx-lite) .lx-notes > .lx-sheet { animation-name: lx-lay, lx-recede; animation-timeline: --t-notes, --t-close; }
+    /* A leaf with no plate or no deals leaves its neighbour's timeline unset: then it simply doesn't sink. */
+    .lx .landing:not(.lx-lite) .lx-crop { animation: lx-turn-crop linear both; animation-timeline: --t-highlights; animation-range: cover 0% cover 100%; }
+  }
+}
+
+@media (max-width: 1400px) {
+  .lx-table td.name { max-width: 165px; }
+  .lx-plate { --lx-u: 3.2; }
+}
+
+/* Laptops narrower than the tables want: more room for the exhibit, tighter cells. */
+@media (max-width: 1170px) {
+  .lx-contents { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 28px; }
+  .lx-table td, .lx-table th { padding-inline: 6px; }
+  .lx-table td.name { max-width: 130px; }
+}
+
+/* ======================================== ≥1900px: a large monitor keeps the page's proportions ======================================== */
+@media (min-width: 1900px) {
+  .lx-sub { max-width: 620px; font-size: 21px; }
+  .lx-live, .lx-button { font-size: 14px; }
+  .lx-kicker, .lx-fig-label { font-size: 12px; }
+  .lx-fig-note { font-size: 15px; }
+  .lx-fig-claim, .lx-plate-copy p { font-size: 19px; }
+  .lx-plate-copy .lx-note, .lx-tomb-foot, .lx-exhibit figcaption, .lx-record figcaption, .lx-record-names small { font-size: 13.5px; }
+  .lx-table, .lx-record dl > div, .lx-row-line, .lx-more { font-size: 14.5px; }
+  .lx-table th, .lx-terms dt, .lx-exhibit-note { font-size: 12.5px; }
+  .lx-tomb-names strong { font-size: 30px; }
+  .lx-tomb-names em { font-size: 18px; }
+  .lx-tomb-note { font-size: 18px; }
+  .lx-steps li { font-size: 20px; }
+  .lx-limits, .lx-footer { font-size: 13.5px; }
+  .lx-close-body p { font-size: 22px; }
+  .lx-readout-month, .lx-readout-deals { font-size: 13.5px; }
+  .lx-readout-largest { font-size: 12.5px; }
+}
+
+/* ======================================== ≤1020px: one column, plain flow ======================================== */
+@media (max-width: 1020px) {
+  .lx-crop { width: 118vw; left: 38vw; top: auto; bottom: -46vw; opacity: 0.32; }
+  .lx-cover-scrim { display: none; }
+  .lx-cover-body { margin-block: 8vh auto; }
+  .lx-title { font-size: clamp(36px, min(10.6vw, 15svh), 104px); }
+  .lx-sub { max-width: 620px; }
+  .lx-fig-value { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .lx-figure { font-size: clamp(92px, 27vw, 240px); }
+  .lx-plate-grid { grid-template-columns: minmax(0, 1fr); padding-top: 16px; }
+  .lx-dial { width: min(100%, 620px); }
+  .lx-tombs { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; margin-top: 0; }
+  .lx-tomb-note { margin-bottom: 0; }
+  .lx-tombs.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lx-tomb { min-height: 300px; }
+  .lx-contents { grid-template-columns: minmax(0, 1fr); padding-top: 12px; }
+  .lx-notes-grid { grid-template-columns: minmax(0, 1fr); }
+  .lx-leaf > .lx-sheet { min-height: 0; padding-block: 52px; }
+  .lx-cover > .lx-sheet { min-height: 100svh; padding-block: 22px 28px; }
+  .lx-close > .lx-sheet { padding-block: 72px 24px; }
+  .lx-footer { margin-top: 48px; }
+}
+
+/* ======================================== ≤760px: the phone ======================================== */
+@media (max-width: 760px) {
+  .landing { --m: 16px; }
+  .lx-cover-logo { width: 68px; }
+  .lx-title { font-size: min(11.4vw, 15svh); }
+  .lx-cover-body { padding-block: 20px; margin-block: 3vh auto; }
+  .lx-sub { margin-top: 16px; font-size: 15.5px; line-height: 1.46; }
+  .lx-actions { margin-top: 20px; }
+  .lx-button { flex: 1 1 100%; justify-content: center; height: 50px; font-size: 14px; }
+  .lx-live { font-size: 11px; line-height: 1.4; }
+  .lx-cue { display: none; }
+  .lx-crop { width: 150vw; left: 16vw; bottom: -66vw; opacity: 0.3; }
+  .lx-kicker, .lx-fig-label { display: block; font-size: 10.5px; }
+  .lx-h2 { font-size: 34px; }
+  .lx-figure { font-size: 27vw; }
+  .lx-fig-row { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .lx-fig-num { font-size: 44px; }
+  .lx-fig.text .lx-fig-num { font-size: 36px; }
+  .lx-fig-note { font-size: 12px; }
+  .lx-fig-claim { font-size: 15px; }
+  .lx-plate-copy p { font-size: 15.5px; }
+  .lx-league, .lx-hint-league { display: none; }
+  .lx-needle i { top: 8.2%; height: 52.6%; }
+  .lx-peak { display: none; }
+  .lx-crop-peak { display: none; }
+  .lx-dial { position: relative; margin-bottom: 150px; }
+  .lx-readout { position: absolute; left: 0; right: 0; top: calc(100% + 12px); width: auto; transform: none; }
+  .lx-readout-month { font-size: 12px; }
+  .lx-readout-value { font-size: 40px; }
+  .lx-readout-deals { font-size: 12px; }
+  .lx-readout-largest { font-size: 11.5px; min-height: 4.2em; }
+  .lx-plate { --lx-u: 5.8; }
+  .lx-tombs, .lx-tombs.n3 { grid-template-columns: minmax(0, 1fr); }
+  .lx-tomb { min-height: 250px; padding: 26px 18px; }
+  .lx-tomb-names strong { font-size: 21px; }
+  .lx-tomb-value { font-size: 52px; }
+  .lx-tomb-note { flex-direction: column; gap: 12px; font-size: 14.5px; }
+  .lx-row-name { font-size: 30px; }
+  .lx-row-line { font-size: 12.5px; }
+  .lx-row { padding: 14px 0; }
+  .lx-exhibit figcaption { font-size: 11px; }
+  .lx-exhibit:not([data-s="precedents"]) { display: none; }
+  .lx-exhibit[data-s="precedents"] { opacity: 1; pointer-events: auto; }
+  .lx-table .opt { display: none; }
+  .lx-table { font-size: 11.5px; }
+  .lx-table td, .lx-table th { padding: 8px 7px; }
+  .lx-table td.name { max-width: 34vw; }
+  .lx-steps li { font-size: 15.5px; }
+  .lx-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lx-close-link { font-size: 21vw; }
+  .lx-close-body p { font-size: 16px; }
+  .lx-footer { flex-direction: column; font-size: 11px; }
+  .lx-footer nav a { padding: 6px 0; }
+}
+@media (pointer: coarse) {
+  .lx-footer a, .lx-more a, .lx-exhibit figcaption a { display: inline-block; padding-block: 8px; }
+  .lx-tomb-foot a { padding-block: 8px; }
+}
+
+/* The narrowest phones: the comps table still fits. */
+@media (max-width: 360px) {
+  .lx-table td.name { max-width: 26vw; }
+  .lx-table td, .lx-table th { padding-inline: 4px; }
+}
+
+/* A phone on its side: the headline and the button in the first screen. */
+@media (max-height: 480px) and (max-width: 1020px) {
+  .lx-cover > .lx-sheet { padding-block: 10px 14px; }
+  .lx-cover-logo { width: 48px; }
+  .lx-cover-body { margin-block: 4px auto; padding-block: 6px; }
+  .lx-sub { max-width: none; margin-top: 8px; font-size: 13.5px; line-height: 1.35; }
+  .lx-actions { margin-top: 10px; }
+  .lx-button { flex: 0 0 auto; height: 44px; font-size: 13px; }
+  .lx-live { margin-top: 8px; }
+}
+
+@media (max-height: 370px) and (max-width: 1020px) {
+  .lx-title { font-size: min(9.6vw, 13.5svh); }
+  .lx-sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
+
+/* Paper: every leaf, finished and in ink, whatever was on screen when printing began. */
+@media print {
+  .landing { --ink: #fff; --ivory: #000; --silver: #333; --grey: #555; --hair: #bbb; --paper: #fff; --press: #000; --paper-grey: #555; --platinum: #333; background: #fff; }
+  .lx-terminal { background: #fff; }
+  .lx-float, .lx-fore, .lx-cue, .lx-crop, .lx-cover-scrim, .lx-wipe, .lx-light, .lx-rosette, .lx-needle, .lx-dial-hit, .lx-figure::after { display: none !important; }
+  .lx-leaf { position: static !important; box-shadow: none !important; break-inside: avoid; }
+  .lx-leaf > .lx-sheet { min-height: 0; padding-block: 18px; overflow: visible; }
+  .lx-cover-logo img { filter: invert(1); }
+  .lx-plate-img { filter: invert(1); }
+  .landing *, .landing *::before { animation: none !important; transition: none !important; }
+  .landing .r, .landing .w > span, .landing .g > span, .landing .lx-row, .landing .lx-rule, .landing .lx-tomb-frame, .landing .lx-exhibits, .landing .lx-peak, .landing .lx-league, .landing .lx-year { opacity: 1 !important; transform: none !important; }
+  .lx-exhibit:not([data-s="precedents"]) { display: none; }
+  .lx-exhibit[data-s="precedents"] { opacity: 1; }
+  .lx-tombs { height: auto; margin-top: 0; }
+  .lx-tomb { min-height: 240px; break-inside: avoid; }
+  .lx-year { stroke: none; fill: #333; }
+  .lx-dial { width: min(480px, 100%); break-inside: avoid; }
+  .lx-readout { break-inside: avoid; }
+  .lx-button { box-shadow: inset 0 0 0 1px #000; background: #fff; }
+}

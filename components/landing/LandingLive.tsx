@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ago, STALE_AFTER_MS } from "@/lib/freshness";
 
 /**
- * The landing page's only client island: "Live data · updated 12 min ago". No clock on the server (the page is
+ * The landing page's freshness line: "Updated 12 min ago" (not "live": data hours old isn't, and a banker would say so). No clock on the server (the page is
  * rendered ahead of time, so a relative time would break hydration): the server HTML and the first render say "as of"
  * the data's own time, and the relative time starts after hydration. No aria-live, so screen readers don't hear it tick.
  *
@@ -43,9 +43,10 @@ export function LandingLive({ asOf, asOfLabel }: { asOf: string; asOfLabel: stri
   const age = now == null ? null : now - Date.parse(asOf);
   const stale = age != null && age > STALE_AFTER_MS;
   return (
-    <p className={`landing-live${stale ? " stale" : ""}`} title={`SEC EDGAR data, last refreshed ${asOfLabel}.`}>
-      <span className="whatif-meta-dot" aria-hidden="true" />
-      {stale ? "Delayed" : "Live data"} · {age == null ? `as of ${asOfLabel}` : `updated ${ago(age)}`}
+    <p className={`lx-live${stale ? " stale" : ""}`} title={`SEC EDGAR data, last refreshed ${asOfLabel}.`}>
+      <i aria-hidden="true" />
+      {stale ? "Delayed · " : ""}
+      {age == null ? `Data as of ${asOfLabel}` : `${stale ? "updated" : "Updated"} ${ago(age)}`}
     </p>
   );
 }

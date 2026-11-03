@@ -3,7 +3,7 @@ import { landingFigures } from "@/lib/landing";
 import { OG_SIZE, ogCard } from "@/lib/ogCard";
 
 // The default link preview for every page without its own (the landing page, the Hub, …), with live figures.
-export const alt = "Castle: U.S. M&A, IPOs and advisers from SEC filings";
+export const alt = "Castle: U.S. M&A, IPOs and advisors from SEC filings";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const revalidate = 3600;
@@ -17,5 +17,5 @@ export default async function Image() {
   } catch {
     /* the plain card */
   }
-  return ogCard({ kicker: "Castle", title: "Investment banking intelligence", subtitle: "U.S. M&A, IPOs, advisers and valuations from SEC EDGAR", stats });
+  return ogCard({ kicker: "Castle", title: "Investment banking intelligence", subtitle: "U.S. M&A, IPOs, advisors and valuations from SEC EDGAR", stats });
 }

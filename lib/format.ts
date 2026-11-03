@@ -28,7 +28,7 @@ export const formatSignedPct = (value: number) => `${value >= 0 ? "+" : ""}${val
 
 export const formatMultiple = (value: number | null) => (value == null ? "—" : `${value.toFixed(1)}x`);
 
-export const formatPrice = (value: number | null) => (value == null ? "—" : `$${value.toFixed(2)}`);
+export const formatPrice = (value: number | null) => (value == null ? "—" : `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
 const utc = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso);
 

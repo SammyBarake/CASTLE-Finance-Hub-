@@ -3,6 +3,29 @@
 /** A company's two-letter monogram: its capitals ("Hewlett Packard" -> "HP"), else its first two letters. */
 export const initials = (name: string) => name.replace(/[^A-Z]/g, "").slice(0, 2) || name.slice(0, 2).toUpperCase();
 
+/** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
+export const isPlaceholderBuyer = (name: string) =>
+  /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
+  // ("2025 Acquisition Company, LLC": Forian's vehicle, which "Acquisition Co" missed at the word boundary.)
+  /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Company|Co|LLC|Inc))\b/.test(name) ||
+  /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
+  // "Acquiror …", and "Acquirer Sub" (Amgen's vehicle in its scheme for Horizon).
+  /^Acquir[eo]r\b/.test(name) ||
+  // "Denali Intermediate Holdings, Inc.", "Bullseye FinCo, Inc.", "Beacon Parent Holdings, L.P.", "Eclipse Parent
+  // Acquisitions, LLC", "Project Hospitality Parent, LLC", "Buyer Group Led by Evercel"
+  /\b(?:Intermediate(?: Holdings?| Holdco| Holding Corp\.?)?|FinCo|Finco|Parent (?:Holdings?|Acquisitions?|Corp(?:oration)?)|Buyer (?:Group|Corp\.?|Inc\.?))\b/.test(name) ||
+  /^Project [A-Z]/.test(name);
+
+/** "Varonis Systems Inc" -> "Varonis Systems": a tombstone's name, set large, reads unfinished with its legal form. */
+const LEGAL_FORM =
+  /,?\s+(?:Public (?:Limited Company|Ltd Co)|Inc\.?|Incorporated|Corp\.?|Corporation|Ltd\.?|Limited|LLC|L\.L\.C\.|plc|PLC|N\.V\.|N V|NV|S\.A\.|S A|SA|S\.E\.|SE|AG|L\.P\.|LP|PBC|(?<!&\s)Co\.?)$/;
+export function withoutLegalForm(name: string): string {
+  // Repeatedly: "Noble Corp plc", "Franklin Electric Co Inc", "Sapiens International Corp N V".
+  let s = name;
+  for (let next = s.replace(LEGAL_FORM, ""); next !== s && next; next = s.replace(LEGAL_FORM, "")) s = next;
+  return s || name;
+}
+
 const KEEP_CAPS = /^(?:LLC|LP|LLP|PLC|NV|SA|AG|SE|USA|US|UK|II|III|IV|AI|IT|HR|RF|TV|CW|[A-Z]{1,3}|[A-Z]+\d+\w*|[IVX]+-[IVX]+)$/;
 const SUFFIX_CASE: Record<string, string> = { INC: "Inc", "INC.": "Inc.", CORP: "Corp", "CORP.": "Corp.", LTD: "Ltd", "LTD.": "Ltd.", CO: "Co", "CO.": "Co.", HOLDINGS: "Holdings", GROUP: "Group" };
 // Short English words that are words, not acronyms, in an all-capitals name.
@@ -54,10 +77,19 @@ const BRANDS = new Map(
     "NetScout", "NovoCure", "PacWest", "PagerDuty", "PowerSchool", "ProPetro", "QuidelOrtho", "RadNet", "SiriusXM", "StoneCo", "SunPower",
     "TaskUs", "TrueCar", "UiPath", "UniFirst", "VeriSign", "WebMD", "WideOpenWest", "WisdomTree", "ZipRecruiter", "eGain", "eMagin", "AtriCure",
     "ArcBest", "DuPont", "ExxonMobil", "GreenSky", "HomeStreet", "InfuSystem", "LeMaitre", "MaxLinear", "MicroVision", "OraSure", "RealPage",
-    "SecureWorks", "SkyWest", "SpartanNash", "TriNet", "WesBanco", "ePlus", "iCAD", "iRhythm", "uniQure",
+    "SecureWorks", "SkyWest", "SpartanNash", "TriNet", "WesBanco", "ePlus", "iCAD", "iRhythm", "uniQure", "MarineMax", "FLIR", "ICON", "LegalZoom",
   ].map((b) => [b.toLowerCase(), b]),
 );
-const applyBrands = (s: string) => s.replace(/\bAmazon[ .]Com\b/i, "Amazon.com").replace(/\b[A-Za-z][A-Za-z0-9]*\b/g, (w) => BRANDS.get(w.toLowerCase()) ?? w);
+const applyBrands = (s: string) =>
+  s
+    .replace(/\bAmazon[ .]Com\b/i, "Amazon.com")
+    .replace(/\bKimberly Clark\b/i, "Kimberly-Clark")
+    .replace(/\bEli Lilly\b/i, "Eli Lilly")
+    .replace(/\bAir Lease\b/i, "Air Lease")
+    .replace(/\bConsortium Led by\b/, "Consortium led by")
+    // "STAMPS.COM Inc" -> "Stamps.com Inc"
+    .replace(/\b([A-Z])([A-Z]+)\.COM\b/g, (_, a: string, b: string) => a + b.toLowerCase() + ".com")
+    .replace(/\b[A-Za-z][A-Za-z0-9]*\b/g, (w) => BRANDS.get(w.toLowerCase()) ?? w);
 
 /**
  * A company name as the terminal shows it: SEC state tags dropped ("Lifecore Biomedical, Inc. \Del\",
@@ -70,7 +102,8 @@ export function displayCompanyName(raw: string): string {
   if (!/[a-z]/.test(s)) return applyBrands(titleCaseCaps(s));
   s = s.replace(/\b(INC|CORP|LTD|CO)\b(\.?)/g, (_, w: string, dot: string) => (SUFFIX_CASE[w] ?? w) + dot);
   const caps = s.match(/\b[A-Z]{4,}\b/g) ?? [];
-  if (caps.length >= 2) s = s.replace(/\b[A-Z]{4,}\b/g, (w) => (SUFFIX_CASE[w] ?? capWord(w)));
+  // "CVS HEALTH Corp": a short acronym (no vowels) beside a capitalised word counts as a run too. "NVIDIA Corp" alone is a brand.
+  if (caps.length >= 2 || /(?<![-.])\b[B-DF-HJ-NP-TV-Z]{3}\s+[A-Z]{4,}\b/.test(s)) s = s.replace(/\b[A-Z]{4,}\b/g, (w) => (SUFFIX_CASE[w] ?? capWord(w)));
   // A capitalised possessive brand: "CAMPBELL'S Co" -> "Campbell's Co", "DENNY'S Corp" -> "Denny's Corp".
   s = s.replace(/\b([A-Z])([A-Z]{2,})(['’])S\b/g, (_, a: string, b: string, q: string) => a + b.toLowerCase() + q + "s");
   // SEC names lose acronyms when title-cased ("TXNM ENERGY" -> "Txnm Energy"): a word with no vowels is an acronym.

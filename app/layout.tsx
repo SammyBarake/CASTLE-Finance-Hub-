@@ -22,8 +22,12 @@ export const viewport: Viewport = {
 };
 
 // Apply saved display preferences before first paint so compact rows don't "snap" after loading.
-// Mirrors components/workspace/store.ts (key and fields).
-const prefsScript = `try{var p=JSON.parse(localStorage.getItem("castle-workspace-v1")||"{}");var c=document.documentElement.classList;if(p.density==="compact")c.add("density-compact");if(p.motion===false)c.add("reduce-motion")}catch(e){}`;
+// Mirrors components/workspace/store.ts (key and fields). On the landing page, .lx turns its motion on (landing.css: with
+// no script or with motion off the page is simply still) and goes again if the page's script hasn't arrived after 6 s, so
+// nothing can stay hidden. .lx-go releases the headline once its font is here or after 700 ms, whichever is first: fonts
+// are only requested at first layout, so asking any earlier gets an answer that means nothing. .lx-again shortens the
+// entrance for a second visit in the same tab, and .lx-boot tells LandingBook this script has done the work.
+const prefsScript = `try{var p={};try{p=JSON.parse(localStorage.getItem("castle-workspace-v1")||"{}")||{}}catch(e){}var c=document.documentElement.classList;if(p.density==="compact")c.add("density-compact");if(p.motion===false)c.add("reduce-motion");else if(location.pathname==="/"&&!matchMedia("(prefers-reduced-motion: reduce)").matches){c.add("lx","lx-boot");var g=function(){c.add("lx-go")};setTimeout(g,700);setTimeout(function(){if(!c.contains("lx-ok"))c.remove("lx")},6000);if(document.fonts)addEventListener("DOMContentLoaded",function(){requestAnimationFrame(function(){document.fonts.ready.then(g)})});try{if(sessionStorage.getItem("lx-seen"))c.add("lx-again");else sessionStorage.setItem("lx-seen","1")}catch(e){}}}catch(e){}`;
 
 // Focus rings are for keyboard users. Browsers also draw them after mouse clicks on selects and when
 // a menu or drawer hands focus back to its button, so track the last input method and hide rings for mouse use.

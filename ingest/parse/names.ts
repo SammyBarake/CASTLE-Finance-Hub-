@@ -261,21 +261,9 @@ export function cleanPartyName(raw: string): string {
   return s;
 }
 
-// Shared with the site, which applies the same rules to records stored before they existed.
-export { titleCaseCaps } from "../../lib/names";
-
-/** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
-export const isPlaceholderBuyer = (name: string) =>
-  /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
-  // ("2025 Acquisition Company, LLC": Forian's vehicle, which "Acquisition Co" missed at the word boundary.)
-  /\b(?:Merger Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Company|Co|LLC|Inc))\b/.test(name) ||
-  /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
-  // "Acquiror …", and "Acquirer Sub" (Amgen's vehicle in its scheme for Horizon).
-  /^Acquir[eo]r\b/.test(name) ||
-  // "Denali Intermediate Holdings, Inc.", "Bullseye FinCo, Inc.", "Beacon Parent Holdings, L.P.", "Eclipse Parent
-  // Acquisitions, LLC", "Project Hospitality Parent, LLC", "Buyer Group Led by Evercel"
-  /\b(?:Intermediate(?: Holdings?| Holdco| Holding Corp\.?)?|FinCo|Finco|Parent (?:Holdings?|Acquisitions?|Corp(?:oration)?)|Buyer (?:Group|Corp\.?|Inc\.?))\b/.test(name) ||
-  /^Project [A-Z]/.test(name);
+// Shared with the site, which applies the same rules to records stored before they existed (and keeps a vehicle off the
+// landing page's tombstones).
+export { isPlaceholderBuyer, titleCaseCaps } from "../../lib/names";
 
 /**
  * A deal's acquisition vehicle, never a real private target ("Zamboni MergerCo", "Balmoral Swan Merger Sub",

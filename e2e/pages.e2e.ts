@@ -58,6 +58,24 @@ for (const width of [1366, 375]) {
       // CI sets no NEXT_PUBLIC_AUTH_PROVIDERS: no account wording, no sign-in button.
       await expect(page.locator('a[href="/hub?signin=1"]')).toHaveCount(0);
       await expect(page.locator(".landing-kpis .kpi")).toHaveCount(4);
+      // The plate is a real image of the data, and the page's own figures are in the HTML.
+      const plate = page.locator(".lx-crop .lx-plate-img");
+      await expect(plate).toHaveJSProperty("complete", true);
+      expect(await plate.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+      await expect(page.locator(".lx-tomb").first()).toBeAttached();
+      // Every tombstone is whole: its value inside its frame, and all of them above the note under them.
+      const tombs = await page.evaluate(() => {
+        const note = document.querySelector(".lx-tomb-note")!.getBoundingClientRect();
+        return [...document.querySelectorAll(".lx-tomb")].map((t) => {
+          const frame = t.querySelector(".lx-tomb-frame")!.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(t.querySelector(".lx-tomb-value")!);
+          const value = range.getBoundingClientRect();
+          return { fits: value.left >= frame.left && value.right <= frame.right, abovenote: t.getBoundingClientRect().bottom <= note.top + 1 };
+        });
+      });
+      expect(tombs.length).toBeGreaterThan(0);
+      for (const t of tombs) expect(t).toEqual({ fits: true, abovenote: true });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, "horizontal overflow in px").toBeLessThanOrEqual(1);
       if (width === 375) {
@@ -68,7 +86,8 @@ for (const width of [1366, 375]) {
               (el) =>
                 el.getClientRects().length > 0 &&
                 [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()) &&
-                parseFloat(getComputedStyle(el).fontSize) < 10,
+                // SVG text is drawn at its size times the drawing's scale, which the computed size doesn't show.
+                parseFloat(getComputedStyle(el).fontSize) * (el instanceof SVGGraphicsElement ? (el.getScreenCTM()?.a ?? 1) : 1) < 10,
             )
             .map((el) => `${el.tagName}.${el.className}: ${getComputedStyle(el).fontSize}`),
         );
@@ -79,6 +98,58 @@ for (const width of [1366, 375]) {
     });
   });
 }
+
+test("the landing page's plate is an image of the data, and it reads a month by keyboard", async ({ page, request }) => {
+  const errors = watchErrors(page);
+  for (const d of ["full", "phone", "rosette", "rosette-phone"]) {
+    const res = await request.get(`/api/landing/plate.svg?d=${d}`);
+    expect(res.status(), d).toBe(200);
+    expect(res.headers()["content-type"]).toContain("image/svg+xml");
+    expect(await res.text()).toContain("<svg");
+  }
+  await page.goto("/", { waitUntil: "networkidle" });
+  const dial = page.getByRole("slider", { name: "Announced M&A value by month" });
+  await dial.focus();
+  await page.keyboard.press("Home");
+  const first = await dial.getAttribute("aria-valuetext");
+  await page.keyboard.press("ArrowRight");
+  expect(await dial.getAttribute("aria-valuetext")).not.toBe(first);
+  expect(await dial.getAttribute("aria-valuenow")).toBe("1");
+  expect(errors).toEqual([]);
+});
+
+test("Back works after the landing page's fore-edge, and a link from a low leaf lands at the top of the page", async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.documentElement.classList.add("lx-test"));
+  await page.locator('.lx-fore a[href="#terminal"]').click();
+  await expect(page).toHaveURL(/#terminal$/);
+  await expect.poll(() => page.evaluate(() => Math.abs(document.getElementById("terminal")!.getBoundingClientRect().top))).toBeLessThan(2);
+  const leaf = await page.evaluate(() => window.scrollY);
+  await page.locator('.lx-row[data-s="deal-flow"]').click();
+  await expect(page).toHaveURL(/\/deal-flow$/);
+  await expectLoaded(page);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page.locator(".landing")).toBeAttached();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(leaf);
+  expect(errors).toEqual([]);
+});
+
+test("the landing page is complete with motion off: nothing waits for an animation", async ({ browser }) => {
+  const context = await browser.newContext({ reducedMotion: "reduce" });
+  const page = await context.newPage();
+  const errors = watchErrors(page);
+  await page.goto("/", { waitUntil: "networkidle" });
+  expect(await page.evaluate(() => document.documentElement.classList.contains("lx"))).toBe(false);
+  const hidden = await page.evaluate(() =>
+    [...document.querySelectorAll(".landing *")].filter((el) => getComputedStyle(el).opacity === "0" && !el.closest(".lx-exhibit") && !el.closest(".lx-fore") && !el.matches(".lx-float")).map((el) => el.className),
+  );
+  expect(hidden, "nothing hidden with motion off").toEqual([]);
+  await expect(page.locator(".lx-title")).toBeVisible();
+  expect(errors).toEqual([]);
+  await context.close();
+});
 
 test("the landing page opens the terminal, and ?signin=1 is cleaned up without breaking Back", async ({ page }) => {
   const errors = watchErrors(page);
