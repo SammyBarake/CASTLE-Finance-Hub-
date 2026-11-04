@@ -342,6 +342,29 @@ describe("parseMergerItem: structures the big-deal check found", () => {
   });
 });
 
+describe("parseMergerItem: a signing that ends an earlier agreement", () => {
+  const signing = `Item 1.01 Entry into a Material Definitive Agreement.
+On December 14, 2021, R. R. Donnelley & Sons Company, a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement"), by and among the Company, Chatham Delta Parent, Inc., a Delaware corporation ("Parent"), and Chatham Delta Acquisition Sub, Inc., a Delaware corporation ("Merger Sub"). Merger Sub will merge with and into the Company. Each share will be converted into the right to receive $10.85 in cash.`;
+  const read = (rest: string) => parseMergerItem(`FORM 8-K\n${signing}\n${rest}\nItem 9.01 Financial Statements and Exhibits.`, { filerName: "R. R. Donnelley & Sons Co", filerTickers: [] });
+
+  it("says so when its Item 1.02 ends a merger agreement (RR Donnelley: the Atlas agreement)", () => {
+    const p = read(`Item 1.02 Termination of a Material Definitive Agreement. On December 14, 2021, the Company delivered to Atlas Parent a written notice terminating the Atlas Merger Agreement in accordance with its terms.`);
+    expect(p).toMatchObject({ kind: "announcement", acquirer: { name: "Chatham Delta Parent, Inc." }, endsEarlierAgreement: true });
+  });
+
+  it("reads the other wordings: was terminated, terminated the previously announced agreement", () => {
+    expect(read(`Item 1.02. Termination of Material Definitive Agreement. On May 11, 2017, the Agreement and Plan of Merger, dated as of April 9, 2017, by and among the Company and AT&T Inc. (the "AT&T Merger Agreement") was terminated in its entirety.`)?.endsEarlierAgreement).toBe(true);
+    expect(read(`Item 1.02 Termination of a Material Definitive Agreement. On January 10, 2020, the Company terminated the previously-announced Agreement and Plan of Merger, dated as of October 30, 2019.`)?.endsEarlierAgreement).toBe(true);
+  });
+
+  it("doesn't for another agreement ended under Item 1.02, a right to terminate, or a later item", () => {
+    expect(read(`Item 1.02 Termination of a Material Definitive Agreement. In connection with the Merger Agreement, all commitments under the Credit Agreement were terminated.`)?.endsEarlierAgreement).toBeUndefined();
+    expect(read(`Item 1.02 Termination of a Material Definitive Agreement. The Company has the right to terminate the Merger Agreement if a superior proposal is received.`)?.endsEarlierAgreement).toBeUndefined();
+    expect(read(`Item 1.02 Termination of a Material Definitive Agreement. The Credit Agreement ended.\nItem 8.01 Other Events. The Company terminated the Old Merger Agreement years ago.`)?.endsEarlierAgreement).toBeUndefined();
+    expect(read(`Item 8.01 Other Events. Nothing else.`)?.endsEarlierAgreement).toBeUndefined();
+  });
+});
+
 describe("item101: asset sales", () => {
   it("skips a section whose first agreement is an asset purchase agreement", () => {
     const t = `Item 1.01 Entry into a Material Definitive Agreement. Definitive agreement to sell all assets of Eastfield Insurance. Eastfield Bankshares, Inc. (the "Company") and a wholly owned subsidiary of Arthur Gale & Co. ("Gale") entered into a definitive asset purchase agreement on September 19, 2023 under which Gale agreed to purchase for cash Eastfield Bank's insurance operations. Separately, the Company entered into an Agreement and Plan of Merger with Camden Bancorp ("Camden"), under which Camden will merge with and into the Company. Item 9.01 Financial Statements and Exhibits.`;

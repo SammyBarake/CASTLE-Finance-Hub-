@@ -53,6 +53,30 @@ const RESTRUCTURING = ["RestructuringCharges", "RestructuringCosts", "SeveranceC
 const RESTRUCTURING_AND_IMPAIRMENT = ["RestructuringCostsAndAssetImpairmentCharges", "RestructuringSettlementAndImpairmentProvisions"];
 const DEAL_COSTS = ["BusinessCombinationAcquisitionRelatedCosts", "BusinessCombinationIntegrationRelatedCosts", "MergerRelatedCosts"];
 const STOCK_COMP = ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"];
+// What a banker takes out: the gain on selling a business or assets, a one-off like an impairment but the other way round.
+const SALE_GAINS = [
+  "GainLossOnSaleOfBusiness",
+  "GainLossOnDispositionOfBusiness",
+  "DisposalGroupNotDiscontinuedOperationGainLossOnDisposal",
+  "GainLossOnDispositionOfAssets",
+  "GainLossOnDispositionOfAssets1",
+  "GainLossOnSaleOfPropertyPlantEquipment",
+  "GainLossOnSaleOfOtherAssets",
+  "GainLossOnDispositionOfIntangibleAssets",
+  "GainLossOnSaleOfProperties",
+  "GainLossOnSaleOfInterestInProjects",
+  "BusinessCombinationBargainPurchaseGainRecognizedAmount",
+  "GainLossOnSaleOfEquityInvestments",
+  "GainLossOnSalesOfAssetsAndAssetImpairmentCharges",
+];
+const DISCONTINUED = [
+  "DiscontinuedOperationGainLossFromDisposalOfDiscontinuedOperationBeforeIncomeTax",
+  "DiscontinuedOperationGainLossOnDisposalOfDiscontinuedOperationNetOfTax",
+  "IncomeLossFromDiscontinuedOperationsNetOfTax",
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxIncludingPortionAttributableToNoncontrollingInterest",
+];
+const NET_INCOME = ["NetIncomeLoss", "ProfitLoss"];
 // No operating-income line (ChampionX after 2018): pre-tax income plus interest expense.
 const PRETAX = [
   "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
@@ -68,7 +92,7 @@ const SHARES = ["EntityCommonStockSharesOutstanding"];
  * 2: D&A and EBIT fallbacks, figures from the last 15 months only, notes as debt, no EV when debt can't be read.
  * 4: evEbitda on adjusted EBITDA (one-offs and stock compensation added back, 3-50x), the largest D&A reading, evEbitdaReported beside it.
  */
-export const FINANCIALS_VERSION = 4;
+export const FINANCIALS_VERSION = 5;
 
 const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
@@ -321,10 +345,37 @@ function fullDa(cf: CompanyFacts, asOf: string): number | null {
 /** One-offs over this many times the rest of EBITDA: the windows don't line up, or the business isn't what the figure says. */
 const ONE_OFFS_MAX = 4;
 
+/** A gain under this share of adjusted EBITDA stays: small asset sales are routine, and taking them out moved figures both ways. */
+const SALE_GAIN_MIN = 0.05;
+
+/**
+ * The gain on a sale that sits inside operating income over the company's own window, the largest tag; otherwise 0. Only
+ * where the filings show it's there: operating and pre-tax income must both be read, and what lies between them (beyond
+ * interest) must not hold the gain (below the line: Pattern Energy). A company reporting discontinued operations of a
+ * like size has the gain there, out of operating income altogether (Compuware; Terminix has no operating income to test),
+ * and so does one whose net income runs far above its pre-tax income from continuing operations, whatever it tags
+ * (MagnaChip: $345M against $11M beside a $287M gain, and no discontinued-operations tag).
+ */
+function saleGainInOperatingIncome(cf: CompanyFacts, an: Anchor, asOf: string, adjusted: number): number {
+  const read = (tag: string) => tagLtm(cf, tag, an, asOf, true);
+  const gain = Math.max(0, ...SALE_GAINS.map((t) => read(t) ?? 0));
+  if (gain === 0 || gain < SALE_GAIN_MIN * adjusted) return 0;
+  const operating = OPERATING_INCOME.map(read).find((v) => v != null);
+  const pretax = PRETAX.map(read).find((v) => v != null);
+  if (operating == null || pretax == null) return 0;
+  const belowTheLine = pretax - (operating - (flowLtm(cf, INTEREST, asOf) ?? 0));
+  if (Math.abs(belowTheLine - gain) <= Math.abs(belowTheLine)) return 0;
+  if (DISCONTINUED.some((t) => Math.abs(read(t) ?? 0) >= 0.25 * gain)) return 0;
+  const net = NET_INCOME.map(read).find((v) => v != null);
+  return net != null && net - pretax >= 0.5 * gain ? 0 : gain;
+}
+
 /**
  * Adjusted EBITDA, what a bank's precedents table prints: reported EBITDA + the largest impairment tag + restructuring
- * + deal costs + stock compensation. US Ecology: 59.7x reported, 14.1x adjusted, 14.1x in the bank's table; Acacia:
- * 66.6x, 43.9x, 39.0x. Null when the company's window can't be set or the one-offs dwarf the rest (`ONE_OFFS_MAX`).
+ * + deal costs + stock compensation, less a large gain on a sale inside operating income. US Ecology: 59.7x reported,
+ * 14.1x adjusted, 14.1x in the bank's table; Acacia: 66.6x, 43.9x, 39.0x; Cornerstone Building Brands, $831M of gain on
+ * selling a division: 4.1x reported, 8.6x adjusted, 8.4x in the bank's table. Null when the company's window can't be set
+ * or the one-offs dwarf the rest (`ONE_OFFS_MAX`). At or below zero once a gain is out, which leaves the multiple blank.
  */
 export function adjustedEbitdaOf(cf: CompanyFacts, asOf: string): number | null {
   const reported = ebitdaOf(cf, asOf);
@@ -335,7 +386,8 @@ export function adjustedEbitdaOf(cf: CompanyFacts, asOf: string): number | null 
   const firstOf = (sparse: boolean) => STOCK_COMP.map((t) => tagLtm(cf, t, an, asOf, sparse)).find((v) => v != null);
   const rest = reported + Math.max(0, firstOf(false) ?? firstOf(true) ?? 0);
   if (rest > 0 && oneOffs > ONE_OFFS_MAX * rest) return null;
-  return rest + oneOffs;
+  const adjusted = rest + oneOffs;
+  return adjusted - saleGainInOperatingIncome(cf, an, asOf, adjusted);
 }
 
 export interface Multiples {

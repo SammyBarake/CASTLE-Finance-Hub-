@@ -25,7 +25,7 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
-import { definedEntities, item101, parseMergerItem, withItem101Price } from "./parse/eightk";
+import { definedEntities, item101, parseMergerItem, saysMergerTerminated, withItem101Price } from "./parse/eightk";
 import { namesTheShell, sponsorFromText } from "./parse/sponsor";
 import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
@@ -540,7 +540,7 @@ export const FUND_TARGET = /\b(?:Fund|Funds|ETF|Municipal)\b/i;
 /** Largest value believable for a private company: anything above is almost certainly a misread number. */
 export const MAX_PRIVATE_DEAL_VALUE = 40e9;
 
-function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
+export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   // Private targets have no CIK: they are matched by name (and buyer below), within two years. A looser name match
   // ("Rotron Aero" / "Rotron Aerospace Ltd.", a shared first word) needs the same buyer: on its own it joined Live
@@ -555,6 +555,11 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
   // 2017–2020 extension 8-Ks each open "As previously reported, on October 21, 2016, … entered into …". The signing 8-K
   // itself is due within four business days (ZeroFox's note-repurchase 8-K, 29 days after, created a deal for its lender).
   if (parsed.kind === "announcement" && parsed.signedOn && daysApart(parsed.signedOn, hit.fileDate) > 10) parsed = { ...parsed, kind: "update" };
+  // A signing whose 8-K reports the earlier agreement ended is a new deal, whatever its shell is called: it joins only
+  // the same buyer's record, or the release of this same signing. RR Donnelley's winning agreement with "Chatham Delta
+  // Parent, Inc." was folded into Atlas's, which then read "Closed" at Atlas's lower price.
+  const tops = parsed.kind === "announcement" && !!parsed.endsEarlierAgreement;
+  const thisSigning = (d: StoredDeal) => daysApart(d.announcedDate, parsed.announcedOn ?? hit.fileDate) <= 3;
   let deal =
     // The same buyer, also when written as its ticker (Two Harbors' earnings release: "UWMC", for UWM Holdings).
     candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik) || isTickerOf(parsed.acquirer.name, d.acquirer)) ??
@@ -562,10 +567,10 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
     // Never two different listed buyers, though: a rival bid comes within days (MKS on February 8, II-VI days later, both
     // for Coherent).
     (parsed.kind === "announcement"
-      ? candidates.find((d) => daysApart(d.announcedDate, hit.fileDate) <= 14 && !(acquirer.cik && d.acquirer.cik && acquirer.cik !== d.acquirer.cik))
+      ? candidates.find((d) => daysApart(d.announcedDate, hit.fileDate) <= 14 && !(acquirer.cik && d.acquirer.cik && acquirer.cik !== d.acquirer.cik) && (!tops || thisSigning(d)))
       : undefined) ??
     // A later filing naming only the acquisition vehicle belongs to the live deal it implements.
-    (parsed.kind === "announcement" && isPlaceholderBuyer(parsed.acquirer.name)
+    (parsed.kind === "announcement" && !tops && isPlaceholderBuyer(parsed.acquirer.name)
       ? candidates.find((d) => d.status !== "Terminated" && daysApart(d.announcedDate, hit.fileDate) <= 365)
       : undefined) ??
     // An update or completion joins the open deal it's about. One naming another real buyer is about another agreement:
@@ -643,6 +648,8 @@ function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Res
   } else if (
     parsed.acquirer.name.length > deal.acquirer.name.length &&
     sameCompany(parsed.acquirer.name, deal.acquirer.name) &&
+    // Not the shell it signed through: "Atlas River Parent Inc." doesn't rename Atlas Holdings LLC.
+    !isPlaceholderBuyer(parsed.acquirer.name) &&
     // Not a subsidiary sharing the listed buyer's first word: Cidara's merger 8-K named "Merck Sharp & Dohme LLC", which
     // renamed Merck & Co., Inc. (NYSE: MRK) from the press release.
     (!deal.acquirer.cik || acquirer.cik === deal.acquirer.cik)
@@ -882,25 +889,7 @@ export function releaseTerms(text: string, target: string, acquirer: string): An
   return { valueUsd: value.usd, valueKind: value.kind, pricePerShare: extractPrice(top), premiumPct: extractPremium(flat.slice(0, 6000)), consideration: extractConsideration(flat.slice(0, 6000)) };
 }
 
-/**
- * An 8-K Item 1.02 saying the merger agreement itself was terminated ("terminated the Merger Agreement", "the Merger
- * Agreement was terminated"), not another agreement ended "in connection with the Merger Agreement" at the closing,
- * nor a party's right to terminate it.
- */
-export function saysMergerTerminated(text: string): boolean {
-  // Rights and conditions are not events: "the right to terminate the Merger Agreement", "if the Merger Agreement is
-  // terminated".
-  // The forward-looking-statements boilerplate lists risks ("the right of Greenhill or Mizuho Americas to terminate the
-  // Merger Agreement", "the termination of the Merger Agreement"), not events: cut it off.
-  const t = text
-    .split(/\bforward[- ]looking statements?\b|\bcautionary (?:statement|note)/i)[0]
-    .replace(/\b(?:rights?|option|ability)\s+(?:of\s+[^.]{1,80}?\s+)?to\s+terminate\b/gi, "")
-    .replace(/\b(?:if|in the event(?: that)?|upon|should|unless|until|whether)\s+(?:the\s+)?(?:merger|arrangement|combination|transaction) agreement[^.]{0,80}?terminated/gi, "");
-  const deal = String.raw`(?:(?:merger|arrangement|combination|transaction) agreement|agreement and plan of (?:merger|arrangement))`;
-  // Nothing else called an "agreement" between the merger agreement and "terminated" ("… in connection with the Merger
-  // Agreement, all commitments under the Credit Agreement were terminated").
-  return new RegExp(String.raw`terminat(?:e|ed|es|ing|ion of)\s+(?:the\s+)?(?:[\w-]+\s+){0,3}${deal}|${deal}(?:(?!agreement)[^.]){0,80}?\b(?:was|has been|have been|is|were|had been)\s+(?:validly\s+|mutually\s+)?terminated`, "i").test(t);
-}
+export { saysMergerTerminated };
 
 export async function isMergerTermination(cik: string, adsh: string, doc: string) {
   try {

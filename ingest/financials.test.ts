@@ -266,6 +266,70 @@ describe("adjusted EBITDA", () => {
     expect(adjustedEbitdaOf(cf, asOf)).toBe(470e6);
   });
 
+  describe("a gain on a sale", () => {
+    // Operating income 1,137, of which the sale's gain is 831. Pre-tax follows from it: interest 191, other −44.
+    const PRETAX_TAG = "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest";
+    const sold = { OperatingIncomeLoss: [fy(1137e6)], DepreciationDepletionAndAmortization: [fy(390e6)], InterestExpense: [fy(191e6)], [PRETAX_TAG]: [fy(902e6)] };
+
+    it("comes out of adjusted EBITDA when it sits inside operating income, and stays in reported (Cornerstone Building Brands)", () => {
+      const cf = facts({ ...sold, GainLossOnSaleOfBusiness: [fy(831e6)] });
+      expect(ebitdaOf(cf, asOf)).toBe(1527e6);
+      expect(adjustedEbitdaOf(cf, asOf)).toBe(696e6);
+      const m = computeMultiples({ valueUsd: 5800e6, valueKind: "enterprise", pricePerShare: null }, financialsFrom(cf, asOf));
+      expect(m.evEbitdaReported).toBe(3.8);
+      expect(m.evEbitda).toBe(8.3);
+    });
+
+    it("stays when it lies below operating income: the gap down to pre-tax income holds it (Pattern Energy)", () => {
+      const below = { OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], InterestExpense: [fy(20e6)], [PRETAX_TAG]: [fy(150e6)], GainLossOnSaleOfBusiness: [fy(71e6)] };
+      expect(adjustedEbitdaOf(facts(below), asOf)).toBe(150e6);
+    });
+
+    it("stays when it belongs to discontinued operations, before or after tax (Compuware)", () => {
+      const inside = { OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], [PRETAX_TAG]: [fy(100e6)], GainLossOnSaleOfBusiness: [fy(34e6)] };
+      expect(adjustedEbitdaOf(facts(inside), asOf)).toBe(116e6);
+      expect(adjustedEbitdaOf(facts({ ...inside, DiscontinuedOperationGainLossFromDisposalOfDiscontinuedOperationBeforeIncomeTax: [fy(34e6)] }), asOf)).toBe(150e6);
+      expect(adjustedEbitdaOf(facts({ ...inside, DiscontinuedOperationGainLossOnDisposalOfDiscontinuedOperationNetOfTax: [fy(9.5e6)] }), asOf)).toBe(150e6);
+      // Results of a discontinued business too small to hold the gain say nothing about it.
+      expect(adjustedEbitdaOf(facts({ ...inside, IncomeLossFromDiscontinuedOperationsNetOfTax: [fy(2e6)] }), asOf)).toBe(116e6);
+    });
+
+    it("stays when net income runs far above continuing pre-tax income, with no discontinued tag at all (MagnaChip)", () => {
+      const magnachip = { OperatingIncomeLoss: [fy(27e6)], DepreciationDepletionAndAmortization: [fy(16e6)], [PRETAX_TAG]: [fy(10.8e6)], InterestExpense: [fy(16e6)], GainLossOnSaleOfBusiness: [fy(287e6)] };
+      expect(adjustedEbitdaOf(facts({ ...magnachip, NetIncomeLoss: [fy(345e6)] }), asOf)).toBe(43e6);
+      // Net income below pre-tax income, as tax makes it: nothing says the gain is elsewhere (and this one was all the profit).
+      expect(adjustedEbitdaOf(facts({ ...magnachip, NetIncomeLoss: [fy(8e6)] }), asOf)).toBe(43e6 - 287e6);
+    });
+
+    it("stays when there's nothing to test it against: no operating income or no pre-tax income (Terminix)", () => {
+      expect(adjustedEbitdaOf(facts({ OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], GainLossOnSaleOfBusiness: [fy(40e6)] }), asOf)).toBe(150e6);
+      expect(adjustedEbitdaOf(facts({ [PRETAX_TAG]: [fy(345e6)], InterestExpense: [fy(50e6)], DepreciationDepletionAndAmortization: [fy(50e6)], GainLossOnSaleOfBusiness: [fy(494e6)] }), asOf)).toBe(445e6);
+    });
+
+    it("leaves a small gain and any loss alone", () => {
+      const inside = { OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], [PRETAX_TAG]: [fy(100e6)] };
+      expect(adjustedEbitdaOf(facts({ ...inside, GainLossOnDispositionOfAssets1: [fy(7.4e6)] }), asOf)).toBe(150e6);
+      expect(adjustedEbitdaOf(facts({ ...inside, GainLossOnDispositionOfAssets1: [fy(7.5e6)] }), asOf)).toBe(142.5e6);
+      expect(adjustedEbitdaOf(facts({ ...inside, GainLossOnSaleOfBusiness: [fy(-40e6)] }), asOf)).toBe(150e6);
+    });
+
+    it("takes the largest tag, never the sum, and only what fell inside the window", () => {
+      const inside = { OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], [PRETAX_TAG]: [fy(100e6)] };
+      expect(adjustedEbitdaOf(facts({ ...inside, GainLossOnSaleOfBusiness: [fy(30e6)], GainLossOnDispositionOfAssets1: [fy(30e6)] }), asOf)).toBe(120e6);
+      // Booked in last year's first half: it left the LTM with that half.
+      const left = { OperatingIncomeLoss: [fy(100e6), h1(60e6), h1Before(60e6)], DepreciationDepletionAndAmortization: [fy(50e6)], [PRETAX_TAG]: [fy(100e6), h1(60e6), h1Before(60e6)], GainLossOnSaleOfBusiness: [fy(30e6), h1Before(30e6)] };
+      expect(adjustedEbitdaOf(facts(left), asOf)).toBe(150e6);
+    });
+
+    it("leaves the multiple blank when the gain was all of the profit", () => {
+      const cf = facts({ OperatingIncomeLoss: [fy(100e6)], DepreciationDepletionAndAmortization: [fy(50e6)], [PRETAX_TAG]: [fy(100e6)], GainLossOnSaleOfBusiness: [fy(160e6)] });
+      expect(adjustedEbitdaOf(cf, asOf)).toBe(-10e6);
+      const m = computeMultiples({ valueUsd: 1500e6, valueKind: "enterprise", pricePerShare: null }, financialsFrom(cf, asOf));
+      expect(m.evEbitda).toBeNull();
+      expect(m.evEbitdaReported).toBe(10);
+    });
+  });
+
   it("blanks EV / EBITDA when one-offs are over 4x the rest, and keeps the reported multiple", () => {
     const small = { OperatingIncomeLoss: [fy(10e6)], DepreciationDepletionAndAmortization: [fy(10e6)] };
     expect(adjustedEbitdaOf(facts({ ...small, GoodwillImpairmentLoss: [fy(80e6)] }), asOf)).toBe(100e6);

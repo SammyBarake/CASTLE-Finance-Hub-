@@ -41,6 +41,8 @@ export interface ParsedPress {
    * can be filed days later), the signing date an Item 1.01 states, or the announcement a completion refers back to.
    */
   announcedOn?: string;
+  /** Merger 8-K: its Item 1.02 reports an earlier merger agreement ended, so this signing is a new deal, not that one. */
+  endsEarlierAgreement?: boolean;
 }
 
 // ---------------------------------------------------------------------------

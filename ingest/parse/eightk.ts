@@ -17,6 +17,39 @@ interface Entity {
   index: number;
 }
 
+/**
+ * An 8-K Item 1.02 saying the merger agreement itself was terminated ("terminated the Merger Agreement", "the Merger
+ * Agreement was terminated"), not another agreement ended "in connection with the Merger Agreement" at the closing,
+ * nor a party's right to terminate it.
+ */
+export function saysMergerTerminated(text: string): boolean {
+  // Rights and conditions are not events: "the right to terminate the Merger Agreement", "if the Merger Agreement is
+  // terminated".
+  // The forward-looking-statements boilerplate lists risks ("the right of Greenhill or Mizuho Americas to terminate the
+  // Merger Agreement", "the termination of the Merger Agreement"), not events: cut it off.
+  const t = text
+    .split(/\bforward[- ]looking statements?\b|\bcautionary (?:statement|note)/i)[0]
+    .replace(/\b(?:rights?|option|ability)\s+(?:of\s+[^.]{1,80}?\s+)?to\s+terminate\b/gi, "")
+    .replace(/\b(?:if|in the event(?: that)?|upon|should|unless|until|whether)\s+(?:the\s+)?(?:merger|arrangement|combination|transaction) agreement[^.]{0,80}?terminated/gi, "");
+  const deal = String.raw`(?:(?:merger|arrangement|combination|transaction) agreement|agreement and plan of (?:merger|arrangement))`;
+  // Nothing else called an "agreement" between the merger agreement and "terminated" ("… in connection with the Merger
+  // Agreement, all commitments under the Credit Agreement were terminated").
+  return new RegExp(String.raw`terminat(?:e|ed|es|ing|ion of)\s+(?:the\s+)?(?:[\w-]+\s+){0,3}${deal}|${deal}(?:(?!agreement)[^.]){0,80}?\b(?:was|has been|have been|is|were|had been)\s+(?:validly\s+|mutually\s+)?terminated`, "i").test(t);
+}
+
+/**
+ * The same 8-K's Item 1.02 reports that an earlier merger agreement ended: this signing tops it. RR Donnelley's Item 1.01
+ * signs with "Chatham Delta Parent, Inc." and its Item 1.02 delivers "a written notice terminating the Atlas Merger Agreement".
+ */
+function endsEarlierAgreement(text: string): boolean {
+  const t = flatten(text);
+  const start = t.search(/Item\s*1\.02[\s.:\-–—]*Termination of (?:a )?Material Definitive Agreement/i);
+  if (start < 0) return false;
+  const rest = t.slice(start + 20, start + 4000);
+  const end = rest.search(/Item\s*\d\.\d\d[\s.:\-–—]*[A-Z][a-z]/);
+  return saysMergerTerminated(end > 0 ? rest.slice(0, end) : rest);
+}
+
 /** The Item 1.01 section, or null if the 8-K doesn't describe a merger agreement. */
 export function item101(text: string): string | null {
   const t = flatten(text);
@@ -399,5 +432,6 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     targetAdvisors: [],
     ...(signedOn ? { signedOn } : {}),
     ...(announcedOn ? { announcedOn } : {}),
+    ...(signing && kind === "announcement" && endsEarlierAgreement(text) ? { endsEarlierAgreement: true } : {}),
   };
 }
