@@ -9,7 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { HeldReaction } from "./reactions";
+import { reactionsToHold, type HeldReaction } from "./reactions";
 import type { ActivistStake, Deal, Ipo, Macro } from "../lib/types";
 
 export interface StoredDeal extends Deal {
@@ -148,6 +148,8 @@ export class SupabaseStore implements Store {
   readonly label = "Supabase";
   private db: SupabaseClient;
   private loadedSeen = new Set<string>();
+  /** The parked list as the database holds it. */
+  private parked: HeldReaction[] = [];
 
   constructor(url: string, serviceRoleKey: string) {
     this.db = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
@@ -162,6 +164,7 @@ export class SupabaseStore implements Store {
     ]);
     this.loadedSeen = new Set(seen.map((s) => s.id));
     const metaValue = (key: string) => meta?.find((m) => m.key === key)?.value;
+    this.parked = (metaValue("unplacedReactions") as HeldReaction[] | undefined) ?? [];
     return {
       deals: deals.map((d) => d.data),
       ipos: ipos.map((i) => i.data),
@@ -169,14 +172,18 @@ export class SupabaseStore implements Store {
       asOf: (metaValue("asOf") as string | undefined) ?? null,
       macro: (metaValue("macro") as Macro | undefined) ?? null,
       activists: (metaValue("activists") as ActivistStake[] | undefined) ?? [],
-      unplacedReactions: (metaValue("unplacedReactions") as HeldReaction[] | undefined) ?? [],
+      unplacedReactions: this.parked,
     };
   }
 
   async save(state: State, opts: { prune?: boolean } = {}) {
-    // First, before anything below deletes a record: a save that fails half way must not lose a reaction that lost its
-    // record. Written when empty too: reactions that found their record are done with.
-    await withRetry("upsert meta", () => this.db.from("meta").upsert({ key: "unplacedReactions", value: state.unplacedReactions ?? [] }));
+    // A reaction can't be fetched again, and a save can die anywhere, so at every moment each one must be on a stored record
+    // or in the parked list. First, then, before anything below rewrites or deletes a record, the list holds both what was
+    // parked and what is parked now; a figure that just found its record leaves it only at the end, once that record is
+    // written. A figure both on a row and in the list after a failure is harmless: the next run counts it once.
+    const parkedNow = state.unplacedReactions ?? [];
+    this.parked = reactionsToHold([], [...this.parked, ...parkedNow]);
+    await withRetry("upsert meta", () => this.db.from("meta").upsert({ key: "unplacedReactions", value: this.parked }));
     // One row per id (the last wins): a repeated id fails the whole upsert.
     const byId = new Map(state.deals.map((d) => [d.id, d]));
     await upsertChunks(
@@ -221,8 +228,11 @@ export class SupabaseStore implements Store {
       { key: "asOf", value: state.asOf },
       ...(state.macro ? [{ key: "macro", value: state.macro }] : []),
       ...(state.activists.length ? [{ key: "activists", value: state.activists }] : []),
+      // Written when empty too: reactions that found their record are done with.
+      { key: "unplacedReactions", value: parkedNow },
     ];
     await withRetry("upsert meta", () => this.db.from("meta").upsert(metaRows));
+    this.parked = parkedNow;
   }
 }
 

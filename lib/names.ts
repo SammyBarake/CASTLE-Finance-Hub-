@@ -16,6 +16,48 @@ export const isPlaceholderBuyer = (name: string) =>
   /\b(?:Intermediate(?: Holdings?| Holdco| Holding Corp\.?)?|FinCo|Finco|Parent (?:Holdings?|Acquisitions?|Corp(?:oration)?)|Buyer (?:Group|Corp\.?|Inc\.?))\b/.test(name) ||
   /^Project [A-Z]/.test(name);
 
+/**
+ * Private-equity firms whose names collide with a listed company once `normalizeName` drops descriptors: "Advent
+ * International" and "Advent Technologies Holdings" (a fuel-cell maker) both become "advent", which credited Advent's
+ * buyouts of McAfee, Maxar, Heidrick & Struggles and Sapiens to the fuel-cell maker.
+ */
+export const COLLIDING_SPONSORS = [
+  "Advent International", "Advent", "Bain Capital", "Vista Equity Partners", "Silver Lake", "Elliott", "Cerberus", "Searchlight",
+  "Sycamore Partners", "Sycamore", "Platinum Equity", "Stone Point", "Lone Star", "Summit Partners", "Gores", "Clearlake", "Centerbridge",
+  "Warburg Pincus", "Thoma Bravo", "Permira", "Hellman & Friedman", "Veritas Capital", "Genstar", "Insight Partners", "Francisco Partners",
+  "Cinven", "CVC",
+];
+// Words a sponsor's own registered name may add ("Bain Capital, LP", "Elliott Investment Management L.P.").
+const SPONSOR_FORM = new Set(["partners", "capital", "management", "investment", "investments", "group", "holdings", "holding", "global", "fund", "funds", "advisors", "advisers", "inc", "corp", "corporation", "co", "company", "lp", "llc", "ltd", "limited", "l", "p", "the", "and", "international", "equity"]);
+
+/**
+ * Buyout firms sharing their whole name with an unrelated listed company, so a registrant adding no words proves nothing:
+ * only the registrant's own full name links to it. EQT AB's funds ("EQT", "EQT Infrastructure", "EQT Asia": Covanta,
+ * Perficient) aren't the gas producer EQT Corporation, whose releases say "EQT Corporation ("EQT") (NYSE: EQT)". Hg
+ * (OneStream) isn't HG Holdings, Inc., the former furniture maker.
+ */
+const NAMESAKES: { firm: RegExp; registrant: RegExp }[] = [
+  { firm: /^EQT\b/i, registrant: /^EQT Corp/i },
+  { firm: /^Hg(?:\b|Capital)/i, registrant: /^HG Holdings/i },
+];
+
+/**
+ * A registrant is not the sponsor a document named when it adds words of its own: "Advent Technologies Holdings" is not
+ * "Advent" or "Advent International", "Bain Capital Specialty Finance" (a listed lending fund) is not Bain Capital.
+ * False for names that aren't a colliding sponsor ("Apollo" is Apollo Global Management).
+ */
+export function notTheSponsor(named: string, registrant: string): boolean {
+  const namesake = NAMESAKES.find((n) => n.firm.test(named.trim()) && n.registrant.test(registrant.trim()));
+  if (namesake) return !namesake.registrant.test(named.trim());
+  const lower = named.toLowerCase().trim();
+  const sponsor = COLLIDING_SPONSORS.find((s) => lower === s.toLowerCase() || lower.startsWith(`${s.toLowerCase()} `) || lower.startsWith(`${s.toLowerCase()},`));
+  if (!sponsor) return false;
+  const own = new Set(sponsor.toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? []);
+  // SEC state tags aside ("… /DE/").
+  const words = registrant.replace(/\s*[\\/][A-Za-z]{2,4}[\\/]?\s*$/, "").toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? [];
+  return words.some((w) => !own.has(w) && !SPONSOR_FORM.has(w));
+}
+
 /** "Varonis Systems Inc" -> "Varonis Systems": a tombstone's name, set large, reads unfinished with its legal form. */
 const LEGAL_FORM =
   /,?\s+(?:Public (?:Limited Company|Ltd Co)|Inc\.?|Incorporated|Corp\.?|Corporation|Ltd\.?|Limited|Pte\.?|LLC|L\.L\.C\.|LLP|plc\.?|PLC\.?|N\.V\.|N V|NV|B\.V\.|BV|S\.A\.S\.|SAS|S\.A\.|S A|SA|S\.p\.A\.|SpA|S\.E\.|SE|AG|A\/S|GmbH|L\.P\.|LP|PBC|(?<!&\s)Co\.?)$/;

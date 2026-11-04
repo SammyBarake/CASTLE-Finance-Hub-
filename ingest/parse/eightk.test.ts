@@ -38,6 +38,14 @@ describe("parseMergerItem", () => {
     expect(p.pricePerShare).toBe(42.15);
   });
 
+  it("doesn't take a holder who signed a support agreement for the buyer", () => {
+    const text = `Item 1.01 Entry into a Material Definitive Agreement.
+On September 17, 2025, Lakeside Bio, Inc., a Delaware corporation (the "Company"), entered into an Agreement and Plan of Merger (the "Merger Agreement"), by and among the Company, Rocher Holdings, Inc., a Delaware corporation ("Parent"), and Bluefin Merger Subsidiary, Inc., a Delaware corporation and a wholly owned subsidiary of Parent ("Merger Sub"). Merger Sub will merge with and into the Company, and each share will be converted into the right to receive $14.50 in cash.
+Tender and Support Agreement. Concurrently with the execution of the Merger Agreement, certain funds affiliated with Ravine Capital Management, L.P. (collectively, the "Supporting Stockholders") entered into a tender and support agreement with Parent.`;
+    const p = parseMergerItem(text, { filerName: "Lakeside Bio, Inc.", filerTickers: ["LKBO"] })!;
+    expect(p.acquirer.name).toBe("Rocher Holdings, Inc.");
+  });
+
   it("parses a tender-offer deal with a named target", () => {
     const p = parseMergerItem(TENDER, { filerName: "Bluebird Auctions Inc.", filerTickers: ["BLBD"] })!;
     expect(p.target.name).toBe("Bluebird Auctions Inc.");

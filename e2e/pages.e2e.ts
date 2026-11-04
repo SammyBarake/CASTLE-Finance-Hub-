@@ -214,14 +214,17 @@ test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   await row.focus();
   await row.press("Enter");
   await expect(page.locator(".detail-drawer, dialog[open]").first()).toBeVisible();
-  // The closed buyer-reaction study: dated, with no live merger-arb spread beside it.
+
+  // The ended buyer-reaction study: dated, on the panel and in the drawer of a deal it covers (not the newest deal on real
+  // data), with no live merger-arb spread beside it.
+  await page.goto("/valuations", { waitUntil: "networkidle" });
+  await expectLoaded(page);
+  const study = page.locator('[aria-label="Did buyers win?"]');
+  await expect(study).toContainText("ended in");
+  await study.locator(".reaction-lists button").first().click();
   const drawer = page.locator(".detail-drawer, dialog[open]").first();
   await expect(drawer).toContainText("study to");
   await expect(drawer).not.toContainText(/arb spread/i);
-
-  await page.goto("/valuations", { waitUntil: "networkidle" });
-  await expectLoaded(page);
-  await expect(page.locator(".buyer-panel")).toContainText("closed in");
 
   await page.goto(companyHref(deal.target), { waitUntil: "networkidle" });
   await expectLoaded(page);

@@ -363,7 +363,8 @@ function withTicker(name: string, all: PartyMention[], other?: string): PartyMen
   );
   if (byTicker && !mentions.some((m) => sameCompany(m.name, name))) return { name: byTicker.name, ticker: byTicker.ticker, exchange: byTicker.exchange };
   // Two buyers named together ("Blackstone and Starwood Capital Group") have no listing of their own, and a shared first
-  // word proves nothing about them: only a listing of that very name counts ("Infinity Property and Casualty Corporation").
+  // word proves nothing about them, so "Blackstone Mortgage Trust" doesn't count: only a name that one begins with, or that
+  // begins with it ("Infinity Property and Casualty Corporation"; also "Blackstone Inc." for the lead buyer).
   let matches = mentions.filter((m) => (/\sand\s/.test(name) ? identicalNames(m.name, name) : sameCompany(m.name, name)));
   // A description in front of the name: "Specialty Insurance Company ProSight Global" is "ProSight Global, Inc.".
   if (!matches.length) {

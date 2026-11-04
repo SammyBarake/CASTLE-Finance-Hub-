@@ -202,6 +202,8 @@ def build_panel(deal_value: str | None = None, winsor: tuple | None = None, macr
     # The sector ETF series ended in September 2026 (Castle collects no share prices any more). Later quarters have no
     # valuation data and the lagged equations can't use them, so they don't count towards the window the site states.
     last_priced = sm_rows.loc[sm_rows["etfReturnPct"].notna(), "qi"].max()
+    if pd.isna(last_priced):
+        sys.exit("sector_monthly.json has no ETF returns: the links can only be re-estimated with a local markets.json that still holds the old series")
     quarters = sorted(q for q, n in complete.items() if n == 3 and q <= last_priced)
     sm_rows = sm_rows[sm_rows["qi"].isin(quarters)].copy()
 

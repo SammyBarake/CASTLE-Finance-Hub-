@@ -59,7 +59,7 @@ export function BuyerReactions() {
   if (s.all.count < MIN_GROUP) return null;
   return (
     <section className="panel buyer-panel" aria-label="Did buyers win?">
-      <PanelHead title="Did buyers win?" subtitle={`A study of deals announced since 2021, closed in ${formatMonthLong(REACTION_STUDY_THROUGH)} · listed buyers' shares against the S&P 500 · two trading days after announcing, and six months on · medians`} />
+      <PanelHead title="Did buyers win?" subtitle={`A study that ended in ${formatMonthLong(REACTION_STUDY_THROUGH)} · deals announced since 2021 · listed buyers' shares against the S&P 500 · two trading days after announcing, and six months on · medians`} />
       <div className="reaction-grid">
         <div className="table-scroll">
           <table className="reaction-table">

@@ -44,7 +44,6 @@ const FRED_CITATIONS: { source: string; series: string; id: string }[] = [
   { source: "Board of Governors of the Federal Reserve System (US)", series: "Federal Funds Effective Rate", id: "FEDFUNDS" },
   { source: "Board of Governors of the Federal Reserve System (US)", series: "Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity, Quoted on an Investment Basis", id: "GS10" },
   { source: "U.S. Bureau of Labor Statistics", series: "Consumer Price Index for All Urban Consumers: All Items in U.S. City Average", id: "CPIAUCSL" },
-  { source: "U.S. Energy Information Administration", series: "Crude Oil Prices: West Texas Intermediate (WTI) - Cushing, Oklahoma", id: "DCOILWTICO" },
 ];
 
 function Report({ children = "Report a data issue" }: { children?: ReactNode }) {
@@ -216,7 +215,7 @@ export function TermsView() {
         <Clause title="What Castle is">
           <p>
             Castle is a free, informational website about mergers, acquisitions, IPOs and the banks that advise on them. Its figures are extracted automatically from
-            public SEC EDGAR filings and other public data sources listed on the <Link href="/about">About</Link> page.
+            public SEC EDGAR filings and the other data sources listed on the <Link href="/about">About</Link> page.
           </p>
         </Clause>
         <Clause title="Not investment advice">

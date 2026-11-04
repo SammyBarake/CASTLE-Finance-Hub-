@@ -9,7 +9,7 @@
 import { median } from "./metrics";
 import type { Deal } from "./types";
 
-/** The month the study closed: share prices were last collected then. The newest deal in it was announced a few days earlier. */
+/** The month the study ended: share prices were last collected then. The newest deal in it was announced a few days earlier. */
 export const REACTION_STUDY_THROUGH = "2026-11";
 
 /** A group needs this many deals before its median is shown. */

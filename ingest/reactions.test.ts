@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { carryReactions, heldReactions, reactionsToHold } from "./reactions";
+import { carryReactions, heldReactions, reactionsToHold, sameBuyer } from "./reactions";
 import { JsonStore, type StoredDeal } from "./store";
 
 const reaction = { announcementPct: -5, announcementVsMarketPct: -6, m6VsMarketPct: 2.5, y1VsMarketPct: null };
@@ -79,8 +79,16 @@ describe("carryReactions", () => {
   });
 
   it("doesn't move by id across two different CIKs, however alike the names", () => {
-    const next = [deal({ acquirer: { name: "II-VI Inc", ticker: "IIVI", cik: "999" } })];
+    const next = [deal({ acquirer: { name: "II-VI Inc", ticker: "IIVX", cik: "999" } })];
     expect(carryReactions([held()], next).carried).toBe(0);
+  });
+
+  it("knows two registrants behind one ticker are the same shares, by id and under a new id", () => {
+    // Cidara's merger 8-K named Merck Sharp & Dohme; a re-read names Merck & Co. Both trade as MRK.
+    const old = held({ acquirer: { name: "Merck Sharp & Dohme LLC", ticker: "MRK", cik: "64978" } });
+    const merck = { name: "Merck & Co., Inc.", ticker: "MRK", cik: "310158" };
+    expect(carryReactions([old], [deal({ acquirer: merck })]).carried).toBe(1);
+    expect(carryReactions([old], [deal({ id: "21510-2024-03-06", announcedDate: "2024-03-06", acquirer: merck })]).carried).toBe(1);
   });
 
   it("carries by id when the rebuilt record hasn't linked its buyer yet: the same name, its legal form aside", () => {
@@ -135,6 +143,17 @@ describe("carryReactions", () => {
     const held1 = heldReactions([deal(), held({ sources: ["a"], filings: [] })]);
     expect(held1).toHaveLength(1);
     expect(Object.keys(held1[0]).sort()).toEqual(["acquirer", "announcedDate", "id", "reaction", "reactionCheckedAt", "target"]);
+  });
+});
+
+describe("sameBuyer", () => {
+  const merck = { name: "Merck & Co., Inc.", ticker: "MRK", cik: "310158" };
+  it("goes by the ticker or the CIK, and by the name only when one is missing", () => {
+    expect(sameBuyer({ name: "Merck Sharp & Dohme LLC", ticker: "MRK", cik: "64978" }, merck)).toBe(true);
+    expect(sameBuyer({ name: "Merck & Co", ticker: null, cik: "310158" }, merck)).toBe(true);
+    expect(sameBuyer({ name: "Merck & Co", ticker: null, cik: "999" }, merck)).toBe(false);
+    expect(sameBuyer({ name: "Merck & Co", ticker: null, cik: null }, merck)).toBe(true);
+    expect(sameBuyer({ name: "Merck KGaA", ticker: null, cik: null }, merck)).toBe(false);
   });
 });
 

@@ -41,6 +41,17 @@ describe("buyerType", () => {
     expect(buyerType(deal(co("Western Midstream Partners, LP")))).toBe("Strategic");
     expect(buyerType(deal(co("3G Capital")))).toBe("Private equity");
   });
+
+  it("doesn't take a listed company for a sponsor because of its name", () => {
+    expect(buyerType(deal(co("EQT Corp", "33213", "EQT")))).toBe("Strategic");
+    expect(buyerType(deal(co("EQT")))).toBe("Private equity");
+    expect(buyerType(deal(co("TPG Mortgage Investment Trust, Inc.", "1514281", "MITT")))).toBe("Strategic");
+    expect(buyerType(deal(co("Crestwood Equity Partners LP", "1136352", "CEQP")))).toBe("Strategic");
+    expect(buyerType(deal(co("Sunstone Hotel Investors, Inc.", "1295810", "SHO")))).toBe("Strategic");
+    // A listed sponsor is still a sponsor, and an unlisted fund name still a fund.
+    expect(buyerType(deal(co("Apollo Global Management, Inc.", "1858681", "APO")))).toBe("Private equity");
+    expect(buyerType(deal(co("Ravine Capital Management, L.P.")))).toBe("Private equity");
+  });
 });
 
 describe("buyerGroups / insights", () => {

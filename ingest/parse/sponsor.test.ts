@@ -98,4 +98,9 @@ describe("notTheSponsor: buyout firms whose names collide with a listed company"
     // Another EQT registrant isn't touched.
     expect(notTheSponsor("EQT Midstream Partners", "EQT Midstream Partners, LP")).toBe(false);
   });
+
+  it("keeps Hg off HG Holdings, Inc., the former furniture maker", () => {
+    for (const named of ["Hg", "Hg Capital", "HgCapital", "HG"]) expect(notTheSponsor(named, "HG Holdings, Inc."), named).toBe(true);
+    expect(notTheSponsor("HG Holdings, Inc.", "HG Holdings, Inc.")).toBe(false);
+  });
 });

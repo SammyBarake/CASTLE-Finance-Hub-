@@ -77,10 +77,16 @@ async function main() {
   const directory = only === "macro" ? buildDirectory([]) : buildDirectory(await getListedCompanies());
   if (only !== "macro") log(`company directory: ${directory.byTicker.size} listed tickers`);
 
+  // A rebuild's checkpoints overwrite rows with copies not yet enriched: for hours most read the default sector and
+  // "Announced". The site reads one snapshot per `asOf` (lib/data.ts), so leaving `asOf` alone until the rebuild has
+  // succeeded keeps readers on the last full snapshot, and a failed rebuild shows as stale data rather than as bad data.
+  const stamp = () => {
+    if (!rebuild) state.asOf = new Date().toISOString();
+  };
   // Save progress periodically and at the end (even on failure), so long backfills can resume.
   // A failed progress save doesn't stop the run: the final save below tries again (a rebuild died an hour in).
   const checkpoint = async () => {
-    state.asOf = new Date().toISOString();
+    stamp();
     carry();
     try {
       await store.save(state);
@@ -128,7 +134,8 @@ async function main() {
     }
     succeeded = true;
   } finally {
-    state.asOf = new Date().toISOString();
+    if (succeeded) state.asOf = new Date().toISOString();
+    else stamp();
     carry();
     if (held.length) log(`reactions: ${state.deals.filter((d) => d.reaction).length} deals hold one, ${state.unplacedReactions?.length ?? 0} found no record (parked for a later run)`);
     await store.save(state, { prune: rebuild && succeeded && complete });

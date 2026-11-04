@@ -336,6 +336,9 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim() || e.alias === s.trim());
     for (const [i, lead] of leads.entries()) {
       if (!lead) continue;
+      // What a holder signed isn't the buyer: "certain funds affiliated with RA Capital Management, L.P. (collectively, the
+      // "Supporting Stockholders")" agreed to tender into Roche's offer for 89bio.
+      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
       const rest = lead.input.slice(lead.index + lead[0].length);
       // Up to a parenthesis, else up to a comma; in the buyer's own description also the comma when the text up to the
       // parenthesis is no name: "Mr. Jianquan Li, the chairman of the Company's board of directors (the …".

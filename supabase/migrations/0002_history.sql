@@ -88,7 +88,7 @@ drop policy if exists "public read ipo_history" on public.ipo_history;
 create policy "public read ipo_history" on public.ipo_history for select to anon, authenticated using (true);
 drop policy if exists "public read sector_monthly" on public.sector_monthly;
 create policy "public read sector_monthly" on public.sector_monthly for select to anon, authenticated using (true);
+-- macro_monthly and snapshots hold raw market series nothing on the site reads, some with their owners' terms: with row-level
+-- security on and no policy, the public keys get no rows (0005_private_series.sql closed them on projects made before this).
 drop policy if exists "public read macro_monthly" on public.macro_monthly;
-create policy "public read macro_monthly" on public.macro_monthly for select to anon, authenticated using (true);
 drop policy if exists "public read snapshots" on public.snapshots;
-create policy "public read snapshots" on public.snapshots for select to anon, authenticated using (true);

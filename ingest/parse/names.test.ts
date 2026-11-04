@@ -174,6 +174,13 @@ describe("cleanPartyName: two buyers' headline verb", () => {
     expect(cleanPartyName("SD Biosensor and SJL Partners Complete Transaction")).toBe("SD Biosensor and SJL Partners");
     expect(cleanPartyName("Amryt Successfully Completes Acquisition of Chiasma")).toBe("Amryt");
   });
+
+  it("ends the name at a raised offer's headline", () => {
+    expect(cleanPartyName("BLACKSTONE AND STARWOOD CAPITAL INCREASE OFFER TO ACQUIRE EXTENDED STAY")).toBe("BLACKSTONE AND STARWOOD CAPITAL");
+    expect(cleanPartyName("Blackstone and Starwood Capital Increase Offer")).toBe("Blackstone and Starwood Capital");
+    expect(cleanPartyName("Acme Corp Raises Its Bid")).toBe("Acme Corp");
+    expect(cleanPartyName("Increase Partners")).toBe("Increase Partners");
+  });
 });
 
 describe("namesExtend and descriptions", () => {

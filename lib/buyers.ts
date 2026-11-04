@@ -15,9 +15,14 @@ const SPONSORS =
 const FUND_SHAPE = /\b(Capital Partners|Equity Partners|Private Equity|Investment Partners|Capital Management|Capital Advisors|Capital,? L\.?P\.?|Equity,? L\.?P\.?|Fund\b|Investors?\b|Investor Group|Buyer Group|Consortium|Family Office|SPV\b)\b/i;
 const VEHICLE = /\b(Parent|ParentCo|Purchaser|BidCo|Bidco|AcquireCo|Acquisition (?:Corp|Co|LLC|Inc)|HoldCo|Holdco|TopCo|Topco|Merger Sub)\b/;
 
+/** Listed companies that only share a name with a sponsor: the gas producer EQT Corporation, a sponsor's mortgage REIT. */
+const NOT_A_SPONSOR = /^EQT Corp|\bMortgage\b/i;
+
 export function buyerType(deal: Deal): BuyerType {
   const name = deal.acquirer.name;
-  if (SPONSORS.test(name) || FUND_SHAPE.test(name)) return "Private equity";
+  if (SPONSORS.test(name) && !NOT_A_SPONSOR.test(name)) return "Private equity";
+  // A listed company's fund-like name is just a name: a hotel REIT's "Investors", a pipeline's "Equity Partners".
+  if (FUND_SHAPE.test(name) && !deal.acquirer.ticker) return "Private equity";
   // A buyout vehicle that isn't itself a listed company is almost always sponsor-backed.
   if (!deal.acquirer.cik && !deal.acquirer.ticker && VEHICLE.test(name)) return "Private equity";
   return "Strategic";

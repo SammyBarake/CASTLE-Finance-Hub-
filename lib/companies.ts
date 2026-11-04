@@ -2,6 +2,7 @@
  * Company profiles, derived from the deal and IPO feeds: every company that appears as an
  * acquirer, target or IPO issuer gets a page. Pure, so it works on sample or real data.
  */
+import { notTheSponsor } from "./names";
 import type { Company, Deal, DealStatus, Filing, HubData, Ipo, Sector } from "./types";
 
 /** Loose name key: case, punctuation and legal suffixes ignored ("Copart, Inc." = "COPART INC"). */
@@ -60,13 +61,25 @@ export function findCompany(data: Pick<HubData, "deals" | "ipos" | "activists">,
   const byCik = !id.startsWith("n-");
   const cik = byCik ? id.replace(/^0+/, "") : null;
 
-  // The same company can appear with a CIK in one record and by name only in another.
+  // The same company can appear with a CIK in one record and by name only in another, unless the name is a buyout firm's
+  // that only resembles the registrant ("EQT" for EQT AB's funds, which are not EQT Corporation).
   const names = new Set<string>();
+  const own: Company[] = [];
   const matchesId = (c: Company) => (cik ? c.cik?.replace(/^0+/, "") === cik : !c.cik && `n-${nameKey(c.name)}` === id);
-  for (const d of data.deals) for (const c of [d.acquirer, d.target]) if (matchesId(c)) names.add(nameKey(c.name));
-  for (const i of data.ipos) if (matchesId(i.company)) names.add(nameKey(i.company.name));
+  const note = (c: Company) => {
+    if (!matchesId(c)) return;
+    names.add(nameKey(c.name));
+    own.push(c);
+  };
+  for (const d of data.deals) for (const c of [d.acquirer, d.target]) note(c);
+  for (const i of data.ipos) note(i.company);
   if (!names.size && !cik) names.add(id.slice(2));
-  const matches = (c: Company) => matchesId(c) || (!c.cik && names.has(nameKey(c.name))) || (!cik && !!c.cik && names.has(nameKey(c.name)));
+  const matches = (c: Company) => {
+    if (matchesId(c)) return true;
+    if (!names.has(nameKey(c.name))) return false;
+    if (cik) return !c.cik && !own.some((o) => notTheSponsor(c.name, o.name));
+    return !own.some((o) => notTheSponsor(o.name, c.name));
+  };
 
   const deals: CompanyDeal[] = [];
   for (const d of data.deals) {
@@ -83,7 +96,9 @@ export function findCompany(data: Pick<HubData, "deals" | "ipos" | "activists">,
   const asTarget = deals.find((d) => d.role === "Target")?.deal;
   const official = asTarget?.target ?? ipos[0]?.company ?? stake?.company ?? deals[0].deal.acquirer;
   const withTicker = [asTarget?.target, ipos[0]?.company, ...deals.filter((d) => d.role === "Acquirer").map((d) => d.deal.acquirer)].find((c) => c?.ticker);
-  const company: Company = { name: official.name, ticker: official.ticker ?? withTicker?.ticker ?? null, cik: official.cik ?? cik };
+  // Any of its records' CIKs, so a page reached by name has the same address as the page reached by CIK.
+  const anyCik = [...deals.map((d) => (d.role === "Target" ? d.deal.target : d.deal.acquirer)), ...ipos.map((i) => i.company)].find((c) => c.cik)?.cik ?? null;
+  const company: Company = { name: official.name, ticker: official.ticker ?? withTicker?.ticker ?? null, cik: official.cik ?? cik ?? anyCik };
 
   const banks = new Map<string, CompanyBank>();
   const credit = (name: string, key: "buySide" | "sellSide" | "ipo") => {
@@ -120,6 +135,21 @@ export function findCompany(data: Pick<HubData, "deals" | "ipos" | "activists">,
     latestActivity: events[0] ?? null,
     saleStatus: asTarget?.status ?? null,
   };
+}
+
+/**
+ * Whether a record's company page is at the address the page calls its own (what the sitemap should list): a by-name record
+ * lives at its registrant's address when a record with a CIK carries the same name and is the same firm. Agrees with
+ * findCompany, without running it for thousands of companies.
+ */
+export function atOwnAddress(data: Pick<HubData, "deals" | "ipos">): (c: Company) => boolean {
+  const registrants = new Map<string, string[]>();
+  const add = (c: Company) => {
+    if (c.cik) registrants.set(nameKey(c.name), [...(registrants.get(nameKey(c.name)) ?? []), c.name]);
+  };
+  for (const d of data.deals) for (const c of [d.acquirer, d.target]) add(c);
+  for (const i of data.ipos) add(i.company);
+  return (c) => !!c.cik || !(registrants.get(nameKey(c.name)) ?? []).some((name) => !notTheSponsor(c.name, name));
 }
 
 /** Companies whose name or ticker matches `query` (lowercased), most active first. */

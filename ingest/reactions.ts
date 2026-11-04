@@ -38,12 +38,14 @@ export function reactionsToHold(deals: StoredDeal[], parked: HeldReaction[]): He
 }
 
 /**
- * The same buyer: both CIKs when both are known, else the same name once its legal form is gone. Never a loose match: a
- * reaction is one company's share move, and General Motors isn't General Electric, nor EQT Corp the fund EQT Infrastructure.
- * A name alone can't tell a registrant from the buyout firm that shares it ("Advent"), hence the second check. Refusing
- * costs little: the figure stays parked until the buyer is linked.
+ * The same buyer: the same CIK or the same ticker (a listed company can have two registrants, Merck & Co. and Merck Sharp &
+ * Dohme, and the shares are the same MRK), else the same name once its legal form is gone. Never a loose match: a reaction is
+ * one company's share move, and General Motors isn't General Electric, nor EQT Corp the fund EQT Infrastructure. A name
+ * alone can't tell a registrant from the buyout firm that shares it ("Advent"), hence the second check. Refusing costs
+ * little: the figure stays parked until the buyer is linked.
  */
 export function sameBuyer(a: HeldReaction["acquirer"], b: HeldReaction["acquirer"]): boolean {
+  if (a.ticker && b.ticker && a.ticker.toUpperCase() === b.ticker.toUpperCase()) return true;
   if (a.cik && b.cik) return a.cik === b.cik;
   const name = normalizeName(a.name);
   return !!name && name === normalizeName(b.name) && !notTheSponsor(a.name, b.name) && !notTheSponsor(b.name, a.name);
@@ -59,14 +61,16 @@ const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <
 
 /**
  * Hands each reaction in `old` on to its deal's record in `next`: the same id with the same buyer, else the same buyer
- * CIK and the same target announced within a week. Never overwrites a reaction already there, so it is safe to repeat.
- * No I/O; it fills in `next`'s records in place, since the run is still working on them. `unplaced` is what found no
- * record, for a later run to try again.
+ * (by CIK or ticker) and the same target announced within a week. Further than a week it stays parked: a figure measured
+ * from the wrong day is no announcement reaction, and blank is better than wrong. Never overwrites a reaction already
+ * there, so it is safe to repeat. No I/O; it fills in `next`'s records in place, since the run is still working on them.
+ * `unplaced` is what found no record, for a later run to try again.
  */
 export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carried: number; unplaced: HeldReaction[] } {
   const byId = new Map(next.map((d) => [d.id, d]));
+  const buyerKeys = (a: HeldReaction["acquirer"]) => [a.cik ? `c:${a.cik}` : null, a.ticker ? `t:${a.ticker.toUpperCase()}` : null].filter((k): k is string => !!k);
   const byBuyer = new Map<string, StoredDeal[]>();
-  for (const d of next) if (d.acquirer.cik) byBuyer.set(d.acquirer.cik, [...(byBuyer.get(d.acquirer.cik) ?? []), d]);
+  for (const d of next) for (const k of buyerKeys(d.acquirer)) byBuyer.set(k, [...(byBuyer.get(k) ?? []), d]);
 
   let carried = 0;
   const unplaced: HeldReaction[] = [];
@@ -76,7 +80,9 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
     const record =
       sameId && sameBuyer(held.acquirer, sameId.acquirer)
         ? sameId
-        : (held.acquirer.cik ? byBuyer.get(held.acquirer.cik) : undefined)?.find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));
+        : buyerKeys(held.acquirer)
+            .flatMap((k) => byBuyer.get(k) ?? [])
+            .find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));
     if (!record) {
       unplaced.push(held);
       continue;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyHref, companyId, findCompany, nameKey, searchCompanies } from "./companies";
+import { atOwnAddress, companyHref, companyId, findCompany, nameKey, searchCompanies } from "./companies";
 import type { Deal, Ipo } from "./types";
 
 const deal = (over: Partial<Deal>): Deal => ({
@@ -112,6 +112,49 @@ describe("findCompany", () => {
   it("returns null for unknown companies", () => {
     expect(findCompany({ deals, ipos: [] }, "n-nobody")).toBeNull();
     expect(findCompany({ deals, ipos: [] }, "123")).toBeNull();
+  });
+
+  it("keeps a buyout firm apart from the listed company that shares its name, both ways", () => {
+    const data = {
+      ipos: [],
+      deals: [
+        deal({ id: "range", acquirer: { name: "EQT Corp", ticker: "EQT", cik: "33213" }, target: { name: "Range Resources", ticker: "RRC", cik: "315852" } }),
+        deal({ id: "perficient", acquirer: { name: "EQT", ticker: null, cik: null }, target: { name: "Perficient", ticker: "PRFT", cik: "1085869" } }),
+      ],
+    };
+    expect(findCompany(data, "33213")!.deals.map((d) => d.deal.id)).toEqual(["range"]);
+    const firm = findCompany(data, "n-eqt")!;
+    expect(firm.deals.map((d) => d.deal.id)).toEqual(["perficient"]);
+    expect(firm.company).toEqual({ name: "EQT", ticker: null, cik: null });
+  });
+
+  it("gives one company one address, whichever way the page is reached", () => {
+    expect(companyHref(findCompany({ deals, ipos: [] }, "n-copart")!.company)).toBe("/company/900075");
+    expect(companyHref(findCompany({ deals, ipos: [] }, "900075")!.company)).toBe("/company/900075");
+    expect(companyHref(findCompany({ deals, ipos: [] }, "0000900075")!.company)).toBe("/company/900075");
+    // The record it reads its name from has no CIK, and another of its records does.
+    const nuvei = [
+      deal({ id: "a", announcedDate: "2024-04-01", target: { name: "Nuvei", ticker: null, cik: null } }),
+      deal({ id: "b", announcedDate: "2023-01-01", acquirer: { name: "Nuvei Corp", ticker: "NVEI", cik: "1765159" }, target: { name: "Paya", ticker: "PAYA", cik: "9" } }),
+    ];
+    expect(companyHref(findCompany({ deals: nuvei, ipos: [] }, "n-nuvei")!.company)).toBe("/company/1765159");
+  });
+
+  it("says which records live at their own address, as findCompany does (what the sitemap lists)", () => {
+    const data = {
+      ipos: [ipo({})],
+      deals: [
+        ...deals,
+        deal({ id: "range", acquirer: { name: "EQT Corp", ticker: "EQT", cik: "33213" }, target: { name: "Range Resources", ticker: "RRC", cik: "315852" } }),
+        deal({ id: "perficient", acquirer: { name: "EQT", ticker: null, cik: null }, target: { name: "Perficient", ticker: "PRFT", cik: "1085869" } }),
+      ],
+    };
+    const own = atOwnAddress(data);
+    for (const c of [...data.deals.flatMap((d) => [d.acquirer, d.target]), ...data.ipos.map((i) => i.company)]) {
+      expect(own(c), c.name).toBe(companyHref(findCompany(data, companyId(c))!.company) === companyHref(c));
+    }
+    expect(own({ name: "Copart, Inc.", ticker: null, cik: null })).toBe(false);
+    expect(own({ name: "EQT", ticker: null, cik: null })).toBe(true);
   });
 });
 

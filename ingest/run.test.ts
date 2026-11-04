@@ -82,6 +82,10 @@ const bare = (d: StoredDeal): StoredDeal => {
   return copy;
 };
 const withReaction = (d: StoredDeal): StoredDeal => ({ ...d, reaction, reactionCheckedAt: "2026-11-01" });
+const held = (d: StoredDeal): HeldReaction => {
+  const { id, announcedDate, acquirer, target } = d;
+  return { id, announcedDate, acquirer, target, reaction, reactionCheckedAt: "2026-11-01" };
+};
 
 const A = record("Alpha", "1");
 const B = record("Bravo", "2");
@@ -209,6 +213,56 @@ describe("a run and its reactions", () => {
     expect(exit).toHaveBeenCalledWith(1);
     expect(stored(db).has(B.id)).toBe(false);
     expect(parked(db).map((p) => p.id)).toEqual([B.id]);
+  });
+
+  it("a parked figure that finds its record stays parked until that record is written", async () => {
+    const db = seeded([], [held(B)]);
+    db.fail = (op) => (op.op === "upsert" && op.table === "deals" ? "permission denied" : null);
+    const rereadB: Ingest = async (state) => {
+      state.deals.push(bare(B));
+      return STATS;
+    };
+    await run(["--only", "deals"], rereadB);
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(stored(db).has(B.id)).toBe(false);
+    expect(parked(db).map((p) => p.id)).toEqual([B.id]);
+    db.fail = null;
+    await run(["--only", "deals"], rereadB);
+    expect(stored(db).get(B.id)?.reaction).toEqual(reaction);
+    expect(parked(db)).toEqual([]);
+  });
+
+  it("a rebuild leaves the data's date alone until it has finished, so the site stays on its last full snapshot", async () => {
+    const db = seeded([withReaction(A), withReaction(B)]);
+    const asOf = () => db.rows("meta").find((m) => m.key === "asOf")?.value;
+    let duringRebuild: unknown;
+    await run(REBUILD, async (state, opts) => {
+      state.deals.push(bare(A));
+      await opts.checkpoint();
+      duringRebuild = asOf();
+      state.deals.push(bare(B));
+      return STATS;
+    });
+    expect(duringRebuild).toBe("2026-11-01T00:00:00Z");
+    expect(asOf()).not.toBe("2026-11-01T00:00:00Z");
+    // A failed one too: the site shows stale data, not half-rebuilt rows.
+    const failed = seeded([withReaction(A), withReaction(B)]);
+    await run(REBUILD, async (state) => {
+      state.deals.push(bare(A));
+      throw new Error("EDGAR went away");
+    });
+    expect(failed.rows("meta").find((m) => m.key === "asOf")?.value).toBe("2026-11-01T00:00:00Z");
+  });
+
+  it("an ordinary run moves the date at its checkpoints and at the end", async () => {
+    const db = seeded([withReaction(A)]);
+    let atCheckpoint: unknown;
+    await run(["--only", "deals"], async (_state, opts) => {
+      await opts.checkpoint();
+      atCheckpoint = db.rows("meta").find((m) => m.key === "asOf")?.value;
+      return STATS;
+    });
+    expect(atCheckpoint).not.toBe("2026-11-01T00:00:00Z");
   });
 
   it("failed rebuilds don't pile up copies in the parked list", async () => {

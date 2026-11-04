@@ -17,7 +17,7 @@ on:
         required: false
         default: ""
       rebuild:
-        description: "Rebuild all deals from scratch with the current parsers (uses 'from', default 2021-01-01) and reload activist 13Ds. Removes stale or wrong deals. The first full run takes 1-2 hours."
+        description: "Rebuild all deals from scratch with the current parsers (uses 'from', default 2021-01-01) and reload activist 13Ds. Removes stale or wrong deals. Takes about 4 hours; the site keeps its last full data until it finishes."
         type: boolean
         required: false
         default: false
@@ -32,7 +32,7 @@ permissions:
 jobs:
   ingest:
     runs-on: ubuntu-24.04 # pinned, like ci.yml
-    # A normal run takes minutes; a full rebuild from 2021 can take a couple of hours (GitHub's cap is 6).
+    # A normal run takes minutes; a full rebuild from 2021 takes about 4 hours (GitHub's cap is 6).
     timeout-minutes: 350
     env:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CompanyTearSheet } from "@/components/tearsheet/CompanyTearSheet";
 import { SheetToolbar } from "@/components/tearsheet/SheetToolbar";
-import { findCompany } from "@/lib/companies";
+import { companyHref, findCompany } from "@/lib/companies";
 import { getHubData } from "@/lib/data";
 
 export const revalidate = 900;
@@ -15,7 +15,8 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const profile = findCompany(await getHubData(), decodeURIComponent((await params).id));
-  return profile ? { title: `${profile.company.name} · Tear sheet · Castle` } : { title: "Tear sheet · Castle", alternates: null };
+  // One company's sheet can be reached by several addresses, like its page: this is the one the page links to.
+  return profile ? { title: `${profile.company.name} · Tear sheet · Castle`, alternates: { canonical: `/tearsheet${companyHref(profile.company)}` } } : { title: "Tear sheet · Castle", alternates: null };
 }
 
 export default async function Page({ params }: Props) {

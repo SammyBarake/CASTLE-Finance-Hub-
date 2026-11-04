@@ -20,7 +20,7 @@ Open http://localhost:3000. With nothing configured, the local dev site shows bu
    npm run ingest:backfill -- --local
    ```
 
-   This is a 24-month backfill; it's resumable, and `EDGAR_CACHE_DIR=.data/cache` speeds up re-runs.
+   This is a backfill from September 2024; it's resumable, and `EDGAR_CACHE_DIR=.data/cache` speeds up re-runs.
    For just the last few days, run `npm run ingest -- --local` instead.
 3. `npm run dev`. The site now reads the local file.
 

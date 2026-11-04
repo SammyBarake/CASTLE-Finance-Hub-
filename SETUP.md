@@ -6,7 +6,7 @@ The data engine works without any of this: `npm run ingest -- --local` writes re
 ## 1. Supabase (database)
 
 1. Create a free account at [supabase.com](https://supabase.com) and click **New project**. Any name and region; save the database password somewhere safe.
-2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**. Then do the same with [`supabase/migrations/0002_history.sql`](supabase/migrations/0002_history.sql) (the history tables behind the what-if screen) and [`supabase/migrations/0005_private_series.sql`](supabase/migrations/0005_private_series.sql) (keeps the raw market series off the public keys; nothing on the site reads them).
+2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**. Then do the same with [`supabase/migrations/0002_history.sql`](supabase/migrations/0002_history.sql) (the history tables behind the what-if screen). A project created before November 2026 also needs [`supabase/migrations/0005_private_series.sql`](supabase/migrations/0005_private_series.sql), once: it takes the raw market series off the public keys.
 3. Open **Project Settings → API** (or **API Keys**). You need three values:
    - **Project URL**
    - **anon / publishable key**: read-only, safe for the website
@@ -34,7 +34,9 @@ In the GitHub repo: **Settings → Secrets and variables → Actions → New rep
 Then fill the database once: **Actions → Ingest SEC data → Run workflow**, with `from` = `2021-01-01`. The first run takes a
 few hours and saves as it goes; if GitHub's 6-hour limit stops it, run it again and it carries on. A new database has no buyer
 reactions and nothing can fetch them now, so the "Did buyers win?" study stays hidden unless its figures are moved over from the
-old project (`Deal.reaction`, and the `unplacedReactions` row in `meta`). After that, everything runs by itself (times in UTC):
+old project (`Deal.reaction`, and the `unplacedReactions` row in `meta`). The what-if history is filled separately (the order of
+work is under "History foundation" in `CLAUDE.md`); until then, What-if's IPO cells read "IPO history loading". After that, everything
+runs by itself (times in UTC):
 
 | Workflow | When | What it does |
 |---|---|---|

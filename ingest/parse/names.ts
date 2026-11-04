@@ -29,38 +29,8 @@ export function normalizeName(name: string): string {
   return SHORT_FORMS[n] ?? n;
 }
 
-/**
- * Private-equity firms whose names collide with a listed company once `normalizeName` drops descriptors: "Advent
- * International" and "Advent Technologies Holdings" (a fuel-cell maker) both become "advent", which credited Advent's
- * buyouts of McAfee, Maxar, Heidrick & Struggles and Sapiens to the fuel-cell maker.
- */
-export const COLLIDING_SPONSORS = [
-  "Advent International", "Advent", "Bain Capital", "Vista Equity Partners", "Silver Lake", "Elliott", "Cerberus", "Searchlight",
-  "Sycamore Partners", "Sycamore", "Platinum Equity", "Stone Point", "Lone Star", "Summit Partners", "Gores", "Clearlake", "Centerbridge",
-  "Warburg Pincus", "Thoma Bravo", "Permira", "Hellman & Friedman", "Veritas Capital", "Genstar", "Insight Partners", "Francisco Partners",
-  "Cinven", "CVC",
-];
-// Words a sponsor's own registered name may add ("Bain Capital, LP", "Elliott Investment Management L.P.").
-const SPONSOR_FORM = new Set(["partners", "capital", "management", "investment", "investments", "group", "holdings", "holding", "global", "fund", "funds", "advisors", "advisers", "inc", "corp", "corporation", "co", "company", "lp", "llc", "ltd", "limited", "l", "p", "the", "and", "international", "equity"]);
-
-/**
- * A registrant is not the sponsor a document named when it adds words of its own: "Advent Technologies Holdings" is not
- * "Advent" or "Advent International", "Bain Capital Specialty Finance" (a listed lending fund) is not Bain Capital.
- * False for names that aren't a colliding sponsor ("Apollo" is Apollo Global Management).
- */
-export function notTheSponsor(named: string, registrant: string): boolean {
-  // EQT AB's funds ("EQT", "EQT Infrastructure", "EQT Asia": Covanta, Perficient) share their whole name with a listed
-  // company, the gas producer EQT Corporation, so a registrant adding no words proves nothing: only its own full name
-  // links to it. Its own releases give that name ("EQT Corporation ("EQT") (NYSE: EQT)").
-  if (/^EQT\b/i.test(named.trim()) && /^EQT Corp/i.test(registrant.trim())) return !/^EQT Corp/i.test(named.trim());
-  const lower = named.toLowerCase().trim();
-  const sponsor = COLLIDING_SPONSORS.find((s) => lower === s.toLowerCase() || lower.startsWith(`${s.toLowerCase()} `) || lower.startsWith(`${s.toLowerCase()},`));
-  if (!sponsor) return false;
-  const own = new Set(sponsor.toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? []);
-  // SEC state tags aside ("… /DE/").
-  const words = registrant.replace(/\s*[\\/][A-Za-z]{2,4}[\\/]?\s*$/, "").toLowerCase().replace(/&/g, " ").match(/[a-z0-9]+/g) ?? [];
-  return words.some((w) => !own.has(w) && !SPONSOR_FORM.has(w));
-}
+// Also used by the site's company pages, hence lib/names.ts.
+export { COLLIDING_SPONSORS, notTheSponsor } from "../../lib/names";
 
 /**
  * Stricter than `sameCompany` (no shared-first-word match, so "Global Payments" is not "Global Blue"): the same name,
@@ -208,6 +178,8 @@ export function cleanPartyName(raw: string): string {
   // "Wavedash Leading Online Ticket Marketplace …", "Community Bancorporation Company Release".
   s = s.replace(/\s+and\s+(?:Announces?|Reports?|Provides?|Enters?|Completes?|Launch(?:es)?|Receives?|Expands?|Updates?|Unveils?|Appoints?|Strengthens?)\b.*$/i, "");
   s = s.replace(/\s+(?:Adds|Expands|Broadens|Announces|Strengthens|Bolsters|Extends|Enters|Launches|Completes|Acquires|Joins|Becomes|Unveils|Accelerates|Deepens|Enhances|Executes|Executed|Signs|Signed)\b.*$/, "");
+  // A raised offer's headline: "BLACKSTONE AND STARWOOD CAPITAL INCREASE OFFER TO ACQUIRE EXTENDED STAY" (or "Raises Its Bid").
+  s = s.replace(/\s+(?:Increases?|Raises?|Improves?|Revises?|Sweetens?)\s+(?:(?:Its|Their|The)\s+)?(?:Offer|Bid|Proposal)\b.*$/i, "");
   // A sponsor's numbered fund is the sponsor: "Thoma Bravo Fund XV, L.P." -> "Thoma Bravo".
   s = s.replace(/\s+(?:Capital\s+)?Fund\s+[IVXL]+(?:,?\s+L\.?\s?P\.?)?$/, "");
   // An adverb before the verb: "Amryt Successfully Completes Acquisition of Chiasma".

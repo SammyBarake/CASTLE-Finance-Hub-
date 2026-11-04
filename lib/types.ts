@@ -91,7 +91,7 @@ export interface Deal {
   milestones?: DealMilestones;
   /** Deal protections and financing from the merger agreement summary (public targets only). */
   terms?: DealTerms;
-  /** The buyer's share price around the announcement and after, against the S&P 500: a study of listed buyers of deals announced since 2021, closed in November 2026 (lib/reactions.ts). */
+  /** The buyer's share price around the announcement and after, against the S&P 500: a study of listed buyers of deals announced since 2021, ended in November 2026 (lib/reactions.ts). */
   reaction?: BuyerReaction;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
