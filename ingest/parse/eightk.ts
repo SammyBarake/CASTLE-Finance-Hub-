@@ -157,6 +157,8 @@ export function extractMergerPrice(s: string): number | null {
     // "for (i) $8.50 per Share, net to the seller in cash", "for a purchase price of $95.00 per share, net to the holders
     // thereof in cash" (Cerner)
     /(?:for|at a price of|offer price of|(?:for|at) a (?:purchase |cash |offer )?price of|purchase price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
+    // "at a price per share of $4.35, in cash, net to the holder" (WhiteHawk / PHX)
+    /\bat a (?:purchase |cash |offer )?price per share of\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
   ];
   for (const re of patterns) {
     for (const m of s.matchAll(re)) {
@@ -187,7 +189,9 @@ export function extractMergerPrice(s: string): number | null {
 export function withItem101Price(parsed: ParsedPress | null, text: string): ParsedPress | null {
   if (!parsed || parsed.pricePerShare != null || parsed.privateTarget) return parsed;
   const section = item101(text);
-  const price = section ? extractMergerPrice(section) : null;
+  // A 425 wrapping an 8-K and its exhibits: the release sits past the 8-K's boilerplate, where `termsSection` stopped.
+  const whole = section ? /\b(?:transaction|consideration)\s+(?:is\s+)?valued\s+at\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+)?share\b/.exec(flatten(text)) : null;
+  const price = whole ? Number(whole[1]) : section ? extractMergerPrice(section) : null;
   return price == null ? parsed : { ...parsed, pricePerShare: price };
 }
 
@@ -322,6 +326,18 @@ export function statedRelease(text: string, signedOn: string): string | undefine
   return days.sort()[0];
 }
 
+/**
+ * An Item 1.01 goes on to the deal's financing and its other agreements, whose amounts are not the deal: Switch's $300M Land
+ * Purchase Agreement, Rallybio's concurrent financing, Hecla's silver stream, Turnstone's asset sale. A wrong value also
+ * stops the search for the real one in the release. (Not an implied value "before giving effect to" a placement: Ambros.)
+ */
+const SIDE_MATTER = /\bconcurrent\s+(?:financing|investment|private\s+placement)\b|\bprivate\s+placement\b|\bdebt\s+(?:financing|commitment)\b|\bstream(?:ing)?\b|\bpreferred\s+(?:stock|shares?)\b|\bpurchase\s+and\s+sale\s+agreement\b|\bland\s+purchase\b|\basset\s+sale\b|\bsubscri(?:bed\s+to\s+purchase|ption\s+agreement)\b/i;
+const withoutSideMatters = (section: string) =>
+  section
+    .split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/)
+    .filter((s) => !(SIDE_MATTER.test(s) || /\bPIPE\b/.test(s)) || /\bbefore\s+giving\s+effect\b/i.test(s))
+    .join(". ");
+
 export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | null {
   const section = item101(text);
   if (!section) return null;
@@ -447,7 +463,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   // before.
   const announcedOn = signedOn ? statedRelease(text, signedOn) : null;
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
-  const value = extractValue(section);
+  const value = extractValue(withoutSideMatters(section));
   return {
     kind,
     headline: `${acquirerName} to acquire ${targetName} (8-K Item 1.01)`,

@@ -26,6 +26,34 @@ describe("carryReactions", () => {
     expect(next[0].reactionCheckedAt).toBe("2026-11-01");
   });
 
+  it("keeps a figure on its record when the date moved within a week (a signing or a dateline)", () => {
+    const next = [deal({ announcedDate: "2024-03-01" })];
+    expect(carryReactions([held()], next)).toEqual({ carried: 1, unplaced: [] });
+    expect(next[0].reaction).toEqual(reaction);
+  });
+
+  it("parks a figure whose record's date moved further: it was measured around another day, a closing (Kito Crosby)", () => {
+    const rebuilt = [deal({ announcedDate: "2023-05-04" })];
+    const r = carryReactions([held()], rebuilt);
+    expect(r).toMatchObject({ carried: 0 });
+    expect(r.unplaced).toHaveLength(1);
+    expect(rebuilt[0].reaction).toBeUndefined();
+  });
+
+  it("takes such a figure off a record that still holds it, repeatably, and leaves another figure alone", () => {
+    const ordinary = [deal({ announcedDate: "2023-05-04", reaction, reactionCheckedAt: "2026-11-01" })];
+    for (let i = 0; i < 2; i++) {
+      const r = carryReactions([held()], ordinary);
+      expect(r.unplaced).toHaveLength(1);
+      expect(ordinary[0].reaction).toBeUndefined();
+      expect(ordinary[0].reactionCheckedAt).toBeUndefined();
+    }
+    const other = { ...reaction, announcementPct: 1 };
+    const own = [deal({ announcedDate: "2023-05-04", reaction: other })];
+    carryReactions([held()], own);
+    expect(own[0].reaction).toEqual(other);
+  });
+
   it("finds a record whose id changed: same buyer CIK, same target, announced within a week", () => {
     const next = [deal({ id: "21510-2024-03-09", announcedDate: "2024-03-09" })];
     expect(carryReactions([held()], next).carried).toBe(1);

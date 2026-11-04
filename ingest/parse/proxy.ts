@@ -35,8 +35,11 @@ const PREMIUM_RES = [
   ),
   // "a 32% premium over the $52.00 closing price", "an approximately 61% premium over the closing price", "a 17% premium
   // as compared to the closing price" (ChampionX).
-  new RegExp(String.raw`(?:approximately |about )?${PCT}\s+premium\s+${VERSUS}\s+(?:the\s+)?${CTX}`, "gi"),
+  new RegExp(String.raw`(?:approximately |about )?${PCT}\s+(?:implied\s+)?premium\s+${VERSUS}\s+(?:the\s+)?${CTX}`, "gi"),
+  // A later item of a premium's list: "a premium of approximately (a) 52% to the VWAP … and (b) 15% to the closing share price" (Cvent).
+  new RegExp(String.raw`\((?:ii|iii|iv|b|c|d|2|3|4)\)\s*(?:a\s+premium\s+of\s+)?(?:approximately |about )?${PCT}\s+(?:premium\s+)?${VERSUS}\s+(?:the\s+)?${CTX}`, "gi"),
 ];
+const LATER_ITEM = /^\((?:ii|iii|iv|b|c|d|2|3|4)\)/i;
 // Words of the "Background of the Merger" (bids, proposals, talks), not of the deal itself. "The proposed (cash)
 // consideration" / "proposed merger" in the board's reasons is the deal.
 const BACKGROUND =
@@ -53,6 +56,9 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     // Background words are looked for close by, in this list item only: a board's-reasons list runs on through its
     // bullets, and its introduction ("… be submitted to the shareholders …: • the fact that …") is not a bid.
     const near = (sentenceStart.split(/[•·▪○◌■◾]/).pop() ?? sentenceStart).slice(-250);
+    if (LATER_ITEM.test(m[0]) && !/\bpremium\b/i.test(sentenceStart)) continue;
+    // A value that counts a contingent right: "the Scheme Consideration NPV represented: • a premium of 23%", "(a) in the event that the Milestone Payment is made, the Transaction represents: (i) …".
+    if (/\bNPV\b|\bnet present value\b|\b(?:in the event that|assuming)\b[^.;]{0,60}\b(?:milestone|CVRs?|contingent)\b[^.;]{0,40}\b(?:is|are)\s+(?:made|paid|achieved)\b/i.test(before.slice(-600))) continue;
     // This premium's own clause: up to the next bullet (the regex), the next "premium", or the next figure ("…, and
     // approximately 85% over the 30-day average": that VWAP isn't this premium's).
     const ctx = m[2].split(/\bpremium\b|\(ii\)|,?\s+and\s+(?:a\s+|an\s+)?(?:approximately\s+|about\s+)?\d/i)[0];
@@ -91,8 +97,13 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     // A bid named by its amount: "The $11.00 transaction consideration represented a premium of 49% over the November 16,
     // 2022 closing sale price" (HNI's successive proposals for Kimball), not "the Merger Consideration".
     if (!score && /\$\d[\d.,]*\s+(?:(?:per[- ]share|aggregate)\s+)?(?:transaction\s+)?consideration\b/i.test(sentenceStart)) continue;
-    if (!score && !/merger agreement|arrangement agreement|transaction agreement|consideration|exchange ratio|offer price|purchase price|acquisition price|pursuant to the (?:merger|offer)/i.test(sentenceStart)) continue;
-    found.push({ pct, score, index: m.index!, text: (sentenceStart + m[0]).slice(-320) });
+    if (!score && !/merger agreement|arrangement agreement|transaction agreement|consideration|exchange ratio|offer price|purchase price|acquisition price|value to be received|pursuant to the (?:merger|offer)/i.test(sentenceStart)) continue;
+    found.push({ pct, score: LATER_ITEM.test(m[0]) ? -1 : score, index: m.index!, text: (sentenceStart + m[0]).slice(-320) });
+  }
+  for (const m of t.matchAll(/\b(?:based\s+(?:up)?on)\s+(?:the\s+)?(?:unaffected\s+|last\s+(?:reported\s+)?)?closing\s+(?:\w+\s+)?price\b((?:[^.;]|\.(?=\d)){0,240}?)\bconsideration\b(?:[^.;]|\.(?=\d)){0,60}?\bpremium\s+of\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent\b)/gi)) {
+    const pct = Number(m[2]);
+    if (/\bup\s+to\b|\bproposal\b|\boffer\b/i.test(m[0].slice(0, -12)) || !(pct > 0 && pct < 300)) continue;
+    found.push({ pct, score: /unaffected|undisturbed/i.test(m[0]) ? 2 : 1, index: m.index!, text: m[0].slice(-320) });
   }
   return found.sort((a, b) => b.score - a.score || a.index - b.index);
 }

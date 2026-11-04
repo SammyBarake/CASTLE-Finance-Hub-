@@ -18,6 +18,8 @@ export interface StoredDeal extends Deal {
   sources: string[];
   /** The announced date is only the signing an Item 1.01 states: a release's own date replaces it, later or not. */
   dateIsSigning?: boolean;
+  /** The value is price × shares, not a stated figure, which replaces it whenever one turns up. */
+  valueImplied?: boolean;
   /** Last time the target's filing history was checked for status changes. */
   statusCheckedAt: string | null;
   /** Set once XBRL financials were looked up (whether or not they were found). */

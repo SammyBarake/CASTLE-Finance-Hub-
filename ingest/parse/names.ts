@@ -281,7 +281,7 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/^Leading\s/.test(s) &&
   // Prose, not a name: "Additionally, all options to purchase Ordinary Shares", "The Company received the required …",
   // "Equify Financial, LLC, as lender", "Third Amendment". Names keep their small words to "of", "and", "the" …
-  !/^(?:Additionally|In addition|Also|However|Further(?:more)?),?\s|^(?:First|Second|Third|Fourth|Fifth)\s+(?:Amendment|Merger|Effective Time|Closing)\b|^The Company\s+[a-z]|,\s*as\s+(?:lender|agent|administrative agent|collateral agent|trustee|borrower|guarantor)\b/.test(s) &&
+  !/^(?:Additionally|In addition|Also|However|Further(?:more)?),?\s|^(?:Additionally|In addition|Moreover|Furthermore|As a result),?$|^(?:First|Second|Third|Fourth|Fifth)\s+(?:Amendment|Merger|Effective Time|Closing)\b|^The Company\s+[a-z]|,\s*as\s+(?:lender|agent|administrative agent|collateral agent|trustee|borrower|guarantor)\b/.test(s) &&
   // A numbered company with its number cut off: "1501016 B.C. Ltd." read as "B.C. Ltd".
   !/^(?:B\.?\s?C\.?|Ontario|Alberta|Canada|Nova Scotia|Qu[eé]bec)\s+(?:Ltd|Inc|Corp|ULC|Limited)\.?$/i.test(s.trim()) &&
   // A date run into the name: "Thoma Bravo March 10"; a moment in the deal: "Tenax at the Closing".

@@ -77,9 +77,16 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
   for (const held of old) {
     if (!held.reaction) continue;
     const sameId = byId.get(held.id);
+    const sameDeal = sameId && sameBuyer(held.acquirer, sameId.acquirer) ? sameId : null;
+    // Its date has moved further than that: the figure was measured around another day (a closing), so it leaves the
+    // record, and may park. Repeatable: only the figure it held, and on the next save the record no longer holds it.
+    if (sameDeal && !near(held.announcedDate, sameDeal.announcedDate) && JSON.stringify(sameDeal.reaction) === JSON.stringify(held.reaction)) {
+      delete sameDeal.reaction;
+      delete sameDeal.reactionCheckedAt;
+    }
     const record =
-      sameId && sameBuyer(held.acquirer, sameId.acquirer)
-        ? sameId
+      sameDeal && near(held.announcedDate, sameDeal.announcedDate)
+        ? sameDeal
         : buyerKeys(held.acquirer)
             .flatMap((k) => byBuyer.get(k) ?? [])
             .find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));

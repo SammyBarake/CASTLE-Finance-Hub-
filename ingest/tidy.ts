@@ -118,6 +118,13 @@ function merge(keep: StoredDeal, later: StoredDeal) {
   if (later.acquirer.name.length > keep.acquirer.name.length && !isPlaceholderBuyer(later.acquirer.name)) keep.acquirer.name = later.acquirer.name;
   keep.acquirer.cik ??= later.acquirer.cik;
   keep.acquirer.ticker ??= later.acquirer.ticker;
+  // A stated value replaces price × shares, and the enterprise value follows it (U.S. Silica's $1.85B).
+  if (keep.valueImplied && later.valueUsd != null && !later.valueImplied) {
+    keep.valueUsd = later.valueUsd;
+    keep.valueKind = later.valueKind;
+    delete keep.valueImplied;
+    keep.financialsCheckedAt = null;
+  }
   for (const k of ["valueUsd", "pricePerShare", "premiumPct", "consideration", "enterpriseValueUsd", "evEbitda", "evEbitdaReported", "evRevenue"] as const) {
     if (keep[k] == null && later[k] != null) (keep as unknown as Record<string, unknown>)[k] = later[k];
   }

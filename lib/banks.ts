@@ -29,7 +29,8 @@ export const BANKS: Bank[] = [
   b("HSBC", "HSBC", /\bHSBC\b/),
   b("Mizuho", "MZ", /\bMizuho\b/),
   b("MUFG", "MUFG", /\bMUFG\b|\bMitsubishi UFJ\b/),
-  b("SMBC Nikko", "SMBC", /\bSMBC\b|\bSumitomo Mitsui\b/),
+  // (Not "SMBC AC" or "SMBC Aviation Capital", a buyer of Air Lease, nor the banking group's leasing arm.)
+  b("SMBC Nikko", "SMBC", /\bSMBC\b(?!\s+(?:AC\b|Aviation))|\bSumitomo Mitsui\b(?!\s+(?:Finance and Leasing|Financial Group))/),
   b("Nomura", "NMR", /\bNomura\b/),
   b("Jefferies", "JEF", /\bJefferies\b/),
   b("Credit Suisse", "CS", /\bCredit Suisse\b|\bCREDIT SUISSE\b/),
