@@ -524,7 +524,9 @@ export function extractPrice(t: string): number | null {
     // ("the total stock and cash consideration … is $11.35 per share" is the whole price, and so is the cash a holder may
     // elect instead of shares: "stockholders electing to receive cash consideration will receive the cash consideration
     // of $28.00 per share", Bioventus / Misonix.)
-    if (/(?<!\b(?:stock|shares?|equity)\s+(?:and|or|plus)\s+)(?<!\btotal\s+)\bcash\s+(?:consideration|portion|component|payment)\b[^.;$]{0,80}$/i.test(before) && (mixed ??= extractConsideration(t) === "Mixed" && !ELECTION.test(t))) continue;
+    // (A leg after another: "stock consideration of $10.11 per share and cash consideration of $1.12 per share" is no "stock
+    // and cash consideration" of a whole: AG Mortgage / WMC.)
+    if (/(?<!(?<!\bper\s)\b(?:stock|shares?|equity)\s+(?:and|or|plus)\s+)(?<!\btotal\s+)\bcash\s+(?:consideration|portion|component|payment)\b[^.;$]{0,80}$/i.test(before) && (mixed ??= extractConsideration(t) === "Mixed" && !ELECTION.test(t))) continue;
     // Nor a collar's bound: "LPS stockholders receive a minimum of $15.794 per share in value on the stock portion".
     if (/\b(?:minimum|maximum)\s+(?:of\s+)?$/i.test(before)) continue;
     // Nor the buyer's share price a stock deal is worked out from: "7,692,308 shares (determined as $200 million divided
@@ -830,7 +832,8 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     // In the sentence saying what holders get only: "£4.39 ($7.06) in cash", "the right to receive cash in an amount
     // equal to the Offer Price" (Cerner). Not "$80 million in cash": a lump sum there is often a CVR or one part of a
     // merger of equals, and elsewhere the balance sheet.
-    (offer && /\d\)\s+in cash|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)|\breceive\s+an?\s+(?:upfront\s+)?cash\s+payment\s+(?:of\s+(?:approximately\s+|about\s+)?\$|equal\s+to\s+an?\s+[\d.]+%\s+premium)|\b(?:one-time|upfront|special)\s+cash\s+payment\s+of\s+(?:approximately\s+|about\s+)?\$[\d.,]+\s+(?:per|for each)\b/i.test(t));
+    // (Also "1.5 shares of MITT common stock … and a cash payment from Angelo Gordon"; not one for fractional shares.)
+    (offer && /\d\)\s+in cash|\b(?:and|plus)\s+a\s+cash\s+payment\b(?!\s+(?:in\s+lieu|for\s+(?:any\s+|the\s+)?fraction))|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)|\breceive\s+an?\s+(?:upfront\s+)?cash\s+payment\s+(?:of\s+(?:approximately\s+|about\s+)?\$|equal\s+to\s+an?\s+[\d.]+%\s+premium)|\b(?:one-time|upfront|special)\s+cash\s+payment\s+of\s+(?:approximately\s+|about\s+)?\$[\d.,]+\s+(?:per|for each)\b/i.test(t));
   const stock =
     // Not "available to all stockholders" (Sequenom) nor a count tendered or outstanding ("35,852,857 shares of Audentes
     // common stock were validly tendered"); an aggregate count paid counts ("will receive 30,700,000 shares of HF common
@@ -897,7 +900,10 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     /\bcombination of [^.;]{0,40}?\b(?:equity|shares|stock)\s+and\s+cash\b|(?<!\bnon-)\bcash,\s+(?:common\s+)?stock\b(?!-)|(?<!\bissuance of (?:common )?)\bstock,\s+cash\b(?!\s+on\s+hand)|\bcash\b[^.;]{0,200}?(?<!\bwarrants?\b[^.;]{0,80})\belect\s+to\s+receive\b[^.;]{0,120}?\b(?:ADSs?|shares|stock)\b|(?<!\bwarrants?\b[^.;]{0,80})\belect\s+to\s+receive\b[^.;]{0,120}?\b(?:(?:ADSs?|shares|stock)\b[^.;]{0,120}?\bcash|cash\b[^.;]{0,80}?\b(?:ADSs?|shares|stock))\b|\bdepending on (?:their|its|the holder['’]s) election\b/i.test(forStock) ||
     // "72% stock (1:1 share) and 28% cash ($88.82/share)" (Union Pacific / Norfolk Southern), "36% cash ($11.25/BLFS
     // share) and 64% stock"
-    /\b\d{1,2}% (?:stock|cash)\b(?:[^.;]|\.(?=\d)){0,40}?\b\d{1,2}% (?:stock|cash)\b/i.test(forStock);
+    /\b\d{1,2}% (?:stock|cash)\b(?:[^.;]|\.(?=\d)){0,40}?\b\d{1,2}% (?:stock|cash)\b/i.test(forStock) ||
+    // "consisting of stock consideration of $10.11 per share and cash consideration of $1.12 per share", "WMC stockholders
+    // will receive a portion of the merger consideration in cash" (AG Mortgage / WMC)
+    /\bstock\s+consideration\b(?:[^.;]|\.(?=\d)){0,120}?\bcash\s+consideration\b|\bcash\s+consideration\b(?:[^.;]|\.(?=\d)){0,120}?\bstock\s+consideration\b|\b(?:portion|part)\s+of\s+the\s+(?:merger\s+|total\s+|aggregate\s+)?consideration\s+in\s+cash\b/i.test(forStock);
   // A lump sum of cash beside shares in what holders receive: "approximately 65.6 million shares of Bunge stock and
   // approximately US$2.0 billion in cash" (Viterra). Alone, such a sum is often a CVR or one side of a merger of equals.
   const lump = offer && /\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:(?:in|of)\s+)?cash\b(?!\s+(?:flow|equivalents|balance))/i.test(t);
@@ -921,7 +927,9 @@ export function extractConsideration(raw: string): Consideration | null {
   // consisting of 12.5 million shares of Lyell common stock" came before the upfront cash and shares.)
   // (A contingent value right beside the cash is no earn-out sentence: "(i) $13.00 in cash and (ii) a non-tradeable
   // contingent value right".)
-  const offer = [...t.matchAll(/(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/gi)].map((m) => m[0]).find((s) => !/\b(?:contingent consideration|earn-?outs?|milestone)\b/i.test(s) && !/\b(?:warrants?|options?|RSUs?)\b/i.test(s.split(/\b(?:will|would|to) receive\b/i)[0]));
+  // (Nor a sub-headline about one part: "WMC Stockholders to Receive Cash Consideration as Part of Merger": AG Mortgage / WMC,
+  // 1.5 shares and a cash payment, where it read as cash and the $1.12 cash leg as the offer price.)
+  const offer = [...t.matchAll(/(?:[^.]|\.(?=\d))*\b(?:will receive|would receive|to receive|right to receive|entitled to receive)\b(?:[^.]|\.(?=\d))*/gi)].map((m) => m[0]).find((s) => !/\b(?:contingent consideration|earn-?outs?|milestone)\b/i.test(s) && !/\b(?:warrants?|options?|RSUs?)\b/i.test(s.split(/\b(?:will|would|to) receive\b/i)[0]) && !/\bconsideration\s+as\s+(?:a\s+)?part\s+of\b/i.test(s));
   // Employee awards converted into the buyer's stock ("… denominated in shares of Oracle's common stock … an exchange
   // ratio determined by dividing the Merger Consideration …") say nothing about what holders get: Cerner read as stock.
   const AWARDS = /\b(?:stock options?|options? to (?:purchase|acquire)|option awards?|replacement awards?|inducement (?:grants?|awards?)|restricted stock|RSUs?|PSUs?|performance (?:share |stock )?units?|(?:deferred )?(?:stock|share) units?(?: awards?)?|equity awards?|compensatory awards?|incentive awards?)\b/i;

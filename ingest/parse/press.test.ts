@@ -64,6 +64,28 @@ describe("displayName", () => {
   });
 });
 
+describe("a sub-headline about one part of the consideration (AG Mortgage / Western Asset Mortgage)", () => {
+  const release = `AG MORTGAGE INVESTMENT TRUST AND WESTERN ASSET MORTGAGE CAPITAL CORPORATION ANNOUNCE DEFINITIVE MERGER AGREEMENT WMC Stockholders to Receive Cash Consideration as Part of Merger NEW YORK, NY - August 8, 2023 - AG Mortgage Investment Trust, Inc. (NYSE: MITT) announced a definitive merger agreement. MITT's common stock closing price on August 7, 2023, implies a transaction value of $11.23 per WMC common share, consisting of stock consideration of $10.11 per share and cash consideration of $1.12 per share, representing a 34% premium to WMC's unaffected closing stock price on the NYSE on July 12, 2023. Each share will be converted at closing into the right to receive 1.5 shares of MITT common stock for a total of 9.2 million shares, pursuant to a fixed exchange ratio, and a cash payment from Angelo Gordon.`;
+
+  it("doesn't decide cash on its own, so the deal reads mixed", () => {
+    expect(extractConsideration(release)).toBe("Mixed");
+  });
+
+  it("takes the whole value per share, not the cash leg next to the premium", () => {
+    expect(extractPrice(release)).toBe(11.23);
+  });
+
+  it("leaves a sentence that does say what holders get in cash", () => {
+    expect(extractConsideration("Each stockholder will receive $20.00 per share in cash.")).toBe("Cash");
+    expect(extractConsideration("Holders will receive cash consideration of $20.00 per share as described below.")).toBe("Cash");
+  });
+
+  it("doesn't take a cash payment for fractional shares as a cash leg", () => {
+    expect(extractConsideration("Each share will be converted into the right to receive 1.5 shares of MITT common stock and a cash payment in lieu of fractional shares.")).toBe("Stock");
+    expect(extractConsideration("Each share will be converted into the right to receive 1.5 shares of MITT common stock and a cash payment for any fractional shares.")).toBe("Stock");
+  });
+});
+
 describe("extractPrice skips contingent value rights", () => {
   it("takes the cash price, not the CVR", () => {
     const t = `Under the terms of the agreement, Acme will commence a tender offer to acquire all outstanding shares of Widget for $2.02 per share in cash, plus one non-transferable contingent value right (CVR) entitling the holder to receive up to $0.17 per share in cash upon achievement of a milestone.`;
