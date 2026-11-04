@@ -416,6 +416,19 @@ export function isBalanceSheetBusiness(sic: string | null | undefined, name = ""
   return n === 6798 && /\b(?:mortgage|finance|financial|lending|credit|investment corp|capital (?:corp|trust))\b/i.test(name);
 }
 
+/**
+ * EBITDA near or above revenue holds something that isn't operating: a REIT's gains on sales it tags no other way
+ * (Apartment Income, Spirit Realty, LXP, Plymouth), or net operating income tagged as operating income, which then counts
+ * D&A twice (AvalonBay: 2,956 on revenue of 3,065). Blank, not a multiple a bank would never print.
+ */
+const notOperating = (fin: TargetFinancials | null | undefined) => {
+  const revenue = fin?.revenueLtm;
+  if (!revenue || revenue <= 0) return false;
+  const adjusted = fin?.adjustedEbitdaLtm ?? 0;
+  // (Duke Realty's reported figure is as high, but with its sale gains out it's 68% of revenue, an ordinary REIT margin.)
+  return adjusted >= 0.9 * revenue || ((fin?.ebitdaLtm ?? 0) >= 0.9 * revenue && adjusted >= 0.75 * revenue);
+};
+
 export function computeMultiples(
   deal: { valueUsd: number | null; valueKind: "enterprise" | "equity" | "transaction" | null; pricePerShare: number | null },
   fin: TargetFinancials | null,
@@ -442,8 +455,9 @@ export function computeMultiples(
 
   let ev: number | null = null;
   if (deal.valueKind === "enterprise" && deal.valueUsd) ev = deal.valueUsd;
-  else if (impliedEquityUsd != null && netDebt != null) ev = impliedEquityUsd + netDebt;
+  // A stated equity value before price × cover-page shares, which miss options and awards.
   else if (deal.valueKind === "equity" && deal.valueUsd && netDebt != null) ev = deal.valueUsd + netDebt;
+  else if (impliedEquityUsd != null && netDebt != null) ev = impliedEquityUsd + netDebt;
   else if (deal.valueUsd) ev = deal.valueUsd;
   if (ev != null && ev <= 0) ev = null;
 
@@ -459,7 +473,7 @@ export function computeMultiples(
     impliedEquityUsd,
     // Only where reported EBITDA gives a multiple of its own. A loss-maker's add-backs, or a 75x+ company's, fill a
     // blank with what is mostly a guess: under half of such figures came within 15% of a bank's.
-    evEbitda: evEbitdaReported != null ? ratio(ev, fin?.adjustedEbitdaLtm, 3, 50) : null,
+    evEbitda: evEbitdaReported != null && !notOperating(fin) ? ratio(ev, fin?.adjustedEbitdaLtm, 3, 50) : null,
     evEbitdaReported,
     evRevenue: ratio(ev, fin?.revenueLtm, 0.05, 60),
   };

@@ -52,6 +52,18 @@ describe("computeMultiples", () => {
     expect(m.evRevenue).toBe(2.4);
   });
 
+  it("prefers a stated equity value to price times cover-page shares", () => {
+    expect(computeMultiples({ valueUsd: 1.2e9, valueKind: "equity", pricePerShare: 20 }, fin).enterpriseValueUsd).toBe(1.2e9 + 200e6);
+  });
+
+  it("gives no multiple when EBITDA is near or above revenue: it holds something that isn't operating (Apartment Income, AvalonBay)", () => {
+    const near = { ...fin, revenueLtm: 500e6, ebitdaLtm: 480e6, adjustedEbitdaLtm: 470e6 };
+    expect(computeMultiples({ valueUsd: 3e9, valueKind: "enterprise", pricePerShare: null }, near).evEbitda).toBeNull();
+    // Sale gains out, an ordinary REIT margin (Duke Realty).
+    const duke = { ...fin, revenueLtm: 1000e6, ebitdaLtm: 1400e6, adjustedEbitdaLtm: 680e6 };
+    expect(computeMultiples({ valueUsd: 20e9, valueKind: "enterprise", pricePerShare: null }, duke).evEbitda).toBe(29.4);
+  });
+
   it("uses a stated enterprise value as is", () => {
     expect(computeMultiples({ valueUsd: 1.5e9, valueKind: "enterprise", pricePerShare: 20 }, fin).enterpriseValueUsd).toBe(1.5e9);
   });
