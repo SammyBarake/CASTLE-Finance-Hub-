@@ -176,7 +176,12 @@ const sampleDeals: SampleDeal[] = [
   },
 ];
 
-const deals = sampleDeals.map(withDealDefaults);
+// The buyer-reaction study's shape, so the page tests draw its panel and the deal drawer's figures.
+const SAMPLE_MOVES = [-3.2, 1.4, -0.8, 2.6, -5.1, 0.3, -1.9, 4.2];
+const deals = sampleDeals.map(withDealDefaults).map((d, i) => {
+  const move = SAMPLE_MOVES[i % SAMPLE_MOVES.length];
+  return { ...d, reaction: { announcementPct: move + 0.4, announcementVsMarketPct: move, m6VsMarketPct: i % 3 ? move * 1.5 : null, y1VsMarketPct: null } };
+});
 
 // ---------------------------------------------------------------------------
 // Feature 2: deal volume. 24 months, Sep 2024 – Aug 2026.

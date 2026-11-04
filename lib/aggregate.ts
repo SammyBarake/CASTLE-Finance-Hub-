@@ -176,6 +176,19 @@ export function sectorValuations(deals: Deal[], asOf: string): SectorValuation[]
  * `hasFairness`) and the filing list, a third of the feed's weight (the feed keeps the first filing, the source the
  * row menu opens, and `filingCount`).
  */
+/**
+ * The deal fields the live site reads from Supabase; ingest bookkeeping (checked-at dates, source lists) stays in the
+ * database. A field missing here never reaches the live site, whatever toPublicDeal passes, while local JSON reads have
+ * every field, so only a test catches it.
+ */
+export const DEAL_FIELDS = [
+  "id", "announcedDate", "acquirer", "target", "valueUsd", "pricePerShare", "premiumPct", "consideration", "sector", "industry", "status", "statusDate",
+  "enterpriseValueUsd", "evEbitda", "evEbitdaReported", "evRevenue", "acquirerAdvisors", "targetAdvisors", "filings", "milestones", "privateTarget", "terms", "fairness",
+  "reaction",
+  // Internal (server side, for filtering by value type); toPublicDeal leaves it out of the browser feed.
+  "valueKind",
+];
+
 export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): Deal {
   return {
     id: d.id,
@@ -204,8 +217,6 @@ export function toPublicDeal(d: Deal, opts: { withFairness?: boolean } = {}): De
     ...(opts.withFairness && d.proxySections?.length ? { proxySections: d.proxySections } : {}),
     ...(d.milestones ? { milestones: d.milestones } : {}),
     ...(d.terms ? { terms: d.terms } : {}),
-    // Share prices come from Yahoo: the site shows only percentages derived from them, never the quotes themselves.
-    ...(d.arb ? { arb: { spreadPct: d.arb.spreadPct, asOf: d.arb.asOf } } : {}),
     ...(d.reaction ? { reaction: d.reaction } : {}),
     ...(d.privateTarget ? { privateTarget: true } : {}),
   };

@@ -16,7 +16,7 @@ type Props = { params: Promise<{ id: string }> };
 // Unlisted: reachable by its link only, never indexed (robots), and not in the sitemap.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const book = await getSharedBook((await params).id);
-  if (!book) return { title: "Deal book · Castle", robots: { index: false, follow: false } };
+  if (!book) return { title: "Deal book · Castle", robots: { index: false, follow: false }, alternates: null };
   const n = book.items.length;
   const description = book.thesis.trim()
     ? book.thesis.trim().replace(/\s+/g, " ").slice(0, 157) + (book.thesis.length > 157 ? "…" : "")
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${book.title} · Deal book · Castle`,
     description,
     robots: { index: false, follow: false },
+    alternates: null,
     openGraph: { title: book.title, description },
     twitter: { card: "summary_large_image", title: book.title, description },
   };

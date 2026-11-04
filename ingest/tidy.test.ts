@@ -463,4 +463,60 @@ describe("same-day records for one target", () => {
     const mks = deal({ acquirer: { name: "MKS Instruments", ticker: "MKSI", cik: "1049502" }, target: { name: "Coherent Inc", ticker: "COHR", cik: "21510" }, announcedDate: "2021-02-08" });
     expect(tidyDeals([lumentum, mks]).dropped.filter((x) => /announced the same day/.test(x.reason))).toEqual([]);
   });
+
+  it("brings a reaction across only from the same buyer", () => {
+    const reaction = { announcementPct: 1, announcementVsMarketPct: 2, m6VsMarketPct: null, y1VsMarketPct: null };
+    const target = { name: "Heska Corp", ticker: "HSKA", cik: "1038133" };
+    const listed = { name: "Lumentum Holdings Inc.", ticker: "LITE", cik: "1633978" };
+    const keep = deal({ acquirer: { ...listed }, target, announcedDate: "2023-04-03", sources: ["a", "b", "c"] });
+    const twin = deal({ acquirer: { ...listed }, target, announcedDate: "2023-04-03", sources: ["d"], reaction, reactionCheckedAt: "2026-11-01" });
+    tidyDeals([keep, twin]);
+    expect(keep.reaction).toEqual(reaction);
+    expect(keep.reactionCheckedAt).toBe("2026-11-01");
+    // Mars's shares aren't Lumentum's: Mars has none, so its record gets no reaction.
+    const mars = deal({ acquirer: { name: "Mars, Incorporated", ticker: null, cik: null }, target, announcedDate: "2023-04-03", sources: ["a", "b", "c"] });
+    const rival = deal({ acquirer: { ...listed }, target, announcedDate: "2023-04-03", sources: ["d"], reaction, reactionCheckedAt: "2026-11-01" });
+    tidyDeals([mars, rival]);
+    expect(mars.acquirer.name).toBe("Mars, Incorporated");
+    expect(mars.reaction).toBeUndefined();
+  });
+});
+
+describe("old merger-arb quotes", () => {
+  it("are removed from every record, so the next save takes the raw quotes out of the public table", () => {
+    const d = deal({}) as StoredDeal & { arb?: unknown };
+    d.arb = { priceUsd: 45.68, spreadPct: 4, asOf: "2026-10-21" };
+    tidyDeals([d]);
+    expect("arb" in d).toBe(false);
+  });
+});
+
+describe("merging a duplicate", () => {
+  it("keeps the reaction the duplicate holds", () => {
+    const reaction = { announcementPct: 1, announcementVsMarketPct: 2, m6VsMarketPct: 3, y1VsMarketPct: null };
+    const buyer = { name: "Ondas Inc.", ticker: "ONDS", cik: "1646188" };
+    const ann = deal({ privateTarget: true, acquirer: buyer, target: { name: "Rotron Aero", ticker: null, cik: null }, announcedDate: "2026-02-02", status: "Announced", statusDate: null });
+    const done = deal({ privateTarget: true, acquirer: buyer, target: { name: "Rotron Aerospace Ltd.", ticker: null, cik: null }, announcedDate: "2026-03-16", status: "Closed", statusDate: "2026-03-16", reaction, reactionCheckedAt: "2026-10-01" });
+    const deals = [ann, done];
+    tidyDeals(deals);
+    expect(deals).toEqual([ann]);
+    expect(ann.reaction).toEqual(reaction);
+    // One already there stays.
+    const own = { ...reaction, announcementPct: 9 };
+    const a = deal({ acquirer: buyer, reaction: own, announcedDate: "2026-02-02" });
+    const b = deal({ acquirer: buyer, reaction, announcedDate: "2026-02-20" });
+    tidyDeals([a, b]);
+    expect(a.reaction).toBe(own);
+  });
+
+  it("doesn't pass one company's reaction to another its name happens to start like", () => {
+    // Tidy's duplicate check goes by a shared first word: General Motors and General Electric for one target, 19 days apart.
+    const reaction = { announcementPct: 1, announcementVsMarketPct: 2, m6VsMarketPct: 3, y1VsMarketPct: null };
+    const target = { name: "Heska Corp", ticker: "HSKA", cik: "1038133" };
+    const gm = deal({ acquirer: { name: "General Motors Co", ticker: "GM", cik: "1467858" }, target, announcedDate: "2024-03-01" });
+    const ge = deal({ acquirer: { name: "General Electric Co", ticker: "GE", cik: "40545" }, target, announcedDate: "2024-03-20", reaction, reactionCheckedAt: "2026-10-01" });
+    tidyDeals([gm, ge]);
+    expect(gm.reaction).toBeUndefined();
+    expect(gm.reactionCheckedAt).toBeUndefined();
+  });
 });

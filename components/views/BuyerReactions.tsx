@@ -4,8 +4,8 @@ import { Fragment, useMemo } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { PanelHead, SectionLoading } from "@/components/ui/primitives";
-import { formatSignedPct, formatUsd } from "@/lib/format";
-import { MIN_GROUP, reactionInsights, reactionSummary, type ReactionGroup } from "@/lib/reactions";
+import { formatMonthLong, formatSignedPct, formatUsd } from "@/lib/format";
+import { MIN_GROUP, REACTION_STUDY_THROUGH, reactionInsights, reactionSummary, type ReactionGroup } from "@/lib/reactions";
 import type { Deal } from "@/lib/types";
 
 const Move = ({ value }: { value: number | null }) =>
@@ -59,7 +59,7 @@ export function BuyerReactions() {
   if (s.all.count < MIN_GROUP) return null;
   return (
     <section className="panel buyer-panel" aria-label="Did buyers win?">
-      <PanelHead title="Did buyers win?" subtitle="Listed buyers' shares against the S&P 500 · two trading days after announcing, and six months on · medians" />
+      <PanelHead title="Did buyers win?" subtitle={`A study of deals announced since 2021, closed in ${formatMonthLong(REACTION_STUDY_THROUGH)} · listed buyers' shares against the S&P 500 · two trading days after announcing, and six months on · medians`} />
       <div className="reaction-grid">
         <div className="table-scroll">
           <table className="reaction-table">

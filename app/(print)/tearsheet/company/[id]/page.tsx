@@ -15,7 +15,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const profile = findCompany(await getHubData(), decodeURIComponent((await params).id));
-  return { title: profile ? `${profile.company.name} · Tear sheet · Castle` : "Tear sheet · Castle" };
+  return profile ? { title: `${profile.company.name} · Tear sheet · Castle` } : { title: "Tear sheet · Castle", alternates: null };
 }
 
 export default async function Page({ params }: Props) {

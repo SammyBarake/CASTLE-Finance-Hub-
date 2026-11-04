@@ -28,9 +28,23 @@ const SOURCES: { name: string; what: string; terms: string }[] = [
   { name: "SEC EDGAR", what: "Filings behind every deal, term, adviser, IPO and activist stake, and company financials (XBRL)", terms: "Public U.S. government data" },
   { name: "IMF World Economic Outlook", what: "GDP growth and inflation (current year is an IMF estimate)", terms: "© International Monetary Fund, used with attribution" },
   { name: "Bank for International Settlements", what: "Central-bank policy rates", terms: "© BIS, used with attribution" },
-  { name: "FRED, Federal Reserve Bank of St. Louis", what: "Interest rates, credit spreads, volatility and inflation behind the What-if history", terms: "Source: FRED" },
+  { name: "FRED, Federal Reserve Bank of St. Louis", what: "Interest rates, the Baa credit spread, volatility and inflation behind the What-if history", terms: "Cited below" },
   { name: "U.S. Bureau of Economic Analysis", what: "Input-output tables behind the What-if sector links", terms: "Public U.S. government data" },
-  { name: "Yahoo Finance", what: "Daily share prices behind merger-arb spreads, buyers' share reactions and sector returns", terms: "Third-party market data" },
+  {
+    name: "Yahoo Finance",
+    what: "Historical share prices behind the buyer-reaction study (to November 2026) and the sector returns the What-if links were estimated from. No longer updated.",
+    terms: "Third-party market data",
+  },
+];
+
+/** The citation each FRED series' page asks for. VIXCLS and BAA10Y are "Copyrighted: Citation Required", the rest public domain with a citation requested. */
+const FRED_CITATIONS: { source: string; series: string; id: string }[] = [
+  { source: "Chicago Board Options Exchange", series: "CBOE Volatility Index: VIX", id: "VIXCLS" },
+  { source: "Federal Reserve Bank of St. Louis", series: "Moody's Seasoned Baa Corporate Bond Yield Relative to Yield on 10-Year Treasury Constant Maturity", id: "BAA10Y" },
+  { source: "Board of Governors of the Federal Reserve System (US)", series: "Federal Funds Effective Rate", id: "FEDFUNDS" },
+  { source: "Board of Governors of the Federal Reserve System (US)", series: "Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity, Quoted on an Investment Basis", id: "GS10" },
+  { source: "U.S. Bureau of Labor Statistics", series: "Consumer Price Index for All Urban Consumers: All Items in U.S. City Average", id: "CPIAUCSL" },
+  { source: "U.S. Energy Information Administration", series: "Crude Oil Prices: West Texas Intermediate (WTI) - Cushing, Oklahoma", id: "DCOILWTICO" },
 ];
 
 function Report({ children = "Report a data issue" }: { children?: ReactNode }) {
@@ -121,7 +135,7 @@ export function AboutView() {
       </div>
 
       <section className="panel">
-        <PanelHead title="Sources" subtitle="All free and public" />
+        <PanelHead title="Sources" subtitle="Where the figures come from" />
         <div className="table-scroll">
           <table className="info-sources">
             <thead>
@@ -142,6 +156,16 @@ export function AboutView() {
             </tbody>
           </table>
         </div>
+        <ul className="info-citations" aria-label="FRED citations">
+          {FRED_CITATIONS.map((c) => (
+            <li key={c.id}>
+              {c.source}, {c.series} [{c.id}], retrieved from FRED, Federal Reserve Bank of St. Louis;{" "}
+              <a href={`https://fred.stlouisfed.org/series/${c.id}`} target="_blank" rel="noopener noreferrer">
+                https://fred.stlouisfed.org/series/{c.id}
+              </a>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <div className="info-grid">

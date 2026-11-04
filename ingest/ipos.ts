@@ -64,7 +64,7 @@ export const FUNDLIKE =
 export const MIN_RAISE = 20e6;
 /** How long a new pricing shows as "Priced" before moving to "Trading". */
 const PRICED_DAYS = 7;
-/** Tracked companies are re-checked when their last check is older than this (the ingest runs every 3 hours). */
+/** Tracked companies are re-checked when their last check is older than this (the ingest runs several times a day). */
 const RECHECK_MS = 2 * 3_600_000;
 const DAY = 86_400_000;
 

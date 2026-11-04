@@ -9,14 +9,13 @@
  *   npm run ingest -- --only activists --from 2025-01-01   backfill activist 13Ds
  *   npm run ingest -- --rebuild-deals --from 2024-09-01   re-read every filing with the current parsers, drop stale deals
  *   npm run ingest -- --only deals --backstop-only --from 2021-01-01   only look up merger-proxy filers without a deal
- *   npm run ingest -- --only prices                 merger-arb spreads and buyers' share-price reactions (Yahoo)
  */
 import { ingestActivists } from "./activists";
 import { buildDirectory, ingestDeals } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { ingestIpos } from "./ipos";
 import { fetchMacro } from "./macro";
-import { updatePrices } from "./prices";
+import { carryReactions, reactionsToHold } from "./reactions";
 import { storeFromEnv } from "./store";
 
 function arg(name: string): string | undefined {
@@ -33,6 +32,8 @@ async function main() {
   const to = arg("to") ?? today;
   const from = arg("from") ?? isoDay(new Date(Date.now() - 5 * 86_400_000));
   const only = arg("only");
+  // A step that doesn't exist would run nothing and still move `asOf`, which reads as fresh data.
+  if (only && !["deals", "ipos", "activists", "macro"].includes(only)) throw new Error(`--only ${only}: no such step (deals, ipos, activists, macro)`);
   // --skip macro,activists: leave pipelines out (quick hourly runs skip the slow, slow-changing ones).
   const skip = new Set((arg("skip") ?? "").split(",").filter(Boolean));
   const runs = (step: string) => (!only || only === step) && !skip.has(step);
@@ -57,6 +58,14 @@ async function main() {
   // --rebuild-deals: forget every deal and seen document and re-read all filings from --from with the
   // current parsers. Deals the new run doesn't produce are deleted at the end (only if the run succeeds).
   const rebuild = flag("rebuild-deals");
+  // Buyers' reactions can't be fetched again (ingest/reactions.ts), and any run can lose a record: a rebuild forgets them
+  // all, and an ordinary run's tidy, duplicate checks and role swaps drop or rewrite some. So every run holds them all and
+  // puts them back before every save, and neither a checkpoint nor a failed run can publish a state without them. What
+  // finds no record is parked in the store for a later run, so the prune at the end can't lose it either.
+  const held = reactionsToHold(state.deals, state.unplacedReactions ?? []);
+  const carry = () => {
+    state.unplacedReactions = carryReactions(held, state.deals).unplaced;
+  };
   if (rebuild) {
     if (!arg("from")) throw new Error("--rebuild-deals needs --from (e.g. --from 2024-09-01)");
     state.deals = [];
@@ -72,6 +81,7 @@ async function main() {
   // A failed progress save doesn't stop the run: the final save below tries again (a rebuild died an hour in).
   const checkpoint = async () => {
     state.asOf = new Date().toISOString();
+    carry();
     try {
       await store.save(state);
       log(`  checkpoint saved (${state.deals.length} deals)`);
@@ -97,14 +107,6 @@ async function main() {
       const s = await ingestIpos(state, { from, to, directory, log, today, checkpoint });
       log(`ipos: ${s.candidates} candidates, ${s.pipeline} in pipeline`);
     }
-    if (runs("prices")) {
-      // Non-critical: merger-arb spreads and buyers' share-price reactions (Yahoo); a failure keeps the stored figures.
-      try {
-        await updatePrices(state, { today, log });
-      } catch (err) {
-        log(`prices: skipped (${(err as Error).message})`);
-      }
-    }
     if (runs("activists")) {
       // Non-critical: a failure keeps the stored stakes.
       try {
@@ -127,12 +129,15 @@ async function main() {
     succeeded = true;
   } finally {
     state.asOf = new Date().toISOString();
+    carry();
+    if (held.length) log(`reactions: ${state.deals.filter((d) => d.reaction).length} deals hold one, ${state.unplacedReactions?.length ?? 0} found no record (parked for a later run)`);
     await store.save(state, { prune: rebuild && succeeded && complete });
     log(`saved to ${store.label}: ${state.deals.length} deals, ${state.ipos.length} IPOs (${edgarRequestCount()} EDGAR requests)`);
   }
 }
 
-main().catch((err) => {
+/** Settled when the run is over (a test's only way to know). */
+export const finished = main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

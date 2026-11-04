@@ -4,7 +4,7 @@
  *
  *   npm run history -- deals --from 2015-01-01 --to 2020-12-31   backfill deals with the live parsers (light enrichment)
  *   npm run history -- ipos --from 2015-01-01                    priced IPOs from 424B4 final prospectuses
- *   npm run history -- markets                                   sector ETF prices (Yahoo) + FRED series
+ *   npm run history -- markets                                   FRED series (a local file's old ETF prices stay, for research)
  *   npm run history -- build [--value-kind transaction]          sector_monthly + macro_monthly from all of the above
  *   npm run history -- snapshot [--period 2026-09]               IPO pipeline + league table snapshot for a month
  *   npm run history -- recall                                    per-year coverage check against merger-proxy filers
@@ -13,14 +13,15 @@
  *   npm run history -- monthly                                   the GitHub Actions job: everything from/to Supabase
  *
  * Local files live in .data/history/ (git-ignored). Supabase writes need SUPABASE_SERVICE_ROLE_KEY and the tables
- * from supabase/migrations/0002_history.sql.
+ * from supabase/migrations/0002_history.sql. Nothing published carries share prices: sector_monthly's ETF columns and
+ * the markets snapshot's price series stay empty, and only a local file keeps the old series (ingest/markets.ts says why).
  */
 import { createClient } from "@supabase/supabase-js";
 import { buildDirectory, discoverMergerFilers, ingestDeals, parseDisplayName } from "./deals";
 import { edgarRequestCount, getListedCompanies } from "./edgar";
 import { historyDb, LOCAL, loadFromSupabase, push, readJson, writeJson, type Snapshot } from "./historyStore";
 import { backfillIpoHistory, type IpoHistoryState } from "./ipoHistory";
-import { fetchMarkets, SECTOR_ETFS, type Markets } from "./markets";
+import { fetchMarkets, publicMarkets, SECTOR_ETFS, type Markets } from "./markets";
 import { JsonStore, LOCAL_DATA_PATH, type StoredDeal } from "./store";
 import { leagueTable, toPublicIpo } from "../lib/aggregate";
 import { bankShortName } from "../lib/banks";
@@ -112,7 +113,7 @@ async function updateIpos(state: IpoHistoryState, from: string, to: string, log:
 }
 
 async function updateMarkets(previous: Markets | null, log: Log) {
-  log("markets: sector ETFs (Yahoo Finance) and FRED series");
+  log("markets: FRED series");
   const { markets, failed } = await fetchMarkets(`${HISTORY_FROM}-01`, thisMonth(), previous, log);
   if (failed.length) log(`markets: ${failed.join(", ")} failed; previous values kept`);
   return markets;
@@ -270,16 +271,15 @@ async function main() {
     await push.ipos(db, ipoState());
     await push.sectorMonthly(db, readJson<SectorMonthRow[]>(LOCAL.sectorMonthly, []));
     await push.macroMonthly(db, readJson<MacroMonthRow[]>(LOCAL.macroMonthly, []));
-    const markets = readJson<Markets | null>(LOCAL.markets, null);
-    const snaps = readJson<Snapshot[]>(LOCAL.snapshots, []);
-    await push.snapshots(db, [...snaps, ...(markets ? [{ kind: "markets", period: "latest", takenAt: markets.fetchedAt, data: markets }] : [])]);
+    await push.snapshots(db, readJson<Snapshot[]>(LOCAL.snapshots, []), readJson<Markets | null>(LOCAL.markets, null));
     log("pushed the local history to Supabase");
   } else if (cmd === "monthly") {
     // GitHub Actions: no local files; read and write the Supabase history tables.
     const db = historyDb();
     const data = await loadFromSupabase(db);
     log(`Supabase: ${data.historyDeals.length} history deals, ${data.ipos.records.length} history IPOs, ${data.liveDeals.length} live deals`);
-    const markets = await updateMarkets(data.markets, log);
+    // FRED only. The first run after November 2026 also replaces the old closes and raw price series in Supabase.
+    const markets = publicMarkets(await updateMarkets(data.markets, log));
     const since = `${previousMonth(previousMonth(thisMonth()))}-01`;
     const ipos = await updateIpos(data.ipos, since, isoDay(new Date()), log);
     const { sectorMonthly, macroMonthly } = build(mergeDeals(data.liveDeals, data.historyDeals), ipos, markets, valueKind);
@@ -287,7 +287,7 @@ async function main() {
     await push.ipos(db, ipos);
     await push.sectorMonthly(db, sectorMonthly);
     await push.macroMonthly(db, macroMonthly);
-    await push.snapshots(db, [...snaps, { kind: "markets", period: "latest", takenAt: markets.fetchedAt, data: markets }]);
+    await push.snapshots(db, snaps, markets);
     log(`monthly: ${sectorMonthly.length} sector-month rows, ${macroMonthly.length} macro rows, snapshots for ${snapshotPeriod()}`);
   } else {
     throw new Error(`unknown command "${cmd}" (deals | ipos | markets | build | snapshot | recall | report | push | monthly)`);
@@ -296,6 +296,8 @@ async function main() {
 }
 
 main().catch((err) => {
+  // An annotation shows on the run's page without a sign-in: the job's first two failures left only "exit code 1".
+  console.log(`::error::history ${process.argv[2] ?? ""} failed: ${String((err as Error).message).replace(/\s+/g, " ")}`);
   console.error(err);
   process.exit(1);
 });

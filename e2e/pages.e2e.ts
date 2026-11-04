@@ -181,6 +181,24 @@ test("the landing page opens the terminal, and ?signin=1 is cleaned up without b
   expect(errors).toEqual([]);
 });
 
+test("every page declares itself as canonical: absolute, in the HTML's head, its own whole path, no query string", async ({ request }) => {
+  const hub = expandCore((await (await request.get("/api/hub")).json()) as WireCore);
+  const deal = (hub.deals as Deal[]).find((d) => hasCompanyPage(d.target));
+  expect(deal, "a deal whose target has a company page").toBeTruthy();
+  if (!deal) return;
+  const paths = ["/", ...[...ROUTES, ...INFO_ROUTES].map((r) => r.href), "/deal-flow?sector=Tech", companyHref(deal.target), `/tearsheet/deal/${encodeURIComponent(deal.id)}`];
+  for (const path of paths) {
+    // The raw HTML, as a crawler reads it. A page naming the home page by accident would de-index the site.
+    const head = (await (await request.get(path)).text()).split("</head>")[0];
+    const href = /<link rel="canonical" href="(http[^"]+)"/.exec(head)?.[1];
+    expect(href && new URL(href).pathname + new URL(href).search, path).toBe(path.split("?")[0]);
+  }
+  // A company that doesn't exist renders "not found" with a 200: it mustn't ask to be indexed under that address.
+  const unknown = (await (await request.get("/company/n-no-such-company-here")).text()).split("</head>")[0];
+  expect(unknown).not.toContain('rel="canonical"');
+  expect(unknown).toMatch(/<meta name="robots" content="noindex/);
+});
+
 test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   const errors = watchErrors(page);
   const hub = expandCore((await (await request.get("/api/hub")).json()) as WireCore);
@@ -196,6 +214,14 @@ test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   await row.focus();
   await row.press("Enter");
   await expect(page.locator(".detail-drawer, dialog[open]").first()).toBeVisible();
+  // The closed buyer-reaction study: dated, with no live merger-arb spread beside it.
+  const drawer = page.locator(".detail-drawer, dialog[open]").first();
+  await expect(drawer).toContainText("study to");
+  await expect(drawer).not.toContainText(/arb spread/i);
+
+  await page.goto("/valuations", { waitUntil: "networkidle" });
+  await expectLoaded(page);
+  await expect(page.locator(".buyer-panel")).toContainText("closed in");
 
   await page.goto(companyHref(deal.target), { waitUntil: "networkidle" });
   await expectLoaded(page);

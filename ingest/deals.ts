@@ -1360,6 +1360,9 @@ export async function ingestDeals(
       for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
       const seller = deal.acquirer;
       Object.assign(deal, { id, privateTarget: true, premiumPct: null, pricePerShare: null, enterpriseValueUsd: null, evEbitda: null, evEbitdaReported: null, evRevenue: null, status: "Announced", statusDate: null });
+      // Not the new buyer's shares: back to the run's parked list (ingest/reactions.ts).
+      delete deal.reaction;
+      deal.reactionCheckedAt = undefined;
       deal.acquirer = { name: displayName(nameOn(sub, deal.announcedDate)), cik: deal.target.cik, ticker: deal.target.ticker };
       deal.target = { name: seller.name, cik: null, ticker: null };
       [deal.acquirerAdvisors, deal.targetAdvisors] = [deal.targetAdvisors, deal.acquirerAdvisors];
@@ -1382,6 +1385,9 @@ export async function ingestDeals(
     for (let n = 2; state.deals.some((d) => d.id === id); n++) id = `${base}-${n}`;
     const [buyer, seller] = [deal.target, deal.acquirer];
     deal.id = id;
+    // The reaction was the old "buyer's" shares: it goes back to the run's parked list (ingest/reactions.ts).
+    delete deal.reaction;
+    deal.reactionCheckedAt = undefined;
     deal.acquirer = { name: buyer.name, cik: buyer.cik, ticker: buyer.ticker };
     deal.target = { name: displayName(nameOn(other, deal.announcedDate)), cik: otherCik, ticker: other.tickers?.[0] ?? seller.ticker ?? null };
     [deal.acquirerAdvisors, deal.targetAdvisors] = [deal.targetAdvisors, deal.acquirerAdvisors];

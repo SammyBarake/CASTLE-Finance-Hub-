@@ -52,11 +52,10 @@ function useWhatIfData(): WhatIfData | null {
 
 const STEP_MS = 1100;
 
-/** "≈ +1.1 deals a quarter (baseline 21.5)", from sector_monthly's last four quarters. */
+/** "≈ +1.1 deals a quarter (baseline 21.5)", from sector_monthly's last four quarters. Valuation has none: Castle collects no share prices. */
 function levelNote(sel: Selection, mid: number, b: SectorBaseline | undefined, ipoReady: boolean): string | null {
-  if (!b) return null;
+  if (!b || sel.feature === "valuation") return null;
   const signed = (v: number, d = 1) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(d)}`;
-  if (sel.feature === "valuation") return b.etfClose ? `≈ ${signed((b.etfClose * mid) / 100, 2)} on the sector ETF (last close $${b.etfClose.toFixed(2)})` : null;
   if (sel.feature === "dealCount") return b.dealCount ? `≈ ${signed((b.dealCount * mid) / 100)} deals a quarter (baseline ${b.dealCount.toFixed(1)})` : null;
   if (sel.feature === "dealValue") return b.dealValueUsd ? `≈ ${signed((b.dealValueUsd * mid) / 100 / 1e9, 2)}B a quarter (baseline $${(b.dealValueUsd / 1e9).toFixed(1)}B, today's dollars)` : null;
   return ipoReady && b.ipoCount ? `≈ ${signed((b.ipoCount * mid) / 100)} IPOs a quarter (baseline ${b.ipoCount.toFixed(1)})` : null;

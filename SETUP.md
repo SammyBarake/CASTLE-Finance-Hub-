@@ -6,7 +6,7 @@ The data engine works without any of this: `npm run ingest -- --local` writes re
 ## 1. Supabase (database)
 
 1. Create a free account at [supabase.com](https://supabase.com) and click **New project**. Any name and region; save the database password somewhere safe.
-2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**. Then do the same with [`supabase/migrations/0002_history.sql`](supabase/migrations/0002_history.sql) (the history tables for the what-if engine; the site doesn't read them yet).
+2. Open **SQL Editor → New query**, paste the whole of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and click **Run**. Then do the same with [`supabase/migrations/0002_history.sql`](supabase/migrations/0002_history.sql) (the history tables behind the what-if screen) and [`supabase/migrations/0005_private_series.sql`](supabase/migrations/0005_private_series.sql) (keeps the raw market series off the public keys; nothing on the site reads them).
 3. Open **Project Settings → API** (or **API Keys**). You need three values:
    - **Project URL**
    - **anon / publishable key**: read-only, safe for the website
@@ -19,9 +19,9 @@ The data engine works without any of this: `npm run ingest -- --local` writes re
    SUPABASE_SERVICE_ROLE_KEY=<service_role key>
    ```
 
-> Free Supabase projects pause after about a week without activity. The ingest (every 3 hours) keeps yours active.
+> Free Supabase projects pause after about a week without activity. The ingest (several times a day) keeps yours active.
 
-## 2. GitHub Actions (daily updates)
+## 2. GitHub Actions (automatic updates)
 
 In the GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**. Add:
 
@@ -31,9 +31,22 @@ In the GitHub repo: **Settings → Secrets and variables → Actions → New rep
 | `SUPABASE_URL` | Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key |
 
-Then fill the database once: **Actions → Ingest SEC data → Run workflow**, with `from` = `2024-09-01`.
-The first run takes roughly 30–60 minutes. After that it runs automatically at 09:30 and 21:30 ET
-and takes a few minutes. (Public repos get unlimited Actions minutes; private repos get 2,000 a month, and this uses about 150–300.)
+Then fill the database once: **Actions → Ingest SEC data → Run workflow**, with `from` = `2021-01-01`. The first run takes a
+few hours and saves as it goes; if GitHub's 6-hour limit stops it, run it again and it carries on. A new database has no buyer
+reactions and nothing can fetch them now, so the "Did buyers win?" study stays hidden unless its figures are moved over from the
+old project (`Deal.reaction`, and the `unplacedReactions` row in `meta`). After that, everything runs by itself (times in UTC):
+
+| Workflow | When | What it does |
+|---|---|---|
+| `ingest.yml` | Every 6 hours, plus hourly on weekdays 11:50–23:50 | Full run (a few minutes) / quick run: the last two days, no macro (about 2 minutes) |
+| `monitor.yml` | Daily, 13:15 | Fails, and GitHub emails you, if the data is 8+ hours old or over 3% of records trip a quality rule |
+| `history.yml` | 2nd of each month, 08:00 | Refreshes the what-if history tables |
+| `keepalive.yml` | Daily, 04:17 | Pushes an empty commit to `main` once it has had no commit for 30 days: GitHub disables scheduled workflows after 60 days without repository activity |
+| `ci.yml` | Each push to `main` and pull request | Lint, tests, build, page smoke test |
+
+GitHub delays scheduled runs by up to hours and drops many, so the site says "several times a day", never "hourly". Keep the
+repository public: Actions minutes are then unlimited. On a private one this schedule alone uses about 1,200–1,400 of the 2,000
+free minutes a month, and a rebuild can use the rest (the **rebuild** box on the same form re-reads every deal after a parser change; it takes hours).
 
 ## 3. Vercel (website)
 
@@ -47,7 +60,7 @@ and takes a few minutes. (Public repos get unlimited Actions minutes; private re
    design: the anon key can only read.
 
    Do **not** add the service_role key to Vercel.
-3. Deploy (after changing variables, Redeploy). Pages rebuild themselves every 15 minutes, so they pick up each ingest automatically.
+3. Deploy (after changing variables, Redeploy). Pages refresh themselves at most once a minute, so they pick up each ingest automatically.
 
 ## 4. Accounts (optional)
 
@@ -84,33 +97,47 @@ Sign-in is optional for visitors and off until you finish these steps: without t
 Email sign-in links need a mail sender (Supabase's built-in one only reaches your own team, two messages an hour), so
 they wait for the custom domain (Resend's free tier, set as Supabase's custom SMTP).
 
-## 5. Custom domain (launch day)
+## 5. Custom domain and email (launch day)
 
-Buy the domain anywhere (Cloudflare, Namecheap, Porkbun …), then, with `castle.example` standing for it:
+The domain is the one thing here that costs money. With `castle.example` standing for it:
 
-1. **Vercel** → the project → Settings → Domains → add `castle.example` (and `www.castle.example`, set to redirect to it).
+1. **Check the name.** Search it in USPTO's [Trademark Search](https://tmsearch.uspto.gov), classes 36 (financial services) and
+   42 (software as a service), before paying for anything.
+2. **Buy the domain** anywhere (Cloudflare, Namecheap, Porkbun …). Turn on two-factor sign-in at the registrar and WHOIS
+   redaction for the domain.
+3. **Vercel** → the project → Settings → Domains → add `castle.example` (and `www.castle.example`, set to redirect to it).
    Add the DNS records Vercel shows at your registrar; HTTPS comes on by itself within minutes. Keep
    `castle-finance-hub.vercel.app`: old links, live Excel links and shared books keep working.
-2. **Vercel** → Environment Variables: `NEXT_PUBLIC_SITE_URL` = `https://castle.example` (type Config), then Redeploy.
-   Link previews, the sitemap and robots.txt now use the domain.
-3. **Supabase** → Authentication → URL Configuration: Site URL `https://castle.example`; add `https://castle.example/**`
-   to the Redirect URLs (keep the vercel.app one).
-4. **Google Cloud** → your OAuth client: add `https://castle.example` to the authorized JavaScript origins. Then
-   Branding: add the domain under authorized domains, set the home page `https://castle.example/about` and the
-   privacy policy `https://castle.example/privacy`, and submit for brand verification (free), so the sign-in screen
-   says "Castle" instead of the Supabase address. It asks you to prove you own the domain through Search Console (next step).
-5. **Google Search Console** (search.google.com/search-console) → add the domain → verify with the DNS record it gives
+4. **Vercel** → Environment Variables: `NEXT_PUBLIC_SITE_URL` = `https://castle.example` (type **Config**, not Secret: see
+   section 3), then Redeploy. Link previews, the sitemap, robots.txt and every page's canonical tag now use the domain, so search
+   engines index it and not the vercel.app address. View a page's source to check: `/deal-flow` should carry
+   `<link rel="canonical" href="https://castle.example/deal-flow"/>`.
+5. **`hello@castle.example`.** Forward it to your own inbox with your registrar's or Cloudflare's free email forwarding, and send
+   it a test from another account. To reply from that address, use a provider that can send (a mailbox on Zoho Mail's free plan,
+   say, in place of the forwarding): Gmail's "Send mail as" through an outside address is reportedly ending in January 2027.
+6. **Vercel** → Environment Variables: `NEXT_PUBLIC_CONTACT_EMAIL` = `hello@castle.example` (type **Config**), then Redeploy.
+   "Report a data issue" now opens it instead of a GitHub issue form.
+7. **GitHub** → the repository's Actions secrets: set `SEC_USER_AGENT` to `Castle research hello@castle.example`.
+8. **Google Search Console** (search.google.com/search-console) → add the domain → verify with the DNS record it gives
    you → Sitemaps → submit `https://castle.example/sitemap.xml`.
-6. **GitHub** → your OAuth app: homepage `https://castle.example`.
-7. **Check:** open the site on your phone; sign in and out; paste a deal's tear-sheet link and a shared book into
-   LinkedIn's Post Inspector (linkedin.com/post-inspector) and check the preview card; run Lighthouse in Chrome's
-   DevTools on the Hub (mobile).
+9. **Check:** open the site on your phone; paste a deal's tear-sheet link into LinkedIn's Post Inspector
+   (linkedin.com/post-inspector) and check the preview card; run Lighthouse in Chrome's DevTools on the Hub (mobile).
 
-Optional once the domain exists: email sign-in links (Resend free tier → verify the domain → Supabase → Authentication →
-SMTP Settings with Resend's SMTP details), and `NEXT_PUBLIC_CONTACT_EMAIL` for "Report a data issue".
+Sign-in stays off until it's needed (`NEXT_PUBLIC_AUTH_PROVIDERS` empty; section 4). When it goes on:
+
+- **Supabase** → Authentication → URL Configuration: Site URL `https://castle.example`; add `https://castle.example/**`
+  to the Redirect URLs (keep the vercel.app one).
+- **Google Cloud** → your OAuth client: add `https://castle.example` to the authorized JavaScript origins. Then
+  Branding: add the domain under authorized domains, set the home page `https://castle.example/about` and the
+  privacy policy `https://castle.example/privacy`, and submit for brand verification (free), so the sign-in screen
+  says "Castle" instead of the Supabase address. It asks you to prove you own the domain through Search Console (step 8).
+- **GitHub** → your OAuth app: homepage `https://castle.example`.
+- **Check:** sign in and out; paste a shared book's link into the Post Inspector too.
+- Optional: email sign-in links (Resend free tier → verify the domain → Supabase → Authentication → SMTP Settings with
+  Resend's SMTP details).
 
 ## Checking it works
 
-- Actions → latest "Ingest SEC data" run is green, and the log ends with `saved to Supabase: N deals, M IPOs`.
+- Actions → latest "Ingest SEC data" run is green, and its Ingest step ends with `saved to Supabase: N deals, M IPOs`.
 - Supabase → Table Editor → `deals` has rows.
 - The live site shows real deals, with no red "Live data is unavailable" banner. (The deployed site never shows sample data; if it can't reach Supabase it says why in that banner.)

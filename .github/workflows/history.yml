@@ -1,8 +1,9 @@
 name: History (monthly)
 
-# The what-if engine's history tables: refreshes the sector ETF and FRED series, adds last months' priced IPOs,
-# rebuilds sector_monthly and macro_monthly, and saves a snapshot of the IPO pipeline and league table for the month
-# just ended. Runs on the 2nd of each month (a few minutes). Needs supabase/migrations/0002_history.sql applied.
+# The what-if engine's history tables: refreshes the FRED series, adds last months' priced IPOs, rebuilds sector_monthly
+# (its ETF columns stay empty: no share prices are collected, see ingest/markets.ts) and macro_monthly, and saves a
+# snapshot of the IPO pipeline and league table for the month just ended. Runs on the 2nd of each month (a few minutes).
+# Needs supabase/migrations/0002_history.sql applied.
 on:
   schedule:
     - cron: "0 8 2 * *"

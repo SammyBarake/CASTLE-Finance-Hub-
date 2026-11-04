@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { StatusPage } from "@/components/shell/StatusPage";
 
-export const metadata: Metadata = { title: "Page not found · Castle" };
+export const metadata: Metadata = { title: "Page not found · Castle", alternates: null };
 
 /** Unknown addresses, and pages for a deal or company that doesn't exist (notFound()). */
 export default function NotFound() {

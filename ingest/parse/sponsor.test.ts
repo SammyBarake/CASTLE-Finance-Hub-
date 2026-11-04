@@ -90,4 +90,12 @@ describe("notTheSponsor: buyout firms whose names collide with a listed company"
     expect(notTheSponsor("Apollo", "Apollo Global Management, Inc.")).toBe(false);
     expect(notTheSponsor("Adventist Health", "Advent Technologies Holdings, Inc.")).toBe(false);
   });
+
+  it("keeps EQT AB's funds off the gas producer EQT Corporation, whose own name still links", () => {
+    for (const named of ["EQT", "EQT Infrastructure", "EQT Asia", "EQT AB", "EQT Partners"]) expect(notTheSponsor(named, "EQT Corp"), named).toBe(true);
+    expect(notTheSponsor("EQT Corporation", "EQT Corp")).toBe(false);
+    expect(notTheSponsor("EQT Corp", "EQT Corp")).toBe(false);
+    // Another EQT registrant isn't touched.
+    expect(notTheSponsor("EQT Midstream Partners", "EQT Midstream Partners, LP")).toBe(false);
+  });
 });

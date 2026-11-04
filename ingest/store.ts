@@ -9,6 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { HeldReaction } from "./reactions";
 import type { ActivistStake, Deal, Ipo, Macro } from "../lib/types";
 
 export interface StoredDeal extends Deal {
@@ -46,7 +47,7 @@ export interface StoredDeal extends Deal {
   advisorCheck?: number;
   /** BUYER_LINK_VERSION of the search for the SEC registrant behind a buyer stored without a CIK. */
   buyerLinkCheck?: number;
-  /** Last day the buyer's share-price reaction was looked up (ingest/prices.ts). */
+  /** Last day the buyer's share-price reaction was looked up. No longer changes: the study has stopped (ingest/reactions.ts). */
   reactionCheckedAt?: string;
   /** CLOSE_CHECK_VERSION and day of the last search of the buyer's filings for the deal's closing or end (open deals). */
   closeCheck?: number;
@@ -75,6 +76,8 @@ export interface State {
   activists: ActivistStake[];
   /** Deals removed this run (junk records, duplicates merged into another deal): deleted from the store on save. */
   dropped?: Set<string>;
+  /** Buyers' reactions a rebuild found no record for: they can't be fetched again, so a later run tries again (ingest/reactions.ts). */
+  unplacedReactions?: HeldReaction[];
 }
 
 export interface Store {
@@ -93,12 +96,12 @@ export class JsonStore implements Store {
   async load(): Promise<State> {
     if (!existsSync(this.path)) return { deals: [], ipos: [], seen: new Set(), asOf: null, macro: null, activists: [] };
     const raw = JSON.parse(readFileSync(this.path, "utf8"));
-    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null, macro: raw.macro ?? null, activists: raw.activists ?? [] };
+    return { deals: raw.deals ?? [], ipos: raw.ipos ?? [], seen: new Set(raw.seen ?? []), asOf: raw.asOf ?? null, macro: raw.macro ?? null, activists: raw.activists ?? [], unplacedReactions: raw.unplacedReactions ?? [] };
   }
 
   async save(state: State) {
     mkdirSync(dirname(this.path), { recursive: true });
-    const out = { asOf: state.asOf, macro: state.macro, activists: state.activists, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
+    const out = { asOf: state.asOf, macro: state.macro, activists: state.activists, unplacedReactions: state.unplacedReactions, deals: state.deals, ipos: state.ipos, seen: [...state.seen] };
     writeFileSync(this.path, JSON.stringify(out, null, 1));
   }
 }
@@ -155,7 +158,7 @@ export class SupabaseStore implements Store {
       selectAll<{ data: StoredDeal }>(this.db, "deals", "data"),
       selectAll<{ data: StoredIpo }>(this.db, "ipos", "data"),
       selectAll<{ id: string }>(this.db, "seen_docs", "id"),
-      withRetry("select meta", () => this.db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists"])),
+      withRetry("select meta", () => this.db.from("meta").select("key, value").in("key", ["asOf", "macro", "activists", "unplacedReactions"])),
     ]);
     this.loadedSeen = new Set(seen.map((s) => s.id));
     const metaValue = (key: string) => meta?.find((m) => m.key === key)?.value;
@@ -166,10 +169,14 @@ export class SupabaseStore implements Store {
       asOf: (metaValue("asOf") as string | undefined) ?? null,
       macro: (metaValue("macro") as Macro | undefined) ?? null,
       activists: (metaValue("activists") as ActivistStake[] | undefined) ?? [],
+      unplacedReactions: (metaValue("unplacedReactions") as HeldReaction[] | undefined) ?? [],
     };
   }
 
   async save(state: State, opts: { prune?: boolean } = {}) {
+    // First, before anything below deletes a record: a save that fails half way must not lose a reaction that lost its
+    // record. Written when empty too: reactions that found their record are done with.
+    await withRetry("upsert meta", () => this.db.from("meta").upsert({ key: "unplacedReactions", value: state.unplacedReactions ?? [] }));
     // One row per id (the last wins): a repeated id fails the whole upsert.
     const byId = new Map(state.deals.map((d) => [d.id, d]));
     await upsertChunks(

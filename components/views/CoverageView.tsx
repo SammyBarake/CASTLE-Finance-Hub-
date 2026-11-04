@@ -111,7 +111,7 @@ export function CoverageView() {
         <p>
           Every figure is read from SEC EDGAR filings: deals from announcement press releases, merger 8-Ks (Item 1.01) and the merger proxies and tender
           responses of every company being bought; terms, advisers and fairness opinions from those proxies; multiples from the target&apos;s XBRL financials. New
-          filings are read every hour on weekdays and every six hours otherwise.
+          filings are read several times a day, most often during the U.S. business day.
         </p>
         <p>
           A blank means the filings don&apos;t state the figure clearly, or a calculated multiple failed a sanity check. Values and multiples are calculated only from

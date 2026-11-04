@@ -53,5 +53,7 @@ describe("reactionSummary", () => {
     const notes = reactionInsights(s);
     expect(notes[0]).toBe("The median buyer moved −0.7% against the S&P 500 in the two days after announcing; 40% beat it.");
     expect(notes[1]).toMatch(/^Paying in stock: −3\.0%/);
+    // A closed study: the count is what was measured, not how many deals are six months old by now.
+    expect(notes[2]).toBe("Six months on, the median buyer was −4.0% against the market (the 5 deals measured that far).");
   });
 });

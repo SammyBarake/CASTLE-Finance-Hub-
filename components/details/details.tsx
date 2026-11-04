@@ -14,8 +14,9 @@ import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
-import { considerationLabel, formatDateLong, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
+import { considerationLabel, formatDateLong, formatMonth, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
 import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION } from "@/lib/metrics";
+import { REACTION_STUDY_THROUGH } from "@/lib/reactions";
 import type { BuyerReaction, Deal, Filing, HubData, Ipo, LeagueTableEntry } from "@/lib/types";
 import { useBookActions } from "@/components/books/AddToBook";
 import { useRecordActions } from "@/components/workspace/actions";
@@ -173,13 +174,13 @@ function Tabs({ tab, onChange, tabs }: { tab: Tab; onChange: (t: Tab) => void; t
 // ---------------------------------------------------------------------------
 
 const Move = ({ value }: { value: number | null }) =>
-  value == null ? <span className="dim">Not yet</span> : <span className={value >= 0 ? "text-up" : "text-down"}>{formatSignedPct(value)}</span>;
+  value == null ? <span className="dim">—</span> : <span className={value >= 0 ? "text-up" : "text-down"}>{formatSignedPct(value)}</span>;
 
-/** "Did it work?": the buyer's shares around the announcement and later, against the S&P 500. */
+/** "Did it work?": the buyer's shares around the announcement and later, against the S&P 500. A closed study (lib/reactions.ts). */
 function BuyerReactionGrid({ reaction }: { reaction: BuyerReaction }) {
   return (
     <>
-      <h3 className="detail-section">Buyer&apos;s shares · against the S&amp;P 500</h3>
+      <h3 className="detail-section">Buyer&apos;s shares · against the S&amp;P 500 · study to {formatMonth(REACTION_STUDY_THROUGH)}</h3>
       <DetailGrid>
         <DetailItem label="Two days after announcing">
           <Move value={reaction.announcementVsMarketPct} />
@@ -237,15 +238,6 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Enterprise value">{formatUsd(deal.enterpriseValueUsd)}</DetailItem>
             <DetailItem label="EV / Revenue">{formatMultiple(deal.evRevenue)}</DetailItem>
             {deal.evEbitdaReported != null && <DetailItem label="EV / Reported EBITDA">{formatMultiple(deal.evEbitdaReported)}</DetailItem>}
-            {deal.arb && (
-              <DetailItem label="Merger-arb spread">
-                {formatPct(deal.arb.spreadPct)}
-                <small className="dim">
-                  {" "}
-                  · target&apos;s close against the offer, {formatDateLong(deal.arb.asOf)}
-                </small>
-              </DetailItem>
-            )}
           </DetailGrid>
           {deal.reaction && <BuyerReactionGrid reaction={deal.reaction} />}
           {deal.terms && (

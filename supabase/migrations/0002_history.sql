@@ -30,8 +30,8 @@ create table if not exists public.sector_monthly (
   sector                  text not null,
   month                   date not null,
   etf_ticker              text not null,
-  etf_close               numeric,          -- month-end close, unadjusted
-  etf_return_pct          numeric,          -- total return for the month (dividend-adjusted), 2.5 = 2.5%
+  etf_close               numeric,          -- no longer filled: no share prices are published (ingest/markets.ts)
+  etf_return_pct          numeric,          -- no longer filled, likewise
   deal_count              integer not null, -- deals announced, terminated ones excluded
   deal_value_kind         text not null,    -- the one value type summed: transaction | equity | enterprise
   deal_value_usd          numeric not null, -- sum of that type, in cpi_base_month dollars
@@ -49,7 +49,7 @@ create table if not exists public.macro_monthly (
   month            date primary key,
   fed_funds_pct    numeric, -- FEDFUNDS
   treasury_10y_pct numeric, -- GS10
-  hy_spread_pct    numeric, -- BAMLH0A0HYM2, ICE BofA US High Yield OAS (FRED keeps only ~3 years)
+  hy_spread_pct    numeric, -- no longer filled: FRED's BAMLH0A0HYM2 needs ICE's permission (ingest/markets.ts)
   baa_spread_pct   numeric, -- BAA10Y, Moody's Baa minus 10-year Treasury (full history)
   vix              numeric, -- VIXCLS
   cpi              numeric, -- CPIAUCSL
@@ -57,7 +57,7 @@ create table if not exists public.macro_monthly (
 );
 
 -- Monthly snapshots of what the site showed (IPO pipeline, league table), building real history going forward.
--- kind: ipo_pipeline | league_table | markets (raw ETF and FRED series, kept for fallback). period: "YYYY-MM".
+-- kind: ipo_pipeline | league_table | markets (raw FRED series, kept for fallback). period: "YYYY-MM".
 create table if not exists public.snapshots (
   kind     text not null,
   period   text not null,

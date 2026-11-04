@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "Castle: Investment Banking Intelligence",
   description: DESCRIPTION,
+  // Each page is canonical at its own path on SITE_URL, without its query string (a screen's filters are the same page).
+  // "./" resolves against each request's path; "/" here would name the home page on every page and de-index the site.
+  // A page that sets its own `alternates` replaces this: noindex and error pages set null, so they declare none.
+  alternates: { canonical: "./" },
   openGraph: { siteName: "Castle", type: "website", description: DESCRIPTION },
   twitter: { card: "summary_large_image" },
 };

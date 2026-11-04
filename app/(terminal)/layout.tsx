@@ -7,7 +7,7 @@ import { WorkspaceProvider } from "@/components/workspace/WorkspaceProvider";
 import { bootHubData } from "@/lib/aggregate";
 import { getHubData } from "@/lib/data";
 
-// Rebuild pages at most every 15 minutes; the ingest job refreshes the data every 3 hours.
+// Rebuild pages at most every 15 minutes; the ingest job refreshes the data several times a day.
 export const revalidate = 900;
 
 /**

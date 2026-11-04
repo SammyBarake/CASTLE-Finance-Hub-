@@ -8,7 +8,7 @@
 import { findBanks } from "../../lib/banks";
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
-import { cleanPartyName, isDescriptionOnly, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
+import { cleanPartyName, identicalNames, isDescriptionOnly, isPlausibleName, normalizeName, sameCompany, titleCaseCaps } from "./names";
 
 export type PressKind = "announcement" | "update" | "completion" | "termination";
 
@@ -335,6 +335,10 @@ function tickerMentions(text: string): PartyMention[] {
     // Keep only the capitalised run right before the ticker:
     // "Secureworks shareholders, including Dell Technologies" -> "Dell Technologies".
     const run = /((?:[A-Z0-9&][\w&.'’\-]*)(?:(?:,\s(?:Inc|Corp|Ltd|LLC|L\.P|Co|N\.V|S\.A|plc)\.?)|\s(?:[A-Z0-9&][\w&.'’\-]*|of|and|&|de))*)\s*$/.exec(m[1].trim());
+    // What a firm's "About" paragraph says it runs is not the firm: "… including management of Blackstone Mortgage Trust
+    // (NYSE: BXMT)" gave Blackstone's half of the Extended Stay deal that mortgage REIT's ticker.
+    const end = (m.index ?? 0) + m[1].trimEnd().length - (run?.[1].length ?? 0);
+    if (/\bmanagement of\s+$/i.test(text.slice(Math.max(0, end - 30), end))) continue;
     const name = cleanPartyName((run?.[1] ?? m[1]).replace(/^(?:and|The)\s+(?=[A-Z])/, (s) => (s.startsWith("The") ? s : "")));
     const exchange = m[2].toUpperCase() === "NASDAQ" ? "NASDAQ" : m[2];
     out.push({ name, ticker: m[3].replace(/\.$/, ""), exchange });
@@ -358,7 +362,9 @@ function withTicker(name: string, all: PartyMention[], other?: string): PartyMen
     (m) => m.ticker === name.trim() && m.name.length > name.length && isPlausibleName(m.name) && !/^(?:About|Page|Links)\b/.test(m.name) && m.name.replace(/^The\s+/, "")[0]?.toUpperCase() === m.ticker?.[0],
   );
   if (byTicker && !mentions.some((m) => sameCompany(m.name, name))) return { name: byTicker.name, ticker: byTicker.ticker, exchange: byTicker.exchange };
-  let matches = mentions.filter((m) => sameCompany(m.name, name));
+  // Two buyers named together ("Blackstone and Starwood Capital Group") have no listing of their own, and a shared first
+  // word proves nothing about them: only a listing of that very name counts ("Infinity Property and Casualty Corporation").
+  let matches = mentions.filter((m) => (/\sand\s/.test(name) ? identicalNames(m.name, name) : sameCompany(m.name, name)));
   // A description in front of the name: "Specialty Insurance Company ProSight Global" is "ProSight Global, Inc.".
   if (!matches.length) {
     const plain = (s: string) =>

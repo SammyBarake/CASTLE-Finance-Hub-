@@ -3,6 +3,7 @@
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
 import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
+import { sameBuyer } from "./reactions";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -108,6 +109,12 @@ export function sanitizeDeal(d: StoredDeal): boolean {
 
 /** Fold `later` into `keep`: the same deal recorded twice (a buyer's short form, "H&F" vs "Hellman & Friedman"). */
 function merge(keep: StoredDeal, later: StoredDeal) {
+  // A reaction can't be fetched again (ingest/reactions.ts), and it's about its own buyer's shares: a record merged from a
+  // rival's or a loosely matched name doesn't pass one across. Asked before the names below change.
+  if (sameBuyer(keep.acquirer, later.acquirer)) {
+    keep.reaction ??= later.reaction;
+    keep.reactionCheckedAt ??= later.reactionCheckedAt;
+  }
   if (later.acquirer.name.length > keep.acquirer.name.length && !isPlaceholderBuyer(later.acquirer.name)) keep.acquirer.name = later.acquirer.name;
   keep.acquirer.cik ??= later.acquirer.cik;
   keep.acquirer.ticker ??= later.acquirer.ticker;
@@ -146,6 +153,8 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
 
   // Clean first, then judge: "Leading Loyalty Provider Punchh Inc." becomes "Punchh Inc." rather than being dropped.
   for (const d of [...deals]) {
+    // Merger-arb spreads are gone from the site, and a record may still carry its raw Yahoo quote: the next save removes it.
+    delete (d as StoredDeal & { arb?: unknown }).arb;
     const changed = sanitizeDeal(d);
     const why = junkReason(d);
     if (why) drop(d, why);

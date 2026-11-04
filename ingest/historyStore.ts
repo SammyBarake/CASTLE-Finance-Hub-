@@ -6,8 +6,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { IpoHistoryState } from "./ipoHistory";
-import type { Markets } from "./markets";
-import type { StoredDeal } from "./store";
+import { publicMarkets, type Markets } from "./markets";
+import { withRetry, type StoredDeal } from "./store";
 import type { MacroMonthRow, SectorMonthRow } from "../lib/history";
 
 export const HISTORY_DIR = ".data/history";
@@ -44,24 +44,32 @@ export function historyDb(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function explain(table: string, message: string): Error {
-  return /does not exist|schema cache/i.test(message)
-    ? new Error(`Supabase table "${table}" is missing: run supabase/migrations/0002_history.sql in the Supabase SQL editor first`)
-    : new Error(`Supabase ${table}: ${message}`);
+/**
+ * Every read and write retries transient errors, as the ingest's do (`withRetry`). This job, with no retries, died within
+ * two seconds on its only two runs (October 2 and November 2 2026). The logs need a sign-in, so the likeliest cause is
+ * inferred, not seen: GitHub's runners seem to get a transient error on their first requests. The monitor died the same
+ * way on 5 of its 11 runs until it got retries, and 8 of its 12 runs since took the 10 seconds longer a first retry adds.
+ * A failure now prints an `::error::` line, which shows on the run's page without a sign-in.
+ */
+async function reliably<T>(table: string, label: string, call: () => PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
+  try {
+    return await withRetry(`${label} ${table}`, call);
+  } catch (err) {
+    const message = (err as Error).message;
+    throw /does not exist|schema cache/i.test(message) ? new Error(`Supabase table "${table}" is missing: run supabase/migrations/0002_history.sql in the Supabase SQL editor first`) : err;
+  }
 }
 
 async function upsert(db: SupabaseClient, table: string, rows: object[], onConflict?: string) {
   for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await db.from(table).upsert(rows.slice(i, i + 500), onConflict ? { onConflict } : undefined);
-    if (error) throw explain(table, error.message);
+    await reliably(table, "upsert", () => db.from(table).upsert(rows.slice(i, i + 500), onConflict ? { onConflict } : undefined));
   }
 }
 
 async function selectAll<T>(db: SupabaseClient, table: string, columns: string): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.from(table).select(columns).range(from, from + 999);
-    if (error) throw explain(table, error.message);
+    const data = await reliably(table, "select", () => db.from(table).select(columns).range(from, from + 999));
     out.push(...((data ?? []) as T[]));
     if (!data || data.length < 1000) return out;
   }
@@ -78,8 +86,7 @@ export const push = {
     const keep = new Set(deals.map((d) => d.id));
     const stale = (await selectAll<{ id: string }>(db, "deals_history", "id")).map((r) => r.id).filter((id) => !keep.has(id));
     for (let i = 0; i < stale.length; i += 200) {
-      const { error } = await db.from("deals_history").delete().in("id", stale.slice(i, i + 200));
-      if (error) throw explain("deals_history", error.message);
+      await reliably("deals_history", "delete", () => db.from("deals_history").delete().in("id", stale.slice(i, i + 200)));
     }
   },
   ipos: (db: SupabaseClient, state: IpoHistoryState) =>
@@ -92,8 +99,9 @@ export const push = {
         sector: r.sector,
         month: firstOfMonth(r.month),
         etf_ticker: r.etfTicker,
-        etf_close: r.etfClose,
-        etf_return_pct: r.etfReturnPct,
+        // Never published, whatever a local file holds: they came from Yahoo Finance (ingest/markets.ts).
+        etf_close: null,
+        etf_return_pct: null,
         deal_count: r.dealCount,
         deal_value_kind: r.dealValueKind,
         deal_value_usd: r.dealValueUsd,
@@ -113,14 +121,21 @@ export const push = {
         month: firstOfMonth(r.month),
         fed_funds_pct: r.fedFundsPct,
         treasury_10y_pct: r.treasury10yPct,
-        hy_spread_pct: r.hySpreadPct,
+        // Never published, whatever a local file holds: ICE's licence (ingest/markets.ts).
+        hy_spread_pct: null,
         baa_spread_pct: r.baaSpreadPct,
         vix: r.vix,
         cpi: r.cpi,
       })),
     ),
-  snapshots: (db: SupabaseClient, snaps: Snapshot[]) =>
-    upsert(db, "snapshots", snaps.map((s) => ({ kind: s.kind, period: s.period, taken_at: s.takenAt, data: s.data })), "kind,period"),
+  /** `markets` goes through publicMarkets here, so no caller can publish a local file's old share prices. */
+  snapshots: (db: SupabaseClient, snaps: Snapshot[], markets: Markets | null = null) =>
+    upsert(
+      db,
+      "snapshots",
+      [...snaps, ...(markets ? [{ kind: "markets", period: "latest", takenAt: markets.fetchedAt, data: publicMarkets(markets) }] : [])].map((s) => ({ kind: s.kind, period: s.period, taken_at: s.takenAt, data: s.data })),
+      "kind,period",
+    ),
 };
 
 /** What the monthly job needs from Supabase when it has no local files (GitHub Actions). */
@@ -130,13 +145,14 @@ export async function loadFromSupabase(db: SupabaseClient) {
     selectAll<{ data: IpoHistoryState["records"][number] }>(db, "ipo_history", "data"),
     selectAll<{ data: StoredDeal }>(db, "deals", "data"),
     selectAll<{ data: unknown }>(db, "ipos", "data"),
-    db.from("snapshots").select("data").eq("kind", "markets").eq("period", "latest").maybeSingle(),
+    // Retried too: taking a failed read for "no snapshot yet" would lose the previous values a failed FRED series keeps.
+    reliably("snapshots", "select", () => db.from("snapshots").select("data").eq("kind", "markets").eq("period", "latest").maybeSingle()),
   ]);
   return {
     historyDeals: historyDeals.map((r) => r.data),
     ipos: { records: ipoRows.map((r) => r.data), checked: [] } as IpoHistoryState,
     liveDeals: liveDeals.map((r) => r.data),
     liveIpos: liveIpos.map((r) => r.data),
-    markets: (markets.data?.data as Markets | undefined) ?? null,
+    markets: (markets?.data as Markets | undefined) ?? null,
   };
 }

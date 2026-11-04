@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CompanyView } from "@/components/views/CompanyView";
-import { findCompany } from "@/lib/companies";
+import { companyHref, findCompany } from "@/lib/companies";
 import { getHubData } from "@/lib/data";
 import { preloadHubData } from "@/components/data/preloadHubData";
 
@@ -16,10 +16,18 @@ type Props = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const id = decodeURIComponent((await params).id);
   const profile = findCompany(await getHubData(), id);
-  if (!profile) return { title: "Company · Castle" };
+  // No such company: the page says so (with a 200, it renders in the browser), so it mustn't be indexed under that address.
+  if (!profile) return { title: "Company · Castle", robots: { index: false, follow: false }, alternates: null };
   const bought = profile.deals.filter((d) => d.role === "Acquirer").length;
   const description = [profile.company.ticker, profile.sector, `${bought} acquisition${bought === 1 ? "" : "s"} tracked`, profile.latestActivity?.label].filter(Boolean).join(" · ");
-  return { title: `${profile.company.name} · Castle`, description, openGraph: { title: profile.company.name, description }, twitter: { card: "summary_large_image", title: profile.company.name, description } };
+  return {
+    title: `${profile.company.name} · Castle`,
+    description,
+    // One company can be reached by several addresses (its CIK, padded or not, or its name): this is the one it links to.
+    alternates: { canonical: companyHref(profile.company) },
+    openGraph: { title: profile.company.name, description },
+    twitter: { card: "summary_large_image", title: profile.company.name, description },
+  };
 }
 
 export default async function Page({ params }: Props) {

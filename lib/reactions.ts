@@ -1,10 +1,16 @@
 /**
  * "Did buyers win?": how listed acquirers' shares moved against the S&P 500 when they announced a deal, and six months
- * on, grouped by how they paid, what they bought and how big it was. From `Deal.reaction` (Yahoo prices, see
- * ingest/prices.ts). Medians, so a few micro-cap reverse mergers moving ±100% don't set the figure.
+ * on, grouped by how they paid, what they bought and how big it was. From `Deal.reaction`. Medians, so a few micro-cap
+ * reverse mergers moving ±100% don't set the figure.
+ *
+ * A closed study: the figures stay, but no new ones are made, because the share prices came from Yahoo Finance and
+ * Castle stopped collecting them (ingest/reactions.ts says why, and keeps the figures through a rebuild).
  */
 import { median } from "./metrics";
 import type { Deal } from "./types";
+
+/** The month the study closed: share prices were last collected then. The newest deal in it was announced a few days earlier. */
+export const REACTION_STUDY_THROUGH = "2026-11";
 
 /** A group needs this many deals before its median is shown. */
 export const MIN_GROUP = 5;
@@ -16,7 +22,7 @@ export interface ReactionGroup {
   announcement: number | null;
   /** Share of buyers that beat the S&P 500 over those two days (%). */
   beatPct: number | null;
-  /** Median move against the S&P 500 six months on, and how many deals are that old. */
+  /** Median move against the S&P 500 six months on, and how many deals have that figure. */
   sixMonths: number | null;
   sixMonthsCount: number;
 }
@@ -90,6 +96,6 @@ export function reactionInsights(s: ReactionSummary): string[] {
   const [cash, stock] = s.groups[0].rows;
   if (cash.announcement != null && stock.announcement != null && Math.abs(cash.announcement - stock.announcement) >= 0.5)
     out.push(`Paying in stock: ${pts(stock.announcement)} at the median, against ${pts(cash.announcement)} for cash buyers.`);
-  if (all.sixMonths != null) out.push(`Six months on, the median buyer was ${pts(all.sixMonths)} against the market (${all.sixMonthsCount} deals that old).`);
+  if (all.sixMonths != null) out.push(`Six months on, the median buyer was ${pts(all.sixMonths)} against the market (the ${all.sixMonthsCount} deals measured that far).`);
   return out;
 }

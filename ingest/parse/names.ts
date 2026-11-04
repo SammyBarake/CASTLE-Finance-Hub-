@@ -49,6 +49,10 @@ const SPONSOR_FORM = new Set(["partners", "capital", "management", "investment",
  * False for names that aren't a colliding sponsor ("Apollo" is Apollo Global Management).
  */
 export function notTheSponsor(named: string, registrant: string): boolean {
+  // EQT AB's funds ("EQT", "EQT Infrastructure", "EQT Asia": Covanta, Perficient) share their whole name with a listed
+  // company, the gas producer EQT Corporation, so a registrant adding no words proves nothing: only its own full name
+  // links to it. Its own releases give that name ("EQT Corporation ("EQT") (NYSE: EQT)").
+  if (/^EQT\b/i.test(named.trim()) && /^EQT Corp/i.test(registrant.trim())) return !/^EQT Corp/i.test(named.trim());
   const lower = named.toLowerCase().trim();
   const sponsor = COLLIDING_SPONSORS.find((s) => lower === s.toLowerCase() || lower.startsWith(`${s.toLowerCase()} `) || lower.startsWith(`${s.toLowerCase()},`));
   if (!sponsor) return false;

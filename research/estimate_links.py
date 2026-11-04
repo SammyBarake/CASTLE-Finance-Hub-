@@ -199,7 +199,10 @@ def build_panel(deal_value: str | None = None, winsor: tuple | None = None, macr
 
     sm_rows["qi"] = sm_rows["month"].map(quarter_index)
     complete = sm_rows.groupby("qi")["month"].nunique()
-    quarters = sorted(q for q, n in complete.items() if n == 3)
+    # The sector ETF series ended in September 2026 (Castle collects no share prices any more). Later quarters have no
+    # valuation data and the lagged equations can't use them, so they don't count towards the window the site states.
+    last_priced = sm_rows.loc[sm_rows["etfReturnPct"].notna(), "qi"].max()
+    quarters = sorted(q for q, n in complete.items() if n == 3 and q <= last_priced)
     sm_rows = sm_rows[sm_rows["qi"].isin(quarters)].copy()
 
     ipo_months = sm_rows[(sm_rows["month"] < "2021-01") & (sm_rows["ipoCount"] > 0)]["month"].nunique()

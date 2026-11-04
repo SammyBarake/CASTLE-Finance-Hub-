@@ -58,6 +58,12 @@ export function formatMonth(month: string): string {
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** "2026-08" -> "August 2026" */
+export function formatMonthLong(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 /** "2026-08" -> "Aug 31" (last day of month) */
 export function formatMonthEnd(month: string): string {
   const [y, m] = month.split("-").map(Number);

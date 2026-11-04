@@ -63,6 +63,23 @@ describe("buildSectorMonthly", () => {
     expect(row("Healthcare", "2015-01")).toMatchObject({ etfTicker: "XLV", etfClose: null, etfReturnPct: null });
   });
 
+  it("with no ETF series, as the monthly job builds it, empties only the ETF figures", () => {
+    const input = {
+      deals: [{ announcedDate: "2015-01-10", sector: "Tech" as Sector, status: "Closed", valueUsd: 1e9, valueKind: "transaction" as const }],
+      ipos: [{ pricedDate: "2015-01-12", sector: "Tech" as Sector }],
+      etfTickers: tickers,
+      cpi: { "2015-01": 200, "2026-08": 300 },
+      from: "2015-01",
+      before: "2015-02",
+    };
+    const withEtf = buildSectorMonthly({ ...input, etf: { Tech: [{ month: "2014-12", close: 40, adjClose: 40 }, { month: "2015-01", close: 41, adjClose: 42 }] } });
+    const without = buildSectorMonthly({ ...input, etf: {} });
+    expect(without.every((r) => r.etfClose === null && r.etfReturnPct === null)).toBe(true);
+    const others = (rs: typeof without) => rs.map(({ etfClose, etfReturnPct, ...rest }) => (void etfClose, void etfReturnPct, rest));
+    expect(others(without)).toEqual(others(withEtf));
+    expect(without.find((r) => r.sector === "Tech")).toMatchObject({ etfTicker: "XLK", dealCount: 1, dealValueUsd: 1.5e9, ipoCount: 1, cpiBaseMonth: "2026-08" });
+  });
+
   it("can sum another value type instead", () => {
     const eq = buildSectorMonthly({ deals: [{ announcedDate: "2015-01-20", sector: "Tech", status: "Closed", valueUsd: 2e9, valueKind: "equity" }], ipos: [], etf: {}, etfTickers: tickers, cpi: {}, from: "2015-01", before: "2015-02", valueKind: "equity" });
     expect(eq.find((r) => r.sector === "Tech")).toMatchObject({ dealValueKind: "equity", dealValueUsd: 2e9, dealValueN: 1 });

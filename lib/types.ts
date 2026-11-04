@@ -91,9 +91,7 @@ export interface Deal {
   milestones?: DealMilestones;
   /** Deal protections and financing from the merger agreement summary (public targets only). */
   terms?: DealTerms;
-  /** Open cash deals: the target's latest close against the offer (ingest/prices.ts). */
-  arb?: MergerArb;
-  /** The buyer's share price around the announcement and after, against the S&P 500 (listed buyers). */
+  /** The buyer's share price around the announcement and after, against the S&P 500: a study of listed buyers of deals announced since 2021, closed in November 2026 (lib/reactions.ts). */
   reaction?: BuyerReaction;
   /** Target enterprise value in USD (stated, or equity value + debt − cash). */
   enterpriseValueUsd: number | null;
@@ -159,20 +157,11 @@ export interface ValuationRange {
   high: number;
 }
 
-/** Merger-arb spread: +2.1 = the target trades 2.1% below the offer. */
-export interface MergerArb {
-  /** The target's close (Yahoo). Stored for the spread only; never sent to the browser, which shows percentages. */
-  priceUsd?: number;
-  spreadPct: number;
-  /** Date of the price. */
-  asOf: string;
-}
-
 /** The buyer's share-price move (%), from the close before the announcement: two trading days on, then less the S&P 500. */
 export interface BuyerReaction {
   announcementPct: number;
   announcementVsMarketPct: number;
-  /** About six months / a year on (126 / 252 trading days), less the S&P 500; null until then. */
+  /** About six months / a year on (126 / 252 trading days), less the S&P 500; null if the deal wasn't that old when the study stopped. */
   m6VsMarketPct: number | null;
   y1VsMarketPct: number | null;
 }

@@ -922,6 +922,10 @@
   .info-steps a:hover, .info-body a:not(.small-link):hover, .info-doc a:not(.small-link):hover { text-decoration-color: #aaa; }
   .info-sources tbody th[scope="row"] { background: transparent; border-top: 0; border-bottom: 1px solid var(--color-soft); color: #dcdcdc; font-size: 11px; font-weight: 450; letter-spacing: 0; white-space: nowrap; }
   .info-sources td { white-space: normal; font-size: 11px; line-height: 1.5; color: #b3b3b3; min-width: 220px; }
+  .info-citations { list-style: none; margin: 0; padding: 12px 19px 16px; font-size: 10.5px; line-height: 1.6; color: #7d7d7d; overflow-wrap: anywhere; }
+  .info-citations li + li { margin-top: 5px; }
+  .info-citations a { color: #8f8f8f; text-decoration: underline; text-decoration-color: #444; text-underline-offset: 2px; transition: text-decoration-color 0.15s; }
+  .info-citations a:hover { text-decoration-color: #aaa; }
   .info-body { padding: 0 19px 19px; font-size: 11px; line-height: 1.7; color: #9a9a9a; }
   .info-body p { margin: 0 0 10px; }
   .info-doc { max-width: 860px; padding: 6px 26px 16px; }

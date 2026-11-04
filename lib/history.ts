@@ -26,9 +26,9 @@ export interface SectorMonthRow {
   sector: Sector;
   month: string;
   etfTicker: string;
-  /** Month-end close (unadjusted). */
+  /** Month-end close (unadjusted). Local history only; null in Supabase (no share prices are published: ingest/markets.ts). */
   etfClose: number | null;
-  /** Total return for the month (dividend-adjusted), whole %. Null when either month-end is missing. */
+  /** Total return for the month (dividend-adjusted), whole %. Null when either month-end is missing, and in Supabase. */
   etfReturnPct: number | null;
   /** Deals announced this month, terminated ones excluded (as the volume chart counts them). */
   dealCount: number;
@@ -57,7 +57,7 @@ export interface MacroMonthRow {
   month: string;
   fedFundsPct: number | null;
   treasury10yPct: number | null;
-  /** ICE BofA US High Yield OAS. FRED only keeps about three years of it (ICE licence). */
+  /** ICE BofA US High Yield OAS: a local file's old values, no longer fetched or published (ICE's licence: ingest/markets.ts). */
   hySpreadPct: number | null;
   /** Moody's Baa corporate yield minus the 10-year Treasury: the credit spread with full history. */
   baaSpreadPct: number | null;

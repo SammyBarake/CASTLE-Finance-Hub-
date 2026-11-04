@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOOT_LIST_SIZE, bootHubData, buildHubData, leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
+import { BOOT_LIST_SIZE, bootHubData, buildHubData, DEAL_FIELDS, leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
 import { headlineFigures } from "./metrics";
 import type { Deal } from "./types";
 
@@ -7,8 +7,14 @@ describe("toPublicDeal", () => {
   it("keeps the internal value type out of the browser feed", () => {
     const pub = toPublicDeal({ ...deal({}), valueKind: "equity" });
     expect("valueKind" in pub).toBe(false);
-    // Yahoo quotes stay server-side; the browser gets the spread only.
-    expect(toPublicDeal({ ...deal({}), arb: { priceUsd: 45.68, spreadPct: 4, asOf: "2026-10-21" } }).arb).toEqual({ spreadPct: 4, asOf: "2026-10-21" });
+  });
+
+  it("keeps an old merger-arb quote out of the feed, and the buyer's reaction in it", () => {
+    const reaction = { announcementPct: 1, announcementVsMarketPct: 2, m6VsMarketPct: null, y1VsMarketPct: null };
+    const stored = { ...deal({ reaction }), arb: { priceUsd: 45.68, spreadPct: 4, asOf: "2026-10-21" } } as Deal;
+    const pub = toPublicDeal(stored);
+    expect("arb" in pub).toBe(false);
+    expect(pub.reaction).toEqual(reaction);
   });
 
   it("keeps only the first filing in the feed, all of them in the full record", () => {
@@ -25,6 +31,21 @@ describe("toPublicDeal", () => {
     const proxySections = [{ label: "Background", url: "https://www.sec.gov/p.htm#b" }];
     expect(toPublicDeal({ ...deal({}), proxySections }).proxySections).toBeUndefined();
     expect(toPublicDeal({ ...deal({}), proxySections }, { withFairness: true }).proxySections).toEqual(proxySections);
+  });
+
+  it("passes only fields the live site selects from the database, or the live site silently loses them", () => {
+    const everything = deal({
+      evEbitdaReported: 9,
+      milestones: {} as Deal["milestones"],
+      terms: {} as Deal["terms"],
+      privateTarget: true,
+      reaction: { announcementPct: 1, announcementVsMarketPct: 2, m6VsMarketPct: null, y1VsMarketPct: null },
+    });
+    const keys = Object.keys(toPublicDeal(everything, { withFairness: true }));
+    expect(keys).toContain("reaction");
+    expect(keys.filter((k) => !DEAL_FIELDS.includes(k))).toEqual([]);
+    // Only the first filing and its count are worked out; the old merger-arb quotes stay out of the select.
+    expect(DEAL_FIELDS).not.toContain("arb");
   });
 });
 

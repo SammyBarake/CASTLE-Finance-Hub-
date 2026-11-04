@@ -16,7 +16,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const deal = await getDeal(decodeURIComponent((await params).id));
-  if (!deal) return { title: "Tear sheet · Castle" };
+  if (!deal) return { title: "Tear sheet · Castle", alternates: null };
   const title = `${deal.acquirer.name} → ${deal.target.name}`;
   const description = [
     `Announced ${formatDateLong(deal.announcedDate)}`,

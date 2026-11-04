@@ -3,7 +3,8 @@
  * once a custom domain exists; on Vercel the production domain is known without it.
  */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
+  // || not ??: .env.example ships it blank, and a blank metadataBase is a 500 on every page.
+  process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
 ).replace(/\/$/, "");
 
 /** The public source repository (the site is built in the open). */

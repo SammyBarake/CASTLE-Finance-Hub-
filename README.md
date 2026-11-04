@@ -26,7 +26,7 @@ Open http://localhost:3000. With nothing configured, the local dev site shows bu
 
 ## Go live
 
-Supabase (database), GitHub Actions (updates every 3 hours) and Vercel (hosting), all on free tiers: see [SETUP.md](SETUP.md).
+Supabase (database), GitHub Actions (updates several times a day) and Vercel (hosting), all on free tiers: see [SETUP.md](SETUP.md).
 
 ## Stack
 

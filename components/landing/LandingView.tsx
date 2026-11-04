@@ -594,8 +594,8 @@ export function LandingView({ figures, authEnabled }: { figures: LandingFigures;
                   </li>
                 </ol>
                 <p className="lx-limits r" style={stagger(11)}>
-                  Coverage is partial: Castle tracks announced deals involving U.S.-listed companies, and SPACs, OTC shells and resales are out of scope. Sources: SEC EDGAR, plus IMF, BIS, FRED, BEA
-                  and Yahoo Finance for macro and market data, all free and public.{" "}
+                  Coverage is partial: Castle tracks announced deals involving U.S.-listed companies, and SPACs, OTC shells and resales are out of scope. Sources: SEC EDGAR, plus IMF, BIS, FRED and BEA
+                  for macro data, and historical share prices from Yahoo Finance.{" "}
                   <Link href="/about" prefetch={false}>
                     About the data
                   </Link>

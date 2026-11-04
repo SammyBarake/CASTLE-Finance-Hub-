@@ -879,6 +879,28 @@ GOTHENBURG, Sweden, September 6, 2013 - SKX and Kayden Corporation (NYSE: KDN) t
     expect(p.acquirer.name).toBe("SKX");
     expect(p.target.name).toBe("Kayden Corporation");
   });
+
+  it("doesn't give two buyers named together a listing that shares a first word with one of them", () => {
+    const t = `Exhibit 99.1
+Blackrock and Eastwood Capital Group to Acquire Long Stay Hotels
+CHARLOTTE, NC - March 15, 2021 - Long Stay Hotels, Inc. today announced that it has entered into a definitive agreement to be acquired by a joint venture of funds managed by Blackrock Real Estate Partners and Eastwood Capital Group for $19.50 per share in cash.
+About Blackrock Real Estate
+Blackrock is a global leader in real estate investing, with businesses that include Blackrock Mortgage Trust (NYSE: BRMT).`;
+    const p = parsePressRelease(t, { filerName: "Long Stay Hotels, Inc.", filerTickers: ["LSH"] })!;
+    expect(p.acquirer.name).toBe("Blackrock and Eastwood Capital Group");
+    expect(p.acquirer.ticker).toBeNull();
+  });
+
+  it("doesn't take what a firm says it manages for the firm", () => {
+    const t = `Exhibit 99.1
+Blackrock to Acquire Long Stay Hotels
+CHARLOTTE, NC - March 15, 2021 - Long Stay Hotels, Inc. today announced that it has entered into a definitive agreement to be acquired by Blackrock for $19.50 per share in cash.
+About Blackrock
+Blackrock provides financing solutions across the capital structure, including management of Blackrock Mortgage Trust (NYSE: BRMT).`;
+    const p = parsePressRelease(t, { filerName: "Long Stay Hotels, Inc.", filerTickers: ["LSH"] })!;
+    expect(p.acquirer.name).toBe("Blackrock");
+    expect(p.acquirer.ticker).toBeNull();
+  });
 });
 
 describe("caseless", () => {
