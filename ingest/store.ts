@@ -16,6 +16,8 @@ export interface StoredDeal extends Deal {
   valueKind: "enterprise" | "equity" | "transaction" | null;
   /** EDGAR documents this deal was built from ("adsh:file"). */
   sources: string[];
+  /** The announced date is only the signing an Item 1.01 states: a release's own date replaces it, later or not. */
+  dateIsSigning?: boolean;
   /** Last time the target's filing history was checked for status changes. */
   statusCheckedAt: string | null;
   /** Set once XBRL financials were looked up (whether or not they were found). */

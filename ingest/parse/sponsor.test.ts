@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPlaceholderBuyer, isPlausibleName, notTheSponsor } from "./names";
-import { sponsorFromText } from "./sponsor";
+import { jointBuyers, sponsorFromText } from "./sponsor";
 
 // Synthetic text in the style of announcement releases and merger proxies.
 describe("sponsorFromText (the firm behind an acquisition vehicle)", () => {
@@ -102,5 +102,31 @@ describe("notTheSponsor: buyout firms whose names collide with a listed company"
   it("keeps Hg off HG Holdings, Inc., the former furniture maker", () => {
     for (const named of ["Hg", "Hg Capital", "HgCapital", "HG"]) expect(notTheSponsor(named, "HG Holdings, Inc."), named).toBe(true);
     expect(notTheSponsor("HG Holdings, Inc.", "HG Holdings, Inc.")).toBe(false);
+  });
+});
+
+describe("jointBuyers: what isn't a joint buyer", () => {
+  it("one sponsor's own funds are that sponsor (Dayforce)", () => {
+    expect(
+      jointBuyers("Thoma Bravo Fund XVI, L.P., Thoma Bravo Fund XVI-A, L.P., Thoma Bravo Executive Fund XVI, L.P., Thoma Bravo Partners XVI, L.P., Thoma Bravo Fund XVI Global SCSp and"),
+    ).toBe("Thoma Bravo");
+  });
+
+  it("real joint buyers stay joint", () => {
+    expect(jointBuyers('Blackstone Inc. ("Blackstone") and TPG Capital ("TPG") have committed')).toBe("Blackstone and TPG");
+    expect(jointBuyers("Permira Advisers LLC, Warburg Pincus LLC, Francisco Partners Management, L.P. and Temasek Holdings (Private) Limited have committed")).toBe("Permira, Warburg Pincus, Francisco Partners and Temasek");
+  });
+
+  it("firms sharing a common first word aren't one family", () => {
+    expect(jointBuyers("First Reserve Corporation and First Eagle Investments have committed")).toBe("First Reserve and First Eagle Investments");
+  });
+
+  it("a merger sub written as one word ends the list (Soho House)", () => {
+    expect(jointBuyers('Yucaipa ("Parent"), EH MergerSub Inc. and the Company')).toBeNull();
+  });
+
+  it("a controlling person written with a middle initial isn't a buyer (AlerisLife)", () => {
+    expect(jointBuyers("ABP Trust and Adam D. Portnoy")).toBeNull();
+    expect(jointBuyers("Headwater Investments, LLC, J. Bryan King and their respective affiliates")).toBeNull();
   });
 });

@@ -34,15 +34,20 @@ export interface ParsedPress {
   privateTarget?: boolean;
   /** The release lists the target on a foreign exchange only ("Logan Energy Corp. ("Logan") (TSXV: LGN)"): out of scope. */
   targetListedAbroad?: boolean;
-  /** Merger 8-K: the signing date it restates ("As previously announced, on April 26, 2021, … entered into …"). */
+  /** Merger 8-K: the signing date it states ("On February 3, 2026, … entered into …", "As previously announced, on April 26, 2021, …"). */
   signedOn?: string;
   /**
    * The date the document gives for the announcement, when it isn't the filing date: a release's dateline (an exhibit
-   * can be filed days later), the signing date an Item 1.01 states, or the announcement a completion refers back to.
+   * can be filed days later), the release an Item 1.01 8-K says went out, or the announcement a completion refers back to.
+   * Never the signing itself, which usually comes a day or a weekend before the release.
    */
   announcedOn?: string;
+  /** Read from a merger 8-K's Item 1.01: terms as the lawyers state them, which a release's headline figures outrank. */
+  item101?: boolean;
   /** Merger 8-K: its Item 1.02 reports an earlier merger agreement ended, so this signing is a new deal, not that one. */
   endsEarlierAgreement?: boolean;
+  /** Opens as a results report, with the deal only further down (`opensAsResults`). */
+  resultsReport?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +133,15 @@ const ANNOUNCES_DEAL = new RegExp(
 );
 /** "<Company> Reports / Announces … Results / Earnings". */
 const RESULTS_LINE = /^(.{2,80}?)\s+(?:Reports|Announces|Posts|Releases|Delivers)\b.*\b(?:Results|Earnings)\b/i;
+const RESULTS_TOP =
+  /\b(?:financial report|financial summary|financial results|(?:first|second|third|fourth|q[1-4]|[1-4]q)[- ]?(?:quarter)?\s*(?:(?:and|&)\s+(?:full[- ]year|fiscal(?: year)?|year[- ]end)\s+)?(?:\d{4}\s+)?(?:financial\s+|operating\s+)?(?:results|earnings)|(?:reports?|announces?|posts?|releases?)\s+(?:[\w'’&-]+\s+){0,6}(?:results|earnings))\b/i;
+const DEAL_NEAR_TOP = /\b(?:to be acquired|to acquire|acquired by|acquisition of|definitive (?:merger )?agreement|merger agreement|merger with|to merge|to combine)\b/i;
+/**
+ * A document that opens as a results report and doesn't name a deal up there: Veoneer's "Financial Report July - September
+ * 2021 Financial Summary", whose highlights further down mention a merger agreement. Not "IBM Releases First-Quarter
+ * Results … Announces strategic acquisition of HashiCorp", which announces it.
+ */
+export const opensAsResults = (flat: string) => RESULTS_TOP.test(flat.slice(0, 500)) && !DEAL_NEAR_TOP.test(flat.slice(0, 400));
 const allCaps = (l: string) => /[A-Z]/.test(l) && !/[a-z]/.test(l);
 /** Line `b` carries on the headline of line `a` (one headline wrapped over two lines), not a new sub-headline. */
 // (A line ending in a comma goes on when a name follows: "… to Acquire Montney Oil Producer," / "Logan Energy Corp.";
@@ -284,7 +298,7 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
     roles: ["tgt", "acq"],
   },
   {
-    re: rx(String.raw`^${NAME}\s+(?i:announces|enters into|signs)\s+(?i:a\s+)?(?i:definitive (?:merger )?agreement with)\s+${LEAD_QUAL}${NAME}${STOP}`),
+    re: rx(String.raw`^${NAME}\s+(?i:announces|enters into|signs)\s+(?i:a\s+)?(?:(?:US)?\$[\d.,]+\s+(?i:billion|million)\s+)?(?i:definitive (?:merger )?agreement with)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["tgt", "acq"],
   },
 ];
@@ -1481,5 +1495,6 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     valueKind: value?.kind ?? null,
     consideration: extractConsideration(terms),
     ...advisors,
+    ...(opensAsResults(flatten(text)) ? { resultsReport: true } : {}),
   };
 }

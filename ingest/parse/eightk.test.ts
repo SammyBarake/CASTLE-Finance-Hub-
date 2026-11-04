@@ -378,3 +378,24 @@ describe("definedEntities: names with a slash", () => {
     expect(definedEntities(sec).find((e) => e.nick === "Company")?.name).toBe("RE/MAX Holdings, Inc.");
   });
 });
+
+describe("the sponsor behind a shell, from an Item 1.01", () => {
+  const ctx = { filerName: "Bluebird Software, Inc.", filerTickers: [] };
+
+  it("reads one sponsor's list of funds as that sponsor, where a joint name would be too long to keep (Dayforce)", () => {
+    const p = parseMergerItem(
+      'Item 1.01 Entry into a Material Definitive Agreement. On August 20, 2025, Bluebird Software, Inc. (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Bluejay Parent, LLC ("Parent"), and Bluejay Merger Sub, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Parent and Merger Sub are affiliates of Thoma Bravo Fund XVI, L.P., Thoma Bravo Fund XVI-A, L.P., Thoma Bravo Fund XVI-B, L.P., Thoma Bravo Executive Fund XVI, L.P., Thoma Bravo Executive Fund XVI-A, L.P., Thoma Bravo Partners XVI, L.P., Thoma Bravo Partners XVI-A, L.P., Thoma Bravo Fund XVI Global, SCSp and Thoma Bravo UGP, LLC. Each share will be converted into the right to receive $70.00 in cash.',
+      ctx,
+    );
+    expect(p?.acquirer.name).toBe("Thoma Bravo");
+    expect(p?.pricePerShare).toBe(70);
+  });
+
+  it("reads vehicles managed by a sponsor, and not the lenders named further down (Envestnet)", () => {
+    const p = parseMergerItem(
+      'Item 1.01 Entry into a Material Definitive Agreement. On July 11, 2024, Bluebird Software, Inc. (the "Company") entered into an Agreement and Plan of Merger with Bluejay Parent, LLC ("Parent"), and Bluejay Merger Sub, Inc. ("Merger Sub"). Parent and Merger Sub are affiliates of vehicles managed or advised by Northwind Capital Private Equity, LP. Pursuant to the Merger Agreement, Merger Sub will be merged with and into the Company. Certain funds managed by Lender Credit Partners have committed to provide debt financing to Parent (the "Debt Financing").',
+      ctx,
+    );
+    expect(p?.acquirer.name).toBe("Northwind Capital Private Equity");
+  });
+});

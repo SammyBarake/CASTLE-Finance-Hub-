@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bankShortName, findBanks } from "../../lib/banks";
-import { caseless, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline } from "./press";
+import { caseless, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, opensAsResults, parsePressRelease, splitHeadline } from "./press";
 
 // Fixtures are synthetic releases written in the style of real 8-K exhibits.
 
@@ -61,6 +61,28 @@ describe("displayName", () => {
     expect(displayName("NORTHSTRIVE FUND II LP")).toBe("Northstrive Fund II LP");
     expect(displayName("II-VI INC")).toBe("II-VI Inc");
     expect(displayName("COPART")).toBe("Copart");
+  });
+});
+
+describe("opensAsResults", () => {
+  it("knows a results report whose deal is further down", () => {
+    expect(opensAsResults(`EX-99.1 2 vne.htm EX-99.1 Stockholm, Sweden, October 26, 2021 (NYSE: VNE) Financial Report July - September 2021 Financial Summary - Q3'21 • Net Sales $391 million • ${"x ".repeat(250)} • Entered into a definitive merger agreement under which SSW and Qualcomm will acquire Veoneer`)).toBe(true);
+    expect(opensAsResults("EX-99.1 Exhibit 99.1 Heska Corporation Reports First Quarter 2023 Results LOVELAND, Colo.")).toBe(true);
+    expect(opensAsResults("EX-99.1 TRIUS THERAPEUTICS REPORTS SECOND QUARTER 2013 FINANCIAL RESULTS San Diego")).toBe(true);
+  });
+
+  it("not one that announces a deal up there, nor a plain release", () => {
+    expect(opensAsResults("EX-99.1 IBM RELEASES FIRST-QUARTER RESULTS Accelerated Software revenue growth Announces strategic acquisition of HashiCorp, Inc.")).toBe(false);
+    expect(opensAsResults("RealD Inc. Reports Second Quarter Results Announces agreement to be acquired by Rizvi Traverse")).toBe(false);
+    expect(opensAsResults("Acme to Acquire Widget in All-Cash Transaction")).toBe(false);
+    expect(opensAsResults(`Acme to Buy Widget ${"x ".repeat(300)} Acme reports third quarter results next week`)).toBe(false);
+  });
+
+  it("marks what the release parser returns", () => {
+    const report = `EX-99.1 Stockholm, Sweden, October 26, 2021 Financial Report July - September 2021 Financial Summary - Q3'21 ${"Net sales grew. ".repeat(40)}\nBusiness Highlights\nEntered into a definitive merger agreement under which SSW and Qualcomm will acquire Veoneer.`;
+    const parsed = parsePressRelease(report, { filerName: "Veoneer, Inc.", filerTickers: ["VNE"] });
+    if (parsed) expect(parsed.resultsReport).toBe(true);
+    expect(parsePressRelease("Acme to Acquire Widget for $10.00 Per Share in Cash\nNEW YORK, January 5, 2024 - Acme Corp. (NYSE: ACME) and Widget Inc. (NYSE: WDGT) today announced a definitive agreement.", { filerName: "Acme Corp", filerTickers: ["ACME"] })?.resultsReport).toBeUndefined();
   });
 });
 
@@ -944,5 +966,15 @@ describe("caseless", () => {
     expect(() => caseless(String.raw`(?i:\p)`)).toThrow();
     expect(() => caseless("(?i:café)")).toThrow();
     expect(() => caseless("(?-i:a)")).toThrow();
+  });
+});
+
+describe("a headline stating the amount before the agreement (Dayforce)", () => {
+  it("reads the target announcing a definitive agreement with its buyer", () => {
+    const p = parsePressRelease(
+      "Bluebird Enters into US$12.3 Billion Definitive Agreement with Thoma Bravo\nMINNEAPOLIS, Aug. 21, 2025 - Bluebird, Inc. (NYSE: BLU) today announced that it has entered into a definitive agreement to be acquired by Thoma Bravo in an all-cash transaction that values Bluebird at an enterprise value of $12.3 billion. Bluebird stockholders will receive $70.00 per share in cash, a premium of approximately 32% to the closing price on August 15, 2025. Goldman Sachs is serving as financial advisor to Thoma Bravo.",
+      { filerName: "Bluebird, Inc.", filerTickers: ["BLU"] },
+    );
+    expect(p).toMatchObject({ kind: "announcement", acquirer: { name: "Thoma Bravo" }, pricePerShare: 70, valueUsd: 12_300_000_000, valueKind: "enterprise", premiumPct: 32, consideration: "Cash" });
   });
 });

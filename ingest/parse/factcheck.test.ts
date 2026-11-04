@@ -371,7 +371,28 @@ describe("announcement dates", () => {
       'Item 1.01 Entry into a Material Definitive Agreement. On February 3, 2026, Bluebird Financial Corporation (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Northwind Bancorp, Inc. ("Parent") and Northwind Merger Sub, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Each share will be converted into the right to receive $48.75 in cash.',
       { filerName: "Bluebird Financial Corporation", filerTickers: [] },
     );
-    expect(p?.announcedOn).toBe("2026-02-03");
+    expect(p?.signedOn).toBe("2026-02-03");
+    // The signing isn't the announcement: only a release says when that was.
+    expect(p?.announcedOn).toBeUndefined();
+    expect(p?.item101).toBe(true);
+  });
+
+  it("reads the release an 8-K says went out, in its text or its exhibit list", () => {
+    const body = 'Item 1.01 Entry into a Material Definitive Agreement. On February 1, 2026, Bluebird Financial Corporation (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Northwind Bancorp, Inc. ("Parent") and Northwind Merger Sub, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Each share will be converted into the right to receive $48.75 in cash. ';
+    const ctx = { filerName: "Bluebird Financial Corporation", filerTickers: [] };
+    expect(parseMergerItem(body + "Item 7.01 Regulation FD Disclosure. On February 2, 2026, the Company issued a press release announcing the Merger.", ctx)?.announcedOn).toBe("2026-02-02");
+    expect(parseMergerItem(body + "Item 9.01 Exhibits. 99.1 Joint Press Release, dated February 2, 2026, regarding the Merger Agreement.", ctx)?.announcedOn).toBe("2026-02-02");
+    // Not its results, and not a release from before the signing.
+    expect(parseMergerItem(body + "Item 2.02. On February 2, 2026, the Company issued a press release announcing its financial results for the quarter ended December 31, 2025 and the Merger.", ctx)?.announcedOn).toBeUndefined();
+    expect(parseMergerItem(body + "On January 12, 2026, the Company issued a press release about the strategic review and the transaction process.", ctx)?.announcedOn).toBeUndefined();
+  });
+
+  it("states an amendment's signing date, so a later filing reads as an update", () => {
+    const p = parseMergerItem(
+      'Item 1.01 Entry into a Material Definitive Agreement. On June 18, 2025, Bluebird Solar Group Ltd (the "Company") entered into an Agreement and Plan of Merger (as amended, the "Merger Agreement") with Northwind Vitra Ltd. ("Parent") and Northwind Sub Ltd. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company.',
+      { filerName: "Bluebird Solar Group Ltd", filerTickers: [] },
+    );
+    expect(p?.signedOn).toBe("2025-06-18");
   });
 });
 

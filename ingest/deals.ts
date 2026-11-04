@@ -65,8 +65,10 @@ export const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of
 /**
  * Target-side 8-K language: "Merger Sub will merge with and into the Company" only appears when the
  * filer is the company being acquired. Parsed from the Item 1.01 text, so no press release is needed.
+ * Not the verb alone: "providing for the merger of Acquisition Sub with and into the Company" (RR Donnelley and Veoneer's
+ * winning agreements, whose 8-Ks were never opened: the old phrases hit only their exhibits, which aren't read here).
  */
-export const ITEM_QUERIES = ['"merge with and into the Company"', '"merged with and into the Company"', '"commence a tender offer" "Agreement and Plan of Merger"'];
+export const ITEM_QUERIES = ['"with and into the Company"', '"commence a tender offer" "Agreement and Plan of Merger"'];
 
 /** Only press-release-like documents: EX-99.x exhibits, or the main document of communication forms. */
 function isPressDoc(h: FtsHit): boolean {
@@ -540,6 +542,19 @@ export const FUND_TARGET = /\b(?:Fund|Funds|ETF|Municipal)\b/i;
 /** Largest value believable for a private company: anything above is almost certainly a misread number. */
 export const MAX_PRIVATE_DEAL_VALUE = 40e9;
 
+const weekday = (ms: number) => ![0, 6].includes(new Date(ms).getUTCDay());
+/** Weekdays after `from`, up to and including `to`: Friday to Monday is 1. */
+function businessDaysBetween(from: string, to: string): number {
+  let n = 0;
+  for (let t = Date.parse(from) + 86_400_000; t <= Date.parse(to); t += 86_400_000) if (weekday(t)) n++;
+  return n;
+}
+function offWeekend(day: string): string {
+  let t = Date.parse(day);
+  while (!weekday(t)) t += 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
 export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, target: Resolved, acquirer: Resolved, isPrivate: boolean): StoredDeal | null {
   const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   // Private targets have no CIK: they are matched by name (and buyer below), within two years. A looser name match
@@ -555,11 +570,16 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   // 2017–2020 extension 8-Ks each open "As previously reported, on October 21, 2016, … entered into …". The signing 8-K
   // itself is due within four business days (ZeroFox's note-repurchase 8-K, 29 days after, created a deal for its lender).
   if (parsed.kind === "announcement" && parsed.signedOn && daysApart(parsed.signedOn, hit.fileDate) > 10) parsed = { ...parsed, kind: "update" };
+  // A results report beside an open deal isn't announcing another, and its amounts aren't that deal's: Veoneer's Q3 report
+  // made a third record, "SSW and Qualcomm", at the $31.25 it quotes as Magna's offer, which then read as topping the real one.
+  // (Not one filed with the deal's first documents: IEC's results release is its announcement, read just after the 8-K.)
+  if (parsed.kind === "announcement" && parsed.resultsReport && candidates.some((d) => OPEN.includes(d.status) && daysApart(d.filings[0]?.filedDate ?? d.announcedDate, hit.fileDate) > 3))
+    parsed = { ...parsed, kind: "update", pricePerShare: null, premiumPct: null, valueUsd: null, valueKind: null, consideration: null };
   // A signing whose 8-K reports the earlier agreement ended is a new deal, whatever its shell is called: it joins only
   // the same buyer's record, or the release of this same signing. RR Donnelley's winning agreement with "Chatham Delta
   // Parent, Inc." was folded into Atlas's, which then read "Closed" at Atlas's lower price.
   const tops = parsed.kind === "announcement" && !!parsed.endsEarlierAgreement;
-  const thisSigning = (d: StoredDeal) => daysApart(d.announcedDate, parsed.announcedOn ?? hit.fileDate) <= 3;
+  const thisSigning = (d: StoredDeal) => daysApart(d.announcedDate, parsed.announcedOn ?? parsed.signedOn ?? hit.fileDate) <= 3;
   let deal =
     // The same buyer, also when written as its ticker (Two Harbors' earnings release: "UWMC", for UWM Holdings).
     candidates.find((d) => sameCompany(d.acquirer.name, parsed.acquirer.name) || (acquirer.cik && d.acquirer.cik === acquirer.cik) || isTickerOf(parsed.acquirer.name, d.acquirer)) ??
@@ -584,10 +604,18 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
       : undefined);
 
   // The date the document gives, when it is the announcement's and comes before the filing: a release's dateline (an
-  // exhibit filed six days later: Cardinal / Hughes Brothers), an Item 1.01's signing date (Santander / Webster, three
-  // days), or for a private deal first seen at its completion, the announcement it refers back to (Cronos / CanAdelaar).
-  const gap = parsed.announcedOn && parsed.announcedOn < hit.fileDate ? daysApart(parsed.announcedOn, hit.fileDate) : null;
-  const announced = gap != null && ((parsed.kind === "announcement" && gap <= 10) || (parsed.kind === "completion" && isPrivate && gap <= 730)) ? parsed.announcedOn! : hit.fileDate;
+  // exhibit filed six days later: Cardinal / Hughes Brothers), the release an 8-K says went out, or for a private deal
+  // first seen at its completion, the announcement it refers back to (Cronos / CanAdelaar).
+  const releaseOn = parsed.announcedOn && parsed.announcedOn <= hit.fileDate ? parsed.announcedOn : null;
+  const gap = releaseOn ? daysApart(releaseOn, hit.fileDate) : null;
+  const stated = releaseOn && gap != null && ((parsed.kind === "announcement" && gap <= 10) || (parsed.kind === "completion" && isPrivate && gap <= 730)) ? releaseOn : null;
+  // An Item 1.01 saying only when it was signed: the signing usually comes a day or a weekend before the release, so an
+  // 8-K filed the next business day is the better date, and one filed later the signing itself, off a weekend (Santander
+  // / Webster: signed February 3, filed February 6). Of 86 such 8-Ks whose release is known this is right 54 times and a
+  // day off 29; the signing alone is right 26 times, and put 162 deals on a weekend.
+  const signedDay = !releaseOn && parsed.kind === "announcement" && parsed.signedOn && parsed.signedOn < hit.fileDate ? (businessDaysBetween(parsed.signedOn, hit.fileDate) <= 1 ? hit.fileDate : offWeekend(parsed.signedOn)) : null;
+  const fromSigning = !!signedDay && signedDay !== hit.fileDate;
+  const announced = stated ?? signedDay ?? hit.fileDate;
 
   if (!deal) {
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
@@ -602,6 +630,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
       id,
       ...(isPrivate ? { privateTarget: true } : {}),
       announcedDate: announced,
+      ...(fromSigning ? { dateIsSigning: true } : {}),
       acquirer: company(parsed.acquirer, acquirer),
       target: company(parsed.target, target),
       valueUsd: null,
@@ -626,20 +655,35 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
     state.deals.push(deal);
   }
 
-  // Documents are processed oldest-first, so the first announcement sets the terms;
-  // later documents only fill gaps (or replace terms if they predate what we have).
-  const prefer = parsed.kind === "announcement" && announced < deal.announcedDate;
+  // Documents are processed oldest-first, so the first announcement sets the terms; later documents only fill gaps, or
+  // replace terms if they predate what we have: a release dated earlier (CAI's, June 17, over an 8-K read first), or an
+  // Item 1.01 really filed before the deal's first document (Denbury, EnVen). Not an Item 1.01 that only states an earlier
+  // signing: it reads a mixed deal's cash leg, and overwrote the release's total (Triton $85 to $68.50, UniFirst, NV5).
+  const earlier = parsed.kind === "announcement" && announced < deal.announcedDate;
+  const filedFirst = deal.filings[0]?.filedDate;
+  const reallyFirst = !!filedFirst && hit.fileDate < filedFirst;
+  const prefer = earlier && (!parsed.item101 || reallyFirst);
   const set = <K extends "valueUsd" | "pricePerShare" | "premiumPct" | "consideration">(k: K, v: StoredDeal[K]) => {
     if (v != null && (deal![k] == null || prefer)) deal![k] = v;
   };
-  set("pricePerShare", parsed.pricePerShare);
+  // A closing release's price in a stock or mixed deal is what it came to on the day, not the offer (AZEK's $54.18).
+  if (parsed.kind !== "completion" || parsed.consideration === "Cash") set("pricePerShare", parsed.pricePerShare);
   set("premiumPct", parsed.premiumPct);
   set("consideration", parsed.consideration);
   if (parsed.valueUsd != null && (deal.valueUsd == null || prefer)) {
     deal.valueUsd = parsed.valueUsd;
     deal.valueKind = parsed.valueKind;
   }
-  if (prefer) deal.announcedDate = announced;
+  // A signing doesn't move a date a release gave (Friday's signing, Monday's release, Wednesday's 8-K), and a release's
+  // date replaces a signing's.
+  if (earlier && (!fromSigning || reallyFirst || deal.dateIsSigning)) {
+    deal.announcedDate = announced;
+    if (fromSigning) deal.dateIsSigning = true;
+    else delete deal.dateIsSigning;
+  } else if (stated && deal.dateIsSigning && !earlier && daysApart(stated, deal.announcedDate) <= 5) {
+    deal.announcedDate = stated;
+    delete deal.dateIsSigning;
+  }
   // Longer names are usually the legal names ("ACV" -> "ACV Auctions Inc.").
   if (parsed.target.name.length > deal.target.name.length) deal.target.name = parsed.target.name;
   if ((isPlaceholderBuyer(deal.acquirer.name) || !isPlausibleName(deal.acquirer.name)) && !isPlaceholderBuyer(parsed.acquirer.name)) {

@@ -88,20 +88,27 @@ export function jointBuyers(list: string): string | null {
   s = s.split(/(?<!\b(?:Inc|Co|Ltd|Corp|[A-Z]))\.(?:\s|$)|;|\s(?:have|has|are|is|were|was|will|for|to|in|pursuant|on|as|that|which)\s/)[0];
   // A legal suffix after a comma belongs to the name: "Francisco Partners Management, L.P.". So do the commas of a name
   // joined by "&": "Clayton, Dubilier & Rice, LLC".
-  s = s.replace(/,\s*(L\.\s?L\.\s?C\.?|L\.\s?P\.?|LLC|LP|Inc\.?|Ltd\.?|Limited)(?=[\s,]|$)/g, " $1");
+  s = s.replace(/,\s*(L\.\s?L\.\s?C\.?|L\.\s?P\.?|LLC|LP|SCSp|SCSP|SCS|Inc\.?|Ltd\.?|Limited)(?=[\s,]|$)/g, " $1");
   s = s.replace(/\b[A-Z][\w'’-]*(?:,\s+[A-Z][\w'’-]*)+\s+&\s+[A-Z][\w'’-]*/g, (x) => x.replace(/,/g, "~~"));
   const LEAD = /^(?:certain\s+)?(?:(?:private\s+)?(?:investment\s+|equity\s+)?(?:funds?|vehicles?|entities|affiliates)\s+(?:affiliated\s+with|managed\s+by|advised\s+by|of)|affiliates\s+of)\s+/i;
   const members: string[] = [];
   for (const piece of s.split(/\s*,\s*(?:and\s+)?|\s+and\s+/)) {
     const marker = /\s*#(\d+)#\s*$/.exec(piece);
     const name = piece.replace(/\s*#\d+#\s*$/, "").replace(LEAD, "").replace(/~~/g, ",").trim();
+    // What the 500-character cut leaves of a suffix: "L.".
+    if (name.length < 3) continue;
     // A founder named beside the firm is not another buyer: "Headwater Investments, LLC ("Headwater"), J. Bryan King and
-    // their respective affiliates".
-    if (/^(?:[A-Z]\.\s?)+[A-Z][a-z'’-]+(?:\s[A-Z][a-z'’-]+)?$/.test(name)) continue;
+    // their respective affiliates"; nor a controlling person: "ABP Trust and Adam D. Portnoy" (AlerisLife).
+    if (/^(?:[A-Z]\.\s?)+[A-Z][a-z'’-]+(?:\s[A-Z][a-z'’-]+)?$/.test(name) || /^[A-Z][a-z]+\s(?:[A-Z]\.\s)+[A-Z][a-z'’-]+$/.test(name)) continue;
     // Not a vehicle or a person's title: "Gores Logistics Sub", "Tiger Acquisition" (Oracle's merger sub), "Chairman".
     if (!/^[A-Z]/.test(name) || !isPlausibleName(name) || NOT_A_FIRM.test(name) || clauseWord(name) || isPlaceholderBuyer(name)) break;
-    if (/\b(?:Sub|Subsidiary|Acquisition|Acquisitions|Merger)\b/.test(name) || /^(?:Chairman|Chairwoman|Chair|Chief|CEO|President|Founder|Co-Founder|Management|Directors?|Officers?)\b/.test(name)) break;
+    if (/\b(?:Sub|Subsidiary|Acquisition|Acquisitions|Merger|MergerSub)\b/.test(name) || /^(?:Chairman|Chairwoman|Chair|Chief|CEO|President|Founder|Co-Founder|Management|Directors?|Officers?)\b/.test(name)) break;
     const term = marker ? terms[Number(marker[1])] : null;
+    // A party to the deal under a role ends the list: "an affiliate of Yucaipa ("Parent"), EH MergerSub Inc." (Soho House).
+    if (term && /^(?:Parent|Purchaser|Buyer|Merger Sub|Sub)$/i.test(term)) {
+      members.push(firmShortName(name));
+      break;
+    }
     const short = firmShortName(name);
     // An acronym the firm goes by ("TPG" for TPG Capital, "PIF" for The Public Investment Fund); not one coined for the
     // filing ("FP" for Francisco Partners).
@@ -109,7 +116,33 @@ export function jointBuyers(list: string): string | null {
     members.push(acronym ? term! : short);
   }
   if (members.length < 2) return null;
-  return `${members.slice(0, -1).join(", ")} and ${members.at(-1)}`;
+  const firms = oneFundFamily(members);
+  return firms.length === 1 ? firms[0] : `${firms.slice(0, -1).join(", ")} and ${firms.at(-1)}`;
+}
+
+/**
+ * One sponsor's own funds aren't joint buyers: "affiliates of Thoma Bravo Fund XVI, L.P., Thoma Bravo Fund XVI-A, L.P.,
+ * Thoma Bravo Executive Fund XVI …" made a 370-character name, which lost the whole of Dayforce. They collapse to what
+ * they share, "Thoma Bravo". Not on a first word every other firm uses.
+ */
+const COMMON_FIRST_WORD = /^(?:First|National|American|General|Global|New|Capital|United|International|The)$/;
+function oneFundFamily(members: string[]): string[] {
+  const out: string[] = [];
+  const collapsed = new Set<number>();
+  for (const m of members) {
+    const words = m.split(" ");
+    const i = COMMON_FIRST_WORD.test(words[0]) ? -1 : out.findIndex((o) => o.split(" ")[0] === words[0]);
+    if (i < 0) {
+      out.push(m);
+      continue;
+    }
+    const seen = out[i].split(" ");
+    let k = 0;
+    while (k < seen.length && k < words.length && seen[k] === words[k]) k++;
+    out[i] = seen.slice(0, k).join(" ");
+    collapsed.add(i);
+  }
+  return out.map((m, i) => (collapsed.has(i) ? m.replace(/(?:\s(?:Funds?|Executive|Employee))+$/, "") : m));
 }
 
 /** Words that make a capture a clause or a defined term, not a firm. */
@@ -136,7 +169,7 @@ export function sponsorFromText(text: string, target: string, shell: string): st
       // The firms it names together: "Electronic Arts to be Acquired by PIF, Silver Lake and Affinity Partners".
       const start = m.index! + m[0].length - m[1].length;
       const joint = jointBuyers(flat.slice(start, start + 500));
-      return joint && !namesCompany(joint, target) ? joint : name;
+      return joint && isPlausibleName(joint) && !namesCompany(joint, target) ? joint : name;
     }
   }
   for (const re of MANAGEMENT) {

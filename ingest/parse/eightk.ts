@@ -293,6 +293,35 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
   return null;
 }
 
+const isoDate = (s: string | undefined): string | undefined => {
+  const ms = s ? Date.parse(`${s.replace(/\./g, "").replace(/\bSept\b/, "Sep")} UTC`) : NaN;
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString().slice(0, 10);
+};
+const RELEASE_DATE = String.raw`((?:January|February|March|April|May|June|July|August|September|October|November|December|Jan\.?|Feb\.?|Mar\.?|Apr\.?|Jun\.?|Jul\.?|Aug\.?|Sept?\.?|Oct\.?|Nov\.?|Dec\.?)\s+\d{1,2},\s*\d{4})`;
+const OWN_RELEASE = [
+  // "On March 13, 2023, the Company issued a press release announcing the Merger."
+  new RegExp(String.raw`\bOn\s+${RELEASE_DATE},?[^.]{0,120}?\b(?:issued|released|published)\b[^.]{0,60}?press release[^.]{0,200}`, "g"),
+  // "Joint Press Release, dated March 13, 2023, announcing the Merger", in the text or the exhibit list.
+  new RegExp(String.raw`\bpress release[^.]{0,60}?\b(?:dated|issued on|issued|released on|on)\s+${RELEASE_DATE}[^.]{0,120}`, "gi"),
+];
+/**
+ * The day the deal's release went out, when the 8-K says so: from the signing to ten days on, about the deal. Of 239
+ * signing 8-Ks whose release other documents date too, 225 agreed.
+ */
+export function statedRelease(text: string, signedOn: string): string | undefined {
+  const flat = flatten(text);
+  const days: string[] = [];
+  for (const re of OWN_RELEASE) {
+    for (const m of flat.matchAll(re)) {
+      const day = isoDate(m[1]);
+      if (!day || day < signedOn || Date.parse(day) - Date.parse(signedOn) > 10 * 86_400_000) continue;
+      if (/financial results|earnings|dividend|quarter ended|buy-?back|repurchase|divest|settlement/i.test(m[0])) continue;
+      if (/merger|acquisition|acquire|combination|transaction|agreement|arrangement|offer|deal/i.test(m[0])) days.push(day);
+    }
+  }
+  return days.sort()[0];
+}
+
 export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | null {
   const section = item101(text);
   if (!section) return null;
@@ -359,7 +388,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   ) {
     const after = section.slice(buyer.index, buyer.index + 400);
     const leads = [
-      /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by|(?:investor\s+)?consortium\s+(?:comprised|composed|consisting)\s+of)\s+(?:(?:investment )?funds? (?:managed|advised) by\s+)?/.exec(after),
+      /(?:affiliated with|an affiliate of|affiliates of|a (?:wholly owned )?subsidiary of|controlled by|formed by|owned by|(?:investor\s+)?consortium\s+(?:comprised|composed|consisting)\s+of)\s+(?:(?:investment )?(?:funds?|vehicles?) (?:managed(?: or advised)?|advised) by\s+)?/.exec(after),
       // (A consortium is named before its members' funds: "an investor consortium comprised of The Public Investment Fund
       // ("PIF"), private investment funds affiliated with Silver Lake …": Electronic Arts.)
       // ("Parent is owned by a consortium comprised of investment funds advised by Apax Partners, and …": Kinetic Concepts.)
@@ -371,7 +400,8 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
       if (!lead) continue;
       // What a holder signed isn't the buyer: "certain funds affiliated with RA Capital Management, L.P. (collectively, the
       // "Supporting Stockholders")" agreed to tender into Roche's offer for 89bio.
-      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
+      // Nor who lends the money: "funds managed by Blue Owl … have committed to provide debt financing" (Envestnet).
+      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?|Lenders?|Debt\s+(?:Financing|Commitment)|committed\s+to\s+provide\s+debt)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
       const rest = lead.input.slice(lead.index + lead[0].length);
       // Up to a parenthesis, else up to a comma; in the buyer's own description also the comma when the text up to the
       // parenthesis is no name: "Mr. Jianquan Li, the chairman of the Company's board of directors (the …".
@@ -388,7 +418,8 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
         // Joint buyers: "affiliates of funds managed by Blackstone Inc. ("Blackstone") and TPG Capital ("TPG")" (Hologic).
         // (The buyer's own description is cut at 400 characters; the list may run past it.)
         const list = i === 0 ? section.slice(buyer.index + lead.index + lead[0].length) : rest;
-        acquirerName = jointBuyers(list.slice(0, 500)) ?? cleanPartyName(sponsor[1]);
+        const joint = jointBuyers(list.slice(0, 500));
+        acquirerName = joint && isPlausibleName(joint) ? joint : cleanPartyName(sponsor[1]);
         break;
       }
     }
@@ -406,16 +437,15 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
   // The restated signing date: a later 8-K restating it (an extension, a vote) is an update (applyParsed in deals.ts).
   // Without a date there is no telling, so it stays an update.
   const previously = /\bAs previously (?:announced|reported|disclosed)\b/i.test(lead);
-  const signedText = signing && previously
-    ? /\bon\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})/.exec(lead)?.[1]
-    : undefined;
-  const signedMs = signedText ? Date.parse(`${signedText} UTC`) : NaN;
-  const signedOn = Number.isNaN(signedMs) ? undefined : new Date(signedMs).toISOString().slice(0, 10);
-  const kind = amendment || (previously && !signedOn) ? ("update" as const) : ("announcement" as const);
+  const signedText = signing && previously ? /\bon\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})/.exec(lead)?.[1] : undefined;
+  const kind = amendment || (previously && !isoDate(signedText)) ? ("update" as const) : ("announcement" as const);
   // The signing date it states: "On February 3, 2026, Webster Financial Corporation … entered into a Transaction
-  // Agreement" (filed February 6).
+  // Agreement" (filed February 6). An amendment's lead says it too, with no "As previously" (Emeren's, months on).
   const onDate = signing ? /\bOn\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})\s*,/.exec(lead)?.[1] : undefined;
-  const announcedOn = signedOn ?? (onDate && !Number.isNaN(Date.parse(`${onDate} UTC`)) ? new Date(Date.parse(`${onDate} UTC`)).toISOString().slice(0, 10) : undefined);
+  const signedOn = isoDate(signedText) ?? isoDate(onDate);
+  // The release, when the 8-K says when it went out: the announcement, which the signing usually comes a day or a weekend
+  // before.
+  const announcedOn = signedOn ? statedRelease(text, signedOn) : null;
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
   const value = extractValue(section);
   return {
@@ -430,6 +460,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     consideration,
     acquirerAdvisors: [],
     targetAdvisors: [],
+    item101: true,
     ...(signedOn ? { signedOn } : {}),
     ...(announcedOn ? { announcedOn } : {}),
     ...(signing && kind === "announcement" && endsEarlierAgreement(text) ? { endsEarlierAgreement: true } : {}),
