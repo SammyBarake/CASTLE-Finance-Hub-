@@ -164,7 +164,7 @@ export function cleanPartyName(raw: string): string {
   // A name never spans sentences: cut at ". Capital" unless the period ends an abbreviation (Inc., Co., J.P., H.I.G.,
   // Mr. Cooper, St. Joe).
   // (Lower-case initials too: "e.l.f. Beauty".)
-  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|[A-Z])|\.[a-z])\.\s+(?=[A-Z])/.exec(s);
+  const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|Pte|[A-Z])|\.[a-z])\.\s+(?=[A-Z])/.exec(s);
   if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
   // "Standard General L.P., a Delaware limited partnership" -> "Standard General L.P."
   s = s.replace(/,\s+an?\s+(?:[A-Z][\w.]*\s+){1,3}(?:limited\s+(?:liability\s+)?(?:company|partnership)|(?:public\s+)?(?:limited\s+)?company|corporation|partnership|statutory trust|exempted company)\b.*$/, "");
@@ -184,6 +184,7 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/\s+(?:Capital\s+)?Fund\s+[IVXL]+(?:,?\s+L\.?\s?P\.?)?$/, "");
   // An adverb before the verb: "Amryt Successfully Completes Acquisition of Chiasma".
   s = s.replace(/\s+(?:Successfully|Officially|Formally)$/, "");
+  s = s.replace(/(?:\s+An?)?\s+(?:Significantly|Substantially(?!\s+All)|Mutually|Jointly|Vertically|Strategically|Materially|Dramatically|Meaningfully|Considerably|Greatly|Further(?=\s+(?:[A-Z][a-z]+ing|Expands|Strengthens|Enhances|Extends|Accelerates|Advances|Broadens|Diversifies|Bolsters)\b))\b.*$/, "");
   // Two buyers take the plural verb: "SD Biosensor and SJL Partners Complete Transaction".
   s = s.replace(/\s+(?:Complete|Close|Finalize)\s+(?:the\s+)?(?:Transaction|Acquisition|Merger|Sale|Purchase)\b.*$/, "");
   // "BioLife Solutions Exhibit 99.2" -> "BioLife Solutions"
@@ -208,7 +209,7 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
   // A description glued in front of a one-word brand: "Antibody and Reagent Leader BioLegend" -> "BioLegend",
   // "Sports Betting Company Openbet" -> "Openbet", "Brazilian Collagen Producer Gelnex" -> "Gelnex".
-  const described = /^(?:[A-Z][\w-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor)\s+([A-Z][\w.-]{2,})$/.exec(s);
+  const described = /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]{2,})$/.exec(s);
   // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
   if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
   // …or a longer name: "U.K. Firefighter Turnout Gear Manufacturer Bristol Uniforms" -> "Bristol Uniforms", "Specialist
@@ -216,9 +217,9 @@ export function cleanPartyName(raw: string): string {
   // sits between the two; a name ending in it ("Hunter Fan Company") or going on with "of …" ("Browser Company of New
   // York") has nothing after it to take.
   const describedLong =
-    /^(?:[A-Z][\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor)\s+([A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
+    /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
   // (Not a bare acronym: "Carlisle Management Company SCA" ends in a legal form, "… Provider API" is ambiguous.)
-  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Holdings|Group|International|Of|And|The|Business|Segment)\b/i.test(describedLong[1])) s = describedLong[1];
+  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
   // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".
   const nameThenRole = /^(.{3,60}?\b(?:LLP|LLC|Inc\.?|Ltd\.?|Corp\.?))\s+(?:[A-Z][\w&-]*\s+){1,4}(?:Firm|Company|Provider|Platform|Business)$/.exec(s);
   if (nameThenRole) s = nameThenRole[1];
@@ -234,7 +235,7 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/[\s,;:\-–]+$/g, "").replace(/^["'\s]+|["'\s]+$/g, "");
   // Keep "Inc." / "Co." periods, drop a stray trailing sentence period otherwise.
   if (/\.$/.test(s) && !/\b(?:Inc|Corp|Co|Ltd|L\.P|N\.V|S\.A|[A-Z])\.$/.test(s)) s = s.slice(0, -1);
-  return s;
+  return s.trim();
 }
 
 // Shared with the site, which applies the same rules to records stored before they existed (and keeps a vehicle off the
@@ -261,6 +262,7 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
   // "During the five-year period following the Closing".
   !/^(?:Item|Exhibit)\s+\d/i.test(s) &&
+  !/\.html?\b|^EX-?\d/i.test(s) &&
   !/^(?:During|Pursuant to|Following the|Upon|Prior to|In connection with)\b|\bGeneral Corporation Law\b|\bfollowing the Closing\b|\bAs previously reported\b/i.test(s) &&
   // Deal paperwork and structure, not parties: "Definitive Agreement", "Entry into a Material Definitive Agreement",
   // "Company through a reverse triangular merger …", "Members of Company Management".

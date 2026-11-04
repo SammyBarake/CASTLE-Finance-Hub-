@@ -311,6 +311,8 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         }
         // A rival buyer signing with the same listed target within four months topped the earlier agreement
         // (Optum over Option Care for Amedisys, MITER over Masonite for PGT): that agreement was terminated.
+        // (Not a named part of the company, beside another buyer's deal for the rest: IAC and Gray each bought part of Meredith.)
+        if (earlier.partOfTarget || later.partOfTarget) continue;
         if (!sameBuyer && earlier.target.cik && gap > 0 && gap <= 120 && earlier.status !== "Terminated" && later.status !== "Terminated") {
           earlier.status = "Terminated";
           earlier.statusDate = later.announcedDate;

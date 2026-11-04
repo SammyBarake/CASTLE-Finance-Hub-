@@ -226,8 +226,10 @@ describe("names that aren't buyers", () => {
     if (p) expect(p.kind).toBe("update");
   });
 
-  it("a named part of a company (IAC's Dotdash / Meredith's National Media Group)", () => {
-    expect(parsePressRelease("IAC's Dotdash to Acquire Meredith Corporation's National Media Group\nNEW YORK, Oct. 7, 2021 - IAC announced that Dotdash will acquire the National Media Group of Meredith Corporation for $42.18 per share.", { filerName: "Meredith Corp", filerTickers: ["MDP"] })).toBeNull();
+  it("a named part of a company stays a deal, marked, so it tops nobody (IAC / Meredith, beside Gray)", () => {
+    const p = parsePressRelease("IAC's Dotdash to Acquire Meredith Corporation's National Media Group\nNEW YORK, Oct. 7, 2021 - IAC announced that Dotdash will acquire the National Media Group of Meredith Corporation for $42.18 per share.", { filerName: "Meredith Corp", filerTickers: ["MDP"] });
+    expect(p?.partOfTarget).toBe(true);
+    expect(p?.pricePerShare).toBe(42.18);
   });
 
   it("one-word merger subs are vehicles", () => {
@@ -269,5 +271,78 @@ describe("the 8-K that closes a private purchase", () => {
 
   it("anywhere when the document has no such headings", () => {
     expect(closingNames("Northwind completed its purchase of XTI.", named)).toBe(true);
+  });
+});
+
+describe("what the second review of the rehearsal found", () => {
+  it("not what a tax benefit is worth (Lowe's / FBM, Valco), nor another deal's carrying value (NJOY)", () => {
+    expect(extractValue("Graco will acquire Valco Melton for $447 million in cash, including the present value of approximately $40 million in expected tax benefits")?.usd).toBe(447_000_000);
+    expect(extractValue("The carrying value of $250 million relates to its earlier stake.")).toBeNull();
+    expect(extractValue("valued at a net present value (NPV) of approximately $805 million")?.usd).toBe(805_000_000);
+  });
+
+  it("one leg isn't the deal, and a total named beside it is (SpotX, Jet.com)", () => {
+    expect(extractValue("Magnite will pay total consideration of $560 million in cash and 14 million shares of Magnite stock, for a total of $1.17 billion.")?.usd).toBe(1_170_000_000);
+    expect(extractValue("Walmart will acquire Jet.com for $3 billion in cash, a portion of which will be paid over time, and $300 million of Walmart shares.")?.usd).toBe(3_300_000_000);
+    expect(extractValue("upfront consideration of $18 million in cash and $9 million in AIRJ common stock")?.usd).toBe(27_000_000);
+  });
+
+  it("not a rate's revolver, a first instalment, or a financing (GTT, eTouch, Iasta)", () => {
+    expect(extractValue("The term loan is priced at LIBOR + 525bps, as well as a five-year $50 million revolving line of credit.")).toBeNull();
+    expect(extractValue("The purchase price will be paid in three tranches with $80.0 million paid at closing.")).toBeNull();
+    expect(extractValue("As part of enabling the acquisition, a private placement transaction for approximately $7.5 million was announced.")).toBeNull();
+  });
+
+  it("keeps a stated total with its shares nearby (Masonite / PGT)", () => {
+    expect(extractValue("The transaction has a total transaction value of $3.0 billion, including debt.")?.usd).toBe(3_000_000_000);
+  });
+
+  it("per-share totals say what they are (Redfin's equity value, Meredith's enterprise value)", () => {
+    expect(extractValue("Each share is worth $12.50 per share, or $1.75 billion of equity value.")).toEqual({ usd: 1_750_000_000, kind: "equity" });
+    expect(extractValue("$14.50 per share in cash, or $2.7 billion in total enterprise value")).toEqual({ usd: 2_700_000_000, kind: "enterprise" });
+  });
+
+  it("a value per the target's share in the buyer's stock is the price (Gibraltar), and a stated per-share consideration (VMware)", () => {
+    expect(extractPrice("Each Gibraltar share converts into IBKC shares valued at approximately $158.29 per Gibraltar common share.")).toBe(158.29);
+    expect(extractPrice("The total $138.23 per-share consideration represents a 44% premium.")).toBe(138.23);
+  });
+
+  it("not a listing rule's bid price, nor what a PIPE or a collar pays (Signal Genetics, Viridian, Boeing / Spirit)", () => {
+    expect(extractPrice("The company must maintain a minimum bid price of $1.00 per share.")).toBeNull();
+    expect(extractPrice("Investors in the PIPE will buy preferred stock at a price of $465.96 per share.")).toBeNull();
+    expect(extractPrice("subject to a floor of $149.00 per share and a ceiling of $206.94 per share")).toBeNull();
+  });
+
+  it("cash stated as the price, but only its own sentence can confirm it (Caviar, Nexstar)", () => {
+    expect(extractConsideration("DoorDash will acquire Caviar for $410 million in cash and DoorDash preferred stock.")).toBe("Mixed");
+    expect(extractConsideration("Nexstar agreed to sell five stations for $115 million in cash.")).toBeNull();
+    expect(extractConsideration("TransDigm has agreed to acquire Stellant for $960 million in cash, plus a potential earn-out.")).toBe("Cash");
+  });
+
+  it("an 8-K's price is not a cash leg it can't place (Reader's after-leg), and its side matters don't take the real value (Colfax / Victor)", () => {
+    const item = (rest: string) =>
+      parseMergerItem(`Item 1.01 Entry into a Material Definitive Agreement. On May 1, 2026, Northwind Corp (the "Company") entered into an Agreement and Plan of Merger with Bluejay Parent, Inc. ("Parent") and Bluejay Merger Sub, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. ${rest}`, ctx);
+    expect(item("The transaction has an enterprise value of approximately $947.3 million, and holders of the preferred stock will be paid separately.")?.valueUsd).toBe(947_300_000);
+  });
+
+  it("KKR buying the shell that will hold one business is no takeover of Macquarie", () => {
+    expect(
+      parseMergerItem(
+        'Item 1.01 Entry into a Material Definitive Agreement. On June 7, 2021, Macquarie Infrastructure Corp (the "Company") entered into an Agreement with Bluejay LLC ("Buyer"), an affiliate of KKR. Buyer will acquire all outstanding shares of common stock of the Company which, following the proposed reorganization, will hold the Company\u0027s Atlantic Aviation business.',
+        { filerName: "Macquarie Infrastructure Corp", filerTickers: [] },
+      ),
+    ).toBeNull();
+  });
+
+  it("the proxy: a premium 'of' a closing price (eMagin), but not over a VWAP or on a bid with its rights (Two Harbors, 89bio)", () => {
+    const top = (s: string) => premiumCandidates(s).sort((a, b) => b.score - a.score)[0]?.pct;
+    expect(top("The merger consideration represents a premium of approximately 10% of the closing share price on the last trading day before the announcement.")).toBe(10);
+    expect(top("The merger consideration represents a premium of approximately 21% to the 30-day volume-weighted average price of the shares.")).toBeUndefined();
+  });
+
+  it("a closing 8-K's mention of Item 2.01 before its heading, and an Introduction naming the merger (Dril-Quip)", () => {
+    const named = /\bInnovex\b/;
+    expect(closingNames("Introduction. On September 6, the merger with Innovex was completed. Item 2.01 Completion of Acquisition. See above. Item 9.01 Exhibits.", named)).toBe(true);
+    expect(closingNames("Item 1.01. See Item 2.01 below. The merger with Innovex is a condition. Item 2.01 Completion of Acquisition. The Company completed the separation of Grafiti. Item 9.01 Exhibits.", named)).toBe(false);
   });
 });

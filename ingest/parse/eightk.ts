@@ -77,6 +77,8 @@ export function item101(text: string): string | null {
   // Cambridge, signed the same day) that the other party's filings report.
   const first = /\bentered\s+into\s+(?:an?|the)\s+(?:[\w-]+\s+){0,4}?(agreement and plan of (?:merger|reorganization)|merger agreement|transaction agreement|arrangement agreement|asset purchase agreement|purchase and sale agreement)\b/i.exec(section.slice(0, 2500));
   if (first && /asset purchase|purchase and sale/i.test(first[1])) return null;
+  // One business dropped into the shell first: "will acquire all outstanding shares of common stock of the Company which, following the proposed reorganization, will hold the Company's Atlantic Aviation business" (KKR / Macquarie Infrastructure).
+  if (/\bwill\s+acquire\b[^.]{0,120}\bwhich\b[^.]{0,80}\bwill\s+hold\b[^.]{0,80}\bbusiness\b/i.test(section.slice(0, 1200))) return null;
   return section;
 }
 
@@ -123,6 +125,7 @@ export function definedEntities(s: string): Entity[] {
     // "by and among Perry Ellis, Feldenkreis Holdings LLC": an earlier party's defined term in front of this one's name.
     for (const prev of out) for (const term of [prev.nick, prev.alias]) if (term && name.startsWith(`${term}, `)) name = name.slice(term.length + 2);
     if (!isPlausibleName(name) || name.length > 70 || CLAUSE.test(name)) continue;
+    if (/^(?:the\s+)?(?:New York Stock Exchange|NYSE(?: American| MKT| Arca)?|Nasdaq(?: Stock Market| Global(?: Select)? Market| Capital Market)?(?: LLC)?|Toronto Stock Exchange|TSX(?: Venture Exchange)?|Securities and Exchange Commission)$/i.test(name)) continue;
     if (/^(?:the )?(?:Company|Partnership|Registrant|Trust|Parent|Merger Sub|Purchaser|Board|Effective Time|Offer|Merger|Share|Delaware)$/i.test(name)) continue;
     // "RTB's certificate of incorporation", "the Company's common stock": a possessive then lowercase words is a
     // document or security, never a company.
@@ -172,13 +175,17 @@ export function extractMergerPrice(s: string): number | null {
       // …in either order: "the right to receive $26.45 in cash, without interest, from JHX … (the "Cash Consideration"),
       // and 1.0340 shares" (James Hardie / AZEK), "(i) one share of Parent Class A Common Stock … and (ii) $96.00 in cash".
       const amountEnd = s.indexOf(m[1], dollar) + m[1].length;
-      if (isCashLeg(s.slice(Math.max(0, dollar - 320), dollar), s.slice(amountEnd, amountEnd + 320))) continue;
+      if (isCashLeg(s.slice(Math.max(0, dollar - 320), dollar), s.slice(amountEnd, amountEnd + 320))) {
+        found.push({ v: -1, at: m.index! });
+        continue;
+      }
       const v = Number(m[1]);
       if (v >= 0.05 && v < 10_000) found.push({ v, at: m.index! });
     }
   }
   // The first price stated is the headline price; later ones describe options, RSUs or CVR instalments.
-  return found.sort((a, b) => a.at - b.at)[0]?.v ?? null;
+  const firstPrice = found.sort((a, b) => a.at - b.at)[0];
+  return firstPrice && firstPrice.v >= 0 ? firstPrice.v : null;
 }
 
 /**
@@ -283,7 +290,7 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
     const t = ref(raw);
     if (!isSelf(t) && !entities.some((e) => e.nick === t || e.alias === t)) continue;
     const subject = subjectBefore(m.index!);
-    const hint = subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && !isSelf(subject.nick) ? subject.nick : undefined;
+    const hint = subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && (!isSelf(subject.nick) || !isSelf(t)) ? subject.nick : undefined;
     return { target: t, ...(hint ? { acquirerHint: hint } : {}) };
   }
   if (/tender offer|exchange offer/i.test(section)) {
@@ -331,14 +338,26 @@ export function statedRelease(text: string, signedOn: string): string | undefine
  * Purchase Agreement, Rallybio's concurrent financing, Hecla's silver stream, Turnstone's asset sale. A wrong value also
  * stops the search for the real one in the release. (Not an implied value "before giving effect to" a placement: Ambros.)
  */
-const SIDE_MATTER = /\bconcurrent\s+(?:financing|investment|private\s+placement)\b|\bprivate\s+placement\b|\bdebt\s+(?:financing|commitment)\b|\bstream(?:ing)?\b|\bpreferred\s+(?:stock|shares?)\b|\bpurchase\s+and\s+sale\s+agreement\b|\bland\s+purchase\b|\basset\s+sale\b|\bsubscri(?:bed\s+to\s+purchase|ption\s+agreement)\b/i;
+const SIDE_MATTER = /\bwill\s+hold\b[^.]{0,80}\bbusiness\b|\bconcurrent\s+(?:financing|investment|private\s+placement)\b|\bprivate\s+placements?\b|\bdebt\s+(?:financing|commitment)\b|\bbackstop\s+(?:agreement|shares)\b|\btransferred\s+assets\b|\basset\s+purchase\s+agreement\b|\b(?:additional|exchangeable|convertible)\s+(?:[A-Z]\w+\s+){0,2}notes\b|\bstream(?:ing)?\b|\bpreferred\s+(?:stock|shares?)\b|\bpurchase\s+and\s+sale\s+agreement\b|\bland\s+purchase\b|\bletter\s+of\s+intent\b|\basset\s+sale\b|\bsubscri(?:bed\s+to\s+purchase|ption\s+agreement)\b/i;
 const withoutSideMatters = (section: string) =>
   section
     .split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/)
-    .filter((s) => !(SIDE_MATTER.test(s) || /\bPIPE\b/.test(s)) || /\bbefore\s+giving\s+effect\b/i.test(s))
+    .map((s) => {
+      const at = s.search(SIDE_MATTER);
+      const pipe = s.search(/\bPIPE\b/);
+      const first = [at, pipe].filter((n) => n >= 0).sort((a, b) => a - b)[0];
+      if (first == null) return s;
+      if (/\bbefore\s+giving\s+effect\b/i.test(s) || /\b(?:enterprise|equity)\s+value\s+of\s+(?:(?:[A-Z][\w&.'’-]*\s+){1,4}of\s+)?(?:approximately\s+)?\$\s?\d/i.test(s)) return s;
+      const head = s.slice(0, first);
+      if (/\bcommon\s+(?:stock|shares?)\b[^;]{0,200}?\b(?:right to receive|aggregate\s+consideration)\b/i.test(head) && /\$\s?\d[\d.,]*\s*(?:million|billion)|\$\s?\d{1,3}(?:,\d{3}){2,}/.test(head)) return head;
+      return "";
+    })
+    .filter(Boolean)
     .join(". ");
 
-export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | null {
+export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress | null {
+  // "JTI (US) Holding Inc." is one name, not "Holding Inc." cut at a parenthesis.
+  const text = rawText.replace(/\b([A-Z]{2,})\s\((US|USA|U\.S\.)\)\s/g, "$1 $2 ");
   const section = item101(text);
   if (!section) return null;
   const opening = section.slice(0, 3000);
@@ -417,7 +436,8 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
       // What a holder signed isn't the buyer: "certain funds affiliated with RA Capital Management, L.P. (collectively, the
       // "Supporting Stockholders")" agreed to tender into Roche's offer for 89bio.
       // Nor who lends the money: "funds managed by Blue Owl … have committed to provide debt financing" (Envestnet).
-      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?|Lenders?|Debt\s+(?:Financing|Commitment)|committed\s+to\s+provide\s+debt)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
+      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
+      if (i === 1 && !/\bequity\b[^.;]{0,80}$/i.test(section.slice(Math.max(0, lead.index - 100), lead.index)) && /\b(?:Lenders?|Debt\s+(?:Financing|Commitment)|committed\s+to\s+provide\s+debt)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
       const rest = lead.input.slice(lead.index + lead[0].length);
       // Up to a parenthesis, else up to a comma; in the buyer's own description also the comma when the text up to the
       // parenthesis is no name: "Mr. Jianquan Li, the chairman of the Company's board of directors (the …".
@@ -427,7 +447,8 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
         if (!s) return false;
         // "the acquisition of the Company by Parent in an all cash transaction" names a defined term too.
         // ("Oracle Corporation" defined as "Oracle" is fine: it starts with its own name.)
-        const startsWithTerm = entities.some((e) => s[1].startsWith(`${e.nick} `) && !s[1].startsWith(e.name)) || /^(?:Parent|Purchaser|Buyer|Merger Sub)\b/.test(s[1]);
+        const startsWithTerm = entities.some((e) => s[1].startsWith(`${e.nick} `) && !s[1].startsWith(e.name)) || /^(?:Parent|Purchaser|Buyer|Merger Sub|Sponsors?)\b/.test(s[1]);
+        if (/^,\s+the\s+[^,.]{0,60}\bthat\s+(?:indirectly\s+|directly\s+)?controls\b/.test(rest.slice(s[1].length))) return false;
         return !CLAUSE.test(s[1]) && !isTerm(s[1]) && !startsWithTerm && isPlausibleName(cleanPartyName(s[1]));
       });
       if (sponsor) {
@@ -477,6 +498,7 @@ export function parseMergerItem(text: string, ctx: PressContext): ParsedPress | 
     acquirerAdvisors: [],
     targetAdvisors: [],
     item101: true,
+    ...(amendment ? { amended: true } : {}),
     ...(signedOn ? { signedOn } : {}),
     ...(announcedOn ? { announcedOn } : {}),
     ...(signing && kind === "announcement" && endsEarlierAgreement(text) ? { endsEarlierAgreement: true } : {}),

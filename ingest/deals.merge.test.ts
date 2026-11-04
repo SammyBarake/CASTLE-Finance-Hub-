@@ -218,6 +218,74 @@ describe("which document's terms stand", () => {
   });
 });
 
+describe("a bare 8-K read before its own release", () => {
+  const item = (buyer: string, over: Partial<ParsedPress> = {}) => parsed("announcement", buyer, { item101: true, signedOn: "2026-03-02", ...over });
+  const release = (buyer: string, over: Partial<ParsedPress> = {}) => parsed("announcement", buyer, { announcedOn: "2026-03-03", ...over });
+
+  it("gives way to the release's real buyer, value and consideration, but not its price (R1 RCM, AES)", () => {
+    const state = emptyState();
+    applyParsed(state, item("Raven Acquisition Holdings", { pricePerShare: 15, valueUsd: 10_700_000_000, valueKind: "equity", consideration: "Stock" }), hit("2026-03-03", "0001-26-1"), target, unlisted, false);
+    applyParsed(state, release("TowerBrook and CD&R", { pricePerShare: 14, valueUsd: 33_400_000_000, valueKind: "enterprise", consideration: "Cash" }), hit("2026-03-03", "0001-26-2"), target, unlisted, false);
+    expect(state.deals).toHaveLength(1);
+    expect(state.deals[0]).toMatchObject({ acquirer: { name: "TowerBrook and CD&R" }, valueUsd: 33_400_000_000, valueKind: "enterprise", consideration: "Cash", pricePerShare: 15 });
+  });
+
+  it("keeps its buyer against a release calling it a description (Heidrick / Advent's Investor Consortium)", () => {
+    const state = emptyState();
+    applyParsed(state, item("Advent International"), hit("2026-03-03", "0001-26-1"), target, unlisted, false);
+    applyParsed(state, release("Investor Consortium"), hit("2026-03-03", "0001-26-2"), target, unlisted, false);
+    expect(state.deals[0].acquirer.name).toBe("Advent International");
+  });
+});
+
+describe("a raised offer", () => {
+  const signed = () => {
+    const state = emptyState();
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { pricePerShare: 20.26, premiumPct: 30, valueUsd: 3_500_000_000, valueKind: "transaction" }), hit("2020-12-14", "0001-20-1"), target, unlisted, false);
+    return state;
+  };
+
+  it("replaces the first price, with the value it states (Pluralsight $20.26 to $22.50)", () => {
+    const state = signed();
+    applyParsed(state, parsed("update", "Atlas Holdings LLC", { amended: true, pricePerShare: 22.5, premiumPct: 44, valueUsd: 4_000_000_000, valueKind: "transaction" }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    expect(state.deals[0]).toMatchObject({ pricePerShare: 22.5, premiumPct: 44, valueUsd: 4_000_000_000 });
+  });
+
+  it("never keeps the first price's value beside it", () => {
+    const state = signed();
+    applyParsed(state, parsed("update", "Atlas Holdings LLC", { amended: true, pricePerShare: 22.5 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    expect(state.deals[0]).toMatchObject({ pricePerShare: 22.5, valueUsd: null, premiumPct: null });
+  });
+
+  it("needs its own words: another document's higher price doesn't replace it", () => {
+    const state = signed();
+    applyParsed(state, parsed("update", "Atlas Holdings LLC", { pricePerShare: 22.5 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    expect(state.deals[0].pricePerShare).toBe(20.26);
+  });
+
+  it("not a lower price, nor one far above the first", () => {
+    const lower = signed();
+    applyParsed(lower, parsed("update", "Atlas Holdings LLC", { amended: true, pricePerShare: 18 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    expect(lower.deals[0].pricePerShare).toBe(20.26);
+    const far = signed();
+    applyParsed(far, parsed("update", "Atlas Holdings LLC", { amended: true, pricePerShare: 40 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    expect(far.deals[0].pricePerShare).toBe(20.26);
+  });
+});
+
+describe("a named part of the company beside another buyer's deal (Meredith)", () => {
+  it("neither tops the other", () => {
+    const state = emptyState();
+    applyParsed(state, parsed("announcement", "Gray Television, Inc.", { pricePerShare: 14.51 }), hit("2021-05-03", "0001-21-1"), target, unlisted, false);
+    applyParsed(state, parsed("announcement", "IAC", { pricePerShare: 42.18, partOfTarget: true }), hit("2021-07-20", "0001-21-2"), target, unlisted, false);
+    tidyDeals(state.deals);
+    expect(state.deals.map((d) => [d.acquirer.name, d.status])).toEqual([
+      ["Gray Television, Inc.", "Announced"],
+      ["IAC", "Announced"],
+    ]);
+  });
+});
+
 describe("a later filing naming only a shell", () => {
   it("still belongs to the live deal it implements, when nothing says that deal ended", () => {
     const state = withAtlas();

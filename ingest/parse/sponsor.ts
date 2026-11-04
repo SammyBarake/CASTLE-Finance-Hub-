@@ -125,13 +125,13 @@ export function jointBuyers(list: string): string | null {
  * Thoma Bravo Executive Fund XVI …" made a 370-character name, which lost the whole of Dayforce. They collapse to what
  * they share, "Thoma Bravo". Not on a first word every other firm uses.
  */
-const COMMON_FIRST_WORD = /^(?:First|National|American|General|Global|New|Capital|United|International|The)$/;
+const COMMON_FIRST_WORD = /^(?:First|National|American|General|Global|New|Capital|United|International|The|Silver|Golden|Stone|Lone|Blue|Sun|Bank|Red|Black|Green|White|North|South|East|West|Pacific|Atlantic)$/;
 function oneFundFamily(members: string[]): string[] {
   const out: string[] = [];
   const collapsed = new Set<number>();
   for (const m of members) {
     const words = m.split(" ");
-    const i = COMMON_FIRST_WORD.test(words[0]) ? -1 : out.findIndex((o) => o.split(" ")[0] === words[0]);
+    const i = out.findIndex((o) => o.split(" ")[0] === words[0]);
     if (i < 0) {
       out.push(m);
       continue;
@@ -139,6 +139,11 @@ function oneFundFamily(members: string[]): string[] {
     const seen = out[i].split(" ");
     let k = 0;
     while (k < seen.length && k < words.length && seen[k] === words[k]) k++;
+    // (Two firms sharing an ordinary word: Golden Gate and GoldenTree-style pairs, Silver Lake's own funds share two words.)
+    if (k === 1 && COMMON_FIRST_WORD.test(words[0])) {
+      out.push(m);
+      continue;
+    }
     out[i] = seen.slice(0, k).join(" ");
     collapsed.add(i);
   }

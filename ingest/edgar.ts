@@ -144,6 +144,8 @@ export interface FtsHit {
    * bought in 2019 has no ticker in today's submissions, but it was listed then.
    */
   listedCiks?: string[];
+  /** The main loop asked whether the filer was listed then, so a ticker in today's submissions proves nothing (LogicMark, OTC at signing). */
+  listedChecked?: boolean;
 }
 
 interface FtsResponse {
@@ -274,7 +276,9 @@ export async function lookupCompanies(name: string): Promise<{ cik: string; name
   const res = await getJson<{ hits?: { hits?: { _id: string; _source?: { entity?: string } }[] } }>(
     `https://efts.sec.gov/LATEST/search-index?keysTyped=${encodeURIComponent(name)}`,
   );
-  return (res.hits?.hits ?? [])
+  // (A response with no hits at all is a bad one, not "no match": the caller's check stays open for the next run.)
+  if (!res.hits) throw new Error("EDGAR company search returned no hits object");
+  return (res.hits.hits ?? [])
     .filter((h) => h._source?.entity)
     .map((h) => ({ cik: trimCik(h._id), name: h._source!.entity!.replace(/\s*\([^)]*\)\s*$/, "") }));
 }

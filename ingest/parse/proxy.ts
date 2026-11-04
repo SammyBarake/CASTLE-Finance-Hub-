@@ -23,7 +23,7 @@ export interface ParsedProxy {
 const PCT = String.raw`(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent\b)(?!\s*(?:to|-|–)\s*\d)`;
 const CTX = String.raw`((?:[^.;•◾■]|\.(?=\d)){0,240})`;
 // "to", "over", "above", "based on", "(as) compared to", "relative to", "in excess of".
-const VERSUS = String.raw`(?:to|over|above|based on|(?:as\s+)?compared (?:to|with)|relative to|in excess of)`;
+const VERSUS = String.raw`(?:to|over|above|based on|(?:as\s+)?compared (?:to|with)|relative to|in excess of|of(?=\s[^.;]{0,60}\bclos))`;
 const PREMIUM_RES = [
   // "a premium of approximately 32% over the closing price", "a premium of (i) approximately 68% to …", "a premium of
   // approximately: • 125% over the closing stock price", "at a premium above X's stock price: • approximately 78% above …",
@@ -46,6 +46,12 @@ const BACKGROUND =
   /\bpropos(?:ed|al)\b(?!\s+(?:(?:cash|stock|per[- ]share|merger|offer)\s+)?(?:merger|transaction|consideration|acquisition|price))|\binitial\b|\bindication\b|\b(?:submitted|countered|revised|stated|reiterated)\b|\bcounter-?(?:offer|proposal)\b|\bon that date\b|\bwould\b|\bindicative\b|\bprepared to\b|\b(?:increase|raise)[sd]? (?:its|the|their) (?:offer|bid|price)\b/i;
 const MONTH = "January|February|March|April|May|June|July|August|September|October|November|December";
 
+/** What a contingent right in front of a premium must sit in: this list item, and the words that introduce its list ("… NPV represented: • a premium of 14% …; • a premium of 23% …"), never an earlier item of the board's reasons. */
+function contingentScope(before: string): string {
+  const head = /([^.;]*):\s*(?:[•·▪○◌■◾]|\((?:i|a|1)\))(?:(?!:\s*(?:[•·▪○◌■◾]|\((?:i|a|1)\)))[\s\S])*$/.exec(before)?.[1] ?? "";
+  return head + " " + (before.split(/[•·▪○◌■◾]/).pop() ?? before);
+}
+
 /** Every premium over a closing price the filing states, with how strongly it reads as the deal's own (for debugging). */
 export function premiumCandidates(t: string): { pct: number; score: number; index: number; text: string }[] {
   const found: { pct: number; score: number; index: number; text: string }[] = [];
@@ -58,7 +64,9 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     const near = (sentenceStart.split(/[•·▪○◌■◾]/).pop() ?? sentenceStart).slice(-250);
     if (LATER_ITEM.test(m[0]) && !/\bpremium\b/i.test(sentenceStart)) continue;
     // A value that counts a contingent right: "the Scheme Consideration NPV represented: • a premium of 23%", "(a) in the event that the Milestone Payment is made, the Transaction represents: (i) …".
-    if (/\bNPV\b|\bnet present value\b|\b(?:in the event that|assuming)\b[^.;]{0,60}\b(?:milestone|CVRs?|contingent)\b[^.;]{0,40}\b(?:is|are)\s+(?:made|paid|achieved)\b/i.test(before.slice(-600))) continue;
+    if (/\bNPV\b|\bnet present value\b|\b(?:in the event that|assuming)\b[^.;]{0,60}\b(?:milestone|CVRs?|contingent)\b[^.;]{0,40}\b(?:is|are)\s+(?:made|paid|achieved)\b/i.test(contingentScope(before.slice(-600)))) continue;
+    // P2. A bid's total with its contingent rights, or a dated offer anywhere in the sentence ("Parent's July 10th Offer implied … and the aggregate consideration of up to $5.50 … (inclusive of … CVR payments)").
+    if (/\bconsideration\s+of\s+up\s+to\s+\$\s?\d|\binclusive\s+of\b[^.;]{0,60}\b(?:CVRs?|contingent|milestone)/i.test(near) || /\b\d{1,2}(?:st|nd|rd|th)\s+(?:offer|proposal|bid)\b/i.test(sentenceStart)) continue;
     // This premium's own clause: up to the next bullet (the regex), the next "premium", or the next figure ("…, and
     // approximately 85% over the 30-day average": that VWAP isn't this premium's).
     const ctx = m[2].split(/\bpremium\b|\(ii\)|,?\s+and\s+(?:a\s+|an\s+)?(?:approximately\s+|about\s+)?\d/i)[0];
@@ -103,6 +111,7 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
   for (const m of t.matchAll(/\b(?:based\s+(?:up)?on)\s+(?:the\s+)?(?:unaffected\s+|last\s+(?:reported\s+)?)?closing\s+(?:\w+\s+)?price\b((?:[^.;]|\.(?=\d)){0,240}?)\bconsideration\b(?:[^.;]|\.(?=\d)){0,60}?\bpremium\s+of\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent\b)/gi)) {
     const pct = Number(m[2]);
     if (/\bup\s+to\b|\bproposal\b|\boffer\b/i.test(m[0].slice(0, -12)) || !(pct > 0 && pct < 300)) continue;
+    if (/^\s*(?:over|to|above|relative to|compared (?:to|with))\b[^.;]{0,80}\b(?:volume[- ]weighted|VWAP|average|high)\b/i.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 120))) continue;
     found.push({ pct, score: /unaffected|undisturbed/i.test(m[0]) ? 2 : 1, index: m.index!, text: m[0].slice(-320) });
   }
   return found.sort((a, b) => b.score - a.score || a.index - b.index);
@@ -137,6 +146,7 @@ export function parseMergerProxy(text: string, targetName: string, acquirer?: { 
 
 /** The heading's party is this company: its name, a short form or acronym ("AGM", "AHL"), or its ticker ("MSGE"). */
 function isParty(party: string, company: { name: string; ticker?: string | null }): boolean {
+  const squash = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
   return sameCompany(party, company.name) || namesCompany(party, company.name) || (!!company.ticker && party.toUpperCase() === company.ticker.toUpperCase());
 }
 
@@ -153,6 +163,7 @@ export function sideAdvisors(t: string, target: { name: string; ticker?: string 
     const party = (m[1] ?? m[2]).replace(/\s+(?:Special|Conflicts|Transaction|Independent|Strategic)\s+(?:Review\s+)?Committee$|\s+Board(?: of Directors)?$/i, "").trim();
     const side = isParty(party, acquirer) && !isParty(party, target) ? acq : isParty(party, target) && !isParty(party, acquirer) ? tgt : null;
     if (!side) continue;
+    if (/^\s*\d{1,3}\s+[A-Z]/.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 40))) continue;
     const bank = findBanks(t.slice(m.index! + m[0].length, m.index! + m[0].length + 1500))[0];
     if (bank) side.push(bank);
   }
