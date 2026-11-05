@@ -169,6 +169,9 @@ describe("names and fragments", () => {
   it("the Arrangement and \"as of the Closing\" are no parties", () => {
     expect(isPlausibleName("Arrangement")).toBe(false);
     expect(isPlausibleName("Company as of the Closing")).toBe(false);
+    // Buyers on the live site: Adamis's "Proposal", SharpLink's "Reorganization"; StoneMor's "Company and".
+    for (const s of ["Proposal", "Reorganization", "Company and"]) expect(isPlausibleName(s)).toBe(false);
+    expect(isPlausibleName("Proposal Software Inc.")).toBe(true);
   });
   it("names that only contain the word are", () => {
     expect(isPlausibleName("Arrangement Partners LLC")).toBe(true);
@@ -214,6 +217,23 @@ describe("vehicles", () => {
   });
 });
 
+describe("a list of defined terms", () => {
+  it("TMRC: the target is the full name the list defines", () => {
+    const p = item(`On March 4, 2026, Texas Mineral Resources Corp. ("TMRC", the "Company", "we", "us" or "our") entered into an Agreement and Plan of Merger (the "Merger Agreement") with USA Rare Earth, Inc. ("USAR"), Hamer Merger Sub, Inc., a wholly owned subsidiary of USAR ("Merger Sub 1"). Pursuant to the Merger Agreement, Merger Sub 1 will merge with and into TMRC, with TMRC surviving as a wholly owned subsidiary of USAR.`, "TEXAS MINERAL RESOURCES CORP.");
+    expect(p?.target.name).toBe("Texas Mineral Resources Corp.");
+    expect(p?.acquirer.name).toBe("USA Rare Earth, Inc.");
+  });
+  it("Tempus: a warrant's \"tender or exchange offer\" boilerplate is no offer for the filer", () => {
+    expect(
+      item(`Securities Purchase Agreement On August 14, 2015, Tempus Applied Solutions Holdings, Inc. (the "Company", "Tempus Holdings", "we" or "us") entered into a Securities Purchase Agreement with Chart Acquisition Group LLC ("CAG"), under which the Investors acquired from the Company, for an aggregate purchase price of $1 million, 250,000 shares and warrants. The warrants adjust upon a merger, a purchase, tender or exchange offer, or a scheme of arrangement.`, "Tempus Applied Solutions Holdings, Inc."),
+    ).toBeNull();
+  });
+  it("an offer the 8-K makes still reads", () => {
+    const p = item(`On May 1, 2024, Acme Therapeutics, Inc. (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Big Pharma Inc. ("Parent") and Bolt Sub, Inc. ("Merger Sub"). Merger Sub will commence a cash tender offer (the "Offer") for all of the outstanding shares of the Company's common stock at $12.00 per share.`, "Acme Therapeutics, Inc.");
+    expect(p?.target.name).toBe("Acme Therapeutics, Inc.");
+  });
+});
+
 describe("who is behind the Parent", () => {
   const t = "Target Co";
   it("South Jersey: the fund, without its description", () => {
@@ -237,6 +257,16 @@ describe("who is behind the Parent", () => {
   });
   it("a numbered fund is its firm", () => {
     expect(buyerBehindParent(`Parent and Merger Sub are affiliates of Carlyle Partners V, L.P. ("Carlyle"). The Merger`, t)).toBe("Carlyle Partners");
+  });
+  it("NGM: a firm named \"The … Group\" keeps its whole name", () => {
+    expect(buyerBehindParent(`Parent and Merger Sub are affiliates of The Column Group, LP (together with certain of its affiliates, "TCG"), which is the Company's largest stockholder`, "NGM Biopharmaceuticals, Inc.")).toBe("The Column Group");
+    // A sponsor known by its one word stays that word.
+    expect(buyerBehindParent(`Parent and Merger Sub are affiliates of The Blackstone Group Inc. ("Blackstone"). The Merger`, "Target Co")).toBe("Blackstone");
+  });
+  it("StoneMor: the going-private sense of affiliate is no owner, and a later sentence still counts", () => {
+    const boiler = `Under the SEC rules governing "going-private" transactions, the holders of Axar Shares and Parent and Merger Sub are affiliates of the Company and, therefore, are required to express their purposes and reasons for the merger.`;
+    expect(buyerBehindParent(boiler, "StoneMor Inc.")).toBeNull();
+    expect(buyerBehindParent(`${boiler} Parent and Merger Sub are affiliates of Charlesbank Capital Partners LLC ("Charlesbank").`, "StoneMor Inc.")).toBe("Charlesbank Capital Partners");
   });
   it("Nordstrom: the family and the company, from the proxy and from the 8-K", () => {
     const proxy = `Parent and Acquisition Sub are affiliated with certain members of the Nordstrom family and related trusts and family -controlled investment vehicles (the " Family Group ") and El Puerto de Liverpool S.A.B. de C.V., a Mexican publicly traded corporation`;
@@ -342,5 +372,16 @@ describe("from the last review", () => {
   it("a carve-out with a footnote digit or a long unit name (UL Solutions / Eurofins, VIAVI / Spirent)", () => {
     expect(parsePressRelease("UL Solutions to Acquire Eurofins Scientific's Electrical & Electronics Business 1\nNORTHBROOK, Ill., Jan. 5, 2026 - UL Solutions Inc. (NYSE: ULS) today announced a definitive agreement to acquire the Electrical & Electronics business of Eurofins Scientific SE for $670 million.", { filerName: "UL Solutions Inc.", filerTickers: ["ULS"] })).toBeNull();
     expect(parsePressRelease("VIAVI to Acquire Spirent Communications plc's High-Speed Ethernet and Network Security Testing Business\nCHANDLER, Ariz., March 28, 2024 - VIAVI Solutions Inc. (NASDAQ: VIAV) today announced an agreement to acquire the business for $410 million.", { filerName: "VIAVI Solutions Inc.", filerTickers: ["VIAV"] })).toBeNull();
+    // The buyer's segment after a whole-company target is no carve-out (the review's cases), nor is a REIT's unit.
+    expect(parsePressRelease("Stryker To Acquire Wright Medical; Wright Medical To Join Stryker's Trauma And Extremities Business\nKALAMAZOO, Mich., Nov. 4, 2019 - Stryker Corporation (NYSE: SYK) and Wright Medical Group N.V. (NASDAQ: WMGI) today announced a definitive agreement under which Stryker will acquire all of the issued and outstanding ordinary shares of Wright Medical for $30.75 per share in cash, for a total equity value of approximately $4.0 billion.", { filerName: "Stryker Corporation", filerTickers: ["SYK"] })?.target.name).toMatch(/^Wright Medical/);
+    for (const h of ["Hubbell To Acquire Target To Expand Hubbell's Utility Solutions Segment", "Hubbell to Acquire Target; Target Will Join Hubbell's Water Solutions Segment", "Hubbell Agrees To Acquire Target To Strengthen Hubbell's Electrical Solutions Business"])
+      expect(parsePressRelease(`${h}\nSHELTON, Conn., May 1, 2024 - Hubbell Incorporated (NYSE: HUBB) and Target Holdings, Inc. (NASDAQ: TGTH) today announced a definitive merger agreement under which Hubbell will acquire Target for $12.00 per share in cash, or approximately $600 million.`, { filerName: "Hubbell Incorporated", filerTickers: ["HUBB"] })?.target.name, h).toMatch(/^Target/);
+    // A unit sold by a listed company, named by the headline's short form.
+    expect(parsePressRelease("Intercontinental Exchange and Black Knight Announce Agreement to Sell Black Knight's Optimal Blue Business to Constellation\nATLANTA, March 7, 2023 - Intercontinental Exchange, Inc. (NYSE: ICE) and Black Knight, Inc. (NYSE: BKI) today announced a definitive agreement to sell Black Knight's Optimal Blue business to Constellation Software Inc. for $700 million.", { filerName: "Black Knight, Inc.", filerTickers: ["BKI"] })).toBeNull();
+    expect(isCarveOut("Apple REIT Six Signs a Definitive Merger Agreement", "Apple REIT Six, Inc. today announced it has entered into a definitive merger agreement to be acquired by BRE Select Hotels Corp. Each issued and outstanding Unit (Common Share and related Series A Preferred Share) of Apple REIT Six, Inc. will be converted into the right to receive $11.10.", "Apple REIT Six, Inc.")).toBe(false);
+    // UL Solutions' own release: the body names the business with parentheses before "of Eurofins Scientific SE".
+    expect(parsePressRelease(`UL Solutions Inc. Broadens Portfolio with Agreement to Acquire Eurofins Scientific's Electrical & Electronics Business 1\nNORTHBROOK, Ill. - (BUSINESS WIRE) - April 13, 2026 - UL Solutions Inc. (NYSE: ULS), a global leader in applied safety science, today announced it has entered into a definitive agreement to acquire the electrical and electronics (E&E) business (inclusive of the MET Labs certification mark) of Eurofins Scientific SE ("Eurofins"). Purchase price represents an enterprise value of approximately $670 million.`, { filerName: "UL Solutions Inc.", filerTickers: ["ULS"] })).toBeNull();
+    // Its closing release: a list, and the hyphen spaced out by the HTML.
+    expect(parsePressRelease("VIAVI Closes Acquisition of Spirent Communications plc's High - Speed Ethernet, Network Security and Channel Emulation Testing Business\nChandler, Ariz., October 16, 2025 - VIAVI Solutions Inc. (NASDAQ: VIAV) today announced that it has completed the acquisition of the business from Keysight Technologies, Inc.", { filerName: "VIAVI Solutions Inc.", filerTickers: ["VIAV"] })).toBeNull();
   });
 });

@@ -62,6 +62,11 @@ export function item101(text: string): string | null {
   const section = t
     .slice(start, start + 20 + (end > 0 ? end : 12_000))
     .replace(/["“]\s+([A-Z][^"”]{0,39}?)\s+["”]/g, '"$1"')
+    // A list of terms is the first and the Company: `("TMRC", the "Company", "we", "us" or "our")` (Texas Mineral Resources).
+    .replace(/\(\s*((?:the\s+)?["“][^"”()]{1,40}["”])((?:,\s*(?:the\s+)?["“][^"”()]{1,40}["”])+)(?:,?\s+(?:and|or)\s+(?:the\s+)?["“][^"”()]{1,40}["”])?\s*\)/g, (all: string, first: string) => {
+      const self = /(?:the\s+)?["“](?:Company|Partnership|Registrant|Trust)["”]/.exec(all)?.[0];
+      return self && !first.includes(self.replace(/^the\s+/, "")) ? `(${first} or ${/^the\s/.test(self) ? self : `the ${self}`})` : `(${first})`;
+    })
     .replace(/(\w) \.(?=[\s,])/g, "$1.")
     // "Merger Sub will merge (the "Merger") with and into the Company": the defined term splits the verb from its object.
     .replace(/\b(merge[ds]?)\s*\([^()]{1,60}\)\s*(?=with\s+and\s+into)/gi, "$1 ")
@@ -343,7 +348,9 @@ function mechanics(section: string, entities: Entity[]): { target: string; acqui
     const hint = subject && !SUB_NICK.test(subject.nick) && !SHELL_NAME.test(subject.name) && (!isSelf(subject.nick) || !isSelf(t)) ? subject.nick : undefined;
     return { target: t, ...(hint ? { acquirerHint: hint } : {}) };
   }
-  if (/tender offer|exchange offer/i.test(section)) {
+  // (Not a warrant's boilerplate alone: "a purchase, tender or exchange offer …" in Tempus's securities purchase, which read
+  // as Chart Acquisition Group buying Tempus.)
+  if (/tender offer|exchange offer/i.test(section.replace(/\bpurchase,?\s+tender\s+or\s+exchange\s+offer\b/gi, " "))) {
     // "...to acquire all of Bluebird's outstanding shares" / "...all of the outstanding shares of common stock ... of the Company"
     const owner =
       /(?:acquire|purchase)\s+(?:any and\s+)?all\s+(?:of\s+)?(?:the\s+)?(?:issued and\s+)?(?:outstanding\s+)?(?:shares\b[^.;]{0,120}?\bof\s+(?:the\s+)?)?"?([A-Z][\w&.'’\-]*(?:\s[A-Z][\w&.'’\-]*){0,3}?)(?:['’]s)?"?(?=[\s,.(;])/.exec(section);

@@ -51,6 +51,28 @@ describe("iSun: the 10-K dates it instead", () => {
   });
 });
 
+describe("a bank's glossary gives the short name its reports use", () => {
+  // Webster's 10-K: a table of terms, then "the Bank acquired Ametros" with no full name beside it.
+  const tenK = `Glossary of Acronyms and Terms ALCO Asset Liability Committee Ametros Ametros Financial Corporation AOCI Accumulated other comprehensive income. Business Developments. On January 24, 2024, the Bank acquired Ametros, a custodian and administrator of medical funds from insurance claims settlements.`;
+  it("reads the closing under the glossary's term", () => {
+    expect(readLooseCompletion(tenK, "Ametros Financial")).toEqual({ found: true, date: "2024-01-24", today: false });
+  });
+  it("the ending reader keeps to the company's own forms (Third Coast's risk factors about Great Plains)", () => {
+    const q = `• factors related to the Company's proposed acquisition of Great Plains Bancshares, Inc., an Oklahoma corporation ("Great Plains"), including: o the possibility that Great Plains' business is not integrated; in the event of termination of the merger agreement with Great Plains, the Company's costs.`;
+    expect(readLooseEnd(q, "Great Plains Bancshares").found).toBe(false);
+  });
+  it("a glossary's short form stands alone and in its own case (the review's cases)", () => {
+    const citizens = `GLOSSARY OF ABBREVIATIONS AND ACRONYMS ACL Allowance for credit losses Citizens Citizens Bancshares, Inc. FHLB Federal Home Loan Bank. Item 1. Business. In 2019, the Company acquired First Citizens Bank of Georgia and its eleven branches. On June 3, 2024, the Company and Citizens Bancshares, Inc. mutually terminated their merger agreement after regulatory approval was not received.`;
+    expect(readLooseCompletion(citizens, "Citizens Bancshares").found).toBe(false);
+    expect(readLooseEnd(citizens, "Citizens Bancshares")).toEqual({ found: true, date: "2024-06-03", today: false });
+    const air = `Glossary AIR Applied Insulation Resources, LLC CECL Current expected credit losses. In March 2022, we acquired an air distribution business in Ohio for $12 million. We expect to complete the acquisition of Applied Insulation Resources in 2025.`;
+    expect(readLooseCompletion(air, "Applied Insulation Resources").found).toBe(false);
+  });
+  it("takes no term from an ordinary sentence", () => {
+    expect(readLooseCompletion(`The Bank acquired Ametros Holdings in 2019. Ametros Financial remains a customer.`, "Ametros Financial").found).toBe(false);
+  });
+});
+
 describe("a target's own 8-K saying the deal closed", () => {
   it("the transactions of the agreement this deal signed (Senti)", () => {
     const text = `Introductory Note On October 21, 2026, Senti Biosciences Holdings, Inc., a Delaware corporation (the "Company"), completed the transactions contemplated by the Agreement and Plan of Merger, dated as of July 14, 2026 (the "Merger Agreement"), by and among the Company, Senti Holdings, Inc., a wholly owned subsidiary of the Company ("Midco"), ST NewCo Limited (f/k/a Celadon Partners SPV 35 Limited), ("Parent"), and Senti Merger Sub, Inc. ("Merger Sub"). Item 1.01 Entry into a Material Definitive Agreement. CVR Agreement On October 21, 2026 (the "Closing Date"), in connection with the closing, Midco entered into a Contingent Value Rights Agreement.`;

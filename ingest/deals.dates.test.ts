@@ -153,6 +153,22 @@ describe("private closings", () => {
     expect(buyerNowNamedForTarget({ name: "First Merchants Corp", formerNames: [] }, "First Capital", "2021-03-12", "2021-08-31")).toBe(false);
     expect(buyerNowNamedForTarget({ name: "Rocket Lab USA, Inc.", formerNames: [] }, "SolAero", "2021-12-20", "2022-01-20")).toBe(false);
   });
+
+  it("a reverse merger's own closing 8-K, filed days after the buyer took the target's name, still counts", () => {
+    // EDGAR's own record: Aerpio became Aadi Bioscience on August 23 2021, at the merger.
+    const aadi = {
+      name: "Whitehawk Therapeutics, Inc.",
+      formerNames: [
+        { name: "Aadi Bioscience, Inc.", from: "2021-08-27T00:00:00.000Z", to: "2025-03-18T00:00:00.000Z" },
+        { name: "Aerpio Pharmaceuticals, Inc.", from: "2017-03-17T00:00:00.000Z", to: "2021-08-23T00:00:00.000Z" },
+      ],
+    };
+    expect(buyerNowNamedForTarget(aadi, "Aadi Bioscience", "2021-05-16", "2021-08-27")).toBe(false);
+    // Months on, an 8-K naming the old target is about something else (iSun's guarantor, nine months after the rename).
+    expect(buyerNowNamedForTarget(aadi, "Aadi Bioscience", "2021-05-16", "2022-03-01")).toBe(true);
+    const hornbeck = { name: "HORNBECK OFFSHORE SERVICES, INC.", formerNames: [{ name: "HELIX ENERGY SOLUTIONS GROUP INC", from: "2006-03-09T00:00:00.000Z", to: "2026-08-31T00:00:00.000Z" }] };
+    expect(buyerNowNamedForTarget(hornbeck, "Hornbeck", "2026-04-23", "2026-09-02")).toBe(false);
+  });
 });
 
 describe("a target's own 8-K closing the deal (Senti)", () => {

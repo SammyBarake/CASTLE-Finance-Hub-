@@ -152,6 +152,10 @@ describe("sideAdvisors", () => {
     expect(s.acquirer).toEqual(["Stifel"]);
     expect(s.target).toEqual(["Piper Sandler"]);
   });
+  it("an annex line in the contents opens no section (Terminix: the glossary after it names Rentokil's bank)", () => {
+    const t = `INDEX TO FINANCIAL STATEMENTS F-1 Annex A - Agreement and Plan of Merger A-1 Annex B - Opinion of Terminix's Financial Advisor B-1 Annex C - Section 262 of the Delaware General Corporation Law C-1 FREQUENTLY USED TERMS • "Barclays" refers to Barclays Bank PLC. • "Bidco" refers to Rentokil Initial US Holdings, Inc. Opinion of Terminix's Financial Advisor Terminix has retained Lazard to act as its financial advisor in connection with the transaction.`;
+    expect(sideAdvisors(t, { name: "Terminix Global Holdings Inc" }, { name: "Rentokil Initial plc" }).target).toEqual(["Lazard"]);
+  });
   it("matches a heading by acronym or ticker, and skips a party that is neither company", () => {
     const t = `Opinion of AGM's Financial Advisor. Barclays Capital Inc. delivered its opinion. Opinion of the Financial Advisors to the MSGE Special Committee. Moelis & Company LLC rendered its opinion. Opinion of Party A's Financial Advisor. Goldman Sachs & Co. LLC advised Party A.`;
     expect(sideAdvisors(t, { name: "Athene Holding Ltd" }, { name: "Apollo Global Management, Inc." }).acquirer).toEqual(["Barclays"]);

@@ -1233,7 +1233,12 @@ export function closingNames(text: string, namedIn: RegExp): boolean {
 export function buyerNowNamedForTarget(buyer: Pick<Submissions, "name" | "formerNames">, targetName: string, announcedDate: string, filedDate: string): boolean {
   const first = (s: string) => s.trim().split(/[\s,]+/)[0].toLowerCase();
   const word = first(targetName);
-  return first(nameOn(buyer, filedDate)) === word && first(nameOn(buyer, announcedDate)) !== word;
+  const before = nameOn(buyer, announcedDate);
+  if (first(nameOn(buyer, filedDate)) !== word || first(before) === word) return false;
+  // A reverse merger takes the private company's name at the closing, so its closing 8-K comes days after the rename:
+  // Aerpio became Aadi Bioscience on August 23 2021 and filed on the 27th, Sesen Bio became Carisma, Helix became Hornbeck.
+  const renamed = (buyer.formerNames ?? []).find((f) => f.name === before && f.to)?.to?.slice(0, 10);
+  return !(renamed && filedDate <= shiftDate(renamed, 10));
 }
 
 async function privateClosing(deal: StoredDeal, acquirerSub: Submissions, seen: Set<string>) {

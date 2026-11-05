@@ -6,6 +6,8 @@
  */
 import { flatten } from "../text";
 import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, namesCompany, sameCompany } from "./names";
+import { buyerType } from "../../lib/buyers";
+import type { Deal } from "../../lib/types";
 
 const NAME = String.raw`([A-Z][A-Za-z0-9&.,'’\- ]{1,80}?)`;
 // Where a sponsor's name ends: a parenthesis, a clause, "and" / "or" before a lower-case word, end of sentence.
@@ -58,12 +60,22 @@ export function namesTheShell(name: string, shell: string): boolean {
 }
 
 /** "Permira Advisers LLC" → "Permira", "Silver Lake Group, L.L.C." → "Silver Lake", "Temasek Holdings Limited" → "Temasek". */
-function firmShortName(name: string): string {
+function firmShortName(name: string, keepTheGroup = false): string {
+  const the = keepTheGroup && /^\s*The\s+/.test(name);
   let s = name.replace(/\s+/g, " ").trim().replace(/^The\s+/, "");
   const SUFFIX = /[\s,]+(?:Inc|Corp|Corporation|Co|Ltd|Limited|LLC|L\.\s?L\.\s?C|LP|L\.\s?P|plc)\.?$/i;
   while (SUFFIX.test(s)) s = s.replace(SUFFIX, "");
   // The firm without its management company ("Francisco Partners Management"); not "Elliott Investment Management".
-  while (/\s(?:Advis[eo]rs|Group|Holdings)$|\s(?:Partners|Capital)\sManagement$/.test(s)) s = s.replace(/\s\S+$/, "");
+  while (/\s(?:Advis[eo]rs|Group|Holdings)$|\s(?:Partners|Capital)\sManagement$/.test(s)) {
+    const next = s.replace(/\s\S+$/, "");
+    // "The Column Group" is the firm's whole name: "Column" alone is a word (NGM Biopharmaceuticals' buyer). A sponsor
+    // known by its one word stays that word ("The Blackstone Group" is Blackstone).
+    if (the && /\sGroup$/.test(s) && !/\s/.test(next) && buyerType({ acquirer: { name: next, ticker: null, cik: null } } as Deal) !== "Private equity") {
+      s = `The ${s}`;
+      break;
+    }
+    s = next;
+  }
   // "Trian Fund Management" is Trian, "General Catalyst Group Management" General Catalyst (Janus Henderson).
   return s.replace(/\s(?:Fund|Group)\sManagement$/, "");
 }
@@ -179,7 +191,11 @@ const familyBuyer = (firm: string, family: string) => `${firmShortName(firm).rep
 export function buyerBehindParent(text: string, target: string): string | null {
   const rollover = ROLLOVER_FIRM_THEN_FAMILY.exec(text);
   if (rollover) return familyBuyer(rollover[1], rollover[2]);
-  const m = WHO_IS_BEHIND.exec(text);
+  // Not the going-private boilerplate: "the holders of Axar Shares and Parent and Merger Sub are affiliates of the Company and,
+  // therefore, are required to express their purposes …" (StoneMor's proxy) is the SEC's sense of affiliate, not an owner.
+  const m = [...text.matchAll(new RegExp(WHO_IS_BEHIND.source, "g"))].find(
+    (x) => !/^(?:Company|Partnership|Registrant|Trust|Issuer|Corporation)\b/.test(text.slice(x.index + x[0].length, x.index + x[0].length + 40)),
+  );
   if (!m) return null;
   const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 400);
   const family = FAMILY_THEN_FIRM.exec(rest);
@@ -192,7 +208,7 @@ export function buyerBehindParent(text: string, target: string): string | null {
     const joint = jointBuyers(rest.slice(0, 500));
     if (joint && isPlausibleName(joint) && !namesCompany(joint, target)) return plainFirm(joint);
   }
-  const firm = plainFirm(firmShortName(chain?.[1] ?? first[1]));
+  const firm = plainFirm(firmShortName(chain?.[1] ?? first[1], true));
   if (firm.length < 3 || !isPlausibleName(firm) || NOT_A_FIRM.test(firm) || clauseWord(firm) || sameCompany(firm, target) || namesCompany(firm, target)) return null;
   // Not a lender: "an affiliate of Wells Fargo Bank, N.A., the lender".
   if (/,?\s+N\.\s?A\.?$/.test(firm)) return null;

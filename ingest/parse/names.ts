@@ -272,7 +272,8 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
   // ("Arrangement" of "Arrangement Agreement": Quipt's; "the estimated consolidated indebtedness of the Company as of the Closing": Digital Ally's subsidiary and a SPAC.)
-  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco|arrangement|the arrangement)$/i.test(s) &&
+  // (Nor "Proposal" or "Reorganization", which stood as buyers of Adamis and SharpLink Gaming; "Company and" of "affiliates of the Company and, therefore, …".)
+  !/^(it|we|the company|company|company and|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco|arrangement|the arrangement|proposal|the proposal|reorganization|the reorganization)$/i.test(s) &&
   !/\bas of the Closing\b/.test(s) &&
   // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp; "BV" was
   // left of "argenx BV".

@@ -162,15 +162,36 @@ function saysDone(before: string, after: string): boolean {
  * the name, and the deal word and the name must be close: a looser test reads other deals as this one. Also by the term the report defines for the
  * name ("All American Medical Group ("AAMG")", then "acquired 100% of the equity interest in AAMG").
  */
+/**
+ * The names a report uses for the company: its own forms, the term it defines ("Ametros Financial Corporation ("Ametros")")
+ * and a glossary's short form, which a bank's 10-K prints as a table row, term then name: "Ametros Ametros Financial
+ * Corporation", "ALCO Asset Liability Committee". Webster's reports then only say "the Bank acquired Ametros".
+ */
+function namesIn(flat: string, name: string): { form: string; re: RegExp }[] {
+  const forms = nameForms(name);
+  const rows: string[] = [];
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const form of [...forms]) {
+    const term = new RegExp(`(?<![\\w-])${esc(form)}[^()"“”]{0,40}\\(\\s*(?:the\\s+)?["“]\\s*([^"”]{2,30}?)\\s*["”]\\s*\\)`).exec(flat)?.[1];
+    if (term && /^[A-Z]/.test(term) && !NOT_A_NAME_TERM.test(term) && !forms.includes(term)) forms.push(term);
+    const words = form.split(" ");
+    if (words.length < 2) continue;
+    const initials = words.map((w) => w[0]).join("").toUpperCase();
+    const row = new RegExp(`(?<![\\w-])(${esc(words[0])}|${esc(initials)}) ${esc(form)}\\b`).exec(flat)?.[1];
+    if (row && row.length >= 3 && !NOT_A_NAME_TERM.test(row) && !forms.includes(row) && !rows.includes(row)) rows.push(row);
+  }
+  // A glossary's short form stands alone and in its own case: "Citizens" inside "First Citizens Bank of Georgia" is another
+  // company, and the initials "AIR" are not the word "air".
+  return [
+    ...forms.map((form) => ({ form, re: nameRegex(form) })),
+    ...rows.map((form) => ({ form, re: new RegExp(`(?<![\\w-]|[A-Z][\\w&.'’-]*\\s)${esc(form)}(?![\\w-]|\\s+[A-Z])`, "g") })),
+  ];
+}
+
 export function readLooseCompletion(text: string, name: string): CompletionRead {
   const flat = text.replace(/\s+/g, " ");
-  const forms = nameForms(name);
-  for (const form of forms) {
-    const term = new RegExp(`(?<![\\w-])${form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^()"“”]{0,40}\\(\\s*(?:the\\s+)?["“]\\s*([^"”]{2,30}?)\\s*["”]\\s*\\)`).exec(flat)?.[1];
-    if (term && /^[A-Z]/.test(term) && !NOT_A_NAME_TERM.test(term) && !forms.includes(term)) forms.push(term);
-  }
-  for (const form of forms) {
-    for (const m of flat.matchAll(nameRegex(form))) {
+  for (const { form, re } of namesIn(flat, name)) {
+    for (const m of flat.matchAll(re)) {
       const { start, end } = sentenceAround(flat, m.index, form.length);
       if (saysDone(flat.slice(start, m.index), flat.slice(m.index + form.length, end))) {
         // Only a day stated close by, not "as of": "As of December 31, 2024" in the table run into this sentence is a balance sheet's (Flex / Crown).
@@ -185,6 +206,9 @@ export function readLooseCompletion(text: string, name: string): CompletionRead 
 /** A purchase called off, in a report's words: "On June 1, 2024, we terminated the Stock Purchase Agreement for Votaw". A sentence naming the company, a merger or purchase agreement and its end, not conditionally. */
 export function readLooseEnd(text: string, name: string): CompletionRead {
   const flat = text.replace(/\s+/g, " ");
+  // By the company's own forms only: a short term reaches the risk factors and the agreement's summary ("… the right of one or
+  // both of the parties to terminate the definitive merger agreement" about Great Plains; "Termination The Merger Agreement may be
+  // terminated …" about NEH), which read as ended.
   for (const form of nameForms(name)) {
     for (const m of flat.matchAll(nameRegex(form))) {
       const { start, end } = sentenceAround(flat, m.index, form.length);

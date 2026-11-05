@@ -242,7 +242,9 @@ export function sideAdvisors(t: string, target: { name: string; ticker?: string 
     const side = isParty(party, acquirer) && !isParty(party, target) ? acq : isParty(party, target) && !isParty(party, acquirer) ? tgt : null;
     if (!side) continue;
     const end = m.index! + m[0].length;
-    if (/^\s*\d{1,3}\s+[A-Z]/.test(t.slice(end, end + 40))) continue;
+    // A contents line, its page an annex's too: "Annex B - Opinion of Terminix's Financial Advisor B-1 Annex C …", which ran into the
+    // glossary's "Barclays" (Rentokil's bank) and gave it to Terminix.
+    if (/^\s*(?:[A-Z]-)?\d{1,3}\s+[A-Z]/.test(t.slice(end, end + 40))) continue;
     // A cross-reference opens no section: `see "... Opinion of Heritage's Financial Advisor" beginning on page 79` stood before "Opinion of CVBF's Financial Advisor" and J.P. Morgan.
     if (/^\s?[.,]?\s?["”]/.test(t.slice(end, end + 6))) continue;
     const buyerItself = side === tgt ? findBanks(acquirer.name) : [];

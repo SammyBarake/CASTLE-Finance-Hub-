@@ -1848,7 +1848,12 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // Chevron" (Hess Midstream). Only "assets": "business from Michigan Insurance Company in its pooling agreement" is
   // premiums, and a possessive in the text is often the whole company ("LHC Group's outstanding common stock").
   if (new RegExp(`\\bassets\\s+from\\s+${escapeRx(targetName)}`, "i").test(intro)) return true;
-  return new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(start);
+  // (A parenthesis may stand between: "the electrical and electronics (E&E) business (inclusive of the MET Labs certification mark) of Eurofins Scientific SE".)
+  // (Not "unit" there: "each issued and outstanding Unit (Common Share and related Series A Preferred Share) of the Company" is Apple REIT Six's whole equity.)
+  return (
+    new RegExp(`(?:business|division|unit|assets|operations|segment|portfolio)\\s+of\\s+${escapeRx(targetName)}`, "i").test(start) ||
+    new RegExp(`(?:business|division|assets|operations|segment|portfolio)\\s*\\([^()]{0,80}\\)\\s+of\\s+${escapeRx(targetName)}`, "i").test(start)
+  );
 }
 
 /**
@@ -2132,8 +2137,14 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // (A headline's footnote digit doesn't hide one: "… Eurofins Scientific's Electrical & Electronics Business 1".)
   const bareHeadline = headline.replace(/\s+\d$/, "");
   if (isCarveOut(bareHeadline, intro, target.name) || (parties.tgt !== target.name && breaksAtPossessive(bareHeadline, intro, parties.tgt))) return null;
-  // A unit's long name before its business word: "Spirent Communications plc's High-Speed Ethernet and Network Security Testing Business".
-  if (new RegExp(String.raw`${escapeRx(target.name)}(?:\s+[A-Z][\w&.-]*){0,3}(?:\s+(?:plc|PLC|Inc\.?|SE|AG|N\.V\.|Ltd\.?))?['’]s\s+(?:[A-Z][\w&-]*\s+(?:and\s+|&\s+)?){1,9}(?:Business(?:es)?|Division|Unit|Segment)\b`).test(bareHeadline)) return null;
+  // A unit's long name before its business word: "Spirent Communications plc's High-Speed Ethernet and Network Security Testing Business",
+  // and its closing release's list, with the hyphen spaced out: "… plc's High - Speed Ethernet, Network Security and Channel Emulation Testing Business".
+  // By the headline's own name too: the listing gives "Black Knight, Inc.", the headline "Black Knight's Optimal Blue Business"
+  // (ICE and Black Knight selling it), "Boral Limited" and "Boral's North American Building Products Businesses" (Westlake).
+  // The words between the name and its possessive continue the name: "Wright Medical To Join Stryker's Trauma And Extremities
+  // Business" is the buyer's segment, and the deal is the whole of Wright Medical.
+  for (const n of new Set([target.name, parties.tgt]))
+    if (new RegExp(String.raw`${escapeRx(n)}(?:\s+(?!(?:To|Will|Joins?|Joining|And|With|Into|Of|In|For|As|At|From|Under|Within|Expands?|Expanding|Strengthens?|Strengthening|Adds?|Adding|Becomes?|Creates?|Creating|Bolsters?|Enhances?|Broadens?|Accelerates?)\b)[A-Z][\w&.-]*){0,3}(?:\s+(?:plc|PLC|Inc\.?|SE|AG|N\.V\.|Ltd\.?))?['’]s\s+(?:(?:[A-Z][\w&-]*|-),?\s+(?:and\s+|&\s+)?){1,12}(?:Business(?:es)?|Division|Unit|Segment)\b`).test(bareHeadline)) return null;
   // The full name of a one-word target the release defines: "Citizens National Corporation ("Citizens") (OTCPK: CZNL)", which
   // otherwise matched the insurer Citizens, Inc. Only a name that starts with the short form, and after the carve-out checks, which
   // read the text's own short form ("Lennar's residential solar platform").
