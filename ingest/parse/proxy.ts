@@ -64,7 +64,7 @@ export function premiumCandidates(t: string): { pct: number; score: number; inde
     const near = (sentenceStart.split(/[•·▪○◌■◾]/).pop() ?? sentenceStart).slice(-250);
     if (LATER_ITEM.test(m[0]) && !/\bpremium\b/i.test(sentenceStart)) continue;
     // A value that counts a contingent right: "the Scheme Consideration NPV represented: • a premium of 23%", "(a) in the event that the Milestone Payment is made, the Transaction represents: (i) …".
-    if (/\bNPV\b|\bnet present value\b|\b(?:in the event that|assuming)\b[^.;]{0,60}\b(?:milestone|CVRs?|contingent)\b[^.;]{0,40}\b(?:is|are)\s+(?:made|paid|achieved)\b/i.test(contingentScope(before.slice(-600)))) continue;
+    if (/\bNPV\b|\bnet present value\b|\b(?:in the event that|assuming)\b[^.;]{0,60}\b(?:milestone|CVRs?|contingent)\b[^.;]{0,40}\b(?:is|are)\s+(?:made|paid|achieved)\b|\b(?:risk|probability)[- ](?:and\s+probability[- ])?adjusted\b/i.test(contingentScope(before.slice(-600)))) continue;
     // P2. A bid's total with its contingent rights, or a dated offer anywhere in the sentence ("Parent's July 10th Offer implied … and the aggregate consideration of up to $5.50 … (inclusive of … CVR payments)").
     if (/\bconsideration\s+of\s+up\s+to\s+\$\s?\d|\binclusive\s+of\b[^.;]{0,60}\b(?:CVRs?|contingent|milestone)/i.test(near) || /\b\d{1,2}(?:st|nd|rd|th)\s+(?:offer|proposal|bid)\b/i.test(sentenceStart)) continue;
     // This premium's own clause: up to the next bullet (the regex), the next "premium", or the next figure ("…, and

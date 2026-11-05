@@ -18,6 +18,12 @@ export interface StoredDeal extends Deal {
   sources: string[];
   /** The announced date is only the signing an Item 1.01 states: a release's own date replaces it, later or not. */
   dateIsSigning?: boolean;
+  /** The buyer already holds part of the company: the share it is buying, or true when no share is stated. An implied value (price × all shares) would overstate it. */
+  buyIn?: number | true;
+  /** The date is the closing: the release says "previously announced" and no earlier document has been found. Such a record holds no share-price figure. */
+  dateIsClosing?: boolean;
+  /** ANNOUNCE_CHECK_VERSION of the search of the buyer's earlier 8-Ks for that announcement. */
+  announceCheck?: number;
   /** The terms are a raised offer's: a document found later that predates it moves the date, not the price. */
   termsAmended?: boolean;
   /** A named part of the company, beside another buyer's deal for the rest: neither tops the other. */

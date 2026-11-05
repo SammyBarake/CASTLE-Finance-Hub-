@@ -308,7 +308,7 @@ describe("advisers", () => {
     expect(r.acquirerAdvisors).toEqual(["Stifel"]);
   });
 
-  it("leaves an \"also\" without a party, and reads buy-side", () => {
+  it("gives a consortium's \"also\" to the buyer's side, none to the target's, and reads buy-side", () => {
     expect(advisers("Morgan Stanley is acting as lead financial advisor to the consortium. Citi is also acting as financial advisor. Evercore is serving as financial advisor to Bluebird.").targetAdvisors).toEqual(["Evercore"]);
     expect(advisers("UBS Investment Bank is acting as lead buyside financial advisor.").acquirerAdvisors).toEqual(["UBS"]);
   });

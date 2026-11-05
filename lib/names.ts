@@ -6,6 +6,10 @@ export const initials = (name: string) => name.replace(/[^A-Z]/g, "").slice(0, 2
 /** Buyer names that are really acquisition vehicles or defined terms, to be replaced by a better name when one arrives. */
 export const isPlaceholderBuyer = (name: string) =>
   /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Acquir[eo]r|Merger Sub|Company|Investor Group|Consortium)$/i.test(name.trim()) ||
+  // A legal form left of a name the press parser can't read: "BillerudKorsnäs AB" read as "AB" (Verso).
+  /^(?:AB|AG|SA|NV|BV|SE|ASA|Oyj)$/.test(name.trim()) ||
+  // "Gladiatora Designated Activity Company" (Air Lease's Parent).
+  /\bDesignated Activity Company\b/.test(name) ||
   // ("2025 Acquisition Company, LLC": Forian's vehicle, which "Acquisition Co" missed at the word boundary.)
   /\b(?:Merger ?Sub|MergeCo|MergerCo|AcquireCo|AcquisitionCo|Bidco|BidCo|Topco|TopCo|Midco|Holdco|HoldCo|ParentCo|Purchaser|Acquisition (?:Corp|Company|Co|LLC|Inc))\b/.test(name) ||
   /^(?:[A-Z][A-Za-z]+ )+(?:Parent|Buyer)(?:,? (?:Inc|LLC|L\.?P|Corp)\.?)?$/.test(name) ||
@@ -121,6 +125,7 @@ const BRANDS = new Map(
     "TaskUs", "TrueCar", "UiPath", "UniFirst", "VeriSign", "WebMD", "WideOpenWest", "WisdomTree", "ZipRecruiter", "eGain", "eMagin", "AtriCure",
     "ArcBest", "DuPont", "ExxonMobil", "GreenSky", "HomeStreet", "InfuSystem", "LeMaitre", "MaxLinear", "MicroVision", "OraSure", "RealPage",
     "SecureWorks", "SkyWest", "SpartanNash", "TriNet", "WesBanco", "ePlus", "iCAD", "iRhythm", "uniQure", "MarineMax", "FLIR", "ICON", "LegalZoom",
+    "Iberdrola", "Prysmian", "ONEOK", "ArchiMed", "Refresco", "PerkinElmer",
   ].map((b) => [b.toLowerCase(), b]),
 );
 const applyBrands = (s: string) =>

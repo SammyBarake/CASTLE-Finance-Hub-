@@ -92,7 +92,7 @@ const SHARES = ["EntityCommonStockSharesOutstanding"];
  * 2: D&A and EBIT fallbacks, figures from the last 15 months only, notes as debt, no EV when debt can't be read.
  * 4: evEbitda on adjusted EBITDA (one-offs and stock compensation added back, 3-50x), the largest D&A reading, evEbitdaReported beside it.
  */
-export const FINANCIALS_VERSION = 5;
+export const FINANCIALS_VERSION = 6; // 6: a total stated with its debt is an enterprise value; a goodwill charge no larger than the goodwill held.
 
 const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
@@ -382,7 +382,11 @@ export function adjustedEbitdaOf(cf: CompanyFacts, asOf: string): number | null 
   const an = anchorOf(cf, asOf);
   if (reported == null || !an) return null;
   const largest = (tags: string[]) => Math.max(0, ...tags.map((t) => tagLtm(cf, t, an, asOf, true) ?? 0));
-  const oneOffs = Math.max(largest(IMPAIRMENT) + largest(RESTRUCTURING), largest(RESTRUCTURING_AND_IMPAIRMENT)) + largest(DEAL_COSTS);
+  // A goodwill charge can't exceed the goodwill held when the window opened: Pacira tags its accumulated $163.2M as a 2026 period (about $20M of goodwill left).
+  const windowStart = an.prior?.end ?? an.year.start ?? an.year.end;
+  const held = Math.max(0, ...series(cf, ["Goodwill"], "USD", asOf).filter((r) => r.end >= windowStart && r.val > 0).map((r) => r.val));
+  const impairmentTags = IMPAIRMENT.filter((t) => t !== "GoodwillImpairmentLoss" || !held || (tagLtm(cf, t, an, asOf, true) ?? 0) <= held);
+  const oneOffs = Math.max(largest(impairmentTags) + largest(RESTRUCTURING), largest(RESTRUCTURING_AND_IMPAIRMENT)) + largest(DEAL_COSTS);
   const firstOf = (sparse: boolean) => STOCK_COMP.map((t) => tagLtm(cf, t, an, asOf, sparse)).find((v) => v != null);
   const rest = reported + Math.max(0, firstOf(false) ?? firstOf(true) ?? 0);
   if (rest > 0 && oneOffs > ONE_OFFS_MAX * rest) return null;

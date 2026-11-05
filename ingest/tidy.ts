@@ -219,6 +219,7 @@ function fold(keep: StoredDeal, extra: StoredDeal) {
   const signingOnly = !!extra.dateIsSigning && daysApart(keep, extra) <= 5;
   if (extra.announcedDate < keep.announcedDate && !signingOnly) {
     keep.announcedDate = extra.announcedDate;
+    delete keep.dateIsClosing;
     if (extra.dateIsSigning) keep.dateIsSigning = true;
     else delete keep.dateIsSigning;
   } else if (keep.dateIsSigning && !extra.dateIsSigning && extra.announcedDate > keep.announcedDate && daysApart(keep, extra) <= 5) {

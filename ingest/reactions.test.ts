@@ -199,6 +199,17 @@ describe("carryReactions", () => {
     expect(record.reaction).toBeUndefined();
   });
 
+  it("a record still dated at its closing holds no figure: its release says the deal was announced earlier (the figure parks)", () => {
+    const record = deal({ dateIsClosing: true, reaction, reactionCheckedAt: "2026-11-01" });
+    const r = carryReactions([held()], [record]);
+    expect(r.unplaced).toHaveLength(1);
+    expect(record.reaction).toBeUndefined();
+    // And its announcement found a year on: the figure stays parked, measured around another day.
+    const found = deal({ announcedDate: "2023-03-04" });
+    expect(carryReactions(r.unplaced, [found]).unplaced).toHaveLength(1);
+    expect(found.reaction).toBeUndefined();
+  });
+
   it("holds only what it needs, from the deals that have a reaction", () => {
     const held1 = heldReactions([deal(), held({ sources: ["a"], filings: [] })]);
     expect(held1).toHaveLength(1);

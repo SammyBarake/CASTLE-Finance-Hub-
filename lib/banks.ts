@@ -95,6 +95,8 @@ export const BANKS: Bank[] = [
   b("M. Klein and Company", "MKC", /\bM\. ?Klein (?:and|&) Company\b/),
   b("Eastdil Secured", "EDS", /\bEastdil Secured\b/),
   b("Olsen Palmer", "OP", /\bOlsen Palmer\b/),
+  b("BDT & MSD Partners", "BDT", /\bBDT (?:&|and) (?:MSD|Company)\b/),
+  b("TSB Capital Advisors", "TSB", /\bTSB Capital\b/),
   b("Wedbush", "WEDB", /\bWedbush\b/),
   b("Benchmark", "BMK", /\bThe Benchmark Company\b/),
   b("Loop Capital", "LOOP", /\bLoop Capital\b/),

@@ -48,6 +48,11 @@ export function auditDeal(d: Deal, asOf: string): Finding[] {
   if (d.status === "Closed" && !d.statusDate && !d.privateTarget) add("closed-without-date", "");
   const m = d.milestones;
   if (m?.closed && m.closed < d.announcedDate) add("milestone-before-announcement", `closed ${m.closed}`);
+  const age = (Date.parse(asOf) - Date.parse(d.announcedDate)) / 86_400_000;
+  // A listed target that filed no merger proxy or tender response and no closing, four months on: usually a deal read backwards or the wrong company.
+  if (!d.privateTarget && d.status !== "Terminated" && age > 120 && !m?.firstFiling && !m?.closed) add("public-target-filed-nothing", `${d.status}, ${Math.round(age)} days on`);
+  // A private purchase still open two years on: nothing the buyer filed says it closed or ended.
+  if (d.privateTarget && (d.status === "Announced" || d.status === "Pending") && age > 730) add("private-open-two-years", `${d.status}, ${Math.round(age)} days on`);
 
   // Deal protections
   const t = d.terms;

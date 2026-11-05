@@ -26,6 +26,11 @@ export function normalizeName(name: string): string {
     .trim()
     // "KKR & Co. Inc." -> "kkr" (the "& Co." suffix leaves a dangling "and")
     .replace(/\s+and$/, "");
+  if (!n) {
+    // A name made only of suffix words ("Enterprise Bancorp, Inc.", "Trust") keeps them, less its legal form.
+    const kept = name.toLowerCase().replace(/&/g, " and ").replace(/\b(?:the|inc|incorporated|corp|corporation|company|co|ltd|limited|plc|llc|lp)\b\.?/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+    if (kept) return kept;
+  }
   return SHORT_FORMS[n] ?? n;
 }
 
@@ -85,6 +90,7 @@ export function isDescriptionOnly(name: string): boolean {
   const n = name.trim();
   if (/^(?:privately held|platform|specialty|home health|consumer experience|manufacturing factory)$/i.test(n)) return true;
   if (/['’]s (?:latest|proprietary|newest)\b|\bmillion square f(?:oo|ee)t\b|\b\d+-megawatt\b|\bresults\b.*\bcompany$|^and\b/i.test(n)) return true;
+  if (/^(?:Revolutionary|Innovative|Breakthrough|Novel|Cutting[- ]Edge)\b.*\b(?:Technology|Technologies|Platform|Assets?)$/i.test(n)) return true;
   const words = n.replace(/[,()]/g, " ").split(/\s+/).filter(Boolean);
   if (words.length < 2 || !ROLE_END.test(words.at(-1)!)) return false;
   return words.slice(0, -1).every((w) => DESCRIPTIVE.has(w.toLowerCase()) || w.toLowerCase().split("-").every((p) => DESCRIPTIVE.has(p)));
@@ -211,7 +217,8 @@ export function cleanPartyName(raw: string): string {
   // "Sports Betting Company Openbet" -> "Openbet", "Brazilian Collagen Producer Gelnex" -> "Gelnex".
   const described = /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]{2,})$/.exec(s);
   // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
-  if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
+  // (Nor a legal form: "Jupiter Company Limited" had become "Limited".)
+  if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Limited|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
   // …or a longer name: "U.K. Firefighter Turnout Gear Manufacturer Bristol Uniforms" -> "Bristol Uniforms", "Specialist
   // M&A Advisor Portico Capital Advisors" -> "Portico Capital Advisors", "Existing Strategic Partner Adlumin". The role word
   // sits between the two; a name ending in it ("Hunter Fan Company") or going on with "of …" ("Browser Company of New
@@ -219,7 +226,7 @@ export function cleanPartyName(raw: string): string {
   const describedLong =
     /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
   // (Not a bare acronym: "Carlisle Management Company SCA" ends in a legal form, "… Provider API" is ambiguous.)
-  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
+  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
   // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".
   const nameThenRole = /^(.{3,60}?\b(?:LLP|LLC|Inc\.?|Ltd\.?|Corp\.?))\s+(?:[A-Z][\w&-]*\s+){1,4}(?:Firm|Company|Provider|Platform|Business)$/.exec(s);
   if (nameThenRole) s = nameThenRole[1];
@@ -258,7 +265,9 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco)$/i.test(s) &&
   // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp; "BV" was
   // left of "argenx BV".
-  !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.?v|b\.?v|s\.a|s\.?p\.?a|ag|gmbh|ulc)\.?$/i.test(s.trim()) &&
+  !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.?v|b\.?v|s\.a|s\.?p\.?a|ag|gmbh|ulc|n\.?a)\.?$/i.test(s.trim()) &&
+  // Legal words and places cut from a clause: "Companies (Jersey) Law 1991", "England and Wales".
+  !/^(?:Law \d{4}|Holding|Holdings|Wales|England|Scotland|Jersey|Guernsey|Korea|Incentive Plan)$/i.test(s.trim()) &&
   // Filing structure: "Item 1.01", "Exhibit 99.1"; legal prose: "Delaware General Corporation Law",
   // "During the five-year period following the Closing".
   !/^(?:Item|Exhibit)\s+\d/i.test(s) &&

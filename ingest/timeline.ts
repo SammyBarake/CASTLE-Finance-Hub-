@@ -25,6 +25,9 @@ const PERIODIC = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
 export function isClosingFiling(filings: FilingRef[], f: FilingRef): boolean {
   const eightK = /^8-K/.test(f.form);
   if (!(CLOSED.test(f.form) || (eightK && /\b5\.01\b/.test(f.items)))) return false;
+  // The company's own merger proxy or tender comes later: this delisted one preferred series, or a change of control short of the merger (Urstadt Biddle, Terran Orbital, ZAGG). An 8-K Item 2.01 always counts (Dawson's tender closed; Bally's, Athene).
+  const within = new Date(Date.parse(f.date) + 400 * 86_400_000).toISOString().slice(0, 10);
+  if (!/\b2\.01\b/.test(f.items) && filings.some((g) => /^(?:PREM14[AC]|DEFM14[AC]|SC 14D9|SC14D9|SC TO-T)$/.test(g.form) && g.date > f.date && g.date <= within)) return false;
   const limit = new Date(Date.parse(f.date) + 60 * 86_400_000).toISOString().slice(0, 10);
   if (!filings.some((g) => PERIODIC.test(g.form) && g.date > limit)) return true;
   // Still reporting afterwards for its bonds or preferred shares (Athene, Continental Resources, STORE Capital, Triton):

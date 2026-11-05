@@ -280,6 +280,27 @@ describe("a raised offer", () => {
     expect(state.deals[0].pricePerShare).toBe(46.5);
   });
 
+  it("a cut by amendment stands too (Anaplan $66.00 to $63.75), but only stated as one", () => {
+    const state = emptyState();
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { pricePerShare: 66 }), hit("2022-03-20", "0001-22-1"), target, unlisted, false);
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { pricePerShare: 50, amended: true }), hit("2022-05-20", "0001-22-2"), target, unlisted, false);
+    expect(state.deals[0].pricePerShare).toBe(66);
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { pricePerShare: 63.75, amended: true, priceCut: true }), hit("2022-06-06", "0001-22-3"), target, unlisted, false);
+    expect(state.deals[0].pricePerShare).toBe(63.75);
+  });
+
+  it("a private deal first seen at a closing that says \"previously announced\" is marked, and a release from before clears it", () => {
+    const state = emptyState();
+    const closing = parsed("completion", "Deluxe Corporation", { announcedEarlier: true, target: { name: "First American Payment Systems", ticker: null, exchange: null } });
+    applyParsed(state, closing, hit("2021-06-01", "0001-21-9"), unlisted, { cik: "27996", ticker: "DLX", listedInUs: true }, true);
+    expect(state.deals[0]).toMatchObject({ dateIsClosing: true, announcedDate: "2021-06-01", status: "Closed" });
+    const signing = parsed("announcement", "Deluxe Corporation", { target: { name: "First American Payment Systems", ticker: null, exchange: null } });
+    applyParsed(state, signing, hit("2021-04-22", "0001-21-3"), unlisted, { cik: "27996", ticker: "DLX", listedInUs: true }, true);
+    expect(state.deals).toHaveLength(1);
+    expect(state.deals[0].announcedDate).toBe("2021-04-22");
+    expect(state.deals[0].dateIsClosing).toBeUndefined();
+  });
+
   it("needs its own words: another document's higher price doesn't replace it", () => {
     const state = signed();
     applyParsed(state, parsed("update", "Atlas Holdings LLC", { pricePerShare: 22.5 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
