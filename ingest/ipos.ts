@@ -27,7 +27,7 @@ import {
 import { monthWindows } from "./deals";
 import { normalizeName } from "./parse/names";
 import { displayName } from "./parse/press";
-import { IPO_PARSER_VERSION, isResaleOnly, parseFinalProspectus, parseRegistration, type IpoTerms } from "./parse/ipo";
+import { IPO_PARSER_VERSION, isPlaceholderRaise, isResaleOnly, isSecondStepConversion, parseFinalProspectus, parseRegistration, prospectusDate, type IpoTerms } from "./parse/ipo";
 import { sectorForSic } from "./sectors";
 import type { State, StoredIpo } from "./store";
 import { htmlToText } from "./text";
@@ -146,6 +146,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   const docAdsh = priced?.adsh ?? latestReg.adsh;
   // Skip re-downloading a document we already parsed.
   let terms: IpoTerms | null = null;
+  let pricedOn: string | null = null;
   if (!existing || existing.parsedAdsh !== docAdsh || existing.parser !== IPO_PARSER_VERSION) {
     const doc = priced ?? latestReg;
     // A final prospectus is read whole: its underwriting table, near the end, names every bank.
@@ -157,6 +158,8 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     terms.underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
     // A direct listing, or selling holders reselling with no underwriters: no IPO offering.
     if (isResaleOnly(text, terms.underwriters)) return null;
+    // A listed company re-registering on a new CIK (Columbia Financial).
+    if (isSecondStepConversion(text)) return null;
     // Commodity pools and non-traded REITs, and any filing with no known bookrunner (a shell quoted over the counter, or
     // never at all: Pharmaceutical Resource Technology), are IPOs only if the shares will list on a US exchange.
     if ((LISTING_SIC.has(sub.sic) || !terms.underwriters.length) && !listsOnExchange(text)) return null;
@@ -165,7 +168,8 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
       terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };
     }
     // Final prospectus may omit a clean price×shares; fall back to the registration estimate.
-    if (priced && terms.expectedRaiseUsd == null) terms.expectedRaiseUsd = existing?.expectedRaiseUsd ?? null;
+    if (priced && terms.expectedRaiseUsd == null) terms.expectedRaiseUsd = isPlaceholderRaise(existing?.expectedRaiseUsd ?? null) ? null : (existing?.expectedRaiseUsd ?? null);
+    if (priced) pricedOn = prospectusDate(text, priced.date);
   }
 
   const base: StoredIpo = existing ?? {
@@ -193,13 +197,17 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     industry: sub.sicDescription || null,
     stage,
     filedDate: initial.date,
-    pricedDate: priced?.date ?? null,
+    // The prospectus's own date (Orion180 priced September 17, its 424B4 is dated September 21). The stages keep the
+    // filing date, so nothing moves between them; a run that doesn't re-read the document keeps the stored date.
+    pricedDate: priced ? (pricedOn ?? (base.parsedAdsh === docAdsh ? base.pricedDate : null) ?? priced.date) : null,
     lastActivity,
     checkedAt: new Date().toISOString(),
     filings: [initial, latestReg !== initial ? latestReg : null, priced ?? null].filter((f): f is NonNullable<typeof f> => !!f).map((f) => filing(sub, f)),
   };
   if (terms) {
-    ipo.expectedRaiseUsd = terms.expectedRaiseUsd ?? ipo.expectedRaiseUsd;
+    // A placeholder an older parser stored would otherwise outlive the rule that now refuses it (Anthropic's $1B). Only on
+    // a re-read that found nothing: a real range × shares can land on a round figure too.
+    ipo.expectedRaiseUsd = terms.expectedRaiseUsd ?? (isPlaceholderRaise(ipo.expectedRaiseUsd) ? null : ipo.expectedRaiseUsd);
     ipo.offerPrice = terms.offerPrice ?? ipo.offerPrice;
     ipo.underwriters = terms.underwriters.length ? terms.underwriters : ipo.underwriters;
     ipo.description = terms.description ?? (ipo.description || sub.sicDescription || "");

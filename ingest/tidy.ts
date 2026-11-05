@@ -5,6 +5,7 @@
 import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
 import { near, sameBuyer } from "./reactions";
 import { saneFee } from "./parse/terms";
+import { findBanks } from "../lib/banks";
 import type { StoredDeal } from "./store";
 
 const DAY = 86_400_000;
@@ -55,7 +56,7 @@ export function junkReason(d: StoredDeal): string | null {
     return "acquirer and target are the same company";
   // Business development companies are investment funds, out of scope: "BDC" in the name, or an "… Investment /
   // Capital / Finance / Credit Corp" with no industry code (operating companies have one; BDCs usually don't).
-  if (!d.privateTarget && (/\bBDC\b/.test(d.target.name) || (!d.industry && /\b(?:Investment|Capital|Finance|Credit|Lending)\s+(?:Corp(?:oration)?|Inc\.?|Company)$/i.test(d.target.name.trim()))))
+  if (!d.privateTarget && (/\bBDC\b/.test(d.target.name) || (!d.industry && /\b(?:Investment|Capital|Finance|Credit|Lending)\s+(?:Corp(?:oration|\.)?|Inc\.?|Company)$/i.test(d.target.name.trim()))))
     return `investment fund as target "${d.target.name}"`;
   // A private company bought by a SPAC is a de-SPAC, out of scope ("Global Star Acquisition Inc." and K Enter: the
   // "Acquisition Corp" name check misses "Acquisition Inc."). Its industry comes from the buyer's SIC 6770, which a
@@ -79,9 +80,41 @@ export function junkReason(d: StoredDeal): string | null {
   return null;
 }
 
+/**
+ * Filings can't date this one. Frank's International merged with Expro on October 1 2021 and kept reporting as Expro Group
+ * ("became effective on October 1, 2021 (the "Closing Date")"), so no closing filing exists, and its 2026 sale's proxy and
+ * Form 25 read as this deal's. Runs before enrichment too, so the date bounds what it reads (`ownFilings`).
+ */
+export function correctKnownClosing(d: StoredDeal): void {
+  if (d.target.cik !== "1575828" || !d.announcedDate.startsWith("2021-")) return;
+  d.status = "Closed";
+  d.statusDate = "2021-10-01";
+  // What came from the 2026 proxy goes, once.
+  if (d.fairnessAdsh) {
+    d.fairness = d.proxySections = undefined;
+    d.fairnessAdsh = d.meetingDate = null;
+    d.terms = undefined;
+    d.termsCheckedAt = null;
+  }
+  if (d.milestones) d.milestones = { ...d.milestones, definitiveProxy: null, voteHeld: null, closed: "2021-10-01" };
+}
+
+/**
+ * A bank that is the buyer itself never advises the target: it moves to the buyer's list, where a bank advising itself stays credited
+ * (Goldman Sachs / GreenSky, RBC / City National). Raymond James read as TriState Capital's adviser, whose bank was Stephens.
+ */
+export function moveBuyerOffTarget(d: Pick<StoredDeal, "acquirer" | "acquirerAdvisors" | "targetAdvisors">): void {
+  const itself = findBanks(d.acquirer.name).filter((b) => d.targetAdvisors.includes(b));
+  if (!itself.length) return;
+  d.targetAdvisors = d.targetAdvisors.filter((b) => !itself.includes(b));
+  d.acquirerAdvisors = [...new Set([...d.acquirerAdvisors, ...itself])];
+}
+
 /** Fix values no real deal can have. Returns true when anything changed. */
 export function sanitizeDeal(d: StoredDeal): boolean {
   const before = JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name, d.statusDate]);
+  correctKnownClosing(d);
+  moveBuyerOffTarget(d);
   // Names without a CIK are never replaced by an SEC name: give them today's clean-up rules
   // ("Sculptor Capital Management Together" -> "Sculptor Capital Management").
   for (const c of [d.acquirer, d.target]) {
@@ -343,7 +376,8 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
   for (const d of listed) {
     // Or a "New <target>" ("New R1" over R1 RCM, buying Cloudmed).
     const firstWord = d.target.name.split(/\s+/)[0]?.toLowerCase();
-    const newSelf = /^New\s/i.test(d.acquirer.name) && d.acquirer.name.split(/\s+/)[1]?.toLowerCase() === firstWord;
+    // (Or a new public company by another name: "New Pubco and Sellers" over R1 RCM.)
+    const newSelf = (/^New\s/i.test(d.acquirer.name) && d.acquirer.name.split(/\s+/)[1]?.toLowerCase() === firstWord) || /^New\s+(?:Pubco|Holdco|Parent)\b/i.test(d.acquirer.name);
     if (!deals.includes(d) || !(isPlaceholderBuyer(d.acquirer.name) || newSelf)) continue;
     const buying = deals.find((e) => e !== d && e.acquirer.cik === d.target.cik && Math.abs(days(e.announcedDate, d.announcedDate)) <= 30);
     if (buying) drop(d, `holding-company reorganization of ${d.target.name} for its deal ${buying.id}`);
@@ -461,12 +495,7 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         const earlier = group[j];
         if (!deals.includes(earlier)) continue;
         const gap = days(earlier.announcedDate, later.announcedDate);
-        // Also the same when one names the other by its ticker ("UWMC" = UWM Holdings Corp): not a rival bid.
-        const sameBuyer =
-          sameCompany(earlier.acquirer.name, later.acquirer.name) ||
-          (!!earlier.acquirer.cik && earlier.acquirer.cik === later.acquirer.cik) ||
-          isTickerOf(earlier.acquirer.name, later.acquirer) ||
-          isTickerOf(later.acquirer.name, earlier.acquirer);
+        const sameBuyer = oneBuyer(earlier, later);
         if (sameBuyer && gap <= 60) {
           merge(earlier, later);
           drop(later, `duplicate of ${earlier.id}`);
@@ -481,12 +510,14 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         if (!sameBuyer && earlier.target.cik && earlier.status === "Terminated" && earlier.statusDate && earlier.statusDate > later.announcedDate) {
           earlier.statusDate = null;
           earlier.milestones = undefined;
+          rereadTerms(earlier);
         }
         if (!sameBuyer && earlier.target.cik && gap > 0 && gap <= 120 && earlier.status !== "Terminated" && later.status !== "Terminated") {
           earlier.status = "Terminated";
           earlier.statusDate = later.announcedDate;
           // Re-derived on the next run with the termination date (the target's closing filings belong to the winner).
           earlier.milestones = undefined;
+          rereadTerms(earlier);
           result.topped++;
           break;
         }
@@ -501,13 +532,58 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
           earlier.status = "Terminated";
           earlier.statusDate = null;
           earlier.milestones = undefined;
+          rereadTerms(earlier);
           result.topped++;
           break;
         }
       }
     }
+    leaveTheWinnersProxy(group.filter((d) => deals.includes(d)));
   }
   return result;
+}
+
+/**
+ * Enrichment read this deal's terms while it was open, so with no end date, and took the winner's proxy (MKS and Lumentum showed II-VI's
+ * lenders and fees, Masonite MITER's reverse fee, Hudson Executive NCR's break fee). Blank until the next run re-reads them up to the end
+ * date (the blanked milestones bring it into enrichment): tidy comes last, so a rebuild saves these blank. Netflix's own proxy, before its end date, is read again.
+ */
+function rereadTerms(d: StoredDeal): void {
+  d.terms = undefined;
+  d.termsCheckedAt = null;
+}
+
+/** Also the same when one names the other by its ticker ("UWMC" = UWM Holdings Corp): not a rival bid. */
+const oneBuyer =(a: StoredDeal, b: StoredDeal) =>
+  sameCompany(a.acquirer.name, b.acquirer.name) || (!!a.acquirer.cik && a.acquirer.cik === b.acquirer.cik) || isTickerOf(a.acquirer.name, b.acquirer) || isTickerOf(b.acquirer.name, a.acquirer);
+
+/**
+ * A topped deal can have no end date (Lockheed / Aerojet, Aya / Cross Country), so enrichment can't bound what it reads and
+ * takes the newest proxy, the winner's. Records of one target, oldest first: a Terminated record gives up a proxy it shares
+ * with a later buyer's, and what its timeline shows from that deal's announcement on. It stays marked as read, or the next
+ * run would read the same proxy again. Only a Terminated record: Gray and IAC each bought part of Meredith, both closed, and
+ * keep sharing theirs.
+ */
+function leaveTheWinnersProxy(group: StoredDeal[]): void {
+  group.forEach((earlier, i) => {
+    if (earlier.status !== "Terminated") return;
+    const rivals = group.slice(i + 1).filter((d) => !oneBuyer(earlier, d) && !d.partOfTarget);
+    const later = rivals[0];
+    if (!later) return;
+    if (earlier.fairnessAdsh && rivals.some((d) => d.fairnessAdsh === earlier.fairnessAdsh)) {
+      earlier.fairness = earlier.proxySections = undefined;
+      earlier.fairnessAdsh = earlier.meetingDate = null;
+      earlier.fairnessCheckedAt ??= earlier.statusCheckedAt ?? earlier.announcedDate;
+    }
+    const m = earlier.milestones;
+    if (m && !earlier.statusDate) {
+      const theirs = (date: string | null | undefined) => !!date && date >= later.announcedDate;
+      if (theirs(m.firstFiling?.date)) m.firstFiling = null;
+      if (theirs(m.definitiveProxy)) m.definitiveProxy = null;
+      if (theirs(m.voteHeld)) m.voteHeld = null;
+      if (theirs(m.closed)) m.closed = null;
+    }
+  });
 }
 
 /** Acquirer name of a SPAC (blank-check company), out of scope as a buyer. */

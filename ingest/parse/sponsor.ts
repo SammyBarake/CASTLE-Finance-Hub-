@@ -9,7 +9,7 @@ import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, namesCompany, same
 
 const NAME = String.raw`([A-Z][A-Za-z0-9&.,'’\- ]{1,80}?)`;
 // Where a sponsor's name ends: a parenthesis, a clause, "and" / "or" before a lower-case word, end of sentence.
-const END = String.raw`(?=\s*\(|,\s+(?:a|an|the|which|who|one|together|collectively|L\.?P\.?\s*\(|and\s+its)\b|;|(?<!\b[A-Z])\.\s|\s+(?:and|or)\s+(?:its|their|certain|other|[a-z])|\s+(?:in|for|at|to|on|through|pursuant|under|with)\s+[a-z]|\s+(?:for|in)\s+(?:a\s+)?(?:US)?\$|\s+(?:For|In|At)\s+(?:US)?\$|$)`;
+const END = String.raw`(?=\s*\(|,\s+(?:a|an|the|which|who|one|together|collectively|L\.?P\.?\s*\(|and\s+its)\b|;|(?<!\b[A-Z])\.\s|\s+(?:and|or)\s+(?:its|their|certain|other|[a-z])|\s+(?:in|for|at|to|on|through|pursuant|under|with|have|has|are|were|will)\s+[a-z]|\s+(?:for|in)\s+(?:a\s+)?(?:US)?\$|\s+(?:For|In|At)\s+(?:US)?\$|$)`;
 // "a consortium of private investment firms composed of Elliott …" (Syneos); "funds managed by global investment firms
 // Carlyle …" (bluebird).
 const FUNDS = String.raw`(?:(?:certain\s+)?(?:of\s+)?(?:the\s+)?(?:investment\s+|private\s+equity\s+|infrastructure\s+)?(?:funds?|vehicles?|entities|accounts)\s+(?:managed|advised|sponsored|controlled)(?:\s+or\s+advised)?\s+by\s+|affiliates?\s+of\s+|an?\s+affiliate\s+of\s+|an?\s+(?:consortium|investor\s+(?:group|consortium))\s+(?:of\s+(?:[a-z-]+\s+){1,4}?)?(?:composed\s+of|consisting\s+of|comprised\s+of|comprising|including)\s+)?(?:(?:global|leading|private|alternative)\s+){0,2}(?:(?:investment|private[- ]equity|asset\s+management)\s+firms?\s+)?`;
@@ -64,7 +64,8 @@ function firmShortName(name: string): string {
   while (SUFFIX.test(s)) s = s.replace(SUFFIX, "");
   // The firm without its management company ("Francisco Partners Management"); not "Elliott Investment Management".
   while (/\s(?:Advis[eo]rs|Group|Holdings)$|\s(?:Partners|Capital)\sManagement$/.test(s)) s = s.replace(/\s\S+$/, "");
-  return s;
+  // "Trian Fund Management" is Trian, "General Catalyst Group Management" General Catalyst (Janus Henderson).
+  return s.replace(/\s(?:Fund|Group)\sManagement$/, "");
 }
 
 /**
@@ -77,15 +78,19 @@ function firmShortName(name: string): string {
  */
 export function jointBuyers(list: string): string | null {
   const terms: string[] = [];
+  // A description between a firm and its term goes first, or its words end the list: "owned by Sumitomo Corporation, a Japanese
+  // corporation ("Sumitomo"), SMBC Aviation Capital Limited, a company incorporated with limited liability in Ireland ("SMBC AC" …),
+  // Apollo Capital Management, L.P. ("Apollo") and Brookfield Asset Management Ltd. ("Brookfield" …)" (Air Lease).
   // Defined terms become markers (an acronym is the better name: "PIF", "TPG"); other parentheses go ("(Private)").
-  let s = list.replace(/\s+/g, " ").replace(/\s*\(([^()]*)\)/g, (_, inner: string) => {
+  let s = list.replace(/\s+/g, " ").replace(/,\s+an?\s+[a-z]?[^(),;.]{3,80}?(?=\s*\(\s*(?:the\s+)?["“])/g, "").replace(/\s*\(([^()]*)\)/g, (_, inner: string) => {
     const term = /^\s*(?:the\s+)?["“]\s*([^"”]+?)\s*,?\s*["”]/.exec(inner)?.[1];
     if (!term) return "";
     terms.push(term);
     return ` #${terms.length - 1}#`;
   });
   // The list ends at the sentence's verb or end.
-  s = s.split(/(?<!\b(?:Inc|Co|Ltd|Corp|[A-Z]))\.(?:\s|$)|;|\s(?:have|has|are|is|were|was|will|for|to|in|pursuant|on|as|that|which)\s/)[0];
+  // (And its "and" before that verb: "… SK Capital Partners ("SK Capital") and were formed by First Reserve" left "#1# and" in TPC Group's buyer.)
+  s = s.split(/(?<!\b(?:Inc|Co|Ltd|Corp|[A-Z]))\.(?:\s|$)|;|\s(?:have|has|are|is|were|was|will|for|to|in|pursuant|on|as|that|which)\s/)[0].replace(/\s+and$/, "");
   // A legal suffix after a comma belongs to the name: "Francisco Partners Management, L.P.". So do the commas of a name
   // joined by "&": "Clayton, Dubilier & Rice, LLC".
   s = s.replace(/,\s*(L\.\s?L\.\s?C\.?|L\.\s?P\.?|LLC|LP|SCSp|SCSP|SCS|Inc\.?|Ltd\.?|Limited)(?=[\s,]|$)/g, " $1");
@@ -150,9 +155,73 @@ function oneFundFamily(members: string[]): string[] {
   return out.map((m, i) => (collapsed.has(i) ? m.replace(/(?:\s(?:Funds?|Executive|Employee))+$/, "") : m));
 }
 
+const FIRM = String.raw`[A-Z][A-Za-z0-9&.'’\- ]{1,70}?(?:,\s(?:L\.\s?L\.\s?C\.?|L\.\s?P\.?|LLC|LP|Inc\.?|Ltd\.?|Limited))?`;
+const FIRM_END = String.raw`(?=\s*\(|,\s|(?<!\b[A-Z])\.\s|\.$|;|\s+and\s)`;
+const WHO_IS_BEHIND = new RegExp(
+  String.raw`\b(?:Parent|Purchasers?|Buyer)(?:\s+and\s+(?:the\s+)?(?:Merger|Acquisition)\s+Sub)?\s+(?:are|is)\s+(?:(?:an?\s+)?affiliates?\s+of|affiliated\s+with|entities\s+affiliated\s+with)\s+(?:the\s+)?`,
+);
+// "… affiliated with certain members of the Nordstrom family and related trusts and family-controlled investment vehicles (the
+// "Family Group") and El Puerto de Liverpool S.A.B. de C.V., a Mexican …" (the proxy); "the shares to be contributed to Parent by El
+// Puerto de Liverpool S.A.B. de C.V. ("Liverpool") and certain members of the Nordstrom family" (the 8-K).
+const FAMILY_THEN_FIRM = new RegExp(String.raw`^certain\s+members\s+of\s+the\s+([A-Z][a-z]+)\s+family\b[^()]{0,120}?\([^()]*\)\s+and\s+(${FIRM})(?=,|\s*\()`);
+const ROLLOVER_FIRM_THEN_FAMILY = new RegExp(String.raw`\bcontributed\s+to\s+Parent\s+by\s+(${FIRM})\s*\([^()]*\)\s+and\s+certain\s+members\s+of\s+the\s+([A-Z][a-z]+)\s+family\b`);
+/** (The company first: "The Nordstrom family and …" reads as Nordstrom itself to every name comparison, by its first word.) */
+const familyBuyer = (firm: string, family: string) => `${firmShortName(firm).replace(/\s+S\.A\.B\..*$/, "")} and the ${family} family`;
+
+/**
+ * Who stands behind a buyer the text defines only as "Parent", whatever the vehicle is called: "Parent and Merger Sub are
+ * affiliates of the Infrastructure Investments Fund, a private investment vehicle …" (South Jersey, NJ Boardwalk Holdings),
+ * "… are affiliates of Charlesbank Capital Partners LLC" (Quotient), "Purchaser are entities affiliated with Kingswood Capital
+ * Management, LP" (Quipt). One step along a chain: "… affiliates of TPG Cannes Aggregation, L.P., an affiliate of TPG Global, LLC
+ * and the holder of a majority …" (Convey), "THL Agiliti LLC, an affiliate of Thomas H. Lee Partners, L.P." (Agiliti). Null when
+ * the sentence names no firm (a defined term), or the target itself.
+ */
+export function buyerBehindParent(text: string, target: string): string | null {
+  const rollover = ROLLOVER_FIRM_THEN_FAMILY.exec(text);
+  if (rollover) return familyBuyer(rollover[1], rollover[2]);
+  const m = WHO_IS_BEHIND.exec(text);
+  if (!m) return null;
+  const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 400);
+  const family = FAMILY_THEN_FIRM.exec(rest);
+  if (family) return familyBuyer(family[2], family[1]);
+  const first = new RegExp(String.raw`^(${FIRM})${FIRM_END}`).exec(rest);
+  if (!first) return null;
+  const chain = CHAIN.exec(rest.slice(first[1].length));
+  if (!chain) {
+    // A list of firms, or one sponsor's funds ("affiliates of Thoma Bravo Fund XVI, L.P., Thoma Bravo Fund XVI-A, L.P. …": Dayforce).
+    const joint = jointBuyers(rest.slice(0, 500));
+    if (joint && isPlausibleName(joint) && !namesCompany(joint, target)) return plainFirm(joint);
+  }
+  const firm = plainFirm(firmShortName(chain?.[1] ?? first[1]));
+  if (firm.length < 3 || !isPlausibleName(firm) || NOT_A_FIRM.test(firm) || clauseWord(firm) || sameCompany(firm, target) || namesCompany(firm, target)) return null;
+  // Not a lender: "an affiliate of Wells Fargo Bank, N.A., the lender".
+  if (/,?\s+N\.\s?A\.?$/.test(firm)) return null;
+  return plainFirm(firm.replace(/\s+SCSp$/, ""));
+}
+
+// The next link, in the same sentence: ", an affiliate of TPG Global, LLC", ", a private equity fund managed by Haveli Investments L.P."
+// (ZeroFox), "(the "Significant Company Stockholder"), the holder of a majority of … and an affiliate of Apax Partners LLP" (Thoughtworks).
+const CHAIN = new RegExp(String.raw`^(?:[^.]|\.(?!\s))*?\b(?:an\s+affiliate\s+of|funds?\s+managed\s+by|managed\s+by)\s+(?:(?:certain\s+)?(?:investment\s+)?funds?\s+(?:managed|advised)\s+by\s+)?(${FIRM})${FIRM_END}`);
+/** The firm, not its numbered fund: "Carlyle Partners V", "Thoma Bravo Fund XV", "EQT Infrastructure II Limited Partnership". */
+const plainFirm = (name: string) =>
+  name
+    .split(/\s+and\s+/)
+    .map((n) => (/\bFund\b/.test(n) ? cleanPartyName(n) : n).replace(/\s+Limited Partnership$/, "").replace(/\s+[IVX]{1,4}$/, "").replace(/^TPG Global$/, "TPG"))
+    .join(" and ");
+
+/**
+ * A name the text defines by a short form: "Authentic Brands Group LLC, a Delaware limited liability company ("Authentic")".
+ * The sponsor sentence had only the term ("a wholly-owned subsidiary of Authentic": Guess).
+ */
+function definedFullName(term: string, flat: string): string | null {
+  if (!/^[A-Z][a-z]+$/.test(term)) return null;
+  const m = new RegExp(String.raw`\b(${term}\s[A-Z][\w&.'’ -]{1,60}?(?:,\s(?:L\.\s?P\.?|LLC|LP|Inc\.?|Ltd\.?))?)(?:,\s+an?\s+[^()"“”;]{1,80})?\s*\(\s*(?:the\s+)?["“]\s*${term}\s*["”]`).exec(flat);
+  return m && isPlausibleName(m[1]) ? m[1] : null;
+}
+
 /** Words that make a capture a clause or a defined term, not a firm. */
 const NOT_A_FIRM =
-  /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Merger Sub|Holdings|Board|Sponsor|Sponsors|Investors?|Guarantors?|Equity Investors?|Merger|Transaction|Offer|Intermediate|Holdco|Topco|Midco)$|^(?:the\s+)?(?:Parent|Purchaser|Buyer|Merger Sub)\b|\b(?:Agreement|Merger|stockholders?|shareholders?|Company['’]s|Aggregator)\b/i;
+  /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Merger Sub|Holdings|Board|Sponsor|Sponsors|Sellers?|Holders?|Lenders?|Investors?|Guarantors?|Equity Investors?|Merger|Transaction|Offer|Intermediate|Holdco|Topco|Midco)$|^(?:the\s+)?(?:Parent|Purchaser|Buyer|Merger Sub)\b|\b(?:Agreement|Merger|stockholders?|shareholders?|Company['’]s|Aggregator)\b/i;
 /** A firm's name has no lower-case words but the joining ones ("Patient Square Capital", "Leonard Green & Partners"). */
 const clauseWord = (name: string) => name.split(/\s+/).some((w) => /^[a-z]/.test(w) && !/^(?:and|of|the|de|la|du|von|van|der|di|e|y|&)$/.test(w));
 
@@ -162,6 +231,9 @@ const clauseWord = (name: string) => name.split(/\s+/).some((w) => /^[a-z]/.test
  */
 export function sponsorFromText(text: string, target: string, shell: string): string | null {
   const flat = flatten(text).slice(0, 60_000);
+  const behind = buyerBehindParent(flat, target);
+  // (The shell's own name, not its leading words: TPG behind TPG Cannes Aggregation is the answer.)
+  if (behind && plainWords(behind).join(" ") !== plainWords(shell).join(" ")) return behind;
   for (const re of PATTERNS) {
     for (const m of flat.matchAll(new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`))) {
       let name = cleanPartyName(m[1].replace(/,\s*$/, "").trim());
@@ -174,7 +246,7 @@ export function sponsorFromText(text: string, target: string, shell: string): st
       // The firms it names together: "Electronic Arts to be Acquired by PIF, Silver Lake and Affinity Partners".
       const start = m.index! + m[0].length - m[1].length;
       const joint = jointBuyers(flat.slice(start, start + 500));
-      return joint && isPlausibleName(joint) && !namesCompany(joint, target) ? joint : name;
+      return joint && isPlausibleName(joint) && !namesCompany(joint, target) ? joint : (definedFullName(name, flat) ?? name);
     }
   }
   for (const re of MANAGEMENT) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activistInsights, activistStats, laterDeal } from "./activists";
+import { activistInsights, activistStats, investorKey, laterDeal } from "./activists";
 import type { ActivistStake, Deal } from "./types";
 
 const stake = (over: Partial<ActivistStake>): ActivistStake => ({
@@ -60,5 +60,16 @@ describe("activists", () => {
     expect(text).toContain("Most common demand: board seats (2 of 3 stakes)");
     expect(text).toContain("Most active: Starboard Value LP (2 stakes)");
     expect(text).toContain("2 targeted companies later agreed to be acquired");
+  });
+
+  it("counts one investor by its CIK, however a filing spelled it", () => {
+    const stakes = [
+      stake({ investor: { name: "Wynnefield Partners Small CAP Value LP", cik: "9" } }),
+      stake({ investor: { name: "Wynnefield Partners Small Cap Value, L.P.", cik: "9" }, company: { name: "Gadget Inc", ticker: null, cik: "300" } }),
+      stake({ investor: { name: "A Person", cik: null } }),
+    ];
+    const { investors } = activistStats(stakes, []);
+    expect(investors.map((i) => [i.key, i.count])).toEqual([["9", 2], ["A Person", 1]]);
+    expect(investorKey(stakes[1])).toBe("9");
   });
 });

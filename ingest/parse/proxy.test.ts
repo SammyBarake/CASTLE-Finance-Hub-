@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare, parseMergerProxy, sideAdvisors } from "./proxy";
+import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare, meetingDateOf, parseMergerProxy, sideAdvisors } from "./proxy";
+
+describe("meetingDateOf", () => {
+  it("reads the meeting however the proxy words it", () => {
+    expect(meetingDateOf("Because of this, Hess is holding a special meeting of its stockholders on May 28, 2024 to vote on the merger.", "2024-04-26")).toBe("2024-05-28");
+    expect(meetingDateOf("NOTICE OF SPECIAL MEETING OF STOCKHOLDERS TO BE HELD NOVEMBER 17, 2026", "2026-10-19")).toBe("2026-11-17");
+    expect(meetingDateOf("NOTICE OF SPECIAL MEETING OF STOCKHOLDERS DATE: April 30, 2026 TIME: 9:00 a.m.", "2026-03-27")).toBe("2026-04-30");
+    expect(meetingDateOf("NOTICE OF EXTRAORDINARY GENERAL MEETING OF SHAREHOLDERS OF MERUS N.V. TO BE HELD TUESDAY, DECEMBER 9, 2025", "2025-11-12")).toBe("2025-12-09");
+    expect(meetingDateOf("We will hold the Special Meeting of Catalent at 8:00 a.m., Eastern Time, on May 29, 2024.", "2024-04-15")).toBe("2024-05-29");
+    expect(meetingDateOf("a special meeting of stockholders of LHC Group, Inc. (\"LHC\") to be held at 9:00 a.m. (Central time) on June 21, 2022", "2022-05-17")).toBe("2022-06-21");
+    expect(meetingDateOf("The Spirit AeroSystems Special Meeting will be held virtually via live audio webcast at www.virtualshareholdermeeting.com/SPR2025SM, on January 31, 2025", "2024-12-20")).toBe("2025-01-31");
+    expect(meetingDateOf("The first shareholder meeting, which is convened by the U.K. Court, the \"Court Meeting,\" will be held on August 9, 2022, at 8:15 a.m.", "2022-07-08")).toBe("2022-08-09");
+  });
+  it("takes an annual meeting only when the proxy names no other", () => {
+    expect(meetingDateOf("our 2021 Annual Meeting of Stockholders (the \"Annual Meeting\"). The Annual Meeting will be held virtually on March 2, 2021.", "2021-01-29")).toBe("2021-03-02");
+    expect(meetingDateOf("Our annual meeting was held on June 2, 2026. A special meeting of stockholders will be held on June 30, 2026.", "2026-05-20")).toBe("2026-06-30");
+  });
+  it("skips the record date, the mailing, deadlines and the board's own meetings", () => {
+    expect(meetingDateOf("at the time of the Special Meeting. Only stockholders of record as of the close of business on December 2, 2026 may vote.", "2026-11-20")).toBeNull();
+    expect(meetingDateOf("the enclosed notice of Special Meeting and form of proxy card, is first being mailed to stockholders on or about August 24, 2026", "2026-08-24")).toBeNull();
+    expect(meetingDateOf("The special meeting. This proxy statement is dated August 15, 2026.", "2026-08-15")).toBeNull();
+    expect(meetingDateOf("resolutions adopted at a special meeting of the board of directors held on August 27, 2026", "2026-08-20")).toBeNull();
+    expect(meetingDateOf("before the SHBI special meeting, holders must request documents by June 12, 2026", "2026-05-08")).toBeNull();
+    // A notice's own date isn't the meeting's (Electro-Sensors).
+    expect(meetingDateOf("NOTICE OF SPECIAL MEETING OF SHAREHOLDERS June 25, 2026", "2026-06-20")).toBeNull();
+  });
+  it("skips a date before the filing or too far after it, and goes on to the next", () => {
+    expect(meetingDateOf("Stockholders approved at a special meeting held on March 1, 2026 the plan.", "2026-04-01")).toBeNull();
+    expect(meetingDateOf("A special meeting on March 1, 2026 approved the plan. The special meeting of stockholders will be held on May 5, 2026.", "2026-04-01")).toBe("2026-05-05");
+    expect(meetingDateOf("A special meeting will be held on March 1, 2027.", "2026-04-01")).toBeNull();
+  });
+});
 
 describe("extractProxyPremium", () => {
   it("reads the premium over the last closing price", () => {
@@ -131,5 +162,31 @@ describe("sideAdvisors", () => {
     const p = parseMergerProxy(joint, "County Bancorp, Inc.", { name: "Nicolet Bankshares, Inc." });
     expect(p.acquirerAdvisors).toEqual(["Stifel"]);
     expect(p.targetAdvisors).toEqual(["Piper Sandler"]);
+  });
+
+  it("the buyer's own name is no adviser under the target's heading (TriState / Raymond James)", () => {
+    const doc = `Opinion of TriState Capital's Financial Advisor (page 52 and Annex B)\nIn connection with the mergers, Stephens, Inc., TriState Capital's financial advisor, rendered an oral opinion.\nOpinion of TriState Capital's Financial Advisor\nTriState Capital engaged Stephens to act as financial adviser in connection with the proposed sale of TriState Capital to Raymond James.\n`;
+    expect(sideAdvisors(doc, { name: "TriState Capital Holdings, Inc." }, { name: "Raymond James" })).toEqual({ acquirer: [], target: ["Stephens"] });
+    // Must not break: the buyer's heading may name the buyer's own bank arm.
+    expect(sideAdvisors(`Opinion of Raymond James's Financial Advisor\nRaymond James & Associates, Inc. rendered its opinion.\n`, { name: "TriState Capital Holdings, Inc." }, { name: "Raymond James" }).acquirer).toEqual(["Raymond James"]);
+  });
+
+  it("a cross-reference opens no section, and the next party's heading ends one (CVB / Heritage Commerce)", () => {
+    const doc = `see "The Merger-Opinion of Heritage's Financial Advisor" beginning on page 79.\nOpinion of CVBF's Financial Advisor (see page 72)\nJ.P. Morgan Securities LLC acted as financial advisor to CVBF.\nOpinion of Heritage's Financial Advisor (see page 79)\nPiper Sandler & Co. acted as financial advisor to Heritage's board of directors.\n`;
+    const sides = sideAdvisors(doc, { name: "Heritage Commerce Corp" }, { name: "CVB Financial Corp", ticker: "CVBF" });
+    expect(sides).toEqual({ acquirer: ["JPMorgan"], target: ["Piper Sandler"] });
+    // A heading naming a bank next doesn't end the party's: "Opinion of Dominion Energy's Financial Advisors / Opinion of Goldman Sachs".
+    expect(sideAdvisors(`Opinion of Dominion Energy's Financial Advisors\nOpinion of Goldman Sachs & Co. LLC\nGoldman Sachs rendered its opinion.\n`, { name: "Dominion Energy, Inc" }, { name: "Nextera Energy Inc" }).target).toEqual(["Goldman Sachs"]);
+    // ... and " ." before the quote is one too (Calavo's glossary).
+    expect(sideAdvisors(`has the meaning set forth in " The Mergers-Opinion of Calavo's Financial Advisor ." BofA Securities, Inc. is named next.\n`, { name: "Calavo Growers Inc" }, { name: "Mission Produce, Inc." }).target).toEqual([]);
+  });
+
+  it("the loose fallback gives up the buyer's banks, not one the target retained (Shell Midstream, Manning & Napier)", () => {
+    const shell = `The Conflicts Committee retained Intrepid Partners, LLC as its financial advisor. Parent also engaged Barclays Capital Inc. to serve as its financial advisor. Barclays Capital Inc. is acting as financial advisor to Shell Midstream in connection with the merger.\n`;
+    expect(parseMergerProxy(shell, "Shell Midstream Partners, L.P.", { name: "Shell USA, Inc." }).targetAdvisors).toEqual([]);
+    // Must not break: an "Opinion of" heading isn't touched, nor a bank the target itself retained.
+    const manning = `PJT Partners LP ("PJT Partners") was retained by Company to act as its financial advisor. Representatives of Gibson Dunn, PJT Partners, Sidley Austin, Callodine's financial advisors met. PJT Partners is acting as financial advisor to Manning & Napier in connection with the mergers.\n`;
+    expect(parseMergerProxy(manning, "Manning & Napier, Inc.", { name: "Callodine Group, LLC" }).targetAdvisors).toEqual(["PJT Partners"]);
+    expect(extractProxyAdvisors("Opinion of Goldman Sachs & Co. LLC\nParent engaged Goldman Sachs as its financial advisor.\n", "Target Inc.", "Parent Inc.")).toEqual(["Goldman Sachs"]);
   });
 });

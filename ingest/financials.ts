@@ -92,7 +92,7 @@ const SHARES = ["EntityCommonStockSharesOutstanding"];
  * 2: D&A and EBIT fallbacks, figures from the last 15 months only, notes as debt, no EV when debt can't be read.
  * 4: evEbitda on adjusted EBITDA (one-offs and stock compensation added back, 3-50x), the largest D&A reading, evEbitdaReported beside it.
  */
-export const FINANCIALS_VERSION = 6; // 6: a total stated with its debt is an enterprise value; a goodwill charge no larger than the goodwill held.
+export const FINANCIALS_VERSION = 5;
 
 const FORMS = /^(10-K|10-Q|20-F|40-F|10-KT|10-QT)(\/A)?$/;
 const days = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;

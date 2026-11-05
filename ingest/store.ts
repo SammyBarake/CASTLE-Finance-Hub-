@@ -26,6 +26,8 @@ export interface StoredDeal extends Deal {
   announceCheck?: number;
   /** The terms are a raised offer's: a document found later that predates it moves the date, not the price. */
   termsAmended?: boolean;
+  /** When the amending document was filed: a proxy filed before it states the premium at the older price. */
+  termsAmendedOn?: string;
   /** A named part of the company, beside another buyer's deal for the rest: neither tops the other. */
   partOfTarget?: boolean;
   /** The buyer came from a bare Item 1.01, whose vehicle or shell the release of the same signing may name better. */
@@ -45,6 +47,8 @@ export interface StoredDeal extends Deal {
   /** Proxy the fairness opinions were read from, and when the search finished (final proxy read or deal over). */
   fairnessAdsh?: string | null;
   fairnessCheckedAt?: string | null;
+  /** The meeting a definitive proxy calls (`meetingDateOf`): what the vote's 8-K must come on or after. */
+  meetingDate?: string | null;
   /** FAIRNESS_PARSER_VERSION the opinions were read with; a newer parser triggers a re-read. */
   fairnessParser?: number;
   /** Deal protections read (8-K + proxy) on this date; null = look again on the next run. */

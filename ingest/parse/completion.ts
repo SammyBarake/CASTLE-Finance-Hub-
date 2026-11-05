@@ -104,7 +104,8 @@ const NAME_DEAL_DONE = /^(?:\s+[A-Z][\w&-]*){0,3}\s+(?:acquisition|purchase|merg
 // A price "net of cash acquired" is only known once it's done: "the acquisition of 100% of TTTech Auto for $766 million in cash ($679 million net of cash acquired)".
 const NET_OF_CASH = /^(?:[^.;]|\.(?=\s+[a-z])){0,130}\bnet of cash acquired\b/i;
 const ACQUISITIONS_OF = /\bacquisitions? of\s+(?:[^.;]{0,50})$/i;
-const ENDED_DEAL = /\bterminat(?:ed|ion of)\b[^.;]{0,120}\b(?:purchase|merger|exchange|acquisition|combination)\s+agreement\b/i;
+// (Not a covenant's words: "until the closing or earlier termination of the Share Exchange Agreement", which made Blackboxstocks / Evtec read Terminated from a live deal's 10-K.)
+const ENDED_DEAL = /(?<!\b(?:earlier|or|prior(?:\s+to)?|any|upon|such)\s+(?:the\s+)?)\bterminat(?:ed|ion of)\b[^.;]{0,120}\b(?:purchase|merger|exchange|acquisition|combination)\s+agreement\b/i;
 const NOT_A_NAME_TERM = /^(?:the\s+)?(?:Company|Seller|Sellers|Target|Merger|Mergers|Agreement|Acquisition|Transaction|Transactions|Purchase|Closing|Buyer|Purchaser|Parent|Sub|Merger Sub|Business|Assets|Shares|Interests|Group|Bank|Holdings)$/i;
 
 const NOT_A_SENTENCE_END = /\b(?:Inc|Corp|Co|Ltd|LLC|L\.P|LP|N\.A|U\.S|No|Mr|Ms|Dr|St|S\.A|N\.V|B\.V|Plc|PLC)$/;
@@ -213,6 +214,81 @@ export function readAnnouncement(text: string, name: string): boolean {
     }
   }
   return false;
+}
+
+// An 8-K's own sections (`section`), and its sentences. A heading, not a cross-reference: "Item 2.01 Completion …", not "Item 2.01 of this Current Report".
+const SENTENCE_END = /(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=[A-Z])/;
+const INTRO_NOTE = /\b(?:Introductory Note|INTRODUCTORY NOTE|Explanatory Note|EXPLANATORY NOTE|Introduction|INTRODUCTION)\b/;
+const ITEM_201 = /\bItem\s*2\.01\b[\s.:\-–—]*(?:Completion|Acquisition|Disposition)/i;
+const ITEM_101 = /\bItem\s*1\.01\b[\s.:\-–—]*Entry/i;
+function section(flat: string, head: RegExp): string {
+  const at = flat.search(head);
+  if (at < 0) return "";
+  const rest = flat.slice(at + 8);
+  const end = rest.search(/\b[Ii][Tt][Ee][Mm]\s*\d\.\d\d\b[\s.:\-–—]+[A-Z]/);
+  return end < 0 ? rest : rest.slice(0, end);
+}
+const DONE_VERB = /\b(?:completed|consummated|closed)\b/i;
+const CLOSING_WORD = /\b(?:completed|completion|consummated|consummation|closed)\b/i;
+// An agreement's date, not the closing's: "the Agreement and Plan of Merger, dated as of July 14, 2026".
+const AGREEMENT_DAY = /\b(?:dated|made|entered into)(?:\s+(?:as of|on))?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}/gi;
+const CLOSED_DEAL_WORD = /\b(?:mergers?|acquisitions?|arrangement|business combination|combination|purchase|transactions?)\b/i;
+
+/**
+ * The closing day a buyer's 8-K states, in a plain sentence of its Item 2.01, Introductory Note or Item 1.01 saying completed, consummated or closed: "On
+ * June 1, 2021, Kaleyra Inc. … completed its acquisition" (mGage), "Effective on February 27, 2026 …, Mid Penn completed" (1st Colonial), "On March 26, 2026,
+ * the Company completed the Arrangement" (Contango / Dolly Varden), "On July 1, 2026, the Merger was consummated" (Lixte / NOMAD), through Item 2.01's pointer
+ * to Item 1.01 too ("On November 3, 2021, the Company completed the Stock Acquisition": BurgerFi / Anthony's). A sentence naming the target first, then any
+ * about a deal. Only after the announcement and not after the filing; never the date of the agreement. Null: the 8-K's filing date stands.
+ */
+export function statedClosingDay(text: string, named: RegExp, announcedDate: string, fileDate: string): string | null {
+  const flat = text.replace(/\s+/g, " ");
+  const sentencesOf = (s: string) => s.split(SENTENCE_END);
+  const item201 = section(flat, ITEM_201);
+  const item101 = sentencesOf(section(flat, ITEM_101));
+  const main = [...sentencesOf(item201), ...sentencesOf(section(flat, INTRO_NOTE))];
+  // (An 8-K is due in four business days: a day long before it is something else. Of 735 cached 8-Ks with an Item 2.01, those were another deal's or an offering's.)
+  const floor = new Date(Date.parse(fileDate) - 30 * 86_400_000).toISOString().slice(0, 10);
+  const read = (s: string) => {
+    const at = s.search(DONE_VERB);
+    if (at < 0 || CONDITIONAL.test(s.slice(0, at)) || /\b(?:entered into|amended|issued)\b/i.test(s.slice(0, at))) return null;
+    const day = statedDate(s.replace(AGREEMENT_DAY, " "));
+    return day && day > announcedDate && day >= floor && day <= fileDate ? day : null;
+  };
+  // Item 1.01 goes on to credit facilities and notes: by another deal word only when Item 2.01 sends the reader there (BurgerFi's "Stock Acquisition").
+  const pointsToItem101 = item201.length < 400 && /\bItem\s*1\.01\b/i.test(item201) && /\bincorporated\b/i.test(item201);
+  for (const s of [...main, ...item101]) {
+    const day = named.test(s) ? read(s) : null;
+    if (day) return day;
+  }
+  for (const s of pointsToItem101 ? [...main, ...item101] : main) {
+    const day = CLOSED_DEAL_WORD.test(s) ? read(s) : null;
+    if (day) return day;
+  }
+  return null;
+}
+
+/**
+ * A target that stays listed after selling out files neither Form 25 nor Item 5.01, so only its 8-K says the deal closed. The day it closed, when the 8-K's
+ * opening or Item 2.01 says it completed the agreement this deal signed: "On October 21, 2026, Senti Biosciences Holdings, Inc. … completed the transactions
+ * contemplated by the Agreement and Plan of Merger, dated as of July 14, 2026"; "the completion on January 23, 2026 … of the previously announced sale …
+ * pursuant to the terms of the Asset Purchase Agreement, dated July 17, 2025" (Sonim). An agreement dated in the ten days up to the announcement, so not
+ * the company's own purchase in between (Sonim's DNA X, December 2025), nor a later buyer's. `closingToRead` chooses which 8-Ks to read.
+ */
+export function completedSigningOn(text: string, announcedDate: string, fileDate: string): string | null {
+  const flat = text.replace(/\s+/g, " ");
+  const floor = new Date(Date.parse(announcedDate) - 10 * 86_400_000).toISOString().slice(0, 10);
+  const signed = /\b(?:Plan of Merger|Merger Agreement|Purchase Agreement|Transaction Agreement|Arrangement Agreement|Combination Agreement|Exchange Agreement)\b[^.]{0,60}?\bdated(?:\s+as of)?\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})/i;
+  for (const s of [INTRO_NOTE, ITEM_201].flatMap((head) => section(flat, head).split(SENTENCE_END))) {
+    const at = s.search(CLOSING_WORD);
+    if (at < 0 || CONDITIONAL.test(s.slice(0, at))) continue;
+    const agreed = signed.exec(s);
+    const on = agreed ? statedDate(`on ${agreed[1]}`) : null;
+    if (!on || on < floor || on > announcedDate) continue;
+    const day = statedDate(s.replace(AGREEMENT_DAY, " "));
+    if (day && day > announcedDate && day <= fileDate) return day;
+  }
+  return null;
 }
 
 /** "On March 21, 2022" / "effective as of March 21, 2022" / "on 21 March 2022" in a sentence, as an ISO date. */

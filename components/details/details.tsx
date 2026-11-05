@@ -263,7 +263,7 @@ function DealBody({ deal, data, onOpenDeal, onOpenAdvisor }: { deal: Deal; data:
             <DetailItem label="Buyer type">{buyerType(deal)}</DetailItem>
             <DetailItem label="Announced">{formatDateLong(deal.announcedDate)}</DetailItem>
             <DetailItem label="Sector">{deal.sector}</DetailItem>
-            <DetailItem label="Industry">{deal.industry ?? "—"}</DetailItem>
+            <DetailItem label={deal.privateTarget ? "Buyer's industry" : "Industry"}>{deal.industry ?? "—"}</DetailItem>
           </DetailGrid>
           <div className="related-title">Most similar deals · same sector, nearest size, same buyer type</div>
           {related.length ? (

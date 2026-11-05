@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { AboutData, Kpi, Kpis, PageHeading, PanelHead, Takeaways } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
-import { activistInsights, activistStats, laterDeal } from "@/lib/activists";
+import { activistInsights, activistStats, investorKey, laterDeal } from "@/lib/activists";
 import { formatDate, formatDateLong, formatPct, formatUsd } from "@/lib/format";
 import type { ActivistStake, Deal } from "@/lib/types";
 
@@ -25,7 +25,7 @@ function StakeBody({ stake, deal, onOpenDeal }: { stake: ActivistStake; deal: De
         </DetailItem>
         <DetailItem label="Stake">{pct(stake.percent)}</DetailItem>
         <DetailItem label="Shares">{stake.shares != null ? stake.shares.toLocaleString("en-US") : "—"}</DetailItem>
-        <DetailItem label="Crossed 5%">{stake.eventDate ? formatDateLong(stake.eventDate) : "—"}</DetailItem>
+        <DetailItem label="Event date">{stake.eventDate ? formatDateLong(stake.eventDate) : "—"}</DetailItem>
         <DetailItem label="Filed">{formatDateLong(stake.filedDate)}</DetailItem>
         <DetailItem label="Amendments since">{stake.amendments ? `${stake.amendments} (latest ${formatDateLong(stake.lastAmended!)})` : "None"}</DetailItem>
         <DetailItem label="What they want">{stake.aims.length ? stake.aims.join(", ") : "Not specific"}</DetailItem>
@@ -48,7 +48,7 @@ function StakeBody({ stake, deal, onOpenDeal }: { stake: ActivistStake; deal: De
         <span>Schedule 13D on SEC EDGAR</span>
         <Icon name="external" />
       </a>
-      <Note>Read automatically from the structured Schedule 13D. Stakes of related funds overlap, so the largest reported percentage is shown.</Note>
+      <Note>Read automatically from the structured Schedule 13D. Stakes of related funds overlap, so the largest reported percentage is shown, or the group&apos;s total where the filing states one.</Note>
     </>
   );
 }
@@ -65,7 +65,8 @@ export function ActivistsView() {
   const [shown, setShown] = useState(PAGE);
   const soldIds = useMemo(() => new Set(stats.sold.map((x) => x.stake.id)), [stats.sold]);
 
-  const rows = stakes.filter((s) => (!aim || s.aims.includes(aim)) && (!investor || s.investor.name === investor));
+  const rows = stakes.filter((s) => (!aim || s.aims.includes(aim)) && (!investor || investorKey(s) === investor));
+  const investorName = stats.investors.find((i) => i.key === investor)?.name;
   const maxAim = Math.max(1, ...stats.aims.map((a) => a.count));
 
   const openStake = (s: ActivistStake) =>
@@ -79,7 +80,7 @@ export function ActivistsView() {
   if (!stakes.length) {
     return (
       <>
-        <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change" />
+        <PageHeading title="Activist Investors" subtitle="Stakes filed on Schedule 13D by investors who want change" />
         <section className="panel">
           <div className="empty-small">{data.isSample ? "Activist stakes come from real SEC filings, so they appear once the site is showing live data." : "No activist filings yet. They appear after the next data refresh."}</div>
         </section>
@@ -89,7 +90,7 @@ export function ActivistsView() {
 
   return (
     <>
-      <PageHeading title="Activist Investors" subtitle="5%+ stakes by investors who want change · Schedule 13D" />
+      <PageHeading title="Activist Investors" subtitle="Stakes filed on Schedule 13D by investors who want change" />
 
       <Kpis label="Activist summary">
         <Kpi label="Activist stakes" value={stats.count} note={stats.since ? `Since ${formatDate(stats.since)}` : ""} />
@@ -119,11 +120,11 @@ export function ActivistsView() {
           <PanelHead title="Most active" subtitle="Click an investor to see its stakes" />
           {stats.investors.map((i) => (
             <button
-              key={i.name}
+              key={i.key}
               type="button"
-              className={`preview-row ${investor === i.name ? "active-row" : ""}`}
-              aria-pressed={investor === i.name}
-              onClick={() => (setInvestor(investor === i.name ? null : i.name), setShown(PAGE))}
+              className={`preview-row ${investor === i.key ? "active-row" : ""}`}
+              aria-pressed={investor === i.key}
+              onClick={() => (setInvestor(investor === i.key ? null : i.key), setShown(PAGE))}
             >
               <span className="preview-company">
                 <span>
@@ -141,7 +142,7 @@ export function ActivistsView() {
 
       <section className="panel">
         <PanelHead
-          title={`${rows.length} stake${rows.length === 1 ? "" : "s"}${aim ? ` · ${aim}` : ""}${investor ? ` · ${investor}` : ""}`}
+          title={`${rows.length} stake${rows.length === 1 ? "" : "s"}${aim ? ` · ${aim}` : ""}${investorName ? ` · ${investorName}` : ""}`}
           subtitle="Newest first · click a row for what the investor wrote"
         >
           {(aim || investor) && (

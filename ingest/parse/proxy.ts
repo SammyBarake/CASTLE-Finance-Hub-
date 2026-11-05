@@ -121,8 +121,13 @@ export function extractProxyPremium(t: string): number | null {
   return premiumCandidates(t)[0]?.pct ?? null;
 }
 
-/** Banks that advised the target: fairness-opinion headings, "the Board considered the opinion of X", "X, the Company's financial advisor". */
-export function extractProxyAdvisors(t: string, targetName: string): string[] {
+/**
+ * Banks that advised the target: fairness-opinion headings, "the Board considered the opinion of X", "X, the Company's financial advisor".
+ * That last, loose reading gives up the buyer's banks as the story names them: "Parent also engaged Barclays Capital Inc. ... to serve as
+ * its financial advisor" (Shell Midstream, whose committee's adviser no heading names). Only there: beside an "Opinion of" heading the
+ * helper's false conflicts would bite (`buyerBanksInProxy`).
+ */
+export function extractProxyAdvisors(t: string, targetName: string, buyerName?: string): string[] {
   const banks: string[] = [];
   // "Opinion of Goldman Sachs & Co. LLC" (skip "Opinion of the Company's Financial Advisor" / "Opinion of Viper's Financial Advisor").
   for (const m of t.matchAll(/\bOpinion of (?!the\b|Financial\b|[A-Z][\w.&'’ -]{0,30}?['’]?s Financial Advis)([^\n]{0,70})/g)) {
@@ -132,15 +137,87 @@ export function extractProxyAdvisors(t: string, targetName: string): string[] {
   for (const m of t.matchAll(/(?:Board|Special Committee|Transaction Committee)\s+(?:also\s+)?(?:considered|received|relied on)\s+the\s+(?:oral\s+|written\s+)?(?:and\s+written\s+)?opinion\s+of\s+([^,;(]{2,40})/gi)) {
     banks.push(...findBanks(m[1]));
   }
-  if (!banks.length) banks.push(...extractAdvisors(t.slice(0, 200_000), "Parent", targetName, "target", null).targetAdvisors);
+  if (!banks.length) {
+    // Not one the story also gives the target: Callodine's "representatives of Gibson Dunn, PJT Partners, Sidley Austin, Callodine's financial advisors" beside "PJT Partners was retained by Company" (Manning & Napier).
+    const ours = buyerName ? targetsOwnBanks(t, targetName) : [];
+    const theBuyers = buyerName ? buyerBanksInProxy(t, buyerName).filter((b) => !ours.includes(b)) : [];
+    banks.push(...extractAdvisors(t.slice(0, 200_000), "Parent", targetName, "target", null).targetAdvisors.filter((b) => !theBuyers.includes(b)));
+  }
   return [...new Set(banks)].slice(0, 4);
+}
+
+/** Banks the story says the target itself engaged: "was retained by Company", "Blue Apron engaged J.P. Morgan", "the Company's financial advisor, X". */
+function targetsOwnBanks(text: string, targetName: string): string[] {
+  const word = targetName.replace(/^the\s+/i, "").split(/[\s,]+/)[0].replace(/[^\w&-]/g, "");
+  const who = String.raw`(?:${word.length >= 3 ? word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "Company"}(?:\s+[A-Z][\w&]*){0,2}|Company)`;
+  const flat = text.replace(/\s+/g, " ").replace(/’/g, "'").slice(0, 400_000);
+  const banks = new Set<string>();
+  const re = new RegExp(String.raw`[^.]{0,160}\b(?:retained|engaged) by (?:the )?${who}\b[^.]{0,60}|\b${who}(?: Board)? (?:had |has )?(?:engaged|retained) [^.;]{0,120}|[^.;]{0,120}\b${who}'s (?:exclusive |sole |lead )?financial advis[eo]rs?\b[^.;]{0,100}`, "g");
+  for (const m of flat.matchAll(re)) findBanks(m[0]).forEach((b) => banks.add(b));
+  return [...banks];
+}
+
+/**
+ * The buyer's banks as the proxy's story names them, for a buyer no release gave one: "Novo's financial advisor, BofA Securities,
+ * Inc." (Akero), "Citigroup Global Markets Inc. ("Citi"), Stryker's financial advisor" (Inari), "Amazon, its financial advisor,
+ * Goldman Sachs & Co." (Globalstar), "Sumitomo and SMBC AC had engaged Goldman Sachs Group, Inc. … and Citigroup Global Markets
+ * Inc. … as their financial advisors" (Air Lease). Only ever to fill an empty list: these sentences also mention the target's
+ * bank, so as a referee of sides they misfire (16 false conflicts in 40 deals). The caller drops any bank on the target's list.
+ */
+export function buyerBanksInProxy(text: string, buyerName: string): string[] {
+  const word = buyerName.replace(/^the\s+/i, "").split(/[\s,]+/)[0].replace(/[^\w&-]/g, "");
+  const who = String.raw`(?:${word.length >= 3 ? word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "Parent"}(?:\s+[A-Z][\w&]*){0,2}|Parent)`;
+  // The bank right next to the words, not the sentence's others: "representatives of Jefferies, Citibank, Lockheed Martin's financial advisor" (Terran Orbital's own adviser beside it).
+  const after = new RegExp(String.raw`\b${who}(?:'s|’s|')\s+(?:exclusive\s+|sole\s+|lead\s+)?financial\s+advis[eo]rs?(?:\s+in connection with the [a-z ]{3,40})?,?\s+((?:(?!\s(?:and|to|in|on)\s(?:the|its)\b)[^.;(,]){3,120}(?:\.\s?[A-Z]\.[^.;(,]{0,60})?)`, "g");
+  const before = new RegExp(String.raw`((?:[A-Z][\w&.]*[ ,]+){1,6})(?:\(?[^()]{0,30}\)?\s*)?,\s+${who}(?:'s|’s|')\s+(?:exclusive\s+|sole\s+|lead\s+)?financial\s+advis[eo]rs?\b`, "g");
+  const its = new RegExp(String.raw`\b${who},?\s+(?:and\s+)?its\s+financial\s+advis[eo]rs?,?\s+((?:(?!\s(?:and|to|in|on)\s(?:the|its)\b)[^.;(,]){3,120})`, "g");
+  const engaged = new RegExp(String.raw`\b${who}\b[^.;]{0,40}?\b(?:had\s+|has\s+|have\s+)?(?:engaged|retained)\s+([^;]{3,160}?)\s+as\s+(?:its|their)\s+(?:exclusive\s+|sole\s+|lead\s+)?financial\s+advis[eo]rs?\b`, "g");
+  const flat = text.replace(/\s+/g, " ").slice(0, 400_000);
+  const banks = new Set<string>();
+  for (const re of [after, its, engaged]) for (const m of flat.matchAll(re)) findBanks(m[1]).forEach((b) => banks.add(b));
+  for (const m of flat.matchAll(before)) {
+    const nearest = findBanks(m[1].split(/,\s+/).filter(Boolean).at(-1) ?? "");
+    (nearest.length ? nearest : findBanks(m[1])).forEach((b) => banks.add(b));
+  }
+  return [...banks];
+}
+
+// From the meeting's name to its date: "… to be held at 9:00 a.m., Eastern Time, on May 29, 2024", "… TO BE HELD TUESDAY, DECEMBER 9,
+// 2025", "… DATE & TIME October 6, 2023". Never across the record date, the mailing, a deadline ("no later than") or the
+// board's own meetings: "a special meeting of the board held on" isn't it. Periods are allowed: "a.m.", "Inc.", a web address.
+const TO_MEETING_DATE = String.raw`(?:(?!\b(?:record|close of business|mailed|dated|no later than|board|directors|committee)\b)[\s\S]){0,220}?(?:\bon\s+|\bheld\s+|\bdate(?:\s*(?:&|and)\s*time)?\s*:?\s+)(?:[a-z]+day,?\s+)?((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+20\d\d)`;
+const MEETING_RES = [
+  new RegExp(String.raw`(?:\bspecial(?:\s+general)?|\bextraordinary(?:\s+general)?|(?<!annual\s)\bgeneral|\bcourt|\bstockholders?['’]?|\bshareholders?['’]?)\s+meetings?\b${TO_MEETING_DATE}|\bEGM\b${TO_MEETING_DATE}`, "gi"),
+  // A merger put to the annual meeting (Navistar, Tenneco, Avangrid), when the proxy names no other.
+  new RegExp(String.raw`\bannual\s+(?:general\s+)?meeting\b${TO_MEETING_DATE}`, "gi"),
+];
+
+/** Every date the opening pages give for a meeting, in order; `meetingDateOf` chooses. */
+export function meetingDates(text: string): string[] {
+  const head = text.slice(0, 40_000);
+  return MEETING_RES.flatMap((re) =>
+    [...head.matchAll(re)].flatMap((m) => {
+      const t = Date.parse(`${(m[1] ?? m[2]).replace(/\s+/g, " ").replace(/,?\s(20\d\d)$/, ", $1")} UTC`);
+      return Number.isNaN(t) ? [] : [new Date(t).toISOString().slice(0, 10)];
+    }),
+  );
+}
+
+/**
+ * The day of the meeting a definitive proxy calls: a merger vote's 8-K comes on or after it, and an 8-K before it is the
+ * annual meeting's (Hess, Synaptics, Silicon Labs). Null when none is clearly stated. Not a date before it was filed, nor
+ * over six months after: the proxy's own date, a later section's.
+ */
+export function meetingDateOf(text: string, filedOn: string): string | null {
+  const latest = new Date(Date.parse(filedOn) + 183 * 86_400_000).toISOString().slice(0, 10);
+  return meetingDates(text).find((d) => d >= filedOn && d <= latest) ?? null;
 }
 
 export function parseMergerProxy(text: string, targetName: string, acquirer?: { name: string; ticker?: string | null }): ParsedProxy {
   const sides = acquirer ? sideAdvisors(text, { name: targetName }, acquirer) : { acquirer: [], target: [] };
   // A joint proxy labels each side's opinion; otherwise the "Opinion of <bank>" headings are the target's, less any bank
   // the buyer's heading named.
-  const targetAdvisors = sides.target.length ? sides.target : extractProxyAdvisors(text, targetName).filter((b) => !sides.acquirer.includes(b));
+  const targetAdvisors = sides.target.length ? sides.target : extractProxyAdvisors(text, targetName, acquirer?.name).filter((b) => !sides.acquirer.includes(b));
   return { premiumPct: extractProxyPremium(text), targetAdvisors, impliedPerShare: extractImpliedPerShare(text), acquirerAdvisors: sides.acquirer, targetHeadingAdvisors: sides.target };
 }
 
@@ -153,7 +230,8 @@ function isParty(party: string, company: { name: string; ticker?: string | null 
 /**
  * Each side's banks in a joint proxy: "Opinion of Nicolet's Financial Advisor", "Opinion of the Financial Advisors to the
  * MSGE Special Committee", "Opinion of AGM's Financial Advisor" — the bank named first under the heading. A heading
- * whose party is neither company is skipped, and a bank under both is the target's.
+ * whose party is neither company is skipped, and a bank under both is the target's. Under the target's heading, the buyer's own
+ * name is no adviser: "TriState Capital engaged Stephens ... in connection with the proposed sale of TriState Capital to Raymond James".
  */
 export function sideAdvisors(t: string, target: { name: string; ticker?: string | null }, acquirer: { name: string; ticker?: string | null }): { acquirer: string[]; target: string[] } {
   const acq: string[] = [];
@@ -163,8 +241,14 @@ export function sideAdvisors(t: string, target: { name: string; ticker?: string 
     const party = (m[1] ?? m[2]).replace(/\s+(?:Special|Conflicts|Transaction|Independent|Strategic)\s+(?:Review\s+)?Committee$|\s+Board(?: of Directors)?$/i, "").trim();
     const side = isParty(party, acquirer) && !isParty(party, target) ? acq : isParty(party, target) && !isParty(party, acquirer) ? tgt : null;
     if (!side) continue;
-    if (/^\s*\d{1,3}\s+[A-Z]/.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 40))) continue;
-    const bank = findBanks(t.slice(m.index! + m[0].length, m.index! + m[0].length + 1500))[0];
+    const end = m.index! + m[0].length;
+    if (/^\s*\d{1,3}\s+[A-Z]/.test(t.slice(end, end + 40))) continue;
+    // A cross-reference opens no section: `see "... Opinion of Heritage's Financial Advisor" beginning on page 79` stood before "Opinion of CVBF's Financial Advisor" and J.P. Morgan.
+    if (/^\s?[.,]?\s?["”]/.test(t.slice(end, end + 6))) continue;
+    const buyerItself = side === tgt ? findBanks(acquirer.name) : [];
+    const window = t.slice(end, end + 1500);
+    const next = window.search(/\bOpinions? of (?:the )?(?:Financial Advis[eo]rs? to|[A-Z][\w.&'’ -]{1,40}?\s?['’]\s?s?\s+Financial Advis[eo]rs?)\b/);
+    const bank = findBanks(next >= 0 ? window.slice(0, next) : window).find((b) => !buyerItself.includes(b));
     if (bank) side.push(bank);
   }
   const target_ = [...new Set(tgt)];

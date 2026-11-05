@@ -28,20 +28,24 @@ export interface ActivistStats {
   since: string | null;
   medianPercent: number | null;
   aims: { aim: string; count: number }[];
-  investors: { name: string; count: number; companies: string[]; stake: ActivistStake }[];
+  investors: { key: string; name: string; count: number; companies: string[]; stake: ActivistStake }[];
   /** Stakes whose company later agreed to be acquired. */
   sold: { stake: ActivistStake; deal: Deal }[];
 }
 
+/** One investor is one CIK, however its name was spelled on each filing. */
+export const investorKey = (s: ActivistStake) => s.investor.cik ?? s.investor.name;
+
 export function activistStats(stakes: ActivistStake[], deals: Deal[]): ActivistStats {
   const aims = new Map<string, number>();
   for (const s of stakes) for (const a of s.aims) aims.set(a, (aims.get(a) ?? 0) + 1);
-  const investors = new Map<string, { name: string; count: number; companies: string[]; stake: ActivistStake }>();
+  const investors = new Map<string, ActivistStats["investors"][number]>();
   for (const s of stakes) {
-    const e = investors.get(s.investor.name) ?? { name: s.investor.name, count: 0, companies: [], stake: s };
+    const key = investorKey(s);
+    const e = investors.get(key) ?? { key, name: s.investor.name, count: 0, companies: [], stake: s };
     e.count++;
     if (!e.companies.includes(s.company.name)) e.companies.push(s.company.name);
-    investors.set(s.investor.name, e);
+    investors.set(key, e);
   }
   const sold = stakes.map((stake) => ({ stake, deal: laterDeal(stake, deals) })).filter((x): x is { stake: ActivistStake; deal: Deal } => x.deal != null);
   return {

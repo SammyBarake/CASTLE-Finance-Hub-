@@ -25,21 +25,21 @@ import {
   type Submissions,
 } from "./edgar";
 import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
-import { definedEntities, item101, parseMergerItem, saysMergerTerminated, withItem101Price, withoutSideMatters } from "./parse/eightk";
+import { definedEntities, item101, ownReleaseDay, parseMergerItem, saysMergerTerminated, withItem101Price, withoutSideMatters } from "./parse/eightk";
 import { namesTheShell, sponsorFromText } from "./parse/sponsor";
-import { parseDealTerms, saneFee, TERMS_PARSER_VERSION } from "./parse/terms";
+import { combineTerms, parseDealTerms, parseProxyTerms, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
-import { isClosingFiling, milestonesFrom } from "./timeline";
-import { parseMergerProxy } from "./parse/proxy";
+import { closingFiling, closingsToRead, milestonesFrom, ownFilings } from "./timeline";
+import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
-import { completedPhrases, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord } from "./parse/completion";
-import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps } from "./parse/names";
+import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay } from "./parse/completion";
+import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
 import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
-import { sectorForSic } from "./sectors";
+import { sectorForBuyer, sectorForCompany } from "./sectors";
 import type { StoredDeal, State } from "./store";
-import { BASIN_NAME, HOTEL_PROPERTY, SPAC_NAME, tidyDeals } from "./tidy";
+import { BASIN_NAME, correctKnownClosing, HOTEL_PROPERTY, moveBuyerOffTarget, SPAC_NAME, tidyDeals } from "./tidy";
 import { flatten, htmlToText } from "./text";
-import type { Company, DealStatus, DealTerms, Filing } from "../lib/types";
+import type { Company, DealStatus, DealTerms, FairnessOpinion, Filing } from "../lib/types";
 
 export const QUERIES = [
   '"represents a premium"',
@@ -60,7 +60,8 @@ export const FORMS = ["8-K", "DEFA14A", "425", "SC TO-C", "SC14D9C"];
  * US-listed companies buying private companies (most M&A by count). Buyer-filed 8-K press exhibits;
  * the parser decides whether the target is a private company (see `isPrivateTarget`).
  */
-export const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of"', '"definitive agreement to acquire"', '"completes acquisition of"', "acquired privately held"];
+// (Plural, which the search doesn't count as the singular: Vistra's "has executed definitive agreements to acquire Cogentrix Energy", whose closing release alone made a deal dated October.)
+export const PRIVATE_QUERIES = ['"has acquired"', '"completed the acquisition of"', '"definitive agreement to acquire"', '"executed definitive agreements to acquire"', '"completes acquisition of"', "acquired privately held"];
 
 /**
  * Target-side 8-K language: "Merger Sub will merge with and into the Company" only appears when the
@@ -303,7 +304,8 @@ export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: 
   const filings = recentFilings(sub as Submissions);
   const reporting = filings.some((f) => PERIODIC.test(f.form) && f.date >= shiftDate(date, -450) && f.date <= shiftDate(date, 30));
   // (A Form 25 weeks before the deal means off the exchange at signing: Agile 23 days, Apex 14. Ten days covers a record dated at its closing.)
-  const listed = (sub.exchanges ?? []).some((e) => US_LISTED.test(e ?? "")) || filings.some((f) => /^25(?:-NSE)?$/.test(f.form) && f.date >= shiftDate(date, -10));
+  // (An amended Form 25 is one too: RADA Electronic Industries, on Nasdaq until Leonardo DRS bought it, filed only "25-NSE/A".)
+  const listed = (sub.exchanges ?? []).some((e) => US_LISTED.test(e ?? "")) || filings.some((f) => /^25(?:-NSE)?(?:\/A)?$/.test(f.form) && f.date >= shiftDate(date, -10));
   return reporting && listed;
 }
 
@@ -365,7 +367,7 @@ export function takenOverAround(sub: Pick<Submissions, "filings">, date: string,
  * closing date; one created from the announcement (Aerie, signed months before its Form 25) does not.
  */
 export function completedAround(sub: Pick<Submissions, "filings">, date: string): boolean {
-  return recentFilings(sub as Submissions).some((f) => /^(?:25|25-NSE|15-12B|15-12G)$/.test(f.form) && f.date >= shiftDate(date, -3) && f.date <= shiftDate(date, 10));
+  return recentFilings(sub as Submissions).some((f) => /^(?:25|25-NSE|15-12B|15-12G)(?:\/A)?$/.test(f.form) && f.date >= shiftDate(date, -3) && f.date <= shiftDate(date, 10));
 }
 
 /** An 8-K Item 1.01 section that is the merger agreement with this party (not a credit facility or another deal). */
@@ -392,7 +394,9 @@ export async function signingDate(sub: Submissions, closing: string, counterpart
 
 /** Words a registrant's name may add to the name a release used: "Aerie" is "Aerie Pharmaceuticals", not "Aeries Technology". */
 const DESCRIPTOR = /^(?:pharmaceuticals?|pharma|therapeutics|biosciences?|biotherapeutics|biopharma(?:ceuticals)?|bio|oncology|medical|medtech|lithium|energy|resources|minerals|mining|realty|properties|software|networks|communications|partners|pipeline|systems)$/;
-const nameKey = (s: string) => normalizeName(s.replace(/['’]/g, "")); // "Ruth's" = "Ruths"
+// "Ruth's" = "Ruths"; without EDGAR's state tag ("ENTERPRISE BANCORP INC /MA/" normalised to just "ma", and left Independent's
+// purchase of a Nasdaq bank private; "HEALTH NET INC /DE/" to "health net de").
+const nameKey = (s: string) => normalizeName(withoutStateTag(s).replace(/['’]/g, ""));
 
 /**
  * Is `registrant` (its name on the deal date) the company a release called `target`? The same name (suffixes such as
@@ -434,16 +438,23 @@ function company(p: PartyMention, r: Resolved): Company {
   return { name: p.name, ticker: r.ticker, cik: r.cik };
 }
 
+/** First words many unrelated companies share, so they prove nothing. */
+const GENERIC_FIRST_WORD = /^(?:energy|health|healthcare|capital|global|american|america|national|first|united|general|financial|pacific|southern|northern|western|eastern|community|industrial|digital|medical|power|water|advanced|applied|premier|summit|pioneer|liberty|eagle)$/;
+
 /** A real company name for a private target, not an asset description ("certain assets of …", "12 properties"). */
 export function isPrivateTargetName(name: string, acquirerName: string): boolean {
   const n = name.trim();
-  if (n.length < 3 || n.length > 70 || sameCompany(n, acquirerName)) return false;
+  // The same company, by more than an ordinary first word: First Internet Bancorp bought First Century Bancorp.
+  const sharedWordOnly = GENERIC_FIRST_WORD.test(normalizeName(n).split(" ")[0]) && !identicalNames(n, acquirerName);
+  if (n.length < 3 || n.length > 70 || (sameCompany(n, acquirerName) && !sharedWordOnly)) return false;
   if (!/^(?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9]/.test(n) || /^\d+\s/.test(n) || /^(?:eCommerce|eBook|eLearning|eHealth|mRNA|iPhone|iPad|iOS|tRx)\b/.test(n)) return false;
   // A basin is an asset purchase: "Eagle Ford" (Crescent Energy buying Devon's Eagle Ford assets). A run of hyphenated
   // words is a description: "Cash-Flow-Positive" (production).
   if (BASIN_NAME.test(n) || HOTEL_PROPERTY.test(n) || /^[A-Za-z]+(?:-[A-Za-z]+){2,}$/.test(n) || isDescriptionOnly(n)) return false;
   // A headline cut at its adjective: "Completes Acquisition of Multiple Leading Nuclear Brands", "Acquisition of Integrated LNG and Power Platform".
   if (/^(?:Multiple|Integrated|Various|Several|Numerous|Leading|Strategic|Select|Diversified|Regional|National|Premier)$/i.test(n)) return false;
+  // A class of shares: "High-Vote Series B Common" (Liberty Media).
+  if (/\bSeries [A-Z]\b.*\b(?:Common|Preferred)\b|\b(?:Common|Preferred) (?:Stock|Shares?|Units?)$|^High-Vote\b/i.test(n)) return false;
   if (/^(?:the |its |a |an )?(?:certain|substantially all|remaining|additional|another|control of|global|worldwide|u\.s\.|us|north american|exclusive|ownership|assets?|business(?:es)?|portfolio|operations?|propert(?:y|ies)|division|units?|stake|interests?|shares|equity|company|companies|entity|group of|majority|minority|rights?|license)\b/i.test(n)) return false;
   // A headline run on into its verb, a place or a property: "Kellstrom Aerospace Provides Preliminary …", "Mobility & Materials Business Establishes", "San Diego-Based", "East Texas Bolt-On", "DreamWorks Animation Campus".
   if (/\b(?:Provides|Establishes|Reports|Announces)\b|-Based$|\bBolt-On\b|\bCampus$|\bSites?$/.test(n)) return false;
@@ -484,8 +495,7 @@ export function tidyTargetName(name: string, acquirerName: string): string {
   // "Second Street January 20" -> "Second Street"
   n = n.replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,?\s*\d{4})?$/, "");
   const brand = normalizeName(acquirerName).split(" ")[0];
-  const generic = /^(?:energy|health|healthcare|capital|global|american|america|national|first|united|general|financial|pacific|southern|northern|western|eastern|community|industrial|digital|medical|power|water|advanced|applied|premier|summit|pioneer|liberty|eagle)$/;
-  if (brand && brand.length >= 4 && !generic.test(brand)) {
+  if (brand && brand.length >= 4 && !GENERIC_FIRST_WORD.test(brand)) {
     const at = n.toLowerCase().search(new RegExp(`\\s${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`));
     // (Two words must be left: European Drilling Projects bought by Drilling Tools, Helix eSports bought by Esports Entertainment.)
     if (at > 2 && n.slice(0, at).trim().split(/\s+/).length >= 2) n = n.slice(0, at);
@@ -648,7 +658,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
       ...(parsed.kind === "completion" && isPrivate && parsed.announcedEarlier && !stated ? { dateIsClosing: true } : {}),
       acquirer: company(parsed.acquirer, acquirer),
       ...(parsed.item101 ? { buyerFromItem101: true } : {}),
-      ...(parsed.amended ? { termsAmended: true } : {}),
+      ...(parsed.amended ? { termsAmended: true, termsAmendedOn: hit.fileDate } : {}),
       ...(parsed.partOfTarget ? { partOfTarget: true } : {}),
       ...(parsed.buyIn != null ? { buyIn: parsed.buyIn } : {}),
       target: company(parsed.target, target),
@@ -718,6 +728,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
     if (deal.valueUsd == null) deal.valueCheck = VALUE_CHECK_VERSION;
     deal.financialsCheckedAt = null;
     deal.termsAmended = true;
+    deal.termsAmendedOn = hit.fileDate;
   }
   // A signing doesn't move a date a release gave (Friday's signing, Monday's release, Wednesday's 8-K), and a release's
   // date replaces a signing's.
@@ -752,6 +763,8 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   } else if (
     parsed.acquirer.name.length > deal.acquirer.name.length &&
     sameCompany(parsed.acquirer.name, deal.acquirer.name) &&
+    // Joint buyers keep their short names: "Trian and General Catalyst", not "Trian Fund Management and General Catalyst" (Janus Henderson).
+    !/\sand\s/.test(deal.acquirer.name) &&
     // Not the shell it signed through: "Atlas River Parent Inc." doesn't rename Atlas Holdings LLC.
     !isPlaceholderBuyer(parsed.acquirer.name) &&
     // Not a subsidiary sharing the listed buyer's first word: Cidara's merger 8-K named "Merck Sharp & Dohme LLC", which
@@ -789,6 +802,56 @@ const PROXY_ORDER = ["DEFM14A", "SC 14D9", "SC14D9", "PREM14A", "DEFM14C", "PREM
 /** Best source of fairness opinions first. */
 const FAIRNESS_FORMS = ["DEFM14A", "SC 14D9", "SC14D9", "DEFM14C", "PREM14A"];
 const PROXY_FORMS =/^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
+/** The buyer's first word is in a proxy's opening, as a word: "Aya" is in "payable", "AG" in "mortgage", "Option" in "adoption". */
+export function opensNamingBuyer(opening: string, buyerName: string): boolean {
+  const word = buyerName.replace(/^the\s+/i, "").split(/[\s,]+/)[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![a-z0-9])${word}(?![a-z0-9])`, "i").test(opening);
+}
+
+/**
+ * A bank whose fairness opinion the target's proxy prints advised the target, whatever the release named (US Steel / Goldman
+ * Sachs, ImmunoGen / Lazard). Each opinion for itself: the buyer's bank on the same proxy doesn't stop it (Bowhead's Ardea). Not on
+ * a joint proxy, where the side can read wrong (Duke's Goldman is the buyer's), nor a bank already on the buyer's list, nor a losing
+ * bid sharing the winner's proxy.
+ */
+export function banksOfTheTarget(opinions: Pick<FairnessOpinion, "bank" | "side">[], deal: Pick<StoredDeal, "status" | "acquirer" | "acquirerAdvisors" | "targetAdvisors">, opening: string): string[] {
+  if (deal.status === "Terminated" || /joint proxy statement/i.test(opening) || !opensNamingBuyer(opening, deal.acquirer.name)) return [];
+  const banks = opinions.filter((o) => o.side === "target" && o.bank && !deal.acquirerAdvisors.includes(o.bank) && !deal.targetAdvisors.includes(o.bank)).map((o) => o.bank!);
+  return [...new Set(banks)];
+}
+
+/** The deal's own merger proxy or tender response, by form, then the earliest: never one filed after the deal ended (`ownFilings`). */
+const dealProxy = <T extends { form: string; date: string }>(filings: T[], deal: StoredDeal): T | undefined =>
+  ownFilings(filings, deal)
+    .filter((f) => PROXY_FORMS.test(f.form))
+    .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+
+const NOT_A_NAME_WORD = /^(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|LP|PLC|Holdings?|Group|&|and)\.?$/i;
+/** As `opensNamingBuyer`, by the first two words of the name where the second is part of it: "Canadian" is in CN's proxy too, "Canadian Pacific" isn't. */
+export function opensNamingBuyerInFull(opening: string, buyerName: string): boolean {
+  const [first, second] = buyerName.replace(/^the\s+/i, "").split(/[\s,]+/);
+  if (!second || !/^[A-Z]/.test(second) || NOT_A_NAME_WORD.test(second)) return opensNamingBuyer(opening, buyerName);
+  const word = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![a-z0-9])${word(first)}[\\s-]+${word(second)}(?![a-z0-9])`, "i").test(opening);
+}
+
+/**
+ * This buyer's proxy, where the filing index can't tell. Two of one form: the one whose opening names the buyer (Kansas City Southern filed CN's
+ * on July 7 2021 and CP's on November 3, and CP's record read CN's lenders), else the earliest (Black Knight's two are both ICE's). A topped
+ * deal with no end date (Lockheed / Aerojet): only one that names it, or the winner's would be read as its own. Most deals need no extra reading.
+ */
+export async function proxyOfThisBuyer(sub: Submissions, deal: StoredDeal) {
+  const filings = recentFilings(sub);
+  const first = dealProxy(filings, deal);
+  if (!first) return undefined;
+  const noEnd = deal.status === "Terminated" && !deal.statusDate;
+  const own = ownFilings(filings, deal).filter((f) => PROXY_FORMS.test(f.form));
+  const candidates = own.filter((f) => noEnd || f.form === first.form).sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date));
+  if (candidates.length < 2 && !noEnd) return first;
+  const openings = new Map<string, string>();
+  for (const f of candidates) openings.set(f.adsh, htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, f.primaryDocument), 120_000)).slice(0, 25_000));
+  return candidates.find((f) => opensNamingBuyerInFull(openings.get(f.adsh)!, deal.acquirer.name)) ?? (noEnd ? candidates.find((f) => opensNamingBuyer(openings.get(f.adsh)!, deal.acquirer.name)) : first);
+}
 const PENDING_FORMS =/^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC TO-T|SC 13E3|SC14D9|S-4|F-4)(\/A)?$/;
 /**
  * Bump when the merger-proxy reader (`parse/proxy.ts`) changes: deals still missing what it reads are read again.
@@ -816,6 +879,14 @@ const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|
 export const SPONSOR_CHECK_VERSION = 5;
 
 /**
+ * A proxy's premium belongs to the price it states. A raise or a cut clears the old premium, and a proxy filed before the
+ * amending document would put it back beside the new price: Anaplan's 30% at $66 beside $63.75, Squarespace's 15% at $44 beside
+ * $46.50, Janus's 6.5% at $49 beside $52. By date, not by looking for the new price in the proxy: Janus's background mentions
+ * $52.00. A proxy filed on or after it is right (Circor's 77%, Hill's 92.1%, Battalion's 32.6%).
+ */
+export const proxyStatesCurrentPrice = (deal: Pick<StoredDeal, "termsAmended" | "termsAmendedOn">, proxyDate: string) => !deal.termsAmended || !deal.termsAmendedOn || proxyDate >= deal.termsAmendedOn;
+
+/**
  * The real buyer behind an acquisition vehicle ("Spaceship Purchaser, Inc." → Permira): the target's announcement
  * releases (8-K exhibits, DEFA14A) from five days before to five after the announcement, read by the press parser
  * (its headline buyer) or by `sponsorFromText`, then the target's merger proxy or 14D-9.
@@ -829,9 +900,10 @@ export async function findSponsor(deal: StoredDeal, sub: Submissions): Promise<s
     .sort((a, b) => Number(a.date < deal.announcedDate) - Number(b.date < deal.announcedDate) || Math.abs(Date.parse(a.date) - Date.parse(deal.announcedDate)) - Math.abs(Date.parse(b.date) - Date.parse(deal.announcedDate)))
     .slice(0, 6);
   for (const f of releases) {
-    const docs = f.form === "8-K" ? (await filingDocuments(sub.cik, f.adsh)).filter((d) => /ex-?99|dex99/i.test(d) && /\.html?$/i.test(d)).slice(0, 2) : [f.primaryDocument];
+    const docs = f.form === "8-K" ? releaseExhibits(await filingDocuments(sub.cik, f.adsh), f.primaryDocument, 2) : [f.primaryDocument];
     for (const doc of docs) {
       const text = htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, doc), 300_000));
+      if (isContractExhibit(text)) continue;
       const p = parsePressRelease(text, ctx);
       const headlineBuyer = p && p.kind === "announcement" && (namesCompany(p.target.name, deal.target.name) || sameCompany(p.target.name, deal.target.name)) ? cleanPartyName(p.acquirer.name) : null;
       if (headlineBuyer && isPlausibleName(headlineBuyer) && !isPlaceholderBuyer(headlineBuyer) && !sameCompany(headlineBuyer, deal.target.name) && !namesTheShell(headlineBuyer, deal.acquirer.name)) return headlineBuyer;
@@ -839,16 +911,16 @@ export async function findSponsor(deal: StoredDeal, sub: Submissions): Promise<s
       if (named) return named;
     }
   }
-  const proxy = recentFilings(sub)
-    .filter((f) => f.date >= deal.announcedDate && PROXY_FORMS.test(f.form))
-    .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+  const proxy = dealProxy(recentFilings(sub), deal);
   if (proxy) return sponsorFromText(htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 400_000)), deal.target.name, deal.acquirer.name);
   return null;
 }
 
 /** Bump to re-check stored Closed deals for a termination filed before the delisting. */
 export const STATUS_RULE_VERSION = 2;
-/** Bump to look again for a headline value in the announcement releases of deals that have none. */
+/**
+ * Bump to look again for a headline value in the announcement releases of deals that have none.
+ */
 export const VALUE_CHECK_VERSION = 1;
 
 /**
@@ -883,9 +955,10 @@ async function* announcementReleases(deal: StoredDeal, subs: Submissions[]): Asy
       .sort((a, b) => a.date.localeCompare(b.date) || Number(b.form === "8-K") - Number(a.form === "8-K"))
       .slice(0, 10);
     for (const f of filings) {
-      const docs = f.form === "8-K" ? (await filingDocuments(sub.cik, f.adsh)).filter((d) => /ex-?99|dex99/i.test(d) && /\.html?$/i.test(d)).slice(0, 3) : [f.primaryDocument];
+      const docs = f.form === "8-K" ? releaseExhibits(await filingDocuments(sub.cik, f.adsh), f.primaryDocument, 3) : [f.primaryDocument];
       for (const doc of docs) {
         const text = htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, doc), 400_000));
+        if (isContractExhibit(text)) continue;
         // Press releases only: 425s also carry slide decks ("Merger Creates … >$35 B Enterprise Value ~$23 B Equity
         // Value", the combined company), call transcripts and reprinted news articles.
         // An 8-K filed again as a DEFA14A or 425 without its side agreements: MIC's "$4.475 billion" was KKR's price for another business. (Not skipped: BankFinancial's $142M is only there.)
@@ -897,10 +970,20 @@ async function* announcementReleases(deal: StoredDeal, subs: Submissions[]): Asy
   }
 }
 
-/** Bump to look again for the banks of deals whose buyer's adviser is unknown. */
+/**
+ * Bump to look again for the banks of deals whose buyer's adviser is unknown. Deals with one side empty, or no release among their
+ * documents, are read too, and the banks are added to what's there (AvalonBay's proxy named two of the release's six).
+ */
 export const ADVISOR_CHECK_VERSION = 1;
-/** Bump to look again for the SEC registrant behind buyers stored without a CIK. 2: names on the deal's date without EDGAR's state tags ("QUALCOMM INC/DE"). */
-export const BUYER_LINK_VERSION = 2;
+/** A deal whose release may name banks it lacks: either side empty, or no release among its documents. */
+export const advisorCheckDue = (d: Pick<StoredDeal, "advisorCheck" | "acquirerAdvisors" | "targetAdvisors" | "sources">) => d.advisorCheck !== ADVISOR_CHECK_VERSION && (!d.acquirerAdvisors.length || !d.targetAdvisors.length || !d.sources.some((s) => /ex-?99|dex99/i.test(s)));
+/** A stated value to look for: none yet, or only price × shares (not after a raised or cut price, whose first release states the old one). */
+export const valueCheckDue = (d: Pick<StoredDeal, "valueUsd" | "valueImplied" | "termsAmended" | "valueCheck" | "status">) => (d.valueUsd == null || (!!d.valueImplied && !d.termsAmended)) && d.valueCheck !== VALUE_CHECK_VERSION && d.status !== "Terminated";
+/** Over price × shares, a release at the deal's own price only. */
+export const takesStatedValue = (d: Pick<StoredDeal, "valueUsd" | "pricePerShare">, release: Pick<AnnouncedTerms, "pricePerShare">) =>
+  d.valueUsd == null || release.pricePerShare == null || d.pricePerShare == null || Math.abs(release.pricePerShare - d.pricePerShare) <= d.pricePerShare * 0.005;
+/** Bump to look again for the SEC registrant behind buyers stored without a CIK. */
+export const BUYER_LINK_VERSION = 1;
 
 /**
  * Both sides' financial advisers from the announcement releases ("Goldman Sachs is serving as financial advisor to
@@ -910,7 +993,7 @@ export async function announcementAdvisors(deal: StoredDeal, subs: Submissions[]
   const acquirerAdvisors = new Set<string>();
   const targetAdvisors = new Set<string>();
   for await (const text of announcementReleases(deal, subs)) {
-    const a = extractAdvisors(flatten(text).slice(0, 20_000), deal.acquirer.name, deal.target.name, null, deal.target.ticker);
+    const a = extractAdvisors(flatten(text).slice(0, 20_000), deal.acquirer.name, deal.target.name, null, deal.target.ticker, deal.acquirer.ticker);
     a.acquirerAdvisors.forEach((b) => acquirerAdvisors.add(b));
     // The release's own name for the buyer, when the record has another: "TD", "HealthSpan Partners".
     if (!a.acquirerAdvisors.length) {
@@ -923,6 +1006,17 @@ export async function announcementAdvisors(deal: StoredDeal, subs: Submissions[]
   // A bank advises one side.
   for (const b of targetAdvisors) acquirerAdvisors.delete(b);
   return { acquirerAdvisors: [...acquirerAdvisors], targetAdvisors: [...targetAdvisors] };
+}
+
+/**
+ * What the release says is added to what's stored (AvalonBay's release names J.P. Morgan and Wells Fargo beside the opinion's
+ * Goldman Sachs). A bank advises one side: on the target's list it leaves the buyer's. True when the buyer gained a bank.
+ */
+export function mergeReleaseAdvisors(deal: Pick<StoredDeal, "acquirerAdvisors" | "targetAdvisors">, banks: { acquirerAdvisors: string[]; targetAdvisors: string[] }): boolean {
+  const before = new Set(deal.acquirerAdvisors);
+  deal.targetAdvisors = [...new Set([...deal.targetAdvisors, ...banks.targetAdvisors])];
+  deal.acquirerAdvisors = [...new Set([...deal.acquirerAdvisors, ...banks.acquirerAdvisors])].filter((b) => !deal.targetAdvisors.includes(b));
+  return deal.acquirerAdvisors.some((b) => !before.has(b));
 }
 
 /**
@@ -956,13 +1050,32 @@ export interface AnnouncedTerms {
  * itself one of them near the top, with no newswire tag or "For Immediate Release", is skipped.
  */
 export function looksLikePressRelease(text: string): boolean {
-  const top = flatten(text).slice(0, 1500);
+  const flat = flatten(text);
+  const top = flat.slice(0, 1500);
   const release = /\b(?:PR\s?Newswire|Business\s?Wire|GLOBE\s?NEWSWIRE|ACCESSWIRE|Newsfile|for immediate release|news release|press release)\b/i.test(top);
   // "The following is an article that was published in the Pittsburgh Business Times …" (an EQT 425 on Range, whose
   // reporter wrote "the $13 billion acquisition, which has an enterprise value of $50 billion": the combined company's).
-  const other = /\b(?:transcript|presentation|slides?|webcast|conference call|investor call|town hall|frequently asked questions|FAQs?|the following (?:is (?:an? |the )?)?(?:email|e-mail|memo|letter|article|message|interview|post)|employees? (?:email|e-mail|memo|letter)|(?:article|story|interview|op-ed|column) (?:that )?(?:was )?(?:first )?(?:published|appeared|ran) (?:in|on|by)|reprinted|Wall Street Journal|Reuters|Bloomberg)\b/i.test(top);
-  return release || !other;
+  const other = /\b(?:transcript|frequently asked questions|FAQs?|the following (?:is (?:an? |the )?)?(?:email|e-mail|memo|letter|article|message|interview|post)|employees? (?:email|e-mail|memo|letter)|(?:article|story|interview|op-ed|column) (?:that )?(?:was )?(?:first )?(?:published|appeared|ran) (?:in|on|by)|reprinted|confidential\s*[-–—]\s*do not distribute)\b/i.test(top);
+  // These may only be the release's call details: argenx's release on Forte ("Conference Call … webcast") gave "$2.2 billion"
+  // and was refused, leaving $1.07B of price × shares. 107 of 1,036 announcing exhibits fell here. A deck doesn't say it "today announced".
+  const maybe = /\b(?:presentation|slides?|webcast|conference call|investor call|town hall|Wall Street Journal|Reuters|Bloomberg)\b/i.test(top);
+  const announces = /\b(?:today\s+(?:jointly\s+)?announced|announced\s+today)\b/i.test(flat.slice(0, 2500));
+  return release || (!other && (!maybe || announces));
 }
+
+/** Exhibit names a release goes by besides "ex99": "pressrelease-111020251.htm" (TreeHouse), "exhibit991.htm", "ex_12345.htm". 542 of 2,963 names on record missed the old filter. */
+const RELEASE_FILE = /ex[-_]?\d*99|exh(?:ibit)?[-_]?\d*9|[-_]99[-_.]?\d|press|release|\bpr\b|news|announc|acqui|merger|^ex_\d+/i;
+/** A merger agreement, a charter, an indenture or a material contract: "ex2-1_mergeragreement.htm", "d123dex21.htm". */
+const NOT_RELEASE_FILE = /(?:^|[-_\d])(?:d?ex(?:h(?:ibit)?)?[-_]?(?:2|3|4|10)(?:[-_.]\d|\d?\.htm))|agreement/i;
+/** An 8-K's documents to read for a release, 99-named first, up to `cap`: each can be a long read. */
+export function releaseExhibits(docs: string[], primary: string | undefined, cap: number): string[] {
+  const html = docs.filter((d) => /\.html?$/i.test(d) && d !== primary);
+  const named = html.filter((d) => /ex-?99|dex99/i.test(d));
+  const others = html.filter((d) => !named.includes(d) && RELEASE_FILE.test(d) && !NOT_RELEASE_FILE.test(d));
+  return [...named, ...others].slice(0, cap);
+}
+/** A contract filed under a neutral name ("ex_912345.htm"), which reads like a release to the checks above. */
+export const isContractExhibit = (text: string) => /^\W*(?:EX-(?:2|3|4|10)\b|Exhibit\s+(?:2|3|4|10)\.\d)|^[^.]{0,200}\bAGREEMENT AND PLAN OF MERGER\b/.test(flatten(text).slice(0, 400));
 
 /**
  * A release announcing the deal between `target` and `acquirer`: both are named near the top (the buyer may be a shell
@@ -977,7 +1090,8 @@ export function announcesDeal(text: string, target: string, acquirer: string): b
     return !!s && new RegExp(`\\b${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(top);
   };
   if (!named(target) || (!isPlaceholderBuyer(acquirer) && !named(acquirer))) return false;
-  if (!/definitive (?:merger |arrangement )?agreement|agreement and plan of merger|merger agreement|(?:will|to) acquire\b|to be acquired|to combine|to merge/i.test(top)) return false;
+  // ("AvalonBay Communities and Equity Residential Announce Merger of Equals": the release that names all six banks.)
+  if (!/definitive (?:merger |arrangement )?agreement|agreement and plan of merger|merger agreement|merger of equals|(?:will|to) acquire\b|to be acquired|to combine|to merge/i.test(top)) return false;
   const headline = splitHeadline(text).headline.slice(0, 200);
   // Not the target's earnings release, which mentions the pending merger near the top and states other amounts: MGM
   // Growth Properties' Q2 2021 results gave VICI's $17.2B purchase the "$400 million" of MGP's own MGM Springfield deal.
@@ -1038,7 +1152,7 @@ export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | n
   else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
   if (acquirerSub) {
     deal.acquirer.ticker ??= acquirerSub.tickers?.[0] ?? null;
-    deal.sector = sectorForSic(acquirerSub.sic, acquirerSub.name);
+    deal.sector = sectorForBuyer(acquirerSub.cik, acquirerSub.sic, acquirerSub.name);
     deal.industry = acquirerSub.sicDescription || null;
     // Without verification (the history's light runs) the buyer's first 8-K Item 2.01 closes it; otherwise
     // privateClosing reads the 8-Ks and takes the one naming the target.
@@ -1111,6 +1225,17 @@ export function closingNames(text: string, namedIn: RegExp): boolean {
   return pointer && named.test(body101) && /\bOn\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4},[^.]{0,120}\b(?:completed|consummated|closed)\b/.test(body101);
 }
 
+/**
+ * The buyer took the target's name after the deal and had it by this 8-K: there the name is a subsidiary's, about something else. Peck Company bought iSun
+ * Energy in January 2021 with no Item 2.01 and became iSun, Inc.; its October 8-K on SunCommon lists "iSun Energy LLC" as a loan guarantor, which closed
+ * the deal nine months late. Its 10-K then dates it. Not an 8-K from before the new name (RumbleOn's on RideNow, whose name it took in 2025).
+ */
+export function buyerNowNamedForTarget(buyer: Pick<Submissions, "name" | "formerNames">, targetName: string, announcedDate: string, filedDate: string): boolean {
+  const first = (s: string) => s.trim().split(/[\s,]+/)[0].toLowerCase();
+  const word = first(targetName);
+  return first(nameOn(buyer, filedDate)) === word && first(nameOn(buyer, announcedDate)) !== word;
+}
+
 async function privateClosing(deal: StoredDeal, acquirerSub: Submissions, seen: Set<string>) {
   const name = searchName(cleanPartyName(deal.target.name));
   if (!name) return;
@@ -1122,11 +1247,12 @@ async function privateClosing(deal: StoredDeal, acquirerSub: Submissions, seen: 
     const key = `close2:${deal.id}:${f.adsh}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    if (buyerNowNamedForTarget(acquirerSub, name, deal.announcedDate, f.date)) continue;
     try {
       const text = flatten(htmlToText(await getTextHead(archiveUrl(acquirerSub.cik, f.adsh, f.primaryDocument), 150_000)));
       if (closingNames(text, named)) {
         deal.status = "Closed";
-        deal.statusDate = f.date;
+        deal.statusDate = statedClosingDay(text, named, deal.announcedDate, f.date) ?? f.date;
         return;
       }
     } catch {
@@ -1169,7 +1295,8 @@ export const ANNOUNCE_CHECK_VERSION = 1;
 /**
  * A private purchase first seen at its closing, whose release says "previously announced" and gives no date (128 of them in November 2026: Planet
  * Fitness / Sunshine, CURO / First Heritage, Deluxe / First American). The date is the closing, and any share-price figure was measured around it.
- * The announcement is in the buyer's earlier 8-Ks: the oldest within two years that says it will buy this company. Filing date, as for a signing 8-K.
+ * The announcement is in the buyer's earlier 8-Ks: the oldest within two years that says it will buy this company. Its own date when it gives one within
+ * ten days before the filing (`ownReleaseDay`: the release or the 8-K beside it, a hit of the same filing), else the filing date, as for a signing 8-K.
  */
 export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
   const name = searchName(cleanPartyName(deal.target.name));
@@ -1193,7 +1320,12 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
       continue;
     }
     if (!readAnnouncement(text, name)) continue;
-    deal.announcedDate = h.fileDate;
+    let day = ownReleaseDay(text, h.fileDate);
+    for (const other of hits.filter((o) => o.adsh === h.adsh && o.file !== h.file).slice(0, 2)) {
+      if (day) break;
+      day = await getText(archiveUrl(acquirerCik, other.adsh, other.file)).then((t) => ownReleaseDay(htmlToText(t), h.fileDate)).catch(() => undefined);
+    }
+    deal.announcedDate = day ?? h.fileDate;
     delete deal.dateIsClosing;
     return;
   }
@@ -1202,9 +1334,8 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
 /**
  * Bump to look every open private deal up again in its buyer's filings (`closeCheck`).
  * 2: six documents instead of three, "our May 2022 acquisition of X", three-letter acronyms ("NFP").
- * 3: the buyer's periodic reports read for looser past-tense wordings (`readLooseCompletion`).
  */
-export const CLOSE_CHECK_VERSION = 3;
+export const CLOSE_CHECK_VERSION = 2;
 const SETTLE_FORMS = ["8-K", "10-Q", "10-K", "10-KT", "20-F", "40-F", "6-K"];
 const PERIODIC_FORMS = ["10-Q", "10-K", "10-KT", "20-F", "40-F"];
 
@@ -1319,8 +1450,8 @@ export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: stri
 
 /**
  * Deal protections from the target's merger 8-K (Item 1.01 summary of the merger agreement), with gaps filled
- * from its merger proxy: fees from the proxy's summary only (its background section quotes rejected proposals),
- * financing banks from anywhere in it ("Financing of the Merger"). `settled` once both documents have been read.
+ * from its merger proxy (parseProxyTerms: fees from its summary, lenders from anywhere in it, never the negotiation's
+ * story). `settled` once both documents have been read.
  */
 export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise<{ terms: DealTerms | null; settled: boolean }> {
   const DAY = 86_400_000;
@@ -1328,9 +1459,11 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
   const hi = new Date(Date.parse(deal.announcedDate) + 20 * DAY).toISOString().slice(0, 10);
   const names = { target: deal.target.name, acquirer: deal.acquirer.name };
   const filings = recentFilings(sub);
+  // An agreement signs before it ends: an 8-K filed from its end date on is the winner's (Enodia's end date is Aurinia's signing, Kezar).
+  const ended = deal.status === "Terminated" ? deal.statusDate : null;
 
   let fromEightK: DealTerms | null = null;
-  const eightKs = filings.filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= hi).sort((a, b) => a.date.localeCompare(b.date));
+  const eightKs = filings.filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= lo && f.date <= hi && (!ended || f.date < ended)).sort((a, b) => a.date.localeCompare(b.date));
   for (const f of eightKs.slice(0, 3)) {
     const section = item101(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))));
     if (!section) continue; // an unrelated agreement (a credit facility, an employment contract)
@@ -1339,27 +1472,15 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
   }
 
   let fromProxy: DealTerms | null = null;
-  const proxy = filings
-    .filter((f) => f.date >= deal.announcedDate && PROXY_FORMS.test(f.form))
-    .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+  const proxy = await proxyOfThisBuyer(sub, deal);
   if (proxy) {
     const text = htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 1_200_000));
-    const summary = parseDealTerms(text.slice(0, 150_000), names);
-    const whole = parseDealTerms(text, names);
-    fromProxy = { ...summary, financingBanks: whole.financingBanks, financingCondition: summary.financingCondition ?? whole.financingCondition };
+    fromProxy = parseProxyTerms(text, names);
   }
 
   if (!fromEightK && !fromProxy) return { terms: null, settled: false };
-  const a = fromEightK ?? fromProxy!;
-  const b = fromProxy ?? fromEightK!;
-  const terms: DealTerms = {
-    targetFeeUsd: saneFee(a.targetFeeUsd ?? b.targetFeeUsd, deal.valueUsd, "target"),
-    reverseFeeUsd: saneFee(a.reverseFeeUsd ?? b.reverseFeeUsd, deal.valueUsd, "reverse"),
-    goShop: a.goShop ?? b.goShop,
-    goShopDays: a.goShopDays ?? b.goShopDays,
-    financingCondition: a.financingCondition ?? b.financingCondition,
-    financingBanks: [...new Set([...a.financingBanks, ...b.financingBanks])].slice(0, 8),
-  };
+  // A raised offer's proxy has the fees of the signed terms; the first signing's 8-K had an earlier deal's (Circor: $42.75M, not $28M).
+  const terms = deal.termsAmended && fromProxy ? combineTerms(fromProxy, fromEightK ?? fromProxy, deal.valueUsd) : combineTerms(fromEightK ?? fromProxy!, fromProxy ?? fromEightK!, deal.valueUsd);
   const empty = terms.targetFeeUsd == null && terms.reverseFeeUsd == null && terms.goShop == null && terms.financingCondition == null && !terms.financingBanks.length;
   return { terms: empty ? null : terms, settled: !!fromEightK && !!fromProxy };
 }
@@ -1370,6 +1491,7 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
  * advisers, milestones and multiples are still filled.
  */
 export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory, opts: { light?: boolean; buyerSub?: Submissions | null } = {}) {
+  correctKnownClosing(deal);
   // Official SEC registrant names beat names parsed from prose: the name it had on the deal's date, as for the target.
   if (opts.buyerSub) deal.acquirer.name = displayName(provablyUnlistedOn(opts.buyerSub, deal.announcedDate) ? opts.buyerSub.name : nameOn(opts.buyerSub, deal.announcedDate));
   else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
@@ -1377,7 +1499,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     // The name it had when the deal was announced, not the one it took after being bought.
     deal.target.name = displayName(nameOn(sub, deal.announcedDate));
     deal.target.ticker ??= sub.tickers?.[0] ?? null;
-    deal.sector = sectorForSic(sub.sic, sub.name);
+    deal.sector = sectorForCompany(sub.cik, sub.sic, sub.name);
     deal.industry = sub.sicDescription || null;
     // A Closed status set before STATUS_RULE_VERSION is checked once more for an earlier termination.
     const recheck = deal.status === "Closed" && deal.statusRule !== STATUS_RULE_VERSION;
@@ -1385,7 +1507,20 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       const after = recentFilings(sub)
         .filter((f) => f.date >= deal.announcedDate)
         .sort((a, b) => a.date.localeCompare(b.date));
-      const closed = after.find((f) => isClosingFiling(after, f));
+      const closed = closingFiling(after, deal.announcedDate);
+      // No such filing: an 8-K's own words, for a company that sold out and stays listed (Senti, Sonim). The day it states.
+      let statedClosing: string | null = null;
+      if (!closed && !recheck) {
+        for (const f of closingsToRead(after, deal.announcedDate)) {
+          try {
+            statedClosing = completedSigningOn(htmlToText(await getTextHead(archiveUrl(sub.cik, f.adsh, f.primaryDocument), 150_000)), deal.announcedDate, f.date);
+          } catch {
+            // Unreadable: read again next run.
+          }
+          if (statedClosing) break;
+        }
+      }
+      const closedOn = closed?.date ?? statedClosing;
       // Whichever came first: a merger termination before the delisting ends the deal (JetBlue / Spirit was
       // terminated in March 2024; Spirit's Form 25 in 2026, after its bankruptcy, closed nothing).
       // Not one filed around the closing (credit agreements are terminated "in connection with the Merger"), and not
@@ -1394,11 +1529,11 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       // target-side document: an amendment reports the end (Battalion's last SC 13E3/A), and an S-4 registers another
       // buyer's shares or the company's own for a new deal (HomeStreet's with Mechanics Bank, after FirstSun walked away).
       let terminated: (typeof after)[number] | undefined;
-      const ends = after.filter((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate && (!closed || f.date < shiftDate(closed.date, -30)));
+      const ends = after.filter((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate && (!closedOn || f.date < shiftDate(closedOn, -30)));
       // A revival comes within a year (CP and KCS signed again four months on); a proxy years later is another deal
       // (Sphere 3D's 2026 merger proxy kept its 2022 termination with Gryphon "Pending").
       for (const f of ends.slice(0, 3)) {
-        if (after.some((g) => REVIVAL_FORMS.test(g.form) && g.date > f.date && g.date <= shiftDate(f.date, 365) && (!closed || g.date < closed.date))) continue;
+        if (after.some((g) => REVIVAL_FORMS.test(g.form) && g.date > f.date && g.date <= shiftDate(f.date, 365) && (!closedOn || g.date < closedOn))) continue;
         if (await isMergerTermination(sub.cik, f.adsh, f.primaryDocument)) {
           terminated = f;
           break;
@@ -1410,37 +1545,37 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         deal.statusDate = terminated.date;
       } else if (recheck) {
         // Stays Closed.
-      } else if (closed) {
+      } else if (closedOn) {
         deal.status = "Closed";
-        deal.statusDate = closed.date;
+        deal.statusDate = closedOn;
       } else if (pending) {
         deal.status = "Pending";
         deal.statusDate = pending.date;
       }
     }
     if (deal.status === "Closed") deal.statusRule = STATUS_RULE_VERSION;
-    // Milestones come from the same filing index (no extra requests).
-    deal.milestones = milestonesFrom(recentFilings(sub), deal.announcedDate, deal.status === "Terminated" ? deal.statusDate : null);
   }
   deal.statusCheckedAt = today;
 
   // Deals first seen in an 8-K lack the premium and advisors; the target's proxy states both, and a stock deal's value per
   // share at announcement. A newer reader (PROXY_PARSER_VERSION) looks again at deals still missing one of them.
   if (sub && proxyWanted(deal)) {
-    const proxy = recentFilings(sub)
-      .filter((f) => f.date >= deal.announcedDate && PROXY_FORMS.test(f.form))
-      .sort((a, b) => PROXY_ORDER.indexOf(a.form) - PROXY_ORDER.indexOf(b.form) || a.date.localeCompare(b.date))[0];
+    // (Null: an opening couldn't be read. Tried again on the next run.)
+    const proxy = await proxyOfThisBuyer(sub, deal).catch(() => null);
     if (proxy) {
       try {
         const text = htmlToText(await getTextHead(archiveUrl(sub.cik, proxy.adsh, proxy.primaryDocument), 900_000));
         const p = parseMergerProxy(text, deal.target.name, deal.acquirer);
-        deal.premiumPct ??= p.premiumPct;
+        if (proxyStatesCurrentPrice(deal, proxy.date)) deal.premiumPct ??= p.premiumPct;
+        moveBuyerOffTarget(deal);
         // (Not a bank the release gave the buyer: "Parent engaged XMS Capital Partners" in Ultralife's 14D-9. Then "a bank advises one side" took it off the buyer.)
         if (!deal.targetAdvisors.length) deal.targetAdvisors = p.targetAdvisors.filter((b) => !deal.acquirerAdvisors.includes(b));
         // A joint proxy also has the buyer's opinion ("Opinion of Nicolet's Financial Advisor"). Where the target's own heading
-        // names its banks, one named only under the buyer's leaves the target list (Morgan Stanley and Wells Fargo advised
+        // names its banks, they join the target's list whatever a release put there ("Opinion of TriState Capital's Financial Advisor": Stephens),
+        // and one named only under the buyer's leaves it (Morgan Stanley and Wells Fargo advised
         // Union Pacific, not Norfolk Southern). Otherwise a bank stays on the target's side.
         if (p.targetHeadingAdvisors.length) {
+          deal.targetAdvisors = [...new Set([...deal.targetAdvisors, ...p.targetHeadingAdvisors.filter((b) => !deal.acquirerAdvisors.includes(b))])];
           const moved = p.acquirerAdvisors.filter((b) => deal.targetAdvisors.includes(b) && !p.targetHeadingAdvisors.includes(b));
           deal.targetAdvisors = deal.targetAdvisors.filter((b) => !moved.includes(b));
           deal.acquirerAdvisors = [...new Set([...deal.acquirerAdvisors, ...moved])];
@@ -1458,7 +1593,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
       } catch {
         // Try again on the next run.
       }
-    } else if (deal.status === "Closed" || deal.status === "Terminated") {
+    } else if (proxy === undefined && (deal.status === "Closed" || deal.status === "Terminated")) {
       deal.proxyCheckedAt = today; // No proxy will come now.
       deal.proxyParser = PROXY_PARSER_VERSION;
     }
@@ -1471,11 +1606,13 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     deal.fairnessCheckedAt = null;
     deal.fairnessAdsh = null;
     deal.fairness = undefined;
+    deal.proxySections = undefined;
+    deal.meetingDate = null;
     deal.fairnessParser = FAIRNESS_PARSER_VERSION;
   }
   if (sub && !opts.light && !deal.fairnessCheckedAt) {
-    const proxy = recentFilings(sub)
-      .filter((f) => f.date >= deal.announcedDate && FAIRNESS_FORMS.includes(f.form))
+    const proxy = ownFilings(recentFilings(sub), deal)
+      .filter((f) => FAIRNESS_FORMS.includes(f.form))
       .sort((a, b) => FAIRNESS_FORMS.indexOf(a.form) - FAIRNESS_FORMS.indexOf(b.form) || b.date.localeCompare(a.date))[0];
     if (proxy && proxy.adsh !== deal.fairnessAdsh) {
       try {
@@ -1485,16 +1622,12 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         const sections = proxySections(html, url);
         if (sections.length) deal.proxySections = sections;
         const text = htmlToText(html);
-        const opinions = parseFairness(text, { acquirerName: deal.acquirer.name, offerPrice: deal.pricePerShare });
+        // A vote's 8-K comes on or after the meeting the definitive proxy calls (milestones, below).
+        if (proxy.form === "DEFM14A") deal.meetingDate = meetingDateOf(text, proxy.date);
+        const opinions = parseFairness(text, { acquirerName: deal.acquirer.name, offerPrice: deal.pricePerShare, targetName: deal.target.name, consideration: deal.consideration });
         if (opinions.length) deal.fairness = opinions;
-        // A bank whose fairness opinion the target's proxy prints advised the target, whatever the release named (US Steel /
-        // Goldman Sachs, ImmunoGen / Lazard). Not on a joint proxy, where the side can read wrong (Duke's Goldman is the
-        // buyer's), nor a bank already on the buyer's list, nor a losing bid sharing the winner's proxy.
-        const opening = text.slice(0, 25000);
-        const buyerWord = deal.acquirer.name.replace(/^the\s+/i, "").split(/[\s,]+/)[0];
-        if (!opinions.some((o) => o.side === "acquirer") && deal.status !== "Terminated" && !/joint proxy statement/i.test(opening) && opening.toLowerCase().includes(buyerWord.toLowerCase())) {
-          for (const o of opinions) if (o.side === "target" && o.bank && !deal.acquirerAdvisors.includes(o.bank) && !deal.targetAdvisors.includes(o.bank)) deal.targetAdvisors.push(o.bank);
-        }
+        deal.targetAdvisors.push(...banksOfTheTarget(opinions, deal, text.slice(0, 25000)));
+        if (!deal.acquirerAdvisors.length) deal.acquirerAdvisors = buyerBanksInProxy(text, deal.acquirer.name).filter((b) => !deal.targetAdvisors.includes(b));
         deal.fairnessAdsh = proxy.adsh;
       } catch {
         // Try again on the next run.
@@ -1502,6 +1635,16 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     }
     const final = proxy && proxy.form !== "PREM14A" && proxy.adsh === deal.fairnessAdsh;
     if (final || deal.status === "Closed" || deal.status === "Terminated") deal.fairnessCheckedAt = today;
+  }
+
+  // Milestones come from the same filing index (no extra requests), after the fairness step because of its meeting date.
+  if (sub) {
+    const ended = deal.status === "Terminated";
+    deal.milestones = milestonesFrom(recentFilings(sub), deal.announcedDate, ended ? (deal.statusDate ?? null) : null, {
+      ended,
+      closedOn: deal.status === "Closed" ? deal.statusDate : null,
+      meetingDate: deal.meetingDate,
+    });
   }
 
   // Deal protections (break fees, go-shop, financing). Re-read when the parser changes.
@@ -1651,7 +1794,8 @@ export async function ingestDeals(
     deal.status = "Announced";
     deal.statusDate = null;
     deal.premiumPct = null;
-    deal.milestones = deal.terms = deal.fairness = undefined;
+    deal.milestones = deal.terms = deal.fairness = deal.proxySections = undefined;
+    deal.fairnessAdsh = deal.meetingDate = null;
     deal.statusCheckedAt = deal.financialsCheckedAt = deal.proxyCheckedAt = deal.fairnessCheckedAt = deal.termsCheckedAt = null;
     return "swapped";
   };
@@ -1686,7 +1830,10 @@ export async function ingestDeals(
       search: for (const query of [...new Set([q, core, bare, joined])]) {
         // The exact name first: "Independent Bank Group" is INDEPENDENT BANK GROUP (Texas), which "Independent Bank" plus
         // the descriptor "Group" would also let INDEPENDENT BANK CORP (Massachusetts) match.
-        const rank = (name: string) => (identicalNames(name, query) ? 3 : sameCompany(name, query) ? 2 : registrantMatches(name, query) ? 1 : 0);
+        const rank = (name: string) => {
+          const bareName = withoutStateTag(name);
+          return identicalNames(bareName, query) ? 3 : sameCompany(bareName, query) ? 2 : registrantMatches(bareName, query) ? 1 : 0;
+        };
         const candidates = (await lookupCompanies(query))
           .filter((c) => rank(c.name) > 0)
           .sort((a, b) => rank(b.name) - rank(a.name))
@@ -1739,7 +1886,7 @@ export async function ingestDeals(
         const sub = await submissions(c.cik);
         if (!sub || sub.sic === "6770") continue;
         // (Without EDGAR's state tag: "QUALCOMM INC/DE", "ONEOK INC /NEW/".)
-        const then = nameOn(sub, date).replace(/\s*\/[A-Za-z]{2,3}\/?\s*$/, "");
+        const then = withoutStateTag(nameOn(sub, date));
         if (!registrantMatches(then, name) && !registrantMatches(then, bare) && squash(then) !== squash(name)) continue;
         if (notTheSponsor(name, then)) continue; // "Advent" is not Advent Technologies Holdings
 
@@ -1832,6 +1979,23 @@ export async function ingestDeals(
     const over = (d: StoredDeal) => ((d.status === "Closed" || d.status === "Terminated") && !!d.statusDate && (Date.parse(hit.fileDate) - Date.parse(d.statusDate)) / 86_400_000 > 30) || (Date.parse(hit.fileDate) - Date.parse(d.announcedDate)) / 86_400_000 > 540;
     // The same name, not a loose match: "Apex Crypto" is not Apex Global Brands, "Bank Leumi USA" not Bank of Commerce Holdings.
     const knownPublic = () => state.deals.some((d) => !d.privateTarget && identicalNames(d.target.name, name) && !over(d));
+    // A target the release lists abroad or over the counter is out of scope, and its closing release, which states neither,
+    // may not bring it back. So its key is set here too, for a target with a ticker, which the gate below turns away: Zeo /
+    // Heliogen ("Heliogen, Inc. (OTCQX: HLGN)"), MICT / Tingo ("OTC Markets: TMNA"). Not a bank: OTC banks stay in.
+    const offshoreKey = acquirer.cik ? `offshore:${acquirer.cik}:${normalizeName(name)}` : null;
+    // (The name too: the search doesn't give every hit a SIC. Plumas / Cornerstone Community Bancorp, on OTCPK.)
+    const bankFiler = hit.sics.some((s) => s.startsWith("60")) || /\b(?:Banc(?:orp|shares)?|Bankshares|Bank)\b/i.test(name);
+    const markOffshore = () => {
+      if (!offshoreKey || parsed.kind !== "announcement") return;
+      state.seen.add(offshoreKey);
+      // The Item 1.01 of this same filing, read first ("…_8k.htm" sorts before "…_ex99-1.htm"), made a record: Newmont / Newcrest.
+      if (!bankFiler) {
+        const n = normalizeName(name);
+        const twin = state.deals.find((d) => d.privateTarget && d.acquirer.cik === acquirer.cik && d.sources.some((s) => s.startsWith(`${hit.adsh}:`)) && (normalizeName(d.target.name) === n || normalizeName(d.target.name).startsWith(`${n} `)));
+        if (twin) drop(twin);
+      }
+    };
+    if (parsed.targetListedAbroad || (parsed.targetOnOtc && !bankFiler)) markOffshore();
     if (
       !target.cik &&
       !target.ticker &&
@@ -1855,19 +2019,8 @@ export async function ingestDeals(
       // ("GenMark acquires Roche": the premium is GenMark's). So is a target the release lists abroad only
       // ("Logan Energy Corp. (TSXV: LGN)", bought by Ovintiv).
       // Its closing release states neither, and may not bring it back under a new id (Newmont / Newcrest).
-      const offshoreKey = acquirer.cik ? `offshore:${acquirer.cik}:${normalizeName(name)}` : null;
-      // (The name too: the search doesn't give every hit a SIC. Plumas / Cornerstone Community Bancorp, on OTCPK.)
-      const bankFiler = hit.sics.some((s) => s.startsWith("60")) || /\b(?:Banc(?:orp|shares)?|Bankshares|Bank)\b/i.test(name);
       if (parsed.premiumPct != null || parsed.targetListedAbroad || (parsed.targetOnOtc && !bankFiler)) {
-        if (offshoreKey && parsed.kind === "announcement") {
-          state.seen.add(offshoreKey);
-          // The Item 1.01 of this same filing, read first ("…_8k.htm" sorts before "…_ex99-1.htm"), made a record: Newmont / Newcrest.
-          if (!bankFiler) {
-            const n = normalizeName(name);
-            const twin = state.deals.find((d) => d.privateTarget && d.acquirer.cik === acquirer.cik && d.sources.some((s) => s.startsWith(`${hit.adsh}:`)) && (normalizeName(d.target.name) === n || normalizeName(d.target.name).startsWith(`${n} `)));
-            if (twin) drop(twin);
-          }
-        }
+        markOffshore();
         return null;
       }
       if ((parsed.kind === "completion" || (parsed.item101 && !bankFiler)) && acquirer.cik) {
@@ -2073,9 +2226,9 @@ export async function ingestDeals(
       : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||
       (d.status === "Closed" && d.statusRule !== STATUS_RULE_VERSION) ||
-      (d.valueUsd == null && d.valueCheck !== VALUE_CHECK_VERSION && d.status !== "Terminated") ||
+      valueCheckDue(d) ||
       (isPlaceholderBuyer(d.acquirer.name) && d.sponsorCheck !== SPONSOR_CHECK_VERSION) ||
-      (!d.acquirerAdvisors.length && d.advisorCheck !== ADVISOR_CHECK_VERSION) ||
+      advisorCheckDue(d) ||
       !d.financialsCheckedAt ||
       d.financialsVersion !== FINANCIALS_VERSION ||
       proxyWanted(d) ||
@@ -2192,8 +2345,9 @@ export async function ingestDeals(
         await settlePrivate();
       } else {
         let sub = await submissions(deal.target.cik!);
-        if (sub && sub.sic === "6770") {
-          // Blank-check shell as target: drop.
+        // Blank-check shell as target: drop. The name must look like one too, as in discovery: a de-SPACed operating company
+        // can keep SIC 6770 for years (Infrastructure and Energy Alternatives, formerly M III Acquisition, sold to MasTec for $1.1B).
+        if (sub && sub.sic === "6770" && (SPAC_FILER.test(sub.name) || SPAC_NAME.test(sub.name))) {
           drop(deal);
           continue;
         }
@@ -2218,16 +2372,18 @@ export async function ingestDeals(
           if (deal.status === "Terminated") deal.milestones = undefined;
         }
         // No value yet: the announcement releases of the target and the buyer usually state one.
-        if (sub && deal.valueUsd == null && deal.valueCheck !== VALUE_CHECK_VERSION && deal.status !== "Terminated") {
+        if (sub && valueCheckDue(deal)) {
           // A date taken from a later 8-K (an amendment) moves back to the signing first, so the releases are found.
           const signed = await earlierSigning(deal, sub);
           if (signed) deal.announcedDate = signed;
           const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
           const p = await announcementTerms(deal, [sub, ...(acquirerSub ? [acquirerSub] : [])]);
-          if (p) {
+          if (p && takesStatedValue(deal, p)) {
             deal.valueUsd = p.valueUsd;
             deal.valueKind = p.valueKind;
-            deal.premiumPct ??= p.premiumPct;
+            delete deal.valueImplied;
+            // (Not a premium at an older price beside an amended one.)
+            if (!deal.termsAmended || (p.pricePerShare != null && deal.pricePerShare != null && Math.abs(p.pricePerShare - deal.pricePerShare) <= deal.pricePerShare * 0.005)) deal.premiumPct ??= p.premiumPct;
             deal.consideration ??= p.consideration;
             deal.financialsCheckedAt = null; // EV and multiples from the new value
             stats.valuesFound++;
@@ -2248,14 +2404,10 @@ export async function ingestDeals(
           deal.sponsorCheck = SPONSOR_CHECK_VERSION;
         }
         // The buyer's bank: the proxy names only the target's, the announcement release usually both.
-        if (sub && !deal.acquirerAdvisors.length && deal.advisorCheck !== ADVISOR_CHECK_VERSION) {
+        if (sub && advisorCheckDue(deal)) {
           const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
           const banks = await announcementAdvisors(deal, [sub, ...(acquirerSub ? [acquirerSub] : [])]);
-          if (banks.acquirerAdvisors.length) {
-            deal.acquirerAdvisors = banks.acquirerAdvisors.filter((b) => !deal.targetAdvisors.includes(b));
-            stats.advisorsFound++;
-          }
-          if (!deal.targetAdvisors.length) deal.targetAdvisors = banks.targetAdvisors;
+          if (mergeReleaseAdvisors(deal, banks)) stats.advisorsFound++;
           deal.advisorCheck = ADVISOR_CHECK_VERSION;
         }
         // (One request per buyer, cached for the run; the light history runs keep today's name.)

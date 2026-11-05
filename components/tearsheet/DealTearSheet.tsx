@@ -113,7 +113,7 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
       <div className="sheet-title">
         <span className="sheet-eyebrow">
           M&amp;A · {deal.sector}
-          {deal.industry ? ` · ${deal.industry}` : ""}
+          {deal.industry ? ` · ${deal.privateTarget ? "Buyer's industry: " : ""}${deal.industry}` : ""}
         </span>
         <h1>
           {deal.acquirer.name} <span>to acquire</span> {deal.target.name}
@@ -188,7 +188,7 @@ export function DealTearSheet({ deal, data }: { deal: Deal; data: HubData }) {
             <SheetRows
               rows={[
                 ["Sector", deal.sector],
-                ["Industry", deal.industry ?? "—"],
+                [deal.privateTarget ? "Buyer's industry" : "Industry", deal.industry ?? "—"],
               ]}
             />
           </SheetSection>

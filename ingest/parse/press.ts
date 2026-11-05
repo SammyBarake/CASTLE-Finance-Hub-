@@ -77,6 +77,40 @@ const ANNOUNCED_ON = new RegExp(
     `|\\bOn\\s+(?:${MONTHS})\\s*\\d{1,2},\\s*\\d{4},\\s+[^.]{0,60}?\\bannounced\\s+(?:a|an|the)\\s+(?:definitive\\s+)?(?:merger\\s+|purchase\\s+)?agreement`,
   "i",
 );
+// "pursuant to the execution of its previously announced asset purchase agreement on October 30, 2024" (Legacy Education / Contra Costa). Read with `signedOnBefore`.
+const AGREEMENT_ANNOUNCED_ON = new RegExp(`\\bpreviously\\s+announced\\s+(?:[^.\\s]+\\s+){0,4}?agreement\\s+on\\s+(?:${MONTHS})\\s*\\d{1,2},\\s*\\d{4}`, "i");
+/** Not a closing date in the same words: "completed the acquisition under its previously announced merger agreement on March 1, 2024". */
+function signedOnBefore(head: string): string | undefined {
+  const m = AGREEMENT_ANNOUNCED_ON.exec(head);
+  if (!m || /\b(?:completed|closed|consummated)\b/i.test(head.slice(head.lastIndexOf(". ", m.index) + 1, m.index))) return undefined;
+  return isoDateIn(m[0]);
+}
+
+/**
+ * A completion release saying the deal itself was announced before: a deal word just after the phrase ("its previously announced $970 million all cash
+ * acquisition", "previously announced plans on November 19, 2012 to acquire"), the phrase after one ("The transaction, previously announced in November
+ * 2025", "the terms previously reported", "A definitive agreement to acquire the bank was previously announced"), "previously announced that it had signed
+ * …", "… , previously announced in June", or "as previously announced". Not something else announced earlier: La Rosa's "brings its previously announced La
+ * Rosa's Ultimate Plan to Puerto Rico", in the release of a purchase signed and closed at once; offerings, buybacks, refinancings, guidance and webcasts.
+ */
+const PREVIOUSLY_SAID = "previously[- ](?:announced|disclosed|reported)";
+const DEAL_NOUN = "(?:acquisitions?|acquire|mergers?|transactions?|combination|purchases?|sale|deal|agreements?|buyout|arrangement|offer|terms|price|signing|details|completion)";
+const SAYS_ANNOUNCED_EARLIER = new RegExp(
+  `\\b${PREVIOUSLY_SAID}\\s+(?:\\S+\\s+){0,4}?${DEAL_NOUN}\\b` +
+    `|\\b${PREVIOUSLY_SAID}\\s+plans?\\b` +
+    `|\\b${PREVIOUSLY_SAID}\\s+(?:on|in)\\s+(?:${MONTHS}|the\\b|last\\b|(?:19|20)\\d{2})` +
+    `|\\b${PREVIOUSLY_SAID}\\b[^.]{0,80}?\\bthat\\b[^.]{0,60}?\\b${DEAL_NOUN}\\b` +
+    `|\\b${DEAL_NOUN}(?:\\s*\\([^()]{0,40}\\))?,?\\s+${PREVIOUSLY_SAID}\\b` +
+    `|\\b${DEAL_NOUN}\\b[^.]{0,120}?\\b(?:was|were|been)\\s+${PREVIOUSLY_SAID}\\b` +
+    `|\\bAs\\s+previously\\s+announced\\b` +
+    `|\\bAs\\s+previously\\s+(?:disclosed|reported),[^.]{0,60}?\\b(?:${DEAL_NOUN}|acquired|agreed)\\b`,
+  "i",
+);
+/** The phrase in the opening, with room for the deal word after it. */
+function saysAnnouncedEarlier(text: string): boolean {
+  const m = SAYS_ANNOUNCED_EARLIER.exec(flatten(text).slice(0, 1600));
+  return !!m && m.index < 1500;
+}
 const DATE_IN_TEXT = new RegExp(`(${MONTHS})\\s*,?\\s*(\\d{1,2})\\s*,\\s*((?:19|20)\\d{2})`, "gi");
 const MONTH_NUMBER: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 /** The last "Month D, YYYY" in `s` as an ISO date ("Nov. 14, 2025" → "2025-11-14"). */
@@ -85,6 +119,20 @@ export function isoDateIn(s: string | undefined): string | undefined {
   const month = m ? MONTH_NUMBER[m[1].slice(0, 3).toLowerCase()] : undefined;
   if (!m || !month || Number(m[2]) < 1 || Number(m[2]) > 31) return undefined;
   return `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+}
+
+// "SAN FRANCISCO (June 23, 2022)" (NerdWallet / On The Barrelhead), "PRESS RELEASE DATED 09/02/2021" (PGT / Anlin).
+const PAREN_DATELINE = new RegExp(`(?:^|\\n)[^\\n]{0,160}?\\((?:${MONTHS})\\s*\\d{1,2},\\s*(?:19|20)\\d{2}\\)`, "i");
+const NUMERIC_RELEASE_DATE = /\bpress release dated\s+(\d{1,2})\/(\d{1,2})\/((?:19|20)\d{2})\b/i;
+/** The days a document's top gives as its own: a dateline, in any of the forms above. */
+export function datelinesOf(text: string): string[] {
+  const head = text.slice(0, 5000);
+  const numeric = NUMERIC_RELEASE_DATE.exec(head);
+  return [
+    isoDateIn(RELEASE_DATELINE.exec(head)?.[0]),
+    isoDateIn(PAREN_DATELINE.exec(head)?.[0]),
+    numeric ? `${numeric[3]}-${numeric[1].padStart(2, "0")}-${numeric[2].padStart(2, "0")}` : undefined,
+  ].filter((d): d is string => !!d);
 }
 
 // SEC cover-page and filing-wrapper lines that precede the actual release in 425 / DEFA14A documents.
@@ -212,7 +260,8 @@ function collectHeadline(lines: string[], from: number, step: 1 | -1): { start: 
 const SUFFIX = String.raw`,\s(?:Inc|Corp|Ltd|LLC|L\.P|LP|Co|N\.V|S\.A|plc|PLC|Limited|Incorporated)\.?`;
 // A slash between letters belongs to a name ("RE/MAX Holdings" was read as "MAX Holdings"; "Quad/Graphics", "Danfoss
 // A/S"); not in dates or phone numbers ("11/14/11", "212/355-4449").
-const NAME = String.raw`(?<![A-Za-z0-9])((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*(?:${SUFFIX}|\s(?:(?:[a-z]{1,3}(?=[A-Z][a-z]))?[A-Z0-9&][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*|of|and|de|du|la|for|the|by))*?)`;
+// (" plc" in lower case belongs to it: "Janus Henderson Group plc to be Acquired by Trian Fund Management and General Catalyst" read as nothing.)
+const NAME = String.raw`(?<![A-Za-z0-9])((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*(?:${SUFFIX}|\s(?:(?:[a-z]{1,3}(?=[A-Z][a-z]))?[A-Z0-9&][\w&.'’\-]*(?:/[A-Za-z][\w&.'’\-]*)*|of|and|de|du|la|for|the|by|plc))*?)`;
 // (A buy-out of the rest of a company is that company: "Ionis Pharmaceuticals to Acquire Remaining Stake in Akcea
 // Therapeutics", "ONEOK … to Acquire Remaining Public Stake in ONEOK Partners".)
 // ("an? (?:newly formed )?entity …" missed "AN ENTITY CONTROLLED BY" in capitals or title case, so the article and
@@ -322,6 +371,8 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
 ];
 
 const SYMMETRIC_HEADLINE = rx(String.raw`^${NAME}\s+(?i:and)\s+${NAME}\s+(?i:to combine|to merge|announce|agree to|enter into|sign)\b`);
+const BECOMES_SUBSIDIARY = rx(String.raw`${NAME}\s+(?:will|would)\s+become\s+an?\s+(?:(?:direct|indirect)\s+)?wholly[- ]owned\s+subsidiary\s+of\s+${NAME}(?=\s+[a-z]|\s*[,.;(]|$)`);
+const FOUNDER_MERGER = rx(String.raw`^([A-Z][a-z]+\s[A-Z][a-z]+)\s+(?i:and)\s+${NAME}\s+(?i:announce merger with)\s+${NAME}`);
 
 /** "<anything naming the filer> Acquires <target>": the buyer is the filer (see parsePressRelease). */
 const FILER_BUYER_HEADLINE = rx(
@@ -348,6 +399,11 @@ const BODY_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[] = [
     re: rx(
       String.raw`${NAME}\s+(?:\([^)]{0,80}\)\s+)?(?i:today\s+)?(?i:announced\s+(?:today\s+)?(?:that\s+)?(?:it\s+|the company\s+)?)?(?i:has|have|today)\s+(?i:completed (?:its |the )?acquisition of|closed (?:its |the )?acquisition of|acquired)\s+${LEAD_QUAL}${NAME}${STOP}`,
     ),
+    roles: ["acq", "tgt"],
+  },
+  // "Vistra Corp. (NYSE: VST) today announced it has executed definitive agreements to acquire Cogentrix Energy"
+  {
+    re: rx(String.raw`${NAME}\s+(?:\([^)]{0,80}\)\s+)?(?i:today\s+)?(?i:announced\s+(?:today\s+)?(?:that\s+)?(?:it\s+|the company\s+)?)(?i:has|have)\s+(?i:executed)\s+(?i:definitive\s+)?(?i:agreements)\s+(?i:to acquire)\s+${LEAD_QUAL}${NAME}${STOP}`),
     roles: ["acq", "tgt"],
   },
   // "...announced today that BioMarin has entered into a definitive agreement to acquire Amicus for $14.50"
@@ -447,6 +503,14 @@ function resolveSymmetric(a: string, b: string, body: string) {
     if (sameCompany(tgt, b) || sameCompany(acq, a)) return { acq: a, tgt: b };
     if (sameCompany(tgt, a) || sameCompany(acq, b)) return { acq: b, tgt: a };
   }
+  // "under which TreeHouse Foods will be acquired by Investindustrial": the headline had only "TreeHouse Foods and Investindustrial Announce".
+  const sold = rx(String.raw`\b${NAME}\s+(?:will|would)\s+be\s+acquired\s+by\s+${NAME}`).exec(body);
+  if (sold) {
+    const tgt = cleanPartyName(sold[1]);
+    const acq = cleanPartyName(sold[2]);
+    if (sameCompany(tgt, b) && sameCompany(acq, a)) return { acq: a, tgt: b };
+    if (sameCompany(tgt, a) && sameCompany(acq, b)) return { acq: b, tgt: a };
+  }
   // "eDiets.com will become a wholly-owned subsidiary of As Seen On TV Inc.", "Adicet would merge with a wholly-owned subsidiary
   // of resTORbio", "Rentrak will merge into a wholly-owned subsidiary of comScore".
   const sub = rx(String.raw`${NAME}\s+(?:will|would)\s+(?:become\s+an?|merge\s+(?:with\s+and\s+into|with|into)\s+an?)\s+(?:(?:direct|indirect)\s+)?(?:wholly[- ]owned|newly[- ]formed)\s+subsidiary\s+of\s+${NAME}`).exec(body);
@@ -483,14 +547,15 @@ function termsSection(body: string): string {
  * enterprise value for the combined companies of approximately $17 billion" is Cabot and Cimarex together, not the price.
  * Nor pay, warrants or the deal's financing: "performance based compensation having a value of approximately $28.9 million"
  * (Navitas), "the Black Scholes value of such warrants", "financed the purchase price using $55 million in new debt".
+ * "have completed a transaction in which H&F has acquired At Home" is this deal, not a firm's record.
  */
 const NOT_DEAL_VALUE =
-  /\b(?:market(?!\s+price|\s+p[a-z]*$)|markets|TAM|industry|sold\s+in\s+(?:\w+\s+)?\d{4}|private placements?|concurrent (?:financing|investment)|(?:silver|gold|metals?|royalty)\s+stream(?:ing)?|streaming\s+(?:agreement|interest|arrangement)|opportunit\w*(?!\s+(?:partners|funds?|capital|investors|advisors|group)\b)|combined (?:compan(?:y|ies)|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed(?!\s+(?:the|its|their)\s+(?:previously\s+announced\s+)?(?:acquisition|merger|purchase|sale|transaction))|deployed)|assets under management|AUM|portfolio companies|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|compensation|Black[- ]Scholes|value of (?:such |the )?warrants|(?:financ|fund)(?:ed|ing) the purchase price (?:using|with|through|from)|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions|businesses|companies))\b/i;
+  /\b(?:market(?!\s+price|\s+p[a-z]*$)|markets|TAM|industry|pro-forma\s+(?:market\s+value|equity)|sold\s+in\s+(?:\w+\s+)?\d{4}|private placements?|concurrent (?:financing|investment)|(?:silver|gold|metals?|royalty)\s+stream(?:ing)?|streaming\s+(?:agreement|interest|arrangement)|opportunit\w*(?!\s+(?:partners|funds?|capital|investors|advisors|group)\b)|combined (?:compan(?:y|ies)|enterprise|business|entity)|pro forma|since (?:its )?inception|since \d{4}|ha(?:s|ve) (?:managed|invested|completed(?!\s+(?:the|its|their)\s+(?:previously\s+announced\s+)?(?:acquisition|merger|purchase|sale|transaction)|\s+a\s+transaction\s+in\s+which\b)|deployed)|assets under management|AUM|portfolio companies|projected to|expected to reach|forecast|CAGR|annual(?:ized)? revenue|revenues? of|sales of|backlog|in \d{4}|face value|compensation|Black[- ]Scholes|value of (?:such |the )?warrants|(?:financ|fund)(?:ed|ing) the purchase price (?:using|with|through|from)|\d[\d,]* (?:transactions|deals|investments|add-on acquisitions|acquisitions|businesses|companies))\b/i;
 // The amount's own sentence only: "… an all-stock transaction valued at $35 billion. The combination will create the
 // industry's leading …" (AMD / Xilinx) is a deal value.
 const valueContext = (t: string, index: number, length: number) =>
-  (t.slice(Math.max(0, index - 90), index).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=["“A-Z])|\.\s+(?=The\s)/).pop() ?? "") +
-  t.slice(index, index + length + 50).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=["“A-Z])/)[0].split(/,\s+and\s+the\s+combined\b|\s+and\s+will\s+(?:create|form)\b/)[0];
+  (t.slice(Math.max(0, index - 90), index).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.["”]?\s+(?=["“A-Z])|\.["”]?\s+(?=The\s)/).pop() ?? "") +
+  t.slice(index, index + length + 50).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=["“A-Z])/)[0].split(/,\s+and\s+the\s+combined\b|\s+and\s+will\s+(?:create|form)\b|\s+and\s+\d+(?:\.\d+)?%\s+pro\s+forma\b/)[0];
 /** ("PIPE" only in capitals: a pipe maker's value is a value.) */
 const isNotDealValue = (raw: string) => {
   // (A value stated "before giving effect to the private placement" is the deal's.)
@@ -571,6 +636,8 @@ export function extractPrice(raw: string): number | null {
     const clause = before.split(/[.;]\s+(?=[A-Z])/).pop() ?? before;
     // A rival's unsigned price: "Davidson Kempner's proposed purchase price of $5.83 per share" (Vacasa).
     if (/\bproposed\s+(?:purchase\s+|cash\s+)?price\s+of\s+$/i.test(clause)) continue;
+    // What the buyer's own shares are counted at: "5 million shares of common stock at a mutually agreed-upon value of $185 per share" (Vistra / Cogentrix).
+    if (/\bshares\s+of\s+(?:[\w-]+\s+){0,2}stock\s+at\s+a\s+(?:[\w-]+\s+){0,3}value\s+of\s+$/i.test(clause)) continue;
     if (/par value|dividend|distribution|exercise price|conversion price|strike|warrants?|earnings|EPS|FFO|AFFO|net (?:income|loss)|book value|NAV\b|per share data|guidance|outlook|\bbid price\b/i.test(clause.slice(-70) + after.slice(0, 20))) continue;
     if (/\bpreferred\s+(?:stock|shares?)\b(?!\s+purchase\s+rights)[^.;$]{0,70}?(?:(?:at|for)\s+a\s+(?:combined\s+)?(?:purchase\s+|redemption\s+)?price\s+of|redeem(?:ed|able)\s+for|stated\s+value\s+(?:and\s+liquidation\s+preference\s+)?of|liquidation\s+preference\s+of)\s*(?:approximately\s+)?$/i.test(before)) continue;
     // A CVR or milestone payment ("plus one CVR worth up to $3.50 per share") is not the offer price.
@@ -779,12 +846,16 @@ function enterpriseValueBeside(t: string, from: number, usd: number): number | n
 const CEILING = new RegExp(String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b[^.;]{0,220}?\bfor\s+up\s+to\s+${ABOUT}${DOLLARS}|\bvalued\s+up\s+to\s+${ABOUT}${DOLLARS}`, "i");
 /** What's paid at once under a ceiling: "$225 million in cash upfront". Not a financing's ("$115 million in upfront proceeds"). */
 const UPFRONT = new RegExp(
-  String.raw`${DOLLARS}\s+(?:(?:in|of)\s+)?(?:(?:cash|stock|equity)\s+)?(?:(?:(?:is\s+|are\s+|will\s+be\s+)?(?:payable|paid|due|issued)|to\s+be\s+(?:paid|issued))\s+)?(?:upfront|up-front|(?:at|upon)\s+(?:the\s+)?clos(?:e|ing))\b(?!\s+(?:financing|funding|proceeds|investment))|\b(?:upfront|up-front)\s+(?:(?:cash\s+)?(?:payment|consideration|purchase\s+price|price|amount)\s+)?of\s+(?:up\s+to\s+)?${ABOUT}${DOLLARS}`,
+  String.raw`${DOLLARS}\s+(?:\d\s+)?(?:USD\s+)?(?:(?:in|of)\s+)?(?:(?:cash|stock|equity|consideration)\s+)?(?:(?:(?:is\s+|are\s+|will\s+be\s+)?(?:payable|paid|due|issued)(?:\s+in\s+cash)?|to\s+be\s+(?:paid|issued))\s+)?(?:upfront|up-front|(?:at|upon)\s+(?:the\s+)?clos(?:e|ing))\b(?!\s+(?:financing|funding|proceeds|investment))|\b(?:upfront|up-front)\s+(?:(?:cash\s+)?(?:payment|consideration|purchase\s+price|price|amount)\s+)?of\s+(?:up\s+to\s+)?${ABOUT}${DOLLARS}`,
   "gi",
 );
 /** (Not "$25 million of net cash at closing": what the target will hold, not what's paid for it.) */
+const UPFRONT_DEAL = new RegExp(String.raw`${DOLLARS}\s+(?:(?:in|of)\s+)?(?:cash\s+)?(?:up-?front|as\s+initial\s+consideration|in\s+initial\s+consideration)\b(?!\s+(?:financing|funding|proceeds|investment|fee|license))|\b(?:initial\s+)?(?:up-?front|initial)\s+(?:cash\s+)?(?:payment|consideration|purchase\s+price)(?:\s+at\s+closing)?\s+of\s+${ABOUT}${DOLLARS}|\binitial\s+up-?front\s+${DOLLARS}\s+cash\s+payment\b|\bcash\s+payment\s+at\s+closing\s+of\s+${DOLLARS}|\ba\s+${DOLLARS}\s+initial\s+payment\b`, "gi");
+/** The other leg, in dollars of shares: "an upfront payment of $2.5 million in cash and $7.4 million in shares of Agenus common stock" (PhosImmune), "$52.0 million in cash and $34.0 million in equity" (Pernix / Cypress). One leg is no deal's value. */
+const OTHER_LEG_IN_SHARES = /^\s*(?:in\s+cash\s*)?,?\s*(?:and|plus)\s+(?:up\s+to\s+)?(?:approximately\s+)?\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:in|of)\s+(?:[\w-]+\s+){0,3}(?:shares|stock|equity)\b/i;
 function upfrontAmount(t: string): number {
   for (const m of t.matchAll(UPFRONT)) {
+    if (OTHER_LEG_IN_SHARES.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 90))) return 0;
     if (!/\bnet\s+cash\b/i.test(t.slice(Math.max(0, m.index! - 60), m.index!))) return Math.round(num(m[1] ?? m[3]) * unitMult(m[2] ?? m[4]));
   }
   return 0;
@@ -818,16 +889,23 @@ function statedAsEnterprise(t: string, figure: string, unit: string): boolean {
   return new RegExp(String.raw`(?<!\b(?:adjusted|lease-adjusted)\s)\benterprise\s+value\s+(?:(?:of|is|at)\s+)?${ABOUT}${amount}|${amount}\s+(?:(?:in|of)\s+)?(?:(?:total|implied|consolidated|aggregate|approximate)\s+){0,2}enterprise\s+value\b`, "i").test(t.slice(0, 2500));
 }
 
-export function extractValue(raw: string): { usd: number; kind: ParsedPress["valueKind"] } | null {
+function statedAsEquity(t: string, figure: string, unit: string): boolean {
+  const amount = String.raw`(?<![A-Z])(?:US\$|\$|USD\s?)\s?${figure.replace(/[.,]/g, "\\$&")}\s*${unit}\b`;
+  return new RegExp(String.raw`(?<!\ball[- ])\bequity\s+value\s+(?:(?:of|is|at)\s+)?${ABOUT}${amount}|${amount}\s+(?:(?:in|of)\s+)?(?:(?:total|implied|aggregate|approximate)\s+){0,2}equity\s+value\b`, "i").test(t.slice(0, 2500));
+}
+
+export function extractValue(raw: string, opts: { agreement?: boolean } = {}): { usd: number; kind: ParsedPress["valueKind"] } | null {
+  const priceForRe = opts.agreement ? PRICE_FOR_AGREEMENT : PRICE_FOR;
   // "for a total equity value of approximately 4.1 billion USD" (Angelini / Catalyst).
-  const t = raw.replace(/(?<![\d.,$])(\d{1,4}(?:\.\d{1,3})?)\s+(billion|million)\s+USD\b/g, "USD $1 $2");
+  const t = raw.replace(/(?<![\d.,$])(\d{1,4}(?:\.\d{1,3})?)\s+(billion|million)\s+USD\b/g, "USD $1 $2").replace(/(\$\s?\d[\d,.]*)\s+\d\s+(billion|million)\b/g, "$1 $2");
   // Once a ceiling has been skipped, the amounts after it explain it (the earn-out, the warrants, the financing).
   let ceiling = 0;
   const re =
-    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase))?\s+(?:value|price|consideration)|(?:aggregate\s+|total\s+)?(?:upfront|up-front)\s+(?:consideration|purchase\s+price)(?=\s+of\b)|enterprise\s+valuation|\bEV\s+of|valued at|priced at|valuing\b[\w\s,]{0,40}?\bat|value of|values? (?:[\w\s']|\.(?=\w)){0,40}? at)[^$.;•]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
+    // ("an all-cash transaction that valued the company at $2.8 billion, including the assumption of debt": H&F / At Home.)
+    /((?:enterprise|equity|transaction|deal|aggregate|total|purchase|implied)(?:\s+(?:equity|enterprise|transaction|deal|purchase|merger|cash))?\s+(?:value|price|consideration)|acquisition\s+(?:price|consideration)(?=\s+(?:of|is|was|will\s+be)\b)|(?:aggregate\s+|total\s+)?(?:upfront|up-front)\s+(?:consideration|purchase\s+price)(?=\s+of\b)|enterprise\s+valuation|total\s+equity\s+valuation|\bEV\s+of|valued at|(?:that|which)\s+valued\s+the\s+company\s+at|priced at|valuing\b[\w\s,]{0,40}?\bat|value of|values? (?:[\w\s']|\.(?=\w)){0,40}? at)[^$.;•]{0,70}?(?:(?:US|U\.S\.|C|CAD|A)?\$|\bUSD\s?)\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(trillion|billion|million|bn|mm|mn|B|M)\b/gi;
   // A price stated "acquire … for $X in cash": a smaller labelled amount further on is part of it or about something else
   // ("Of the total consideration, $35 million will be used to pay costs …": Acorda / Civitas). A larger one may be the total.
-  const statedHit = [...t.matchAll(PRICE_FOR)].find((p) => /^\s*in\s+cash\b/i.test(t.slice(p.index! + p[0].length, p.index! + p[0].length + 12)));
+  const statedHit = [...t.matchAll(priceForRe)].find((p) => /^\s*in\s+cash\b/i.test(t.slice(p.index! + p[0].length, p.index! + p[0].length + 12)));
   const statedAt = statedHit ? statedHit.index! : Infinity;
   const statedUsd = statedHit ? Math.round(statedHit[1] ? num(statedHit[1]) * unitMult(statedHit[2]) : num(statedHit[3])) : 0;
   for (const m of t.matchAll(re)) {
@@ -853,8 +931,17 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
     if (new RegExp(`\\bacquir(?:ing|ed)\\s+\\d{1,2}(?:\\.\\d+)?%\\s+of\\b[^.;]{0,80}\\b(?:on|in)\\s+(?:(?:${MONTHS})\\s+(?:\\d{1,2},\\s+)?)?(?:19|20)\\d{2}\\b[^.;]{0,40}$`, "i").test(t.slice(Math.max(0, m.index! - 200), m.index!))) continue;
     // A combined company's assets, however long the sentence: "The combined internally managed company, …, is expected to own and manage over 1,350 properties and have an aggregate real estate asset value of approximately $9.6 billion" (GNL / RTL).
     if (/\bcombined\b[^.;]{0,200}$/i.test(t.slice(Math.max(0, m.index! - 200), m.index!)) && /\breal estate\b|\basset value\b/i.test(t.slice(Math.max(0, m.index! - 40), m.index! + m[0].length))) continue;
+    // A cash total is the price only when no shares stand beside it (Noble / Diamond's "$600 million total cash paid"; a stock leg elsewhere in the sentence),
+    // and said of the deal ("total cash consideration will amount to $3.3 billion": WNS). "for total cash consideration of" is any purchase the text mentions:
+    // ONEOK's earlier stake in EnLink ($3.3B; the deal is $4.3B in stock), MacDermid's carve-out from OM Group ($365M).
+    if (/^(?:aggregate|total)\s+cash\s+consideration$/.test(lead) && (/\b(?:shares|stock|units|equity)\b/i.test(t.slice(Math.max(0, m.index! - 200), m.index! + m[0].length + 120)) || /^\s*of\b/i.test(m[0].slice(m[1].length)) || /\bfrom\s*$/i.test(m[0].slice(0, m[0].indexOf("$"))))) continue;
+    // "an increase in the aggregate merger consideration to stockholders of approximately $10 million" is how much was added (Physicians Formula, $74.9M).
+    if (/\b(?:increase|decrease|reduction)\s+(?:in|of)\s+(?:the\s+)?$/i.test(t.slice(Math.max(0, m.index! - 24), m.index!))) continue;
+    // "Acquisition price of approximately $490 million" in the highlights, then "a cash and stock transaction valued (including outstanding AV Homes debt) at approximately $963 million" (Taylor Morrison).
+    if (/^acquisition\s/.test(lead) && /\btransaction\s+valued\b[^.;$]{0,70}\bat\s+(?:approximately\s+|about\s+)?\$/i.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 1500))) continue;
     const ownContext = valueContext(t, m.index!, m[0].length);
-    if (isNotDealValue(/\b(?:total|aggregate)\s+(?:up-?front\s+)?consideration$/.test(lead) ? ownContext.replace(/\b(?:market\S*|industry|opportunit\w*)/gi, "") : ownContext)) continue;
+    const selfNamed = /\b(?:transaction|deal|acquisition|merger)\s+(?:is\s+|was\s+|will\s+be\s+)?valued\s+at\b/i.test(t.slice(Math.max(0, m.index! - 30), m.index! + m[0].length));
+    if (isNotDealValue(selfNamed ? ownContext.split(/,\s+(?=in\s+an?\b)/).pop()!.replace(/\b(?:market\S*|industry|opportunit\w*)/gi, "") : /\b(?:total|aggregate)\s+(?:up-?front\s+)?consideration$/.test(lead) ? ownContext.replace(/\b(?:market\S*|industry|opportunit\w*)/gi, "") : ownContext)) continue;
     if (!/transaction|deal|enterprise|equity/.test(lead) && /\bshares\b[^.]{0,60}\bwith\s+(?:an?\s+)?(?:aggregate\s+|total\s+)?$/i.test(t.slice(Math.max(0, m.index! - 90), m.index!))) continue;
     if (valuesAContract(t, m.index!, lead)) continue;
     // A tax benefit or a carrying value, not the price: "for $447 million in cash, including the present value of
@@ -898,9 +985,10 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
     // The size of what the deal creates, not its price: "creating a premier … business, with an initial enterprise
     // value over $35 billion" (EQT / Equitrans), "the resulting company will have …".
     // Same sentence only: "… acquire Webster for $12.3 billion" after a sentence about creating a bank still counts.
-    const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
+    const sentenceBefore = t.slice(Math.max(0, m.index! - 160), m.index!).split(/(?<![A-Z])\.\s|;\s|•\s|\s[•+■]\s/).pop() ?? "";
     // ("Following the merger, CMFT will be one of the largest credit-focused REITs with approximately $6.1 billion in enterprise value".)
-    if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting|following\s+the\s+(?:merger|transaction|combination|closing|acquisition))\b/i.test(sentenceBefore)) continue;
+    // (A power plant's "combined cycle" isn't: Vistra / Cogentrix.)
+    if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined(?!\s+cycle\b)|resulting(?!\s+in\b)|following\s+the\s+(?:merger|transaction|combination|closing|acquisition))\b/i.test(sentenceBefore)) continue;
     // Nor the most the sellers could get: "Selling stockholders may earn additional consideration of up to $97.5 million
     // …, bringing total potential transaction value to approximately $455 million" (Cardinal / Hughes Brothers, bought
     // "for $357.5 million"). A total that includes an earn-out or other contingent payment is not the price agreed.
@@ -962,7 +1050,9 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
     // The words up to the amount, not just the lead: "values EA at an enterprise value of approximately $55 billion".
     const named = amountFirst ? lead : (dollar > 0 ? m[0].slice(0, dollar) : m[0]).toLowerCase();
     // (A later amount named as the deal's whole value counts: "CVRs valued at up to $1 billion … a total equity value of
-    // $4.8 billion", Bristol Myers / Mirati.)
+    // $4.8 billion", Bristol Myers / Mirati. Unless it is the ceiling again: Poseida's "up to $1.5 billion" is "a total equity
+    // value of approximately $1.5 billion" with its CVR, and Roche's own release says "$1.0 billion at closing".)
+    if (ceiling && usd === Math.round(ceiling)) continue;
     if (ceiling && !/\b(?:upfront|up-front|(?:at|upon)\s+(?:the\s+)?closing|base purchase price|(?:enterprise|equity) value)\b/i.test(t.slice(Math.max(0, m.index! - 5), m.index!) + named + after)) continue;
     const label = amountFirst ? undefined : LABEL_AFTER.exec(after)?.[1].toLowerCase();
     // "an all-equity transaction valued at approximately $4.1 billion, including Sitio's net debt of approximately $1.1 billion" says how it's paid, not an equity value, and a stated total that includes the debt is an enterprise value.
@@ -973,12 +1063,14 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
     if (ev) return { usd: ev, kind: "enterprise" };
     // A headline's "Transaction Valued at $167 Million" that the text gives as that same enterprise value (IEC, Kellanova).
     if (kind === "transaction" && !amountFirst && statedAsEnterprise(t, m[2], m[3])) return { usd, kind: "enterprise" };
+    // The same amount labelled further on: "a total consideration of approximately $4.1 billion" in a bullet, "a total equity value of approximately $4.1 billion" in the text (Angelini / Catalyst).
+    if (kind === "transaction" && !amountFirst && !withDebt && statedAsEquity(t, m[2], m[3])) return { usd, kind: "equity" };
     return { usd, kind };
   }
   // A value written in full dollars: "an all-cash transaction valued at approximately $586,000,000" (ProSight).
   for (const m of t.matchAll(/\b((?:enterprise|equity|transaction|deal)\s+value\s+of|(?:transaction|deal|merger|acquisition)\s+(?:is\s+)?valued\s+at)\s+(?:approximately\s+|about\s+)?(?:US)?\$\s?(\d{1,3}(?:,\d{3}){2,3})(?![\d.,]*\d)(?!\s*(?:thousand|million|billion))/gi)) {
     if (isNotDealValue(valueContext(t, m.index!, m[0].length)) || valuesAContract(t, m.index!, m[1].toLowerCase())) continue;
-    const sb = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[.;•]\s|\s[•+]\s/).pop() ?? "";
+    const sb = t.slice(Math.max(0, m.index! - 160), m.index!).split(/(?<![A-Z])\.\s|;\s|•\s|\s[•+■]\s/).pop() ?? "";
     if (/\b(?:creat(?:e|es|ing)|form(?:s|ing)\s+(?:a|an|the)|combined|resulting|following\s+the\s+(?:merger|transaction|combination|closing|acquisition)|potential|maximum|minimum)\b/i.test(sb)) continue;
     const usd = num(m[2]);
     if (usd < 1e6 || usd > MAX_DEAL_VALUE) continue;
@@ -986,19 +1078,30 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
     return { usd, kind: l.includes("enterprise") ? "enterprise" : l.includes("equity") ? "equity" : "transaction" };
   }
   // "The total consideration for the transaction, including the assumption and/or repayment of CoreSite's existing debt at closing, is approximately $10.1 billion."
-  for (const m of t.matchAll(/\b(?:total|aggregate)\s+(?:transaction\s+)?(?:consideration|value)\s+for\s+the\s+(?:transaction|merger|acquisition)\b((?:(?!\$)[^.;]){0,120}?)\b(?:is|will be)\s+(?:approximately\s+|about\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b/gi)) {
+  for (const m of t.matchAll(/\b(?:(?:total|aggregate)\s+(?:transaction\s+|merger\s+)?consideration(?:\s+for\s+the\s+(?:transaction|merger|acquisition))?|total\s+(?:transaction\s+)?value\s+for\s+the\s+(?:transaction|merger|acquisition)|the\s+consideration\s+(?:payable\s+for|to)\s+[A-Z][\w&.'’-]*)\b((?:(?!\$)[^.;]){0,120}?)\b(?:is|was|will be)\s+(?:approximately\s+|about\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b/gi)) {
+    // Not a ceiling: "maximum aggregate consideration of $75 million", with an initial $20.4 million (PPHC / TAP).
+    if (/\b(?:maximum|potential)\s+$/i.test(t.slice(Math.max(0, m.index! - 12), m.index!))) continue;
     return { usd: Math.round(num(m[2]) * unitMult(m[3])), kind: /\b(?:debt|net debt)\b/i.test(m[1]) ? "enterprise" : "transaction" };
   }
   // Private-company deals usually just say "acquired Widget Co. … for $185 million" (or "for USD 6.2 billion").
-  for (const m of t.matchAll(PRICE_FOR)) {
+  for (const m of t.matchAll(priceForRe)) {
     const end = m.index! + m[0].length;
+    // Someone else's purchase: "spectrum in Chicago, which Leap purchased for $204 million" (AT&T / Leap), "Store Capital, who will purchase ASTI's real estate for $5 million" (Synalloy).
+    if (/^purchas/i.test(m[0]) && /\b(?:which\s+[\w&.'’-]+(?:\s+[\w&.'’-]+)?|who(?:\s+will|\s+would)?)\s+$/i.test(t.slice(Math.max(0, m.index! - 50), m.index!))) continue;
+    // Not preferred stock bought from the Treasury beside the merger (C&F / Central Virginia, $3.35 million).
+    if (/^purchas/i.test(m[0]) && /\bpreferred\b/i.test(m[0] + t.slice(end, end + 60))) continue;
+    // Nor land bought alongside: "purchase from the sellers … certain real property … for $30 million" (Construction Partners / Lone Star).
+    if (/^purchas/i.test(m[0]) && /\breal (?:property|estate)\b/i.test(m[0])) continue;
+    // A total with its milestones in it; the upfront part is read below: "for $445 million, consisting of $210 million upfront and $235 million in potential sales-based milestone payments" (Mirum / Travere).
+    // (An earn-out added after it isn't in the total: "for $163.5 million, consisting of $141.8 million in cash at closing and $21.7 million in notes …, plus a structured earnout": Tutor Perini / Lunda.)
+    if (/^\s*,?\s*(?:consisting|comprised|composed)\s+of\b(?:(?!\bplus\b)[^.;]|\.(?=\d)){0,140}?\b(?:milestones?|contingent|earn-?outs?)\b/i.test(t.slice(end, end + 180))) continue;
     // Not the deal: "As part of enabling the acquisition, … a private placement transaction … for approximately $7.5 million"
     // (Selectica / Iasta), "Safehold will acquire iStar's interest in the … funds in cash for $79 million".
     if (/\b(?:private placement|public offering|registered direct|equity financing|credit facility|term loan|notes? offering)\b/i.test(m[0])) continue;
     if (/\w['’]s\s+(?:[\w%-]+\s+){0,3}(?:interests?|stake)\b/.test(m[0])) continue;
     // The amount's own sentence after it: "… or approximately $158,700,000, subject to customary closing adjustments.
     // Founded in 1969, …" is a price.
-    if (isNotDealValue(t.slice(end - 40, end) + t.slice(end, end + 50).split(SENTENCE_END)[0])) continue;
+    if (isNotDealValue(t.slice(end - 40, end) + t.slice(end, end + 50).split(SENTENCE_END)[0].split(/,\s+(?:expanding|representing|reflecting|which|adding|bringing|with)\b|\s+and\s+(?:has|had|generated|generates)\b/)[0])) continue;
     // One leg: "for $140 million in cash and 256,984 shares of TFIN common stock" (Greenscreens.ai).
     if (SHARE_LEG.test(t.slice(end, end + 100))) continue;
     // The same, further on or in words: "for $78 million in cash and eight million shares of Emulex stock", "for $3 billion
@@ -1037,8 +1140,58 @@ export function extractValue(raw: string): { usd: number; kind: ParsedPress["val
       return ev ? { usd: ev, kind: "enterprise" } : { usd, kind: label ?? "transaction" };
     }
   }
+  for (const m of t.matchAll(/(?<![A-Z])\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+(?:[A-Z][\w&.'’-]*\s+){0,3}share\s+in\s+cash\s*\(\s*an\s+aggregate\s+of\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s*\)/gi)) {
+    const usd = Math.round(num(m[2]) * unitMult(m[3]));
+    const shares = usd / Number(m[1]);
+    if (usd >= 1e6 && shares >= 5e5 && shares <= 15e9) return { usd, kind: "equity" };
+  }
   // Only a real share of the ceiling: "$1 million at closing" under "up to $24.5 million" is some other payment.
   const top = ceiling || amountOf(CEILING.exec(t));
+  if (!top) {
+    const PAID = /\bwill\s+pay\s+(?:[A-Z][\w&.'’-]*\s+(?:shareholders|stockholders|holders|sellers|owners)\s+)?(?:approximately\s+|about\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+(?:in\s+cash(?:\s+and\s+stock)?\s+)?to\s+acquire\b|\bconsideration\s+for\s+the\s+[^.;]{0,40}?\bwill\s+consist\s+of\s+(?:an?\s+)?(?:initial\s+)?cash\s+payment\s+of\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b|\bresulting\s+in\s+a\s+total\s+cash\s+payment\s+of\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+to\b|\bwill\s+pay\s+[A-Z][\w&.'’-]*\s+(?:shareholders|stockholders|holders|sellers|owners)\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b/;
+    const paid = PAID.exec(t);
+    if (paid) {
+      const a = paid[1] ?? paid[3] ?? paid[5] ?? paid[7];
+      const u = paid[2] ?? paid[4] ?? paid[6] ?? paid[8];
+      const usd = Math.round(num(a) * unitMult(u));
+      if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
+    }
+    // The amount written first or with a verb: "Masimo will pay approximately $1.025 billion, subject to adjustments, for the acquisition",
+    // "Under the terms of the merger agreement, the Company paid a total of $532 million", "The cash transaction of $350 million was funded",
+    // "The $540 million all-cash transaction has been", "its previously announced $540 million all-cash acquisition of", "in a $45.4 million
+    // (€37.5 million) cash transaction", "The approximately $1.0 billion acquisition".
+    for (const re of [
+      /\bwill\s+pay\s+(?:approximately\s+|about\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s*,?\s+(?:subject\s+to\s+[^.;]{0,40},\s+)?for\s+the\s+acquisition\b/,
+      /\bterms\s+of\s+the\s+(?:merger\s+)?agreement,\s+[^.;]{0,40}?\bpaid\s+a\s+total\s+of\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b/,
+      /\b[Tt]he\s+(?:all[- ])?cash\s+transaction\s+of\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\b/,
+      /\b[Tt]he\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+purchase\s+price\b/,
+      /\bwill\s+pay\s+(?:approximately\s+|about\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+in\s+cash\s+at\s+(?:the\s+)?closing\b(?![^.;]{0,80}\b(?:shares|stock)\b)/,
+      /\b[Cc]onsideration\s+for\s+the\s+transaction\s+consists\s+of\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+of\s+cash\b/,
+      /\bwill\s+provide\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+in\s+total\s+consideration\b/,
+      // (Not after a preposition, some other deal: "he held a lead role in the $4 billion acquisition of Gambro", in a release on Melinta's new officer.)
+      /(?<!\b(?:in|on|for|with|to|from|including|like|during|after|before|than)\s)\b[Tt]he\s+(?:approximately\s+)?\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+(?:all[- ]cash\s+|all[- ]stock\s+|cash\s+|stock\s+)?(?:transaction|acquisition|merger)\b(?!\s+(?:of|with|by)\s+(?:other|another))/,
+      /\bpreviously\s+announced\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+(?:all[- ]cash\s+|all[- ]stock\s+|cash\s+|stock\s+)?(?:transaction|acquisition|merger)\b/,
+      /\bin\s+an?\s+\$\s?(\d{1,4}(?:\.\d{1,3})?)\s*(billion|million)\s+(?:\([^)]{0,30}\)\s+)?(?:all[- ])?cash\s+transaction\b/,
+    ]) {
+      const a = re.exec(t);
+      if (!a) continue;
+      const usd = Math.round(num(a[1]) * unitMult(a[2]));
+      if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
+    }
+    for (const m of t.matchAll(UPFRONT_DEAL)) {
+      const before = t.slice(Math.max(0, m.index! - 260), m.index!).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=["“A-Z])/).pop() ?? "";
+      if (!/\b(?:acquir\w*|purchas\w*|merger|will\s+pay|paid|transaction\s+(?:consists|includes)|(?:shareholders|stockholders|holders|sellers|owners)\b[^.;]{0,40}\breceive|in\s+exchange\s+for)\b/i.test(before + m[0])) continue;
+      if (/\b(?:license|licensing|collaboration|royalt\w+\s+interest|option\s+agreement|private\s+placement)\b/i.test(before)) continue;
+      if (OTHER_LEG_IN_SHARES.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 90))) continue;
+      // …or further on in its sentence: "GE will be paid a $2.9 billion up-front cash payment, and GE and its shareholders will receive 50.1% of the fully diluted outstanding shares of Wabtec";
+      // "for a $1 million upfront payment, 622,756 shares of common stock" (Akers); "$60 million in upfront cash, $30 million in Intrexon common stock" (Trans Ova). An upfront paid in stock is the upfront ("$10 million in shares of Agenus common stock").
+      if (/(?:,|\band\b|\bplus\b)[^.;]{0,80}?\b(?:receive|issue|issuance\s+of)\b(?:[^.;]|\.(?=\d)){0,60}?\b(?:shares|common\s+stock)\b|^[^.;]{0,30}?,\s*(?:approximately\s+)?[\d,.]+(?:\s*(?:million|billion))?\s+(?:[\w-]+\s+){0,3}shares\b|,\s*(?:approximately\s+)?\$\s?\d[\d.,]*\s*(?:million|billion)\s+in\s+(?:[\w&-]+\s+){0,3}(?:common\s+stock|shares|equity)\b/i.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 260).split(/(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No))\.\s+(?=["“A-Z])/)[0])) continue;
+      // One leg with a count of shares beside it says no total ("$750 million cash and approximately 0.92 million shares": DustPhotonics).
+      if (/^\s*(?:in\s+)?(?:cash\s+)?(?:up-?front\s+)?(?:at\s+closing\s+)?,?\s*(?:and|plus)\s+(?:approximately\s+)?[\d,.]+(?:\s*(?:million|billion))?\s+(?:[\w-]+\s+){0,3}(?:shares|units)\b/i.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 90))) continue;
+      const usd = Math.round(num(m[1] ?? m[3] ?? m[5] ?? m[7] ?? m[9]) * unitMult(m[2] ?? m[4] ?? m[6] ?? m[8] ?? m[10]));
+      if (usd >= 1e6 && usd <= MAX_DEAL_VALUE) return { usd, kind: "transaction" };
+    }
+  }
   const upfront = top ? upfrontAmount(t) : 0;
   // ("representing a total equity value of approximately $129 million at closing": Mersana.)
   const named = top && upfront ? new RegExp(String.raw`\bequity\s+value\s+of\s+${ABOUT}(?:US)?\$\s?${String(upfront / 1e6).replace(".", "\\.")}(?:\.0+)?\s*million\b`, "i").test(t) : false;
@@ -1058,11 +1211,16 @@ const FOREIGN_FIRST = String.raw`(?:(?:${String.fromCharCode(0x20ac)}|${String.f
 const STOCK_WORDS = String.raw`(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:stock|shares|units|equity)\b`;
 const LEG_AMOUNT = String.raw`(?:approximately\s+|about\s+)?(?:US)?\$\s?(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million)\b`;
 const OTHER_LEG = new RegExp(String.raw`^\s*in\s+cash\s*(?:,[^,;.$]{0,60})?,?\s*(?:and|plus)\s+${LEG_AMOUNT}\s+(?:in|of|worth\s+of)\s+${STOCK_WORDS}|^\s*(?:in|of)\s+${STOCK_WORDS}\s*,?\s*(?:and|plus)\s+${LEG_AMOUNT}\s+in\s+cash\b`, "i");
-const SHARE_LEG = /^\s*(?:in|of)\s+cash\s*,?\s*(?:and|plus)?\s*(?:approximately\s+)?[\d,.]+(?:\s*(?:million|billion))?\s+(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:shares|units)\b/i;
-const PRICE_FOR = new RegExp(
-  String.raw`\b(?:acquir\w*|acquisition of|acquisition(?=,\s)|purchase of)\b(?:[^.;]|\.(?=,|\s+[a-z])|\.(?=[a-z]{2,4}\b)|(?<=\b[A-Z])\.(?=[A-Z]\.)|(?<=\bwww)\.|(?<=\b(?:Inc|Corp|Co|Ltd|Bros|L\.P))\.(?=\s*[(,])){0,220}?\bfor\s+(?:(?:an?\s+)?(?:total\s+|aggregate\s+)?(?:cash\s+)?(?:purchase price|consideration)\s+of\s+|a\s+total\s+of\s+)?(?:approximately\s+|about\s+)?${FOREIGN_FIRST}?(?:US\$|\$|USD\s?)\s?(?:(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b|(\d{1,3}(?:,\d{3}){2,})(?!,?\d|\.\d|\s*(?:billion|million|bn|mm|mn)\b))(?!\s*(?:per share|a share))(?!\s*\(?\s*(?:CAD|CDN|AUD|NZD|HKD|SGD|MXN|EUR|GBP|CHF|JPY)\b)`,
-  "gi",
-);
+const SHARE_LEG = /^\s*(?:(?:in|of)\s+)?cash\s*(?:paid\s+at\s+closing\s*)?,?\s*(?:and|plus)?\s*(?:approximately\s+|up\s+to\s+)?[\d,.]+(?:\s*(?:million|billion))?\s+(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:shares|units)\b/i;
+/** The verb, for a release ("purchase Plasti-Fab for $259.5 million"). In an Item 1.01 it is a side agreement: Intcomex's $3,000,000 option on Brightpoint, GFL's $835M divestiture beside Waste Management / Advanced Disposal, the Gulf LNG interest beside Arc Logistics. */
+const PURCHASE_VERB = String.raw`|purchas(?:e|es|ed|ing)(?=\s+(?!by\b|agreements?\b|prices?\b|rights?\b|shares?\b|warrants?\b|of\b|notes?\b|units?\b))`;
+const priceFor = (VERB: string) =>
+  new RegExp(
+    String.raw`\b(?:acquir\w*|acquisition of|acquisition(?=,\s)|purchase of${VERB})\b(?:[^.;]|\.(?=,|\s+[a-z])|\.(?=[a-z]{2,4}\b)|(?<=\b[A-Z])\.(?=[A-Z]\.)|(?<=\bwww)\.|(?<=\bU\.S)\.(?=-)|(?<=\b(?:Inc|Corp|Co|Ltd|Bros|L\.P))\.(?=\s*[(,])){0,220}?\bfor\s+(?:(?:an?\s+)?(?:(?:total|aggregate|gross)\s+){0,2}(?:cash\s+)?(?:purchase price|consideration|payments?)\s+of\s+|consideration\s+consisting\s+of\s+|a\s+total\s+of\s+|an?\s+(?:all[- ])?cash\s+transaction\s+of\s+)?(?:approximately\s+|about\s+)?${FOREIGN_FIRST}?(?:US\$|USD\$|\$|USD\s?)\s?(?:(\d{1,4}(?:,\d{3})*(?:\.\d{1,3})?)\s*(billion|million|bn|mm|mn|B|M)\b|(\d{1,3}(?:,\d{3}){2,})(?!,?\d|\.\d|\s*(?:billion|million|bn|mm|mn)\b))(?!\s*(?:per share|a share))(?!\s*\(?\s*(?:CAD|CDN|AUD|NZD|HKD|SGD|MXN|EUR|GBP|CHF|JPY)\b)`,
+    "gi",
+  );
+const PRICE_FOR = priceFor(PURCHASE_VERB);
+const PRICE_FOR_AGREEMENT = priceFor("");
 
 /**
  * `forStock` is the text the stock and mixed tests read: employee-award sentences are left out of it (their conversion
@@ -1283,9 +1441,13 @@ export function extractConsideration(raw: string): Consideration | null {
 // Advisors
 // ---------------------------------------------------------------------------
 
-export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole: "acquirer" | "target" | null, tgtTicker: string | null) {
+export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole: "acquirer" | "target" | null, tgtTicker: string | null, acqTicker: string | null = null) {
   const acquirerAdvisors: string[] = [];
   const targetAdvisors: string[] = [];
+  // A joint buyer's members: "Consortium Led by Global Infrastructure Partners and EQT", "Warburg Pincus and Berkshire Partners".
+  const jointParts = /^(?:an?\s+)?consortium\s+led\s+by\s+|\sand\s/i.test(acq) && !/&|\band\s+Co(?:mpany)?\b|\b(?:Inc|LLC|Ltd|Corp|L\.?P|plc)\b\.?$/i.test(acq)
+    ? acq.replace(/^(?:an?\s+)?consortium\s+led\s+by\s+/i, "").split(/\s*,\s*(?:and\s+)?|\s+and\s+/).filter((p) => normalizeName(p).length >= 3)
+    : [];
   // "ExxonMobil" is Exxon Mobil Corporation: compare without spaces too.
   const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
   const same = (a: string, b: string) => sameCompany(a, b) || (squash(a).length >= 4 && squash(a) === squash(b));
@@ -1378,12 +1540,12 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
       if (same(boardOf, acq) || isAlias(boardOf, acqAliases) || has(acq, boardOf)) return "acquirer";
     }
     if (same(r, tgt) || isAlias(r, tgtAliases) || ticker || committee) return "target";
-    if (same(r, acq) || isAlias(r, acqAliases) || /investor group|buyer|purchaser|parent\b|^consortium\b/i.test(r)) return "acquirer";
+    if (same(r, acq) || isAlias(r, acqAliases) || jointParts.some((p) => same(r, p) || isAlias(r, aliasesOf(p))) || (/^[a-z]{4,}$/.test(r) && squash(acq).startsWith(r)) || (!!acqTicker && r === acqTicker) || /investor group|buyer|purchaser|parent\b|^(?:investor )?consortium\b/i.test(r)) return "acquirer";
     if (/^(?:the )?company\b|board of directors|^us\b|^we\b/i.test(r)) return companySide ?? issuerRole;
     return null;
   };
   // ("Morgan Stanley and Hogan Lovells are serving as financial and legal advisors, respectively, to Duke Realty.")
-  const re = /financial (?:and legal )?advis[oe]rs?\b/gi;
+  const re = /financial (?:and (?:legal|debt capital markets) )?advis[oe]rs?\b|\bM&A advis[oe]rs?\b|\balso\s+(?:(?:served|serving|acted|acting)\s+as\s+|are\s+|is\s+)?(?:an?\s+)?advis[oe]rs?(?=\s+to\b)/gi;
   let prevEnd = 0;
   // An "Advisors" section heading names whom the lines under it advise: "Herc Advisors Guggenheim Securities, LLC is
   // serving as lead financial advisor … Credit Agricole … is serving as co-financial advisor".
@@ -1429,7 +1591,7 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     let scan = (possessive ? clause.slice(0, possessive.index) : clause)
       .replace(/^.*(?:,\s*while|\bwhereas)\s+/i, "")
       .replace(/^.*\b(?:is|are)\s+representing\s+[^,;]{1,60},\s*(?:and\s+)?/i, "")
-      .replace(/^.*\b(?:Inc|Corp|Ltd|LLC|L\.P)\.\s+(?:\d\s+)?(?!(?:LLC|L\.L\.C|LP|L\.P|Inc|Corp|Ltd|Co)\b)(?=[A-Z][\w&.'’-]*(?:,?\s+[A-Z&][\w&.'’-]*){0,5},?\s+(?:is|are|was|were|has|have|acted|served|acting|serving)\b)/, "")
+      .replace(/^.*\b(?:Inc|Corp|Ltd|LLC|L\.P)\.\s+(?:\d\s+)?(?!(?:LLC|L\.L\.C|LP|L\.P|Inc|Corp|Ltd|Co)\b)(?=[A-Z][\w&.'’-]*(?:,?\s+(?:and\s+)?[A-Z&][\w&.'’è-]*){0,9},?\s+(?:is|are|was|were|has|have|acted|served|acting|serving)\b)/, "")
       .replace(/,\s+an?\s+(?:[A-Z][\w.&'’-]*\s+){1,3}(?:affiliate|company|subsidiary|member)\b,?/gi, " ")
       .replace(/^.*\b(?:acting|serving|served|acted)\s+as\s+(?:its\s+|the\s+)?(?:exclusive\s+|sole\s+)?(?:capital markets|placement|legal|tax|accounting|regulatory|debt|structuring)\b[^.;]*?(?:,\s*and\s+|;\s*)/i, "");
     // (The list is bullets: "… Raymond James & Associates, Inc. • Robert W. Baird … Additional Information Keefe Bruyette
@@ -1442,7 +1604,7 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     if (itsAfter) banks = findBanks(post.split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|No|[A-Z]))[.;]\s+(?=[A-Z]|$)/)[0]);
     // Recipient: "... to Copart", "... and provided a fairness opinion to ACV", "... to H.I.G., and ..."
     // (A name's own period may come first: "… financial advisor to Apex Global Brands Inc., while …".)
-    const RECIPIENT = String.raw`(?:to|for)\s+(?!and\b)(?:the\s+)?((?:[A-Z]\.)+[A-Z]?\.?[^,;]{0,60}?|(?:[^,;.]|\bU\.S\.(?=\s[A-Z])){1,90}?(?:\.com)?)(?=\.?[,;]|\.\s|\.$|\s+(?:and|in connection|on|with|in)\s|$)`;
+    const RECIPIENT = String.raw`(?:to|for),?\s+(?!and\b)(?:the\s+)?((?:[A-Z]\.)+[A-Z]?\.?[^,;]{0,60}?|(?:[^,;.]|\bU\.S\.(?=\s[A-Z])){1,90}?(?:\.com)?)(?=\.?[,;]|\.\s|\.$|\s+(?:and|in connection|on|with|in)\s|$)`;
     let recipientText = new RegExp(String.raw`^\s*(?:and [^,;]{0,90}?\s)?,?\s*(?:respectively\s*,?\s*)?${RECIPIENT}`).exec(post)?.[1] ?? "";
     // The recipient first: "For Clario, Evercore is serving as lead financial advisor and Latham & Watkins as deal counsel."
     if (!recipientText) recipientText = /^\s*(?:For|To)\s+(?:the\s+)?([A-Z][^,;]{1,60}?),\s/.exec(clause)?.[1] ?? "";
@@ -1486,7 +1648,21 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
       const itsSubject = /(?:^|[.;]\s+)((?:The\s+)?[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,5})\s+(?:is|are|was|were)\s+represented\b[^.;]*\bits\s*$/.exec(clause)?.[1];
       if (banks.length) recipientText = /\bits\s*$/i.test(pre) ? (itsSubject && !/^(?:The\s+)?Company$/i.test(itsSubject) ? itsSubject : "the Company") : recipientText;
     }
+    // "Deutsche Bank acted as lead financial advisor for Grant Thornton Advisors and New Mountain Capital. Other financial advisors included J.P. Morgan, BMO …": the same party's.
+    const others = /\bOther\s+$/i.test(pre) ? /^\s*(?:include|includes|included|are|were)\s+(.{2,300})/.exec(post) : null;
+    if (others) {
+      if (last && i - last.at < 600) (last.role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...findBanks(others[1].split(/(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|[A-Z]))[.;]\s+(?=[A-Z])/)[0]));
+      continue;
+    }
     if (!banks.length) continue;
+    // "Leidos retained Citi as financial advisor", "Representing Third Coast was Keefe, Bruyette & Woods, …, as financial advisor", "Great Plains was represented by Stephens Inc., as financial advisor".
+    if (!recipientText) {
+      const said =
+        /(?:^|[.;]\s+|\bAdvis[oe]rs\s+)((?:The\s+)?[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})\s+(?:retained|engaged)\s+[^.;]{0,80}\bas\s+(?:its\s+|the\s+|an?\s+)?(?:exclusive\s+|sole\s+|lead\s+)?$/.exec(clause)?.[1] ??
+        /(?:^|[.;]\s+|\bAdvis[oe]rs\s+)Representing\s+((?:The\s+)?[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})\s+(?:was|were)\b/.exec(clause)?.[1] ??
+        /(?:^|[.;]\s+|\bAdvis[oe]rs\s+)((?:The\s+)?[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})\s+(?:was|were|is|are)\s+represented\s+by\b/.exec(clause)?.[1];
+      if (said) recipientText = said;
+    }
 
     let role: "acquirer" | "target" | null = null;
     const r = recipientText.trim();
@@ -1520,6 +1696,9 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     last = { role, at: i };
     // Another mandate: "… as financial advisor to the Conflicts Committee in connection with Apollo's corporate governance updates".
     if (/^\s*to\b[^.]{0,90}\bin connection with\b[^.]{0,70}\b(?:governance|restructuring term sheet)\b/i.test(post) && !/\b(?:merger|acquisition|transaction)\b/i.test(post.split(/\.\s/)[0])) continue;
+    // "Barclays served as sole financial advisor to ONEOK on the Brazos Midland acquisition … Lazard also served as financial advisor to ONEOK on the minority equity investment."
+    // (Not "exclusive financial advisor to HGGC and will also be the left lead arranger on the debt financing": Deutsche Bank on Monotype.)
+    if (/^\s*to\b(?:(?!\band\b)[^.]){0,60}\bon the\s+(?:[a-z-]+\s+){0,3}(?:equity investment|financing|private placement|notes offering)\b/i.test(post)) continue;
     (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...banks);
   }
   // Banks credited without the words "financial advisor": "QXO is also being advised by Goldman Sachs, Citi, Centerview,
@@ -1553,6 +1732,29 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
     const role = partyRole(m[1]);
     const before = t.slice(Math.max(0, m.index! - 160), m.index!).split(/[;,]\s|\s(?:while|whereas)\s|(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|U\.S|[A-Z]))\.\s+(?=[A-Z])/).pop() ?? "";
     if (role) (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...findBanks(before));
+  }
+  // "Wachtell … is serving as legal advisor to Mechanics Bank with J.P. Morgan Securities LLC serving as its financial advisor",
+  // "Debevoise … is acting as legal advisor for CD&R, with Guggenheim Securities LLC acting as its financial advisor".
+  // (Not across a sentence: "… legal counsel for Stryker in connection with this transaction. Barclays is serving as Sage's financial advisor".)
+  for (const m of t.matchAll(/\blegal\s+(?:counsel|advis[eo]rs?)\s+(?:to|for)\s+(?:the\s+)?([A-Z][\w&'’-]*(?:\s+[A-Z][\w&'’-]*){0,5}),?\s+with\s+((?:[^;.]|(?<=\b[A-Z])\.|(?<=\b(?:Inc|Co))\.){2,120}?)\s+(?:also\s+)?(?:serving|acting)\s+as\s+(?:its|[^.;]{1,30}['’]s?)\s+(?:[a-z-]+\s+)?financial\s+advis[eo]rs?\b/g)) {
+    const role = partyRole(m[1]);
+    if (!role) continue;
+    const banks = findBanks(m[2]);
+    (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...banks);
+    // The main loop may have read "its" as the filer's.
+    const other = role === "acquirer" ? targetAdvisors : acquirerAdvisors;
+    for (const b of banks) if (other.includes(b)) other.splice(other.indexOf(b), 1);
+  }
+  // "Morgan Stanley & Co. LLC also provided financial advice to Masimo", "BofA Securities, Citi, and PJT Partners also provided
+  // financial advice to Flex", "Barclays Capital Inc. has also provided financial advice to Nuvei", "Centerview Partners LLC
+  // also provided strategic and financial advice to Viatris". (Only this sentence's own clause: "Centerview Partners LLC acted
+  // as financial advisor to Masimo, and Morgan Stanley …".)
+  for (const m of t.matchAll(/\b(?:has\s+)?(?:also\s+)?provided\s+(?:strategic\s+and\s+)?financial\s+advice\s+to\s+(?:the\s+)?([A-Z][\w&'’-]*(?:\s+[A-Z][\w&'’-]*){0,4})/g)) {
+    const role = partyRole(m[1]);
+    if (!role) continue;
+    const sentence = t.slice(Math.max(0, m.index! - 300), m.index!).split(/(?<![A-Z]\.[A-Z]|\b(?:Co|L\.P|No|[A-Z]))\.\s+(?=[A-Z])/).pop() ?? "";
+    const own = sentence.replace(/^.*\b(?:acted|acting|served|serving|is|are|was|were)\b[^;]*?,\s*and\s+/, "");
+    (role === "acquirer" ? acquirerAdvisors : targetAdvisors).push(...findBanks(own));
   }
   const uniq = (xs: string[]) => [...new Set(xs)];
   return { acquirerAdvisors: uniq(acquirerAdvisors), targetAdvisors: uniq(targetAdvisors) };
@@ -1617,7 +1819,8 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   if (own && PART_OF.test(own[1])) return true;
   // A company's legal name in the possessive is never a brand, whatever follows: "Dana Incorporated's Off-Highway" (Drive & Motion Systems Business, cut at "Drive").
   // (CRITIC: not a named Media Group, which the existing partOfTarget rule keeps as a deal: IAC / Meredith, rehearsal.test.ts.)
-  if (/\b(?:Incorporated|Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|plc|PLC)['’]s\s(?!(?:[A-Z][\w&-]*\s){0,3}Media Group\b)/.test(targetName)) return true;
+  // (Nor a count of what it has, which is all of it: "Martin Calibration Inc.'s 7 labs", and Transcat "has acquired privately-held Martin Calibration Inc.")
+  if (/\b(?:Incorporated|Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|plc|PLC)['’]s\s(?!\d)(?!(?:[A-Z][\w&-]*\s){0,3}Media Group\b)/.test(targetName)) return true;
   // Assets described in the text: "to acquire Lennar's residential solar platform SunStreet".
   if (new RegExp(`\\bto acquire\\s+${escapeRx(targetName)}['’]s\\s+(?:[a-z][\\w-]*\\s+){1,5}(?:platform|business|unit|division)\\b`).test(intro)) return true;
   // Branches bought from a bank ("… Announce Agreement to Acquire Vision Bank Branch Locations"), a business or a joint
@@ -1633,6 +1836,10 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // "Linear Technology", whose name the parser cut, nor "Argotec, a Technology Leader"), and a site bought from someone
   // ("Valero to Acquire Former Houston Refinery from LyondellBasell").
   if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}(?:,\\s+(?:and\\s+)?[A-Z][\\w&.-]*)*,?\\s+(?:business(?:es)?|division|unit|assets|operations|portfolio|properties|product lines?|rights|production|reserves|acreage|leases|wells|royalt(?:y|ies)|technology\\s+from|(?:refiner(?:y|ies)|plants?|facilit(?:y|ies)|terminals?|mines?|sites?)\\s+from|patents?|stake|interest)\\b`, "i").test(headline)) return true;
+  // A project bought, under the adjectives the parser took for its name: "… Completes Acquisition of the World-Class
+  // Development-Stage Roughrider Uranium Project From Rio Tinto" (Uranium Energy). Not "… Project Management".
+  // (Nor "… Calico Resources Corp. and its Grassy Mountain Gold Project", the company with its project.)
+  if (new RegExp(`(?:acquisition of|acquires?|acquired|acquiring)\\s+(?:the\\s+)?${escapeRx(targetName)}\\s+(?!and\\b)(?:[\\w-]+\\s+){0,5}?Projects?(?=\\s+(?:from|in)\\b|\\s*$|\\s*,)`, "i").test(headline)) return true;
   // The unit's own name may stand in between: "… to Acquire the L3Harris Space and Navigation Business".
   // Case matters for the unit's name (capitalised words), so the verb and the business word list both cases.
   if (new RegExp(`(?:[Aa]cquisition [Oo]f|ACQUISITION OF|[Aa]cquires?|ACQUIRES?|[Aa]cquired|ACQUIRED|[Aa]cquiring|ACQUIRING)\\s+(?:the|The|THE)\\s+${escapeRx(targetName)}\\s+(?:[A-Z][\\w&.-]*\\s+(?:and\\s+|AND\\s+|&\\s+)?){1,3}(?:Business(?:es)?|BUSINESS(?:ES)?|Division|DIVISION|Unit|UNIT|Segment|SEGMENT|Operations|OPERATIONS)\\b`).test(headline)) return true;
@@ -1662,6 +1869,8 @@ const NAME_END = /^(?:for|in|at|to|from|with|via|and|or|creating|valued|transact
 function withApostrophe(name: string, headline: string): string {
   const m = new RegExp(`(?:^|\\s)${escapeRx(name)}['’]s((?:\\s+[A-Z0-9][\\w&.'’-]*)*)`).exec(headline);
   if (!m || PART_OF.test(headline.slice(m.index + m[0].length - m[1].length))) return name;
+  // A count isn't a name: "Transcat acquires Martin Calibration Inc.'s 7 labs" read as "Martin Calibration Inc.'s 7".
+  if (/^\s+\d+\b/.test(m[1])) return name;
   const words: string[] = [];
   for (const w of m[1].split(/\s+/).filter(Boolean)) {
     if (NAME_END.test(w)) break;
@@ -1671,6 +1880,17 @@ function withApostrophe(name: string, headline: string): string {
 }
 
 const PLACE_BEFORE_NAME = /\b(acquire|acquisition of|acquiring|purchase of)\s+[A-Z][a-z]+(?:\s[A-Z][a-z]+)?,\s+[A-Z][a-z.]+(?:\s[A-Z][a-z]+)?-based\s+/g;
+const CD_AND_R_COMMA = /\bClayton,\s+Dubilier\s+(?:&|and)\s+Rice\b/g;
+/**
+ * A circular the target files with a foreign exchange: "Lucero intends to file an information circular and proxy statement
+ * (the "Circular") with the TSX Venture Exchange" (Vitesse). Its only listing, since a US-listed target has resolved before
+ * this matters.
+ */
+export function circularAbroad(flat: string, targetName: string): boolean {
+  const first = targetName.replace(/^The\s+/, "").split(/[\s,]+/)[0];
+  if (first.length < 3) return false;
+  return new RegExp(String.raw`\b${escapeRx(first)}\b[^.]{0,60}?\bintends?\s+to\s+file\s+(?:an?\s+|its\s+)?(?:management\s+)?(?:information\s+)?circular\b[^.]{0,120}?\bwith\s+the\s+(?:TSX\s+Venture\s+Exchange|Toronto\s+Stock\s+Exchange|TSXV?\b)`).test(flat);
+}
 /**
  * A holder buying the rest: price × all the shares would overstate what's paid (Iberdrola's 18.4% of Avangrid read $13.8B, the Hamm family's last 17% of
  * Continental $27B). "will acquire the remaining 18.4%" gives the share; "all of the outstanding shares not owned by Alden" says only that it's part.
@@ -1680,6 +1900,8 @@ export function buyInOf(raw: string): number | true | null {
   const t = flatten(raw).slice(0, 8000);
   const stated = /\b(?:acquire|purchase|buy)\s+the\s+remaining\s+(?:approximately\s+|about\s+|~\s?)?(\d{1,2}(?:\.\d+)?)\s?%/i.exec(t);
   if (stated) return Number(stated[1]);
+  const held = /\bown(?:s|ed)?\s+approximately\s+(\d{1,2}(?:\.\d+)?)\s?%\s+of\s+the\s+(?:outstanding|issued)/i.exec(t);
+  if (held && Number(held[1]) >= 20 && /\b(?:purchase|acquire)\s+(?:any\s+and\s+)?all\s+of\s+the\s+outstanding\s+shares\b[^.;]{0,120}\bother\s+than\b[^.;]{0,80}\bowned\s+by\b/i.test(t)) return Math.round((100 - Number(held[1])) * 10) / 10;
   for (const m of t.matchAll(/\b(?:acquir\w*|purchas\w*|buy\w*)\b[^.;]{0,110}?\b(?:(?:shares|stock|units|interests?)\b[^.;]{0,60}?\bnot\s+(?:already\s+|currently\s+)?(?:owned|held)\s+by\b|(?:that\s+|which\s+)?it\s+does\s+not\s+(?:already\s+|currently\s+)?own\b)|\b(?:to\s+)?(?:purchase|acquire|buy)\s+remaining\s+shares\s+of\b/gi)) {
     const start = Math.max(t.lastIndexOf(". ", m.index) + 2, m.index - 300, 0);
     const end = t.indexOf(". ", m.index + m[0].length);
@@ -1690,9 +1912,41 @@ export function buyInOf(raw: string): number | true | null {
   return null;
 }
 
+/**
+ * A buyer the patterns read as a defined term, from the name that term stands for: "with New Ossen Group Limited, an exempted
+ * company … (the "Parent"), and New Ossen Innovation Limited … pursuant to which the Parent will acquire the Company" (Ossen
+ * Innovation; China Customer Relations' Taiying Group Ltd.; Newater's Crouching Tiger Holding Limited). The record read "Parent".
+ */
+function definedBuyer(acqIn: string, flat: string): string {
+  const owned = new RegExp(String.raw`${escapeRx(acqIn)}(?:\s*\([^()]{0,40}\))?,?\s+an?\s+(?:(?:direct|indirect|newly[- ]formed|wholly[- ]owned)\s+){0,3}subsidiary\s+of\s+([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4})`).exec(flat)?.[1];
+  // (Up to the next sentence, which may run straight on: "of XOMA Royalty In accordance with Rule 2.10(b)".)
+  const owner = owned ? cleanPartyName(owned.replace(/\s+(?:In|On|At|The|For|As|By|Under)$/, "")) : "";
+  const acq = owner && isPlausibleName(owner) ? owner : acqIn;
+  const term = /^(?:the\s+)?(Parent|Purchaser|Buyer|Acquir[eo]r)$/i.exec(acq.trim())?.[1];
+  if (!term) return acq;
+  // (Also a second term: "Fury Resources, Inc. ("Buyer" or "Parent")", Battalion.)
+  const m = new RegExp(String.raw`\b(?:with|and|by|among)\s+([A-Z][\w&.,'’\- ]{2,80}?)(?:,\s+an?\s+[^()"“]{0,180}?)?\s*\(\s*(?:the\s+)?(?:["“][^"”]{1,30}["”]\s+or\s+(?:the\s+)?)?["“]\s*${term}\s*,?\s*["”]\s*\)`).exec(flat);
+  const name = m ? cleanPartyName(m[1]) : "";
+  return name && isPlausibleName(name) && !/^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Merger Sub)\b/i.test(name) ? name : acq;
+}
+
+/**
+ * A company's brand in lower case in a headline, which the name patterns can't start: "argenx to Acquire Forte Biosciences,
+ * Inc.", "onsemi to Acquire …", "Carlyle to acquire bluebird bio". Only a word the release also writes as a name, with its legal
+ * form, a listing or a possessive ("argenx SE", "argenx (Euronext & Nasdaq: ARGX)", "argenx's"), so "certain" and "assets" stay words.
+ */
+function lowerCaseBrand(headline: string, flat: string): string | null {
+  const word = /^([a-z][a-z0-9-]{3,}(?:\sbio)?)(?=\s+(?:to|will|agrees?|has|have|signs?|enters?|announces?|acquires?|completes?|closes?)\b)/.exec(headline)?.[1] ?? /\b(?:[Aa]cquire|[Aa]cquires|[Aa]cquired\s+by|[Aa]cquisition\s+of)\s+([a-z][a-z0-9-]{3,}(?:\sbio)?)(?=[\s,]|$)/.exec(headline)?.[1];
+  if (!word) return null;
+  const shown = new RegExp(String.raw`(?<![A-Za-z0-9])${escapeRx(word)}(?:,?\s(?:B\.?V\.?|N\.?V\.?|SE|AG|S\.A\.?|plc|Inc\.?|Ltd\.?|LLC|Corp(?:oration)?\.?|Limited|GmbH)(?=[\s,(]|$)|\s*\([^()]{0,40}:\s?[A-Z]{1,6}\)|['’]s\s)`).test(flat);
+  return shown ? word : null;
+}
+
 export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPress | null {
-  // A place before the name: "acquire Miami, Florida-based Sudsies, Inc.".
-  const text = textIn.replace(PLACE_BEFORE_NAME, "$1 ");
+  // A place before the name: "acquire Miami, Florida-based Sudsies, Inc.". A name with a comma of its own stays whole for the
+  // patterns, which end a name at a comma ("Covetrus to Be Acquired by Clayton, Dubilier & Rice and TPG" read "Clayton"); the
+  // comma goes back on at the end.
+  const text = textIn.replace(PLACE_BEFORE_NAME, "$1 ").replace(CD_AND_R_COMMA, "Clayton Dubilier & Rice");
   // A call transcript filed as an exhibit reads like a release, and its title runs into the target's name (Kaleyra's "mGage Conference Call").
   if (/\b(?:C\s?O\s?R\s?P\s?O\s?R\s?A\s?T\s?E|C\s?O\s?N\s?F\s?E\s?R\s?E\s?N\s?C\s?E\s+C\s?A\s?L\s?L)\s+P\s?A\s?R\s?T\s?I\s?C\s?I\s?P\s?A\s?N\s?T\s?S\b|\bOperator\s+(?:Good|Greetings|Welcome|Ladies|Thank)/.test(flatten(text).slice(0, 3000))) return null;
   const { headline, body } = splitHeadline(text);
@@ -1726,6 +1980,8 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
       headline,
     ) ||
     /^(?:completion|closing) of (?:the )?(?:acquisition|merger)/i.test(headline) ||
+    // ("Actavis Completes Forest Laboratories Acquisition".)
+    /^.{0,40}?\bCompletes?\s+[A-Z][\w&.'’ -]{2,50}\s+(?:Acquisition|Merger)\b/.test(headline) ||
     // "Acme Acquires Widget" / "Acme Has Acquired Widget": signed and closed at once (typical for private targets).
     (/^.{0,90}?\b(?:acquires|has acquired)\b/i.test(headline) && !/\b(?:signed|entered\s+into)\s+(?:a\s+|an\s+)?(?:definitive\s+)?(?:merger\s+|purchase\s+)?agreement\s+to\s+acquire\b/i.test(intro.slice(0, 900))) || (/^.{0,90}?\b(?:acquires|has acquired)\b/i.test(headline) && /\bsigned and closed\b|\btransaction closed\b|\bclosed (?:yesterday|today)\b/i.test(intro.slice(0, 900))) ||
     (new RegExp(String.raw`^.{0,90}?\bannounces (?:the |its )?${DEAL_ADJ}acquisition of\b`, "i").test(headline) && /\b(?:has|have) (?:completed|closed|acquired)\b|\b(?:completed|closed) (?:its|the) acquisition\b/i.test(intro.slice(0, 900)))
@@ -1737,16 +1993,32 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     (/previously announced|previously disclosed/i.test(intro.slice(0, 600)) && !(ANNOUNCES_DEAL.test(headline) && !/\b(?:amend|revis|increas|rais|extend)/i.test(headline))) ||
     // ("Encourages Stockholders to VOTE FOR the AMENDED Merger": Pelican's, with Nuclear Engineering Holdings' own deal;
     // "ISS Recommends … Vote "FOR" the Pending Merger with restor3d".)
-    /\b(?:(?:stockholders?|shareholders?|regulators?|court|members) (?:approve|approval)|receives? (?:\w+ )?approval|go-shop|expiration|expires|record date|exchange ratio|special meeting|clearance|\bhsr\b|extends?|update|adjourn|early termination of waiting|vote\s+["“]?for\b)/i.test(hl)
+    // ("TINGO and MICT Announce Filing of Form S-4 Merger Registration": never the deal's first document, and it read backwards.)
+    /\b(?:(?:stockholders?|shareholders?|regulators?|court|members) (?:approve|approval)|receives? (?:\w+ )?approval|go-shop|expiration|expires|record date|exchange ratio|special meeting|clearance|\bhsr\b|extends?|update|adjourn|early termination of waiting|vote\s+["“]?for\b|filing of (?:(?:a|its|the) )?(?:form )?(?:s-4|f-4|registration statement))/i.test(hl)
   ) {
     kind = "update";
   }
 
   const mentions = tickerMentions(body.slice(0, 5000));
 
-  let parties = matchParties(headline, HEADLINE_PATTERNS);
+  const brand = lowerCaseBrand(headline, flatten(text).slice(0, 8000));
+  const capital = brand?.replace(/(^|\s)([a-z])/g, (_, gap: string, letter: string) => gap + letter.toUpperCase());
+  let parties = matchParties(brand ? headline.replace(brand, capital!) : headline, HEADLINE_PATTERNS);
+  if (parties && brand) parties = { acq: parties.acq.replace(capital!, brand), tgt: parties.tgt.replace(capital!, brand) };
+  // A founder and his company merging with the filer: "David Bailey and Bitcoin-Native Holding Company Nakamoto Announce
+  // Merger with KindlyMD", where KindlyMD "entered into a definitive merger agreement with Nakamoto Holdings Inc.". A person
+  // named first, and the text saying so: two buyers merging with the filer are another deal.
   if (!parties) {
-    const sym = SYMMETRIC_HEADLINE.exec(headline);
+    const founder = FOUNDER_MERGER.exec(headline);
+    const squashed = (s: string) => normalizeName(s).replace(/\s+/g, "");
+    if (founder && !/\b(?:Capital|Partners|Group|Holdings|Bank|Sachs)$/.test(founder[1]) && squashed(cleanPartyName(founder[3])) === squashed(filerDisplay)) {
+      const tgt = cleanPartyName(founder[2]);
+      if (isPlausibleName(tgt) && new RegExp(String.raw`\bdefinitive\s+merger\s+agreement\s+with\s+${escapeRx(tgt)}\b`).test(flatten(text).slice(0, 3000))) parties = { acq: filerDisplay, tgt };
+    }
+  }
+  if (!parties) {
+    // (Not two buyers raising their price: "Trian and General Catalyst Agree to Increase Merger Consideration to $52.00 per Share in Cash for Janus Henderson Group plc".)
+    const sym = /\s(?:agree|agrees)\s+to\s+(?:increase|raise|amend|extend)\b/i.test(headline) ? null : SYMMETRIC_HEADLINE.exec(headline);
     if (sym && /\bblank[- ]check\b|\bspecial purpose acquisition\b|\btrust account\b|\bheld in trust\b|\bcash in trust\b/i.test(flatten(text).slice(0, 6000))) return null;
     if (sym) {
       const a = cleanPartyName(sym[1]);
@@ -1770,6 +2042,15 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     }
   }
   if (!parties) return null;
+  // A programme sold, not a company: "Prothena and Novo Nordisk Announce Acquisition Agreement for Prothena's ATTR Amyloidosis Programme".
+  if (/\bAcquisition Agreement for\b.*['’]s\b.*\bProgram(?:me)?s?\b/i.test(headline)) return null;
+  // Who becomes whose subsidiary decides the roles a headline leaves open: "Ra Medical Systems Enters Into Definitive Merger
+  // Agreement with Catheter Precision", where "Catheter Precision will become a wholly owned subsidiary of Ra Medical".
+  const subsidiary = BECOMES_SUBSIDIARY.exec(intro);
+  if (subsidiary && sameCompany(cleanPartyName(subsidiary[1]), parties.acq) && sameCompany(cleanPartyName(subsidiary[2]), parties.tgt)) parties = { acq: parties.tgt, tgt: parties.acq };
+  // A headline's next sentence run on to the name: "VSE CORPORATION ANNOUNCES ACQUISITION OF KELLSTROM AEROSPACE PROVIDES
+  // PRELIMINARY THIRD QUARTER 2024 RESULTS". (A verb only with more words after it: "Consumer Reports" is a name.)
+  parties.tgt = parties.tgt.replace(/\s+(?:PROVIDES|REPORTS|Provides|Reports)\s+\S.*$/, "");
 
   // Prefer the fuller body names when they clearly extend the same name (e.g. "ACV" -> "ACV Auctions Inc."),
   // but never adopt run-on captures that cross a sentence ("CD&R. About Sealed Air ...").
@@ -1823,6 +2104,8 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     if (at > 0) parties.acq = parties.acq.slice(0, at).replace(/\s+(?:and|&|or|of|for|with|the)$/i, "");
   }
   parties.acq = parties.acq.replace(/\s+(?:Shareholders|Stockholders)$/, "");
+  // A going-private release may name the buyer only by the term it defines: "… Merger Agreement") with Taiying Group Ltd. ("Parent") …, Parent will acquire the Company".
+  parties.acq = definedBuyer(parties.acq, flatten(text).slice(0, 5000));
 
   const acquirer = withTicker(parties.acq, mentions, parties.tgt);
   let target = withTicker(parties.tgt, mentions, parties.acq);
@@ -1846,7 +2129,20 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // which the headline never writes. Only that check: the headline's name stops at any possessive ("O'Charley" of
   // "O'Charley's for $9.85"), and the other checks would read the lower-case word after it as a unit.
   if (/^rights$/i.test(target.name)) return null;
-  if (isCarveOut(headline, intro, target.name) || (parties.tgt !== target.name && breaksAtPossessive(headline, intro, parties.tgt))) return null;
+  // (A headline's footnote digit doesn't hide one: "… Eurofins Scientific's Electrical & Electronics Business 1".)
+  const bareHeadline = headline.replace(/\s+\d$/, "");
+  if (isCarveOut(bareHeadline, intro, target.name) || (parties.tgt !== target.name && breaksAtPossessive(bareHeadline, intro, parties.tgt))) return null;
+  // A unit's long name before its business word: "Spirent Communications plc's High-Speed Ethernet and Network Security Testing Business".
+  if (new RegExp(String.raw`${escapeRx(target.name)}(?:\s+[A-Z][\w&.-]*){0,3}(?:\s+(?:plc|PLC|Inc\.?|SE|AG|N\.V\.|Ltd\.?))?['’]s\s+(?:[A-Z][\w&-]*\s+(?:and\s+|&\s+)?){1,9}(?:Business(?:es)?|Division|Unit|Segment)\b`).test(bareHeadline)) return null;
+  // The full name of a one-word target the release defines: "Citizens National Corporation ("Citizens") (OTCPK: CZNL)", which
+  // otherwise matched the insurer Citizens, Inc. Only a name that starts with the short form, and after the carve-out checks, which
+  // read the text's own short form ("Lennar's residential solar platform").
+  if (!target.ticker && /^[A-Z][a-z]{2,}$/.test(target.name)) {
+    const defined = new RegExp(String.raw`\b(${escapeRx(target.name)}\s[A-Z][\w&.'’ -]{1,50}?(?:,\s(?:Inc|Corp|Ltd|LLC|L\.P)\.?)?)\s*\(\s*(?:the\s+)?["“]\s*${escapeRx(target.name)}\s*["”]`).exec(flatten(text).slice(0, 8000));
+    // (Not the bank under it: "United Community Bancorp, the parent company of United Community Bank ("United" or "UCB")".)
+    const before = defined ? flatten(text).slice(0, 8000).slice(Math.max(0, defined.index - 60), defined.index) : "";
+    if (defined && isPlausibleName(defined[1]) && !/\b(?:parent(?:\s+company)?|holding\s+company)\s+(?:of|for)\s+$/i.test(before)) target = { ...target, name: defined[1].replace(/\s+\.\s*$/, "").replace(/\.\s+(Inc|Corp|Ltd)\b/, ", $1") };
+  }
 
   const issuerRole: "acquirer" | "target" | null =
     sameCompany(ctx.filerName, target.name) || (target.ticker && ctx.filerTickers.includes(target.ticker))
@@ -1857,7 +2153,7 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
 
   const value = extractValue(terms);
   // (A ticker both sides read as is the buyer's: PAETEC / XETA's release lists only PAET.)
-  const advisors = extractAdvisors(flatten(text), acquirer.name, target.name, issuerRole, target.ticker === acquirer.ticker ? null : target.ticker);
+  const advisors = extractAdvisors(flatten(text), acquirer.name, target.name, issuerRole, target.ticker === acquirer.ticker ? null : target.ticker, acquirer.ticker);
   // The release's own date: its dateline (Cardinal's release of October 13, 2026 for Hughes Brothers came with an 8-K
   // on October 19), or for a completion, the announcement it refers back to ("the definitive share sale and purchase
   // agreement … announced on December 9, 2025": Cronos / CanAdelaar). The ingest decides how far back it may reach.
@@ -1865,7 +2161,7 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     kind === "announcement"
       ? isoDateIn(RELEASE_DATELINE.exec(text)?.[0])
       : kind === "completion"
-        ? isoDateIn(ANNOUNCED_ON.exec(flatten(text).slice(0, 4000))?.[0])
+        ? (isoDateIn(ANNOUNCED_ON.exec(flatten(text).slice(0, 4000))?.[0]) ?? signedOnBefore(flatten(text).slice(0, 4000)))
         : undefined;
 
   // A target the release lists abroad only: "Logan Energy Corp. ("Logan") (TSXV: LGN)" (Ovintiv). Not one listed in the US
@@ -1878,29 +2174,35 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   const ABROAD = /^(?:TSXV?|TSX-V|CSE|ASX|LSE|AIM|NEO|Euronext|SIX|HKEX|SGX|JSE|TASE)$/;
   const targetListedAbroad = target.exchange
     ? ABROAD.test(target.exchange)
-    : !!listing && /\b(?:TSXV?|TSX-V|CSE|ASX|LSE|AIM|NEO|Euronext|SIX|HKEX|SGX|JSE|TASE)\s*:/.test(listing) && !/\b(?:NYSE|NASDAQ|Nasdaq|Cboe)\b/.test(listing);
+    : (!!listing && /\b(?:TSXV?|TSX-V|CSE|ASX|LSE|AIM|NEO|Euronext|SIX|HKEX|SGX|JSE|TASE)\s*:/.test(listing) && !/\b(?:NYSE|NASDAQ|Nasdaq|Cboe)\b/.test(listing)) || (!target.ticker && circularAbroad(flatten(text), target.name));
   // A target the release quotes over the counter: "Kineta, Inc. (OTC Pink: KANT)". Not a seller's listing named beside it.
   const targetOnOtc = target.exchange ? /^OTC/.test(target.exchange) : !!listing && /\b(?:OTC\w*(?:\s+(?:Pink|Markets?))?|OTCMKTS)\s*:/.test(listing) && !/\b(?:NYSE|NASDAQ|Nasdaq|Cboe)\b/.test(listing);
+  const pricePerShare = extractPrice(terms);
+  const consideration = extractConsideration(terms);
+  const amended = /\b(?:amend(?:s|ed|ment)?|revis(?:e|es|ed)|increas(?:e|es|ed)|rais(?:e|es|ed)|improved|sweeten\w*)\b[^.]{0,60}\b(?:offer|bid|price|proposal|merger|agreement|consideration|terms|acquisition)\b/i.test(headline);
 
   return {
     kind,
     headline,
-    acquirer,
+    acquirer: { ...acquirer, name: acquirer.name.replace("Clayton Dubilier & Rice", "Clayton, Dubilier & Rice") },
     target,
     ...(announcedOn ? { announcedOn } : {}),
     ...(buyInOf(text) != null ? { buyIn: buyInOf(text)! } : {}),
-    ...(kind === "completion" && !announcedOn && /\bpreviously[- ](?:announced|disclosed|reported)\b/i.test(flatten(text).slice(0, 1500)) ? { announcedEarlier: true } : {}),
+    ...(kind === "completion" && !announcedOn && saysAnnouncedEarlier(text) ? { announcedEarlier: true } : {}),
     ...(targetListedAbroad ? { targetListedAbroad } : {}),
     ...(targetOnOtc ? { targetOnOtc } : {}),
     privateTarget: isPrivateTarget(target.name, intro, target.ticker),
-    pricePerShare: extractPrice(terms),
+    pricePerShare,
     premiumPct: extractPremium(terms),
     valueUsd: value?.usd ?? null,
     valueKind: value?.kind ?? null,
-    consideration: extractConsideration(terms),
+    consideration,
     ...advisors,
     ...(opensAsResults(flatten(text)) ? { resultsReport: true } : {}),
-    ...(/\b(?:amend(?:s|ed|ment)?|revis(?:e|es|ed)|increas(?:e|es|ed)|rais(?:e|es|ed)|improved|sweeten\w*)\b[^.]{0,60}\b(?:offer|bid|price|proposal|merger|agreement|consideration|terms|acquisition)\b/i.test(headline) ? { amended: true } : {}),
+    ...(amended ? { amended: true } : {}),
+    // A release announcing the amended agreement, all cash: its lower price is the deal's ("Amendment to Merger Agreement": Battalion, $9.80 to $7.00).
+    // A rival's lower figure in a target's letter (Vacasa's Davidson Kempner $5.83) has no such words; applyParsed still checks the buyer.
+    ...(amended && pricePerShare != null && consideration === "Cash" && /\b(?:Amendment\s+to\s+(?:the\s+)?Merger\s+Agreement|Amended\s+and\s+Restated\s+Merger\s+Agreement|amended\s+merger\s+agreement)\b/i.test(flatten(text).slice(0, 1500)) ? { priceCut: true } : {}),
     // ("IAC's Dotdash to Acquire Meredith Corporation's National Media Group": holders got $42.18 from IAC, and Gray bought the rest.)
     ...(/['’]s\s(?:[A-Z][\w&-]*\s){0,3}Media Group\b/.test(headline) ? { partOfTarget: true } : {}),
   };

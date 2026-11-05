@@ -6,13 +6,65 @@
  */
 import type { Directory } from "./deals";
 import { adshNoDashes, filingIndexUrl, getDailyIndex, getSubmissions, getText, trimCik } from "./edgar";
-import { aimsOf, campaignText, individualName, isActivist, parse13DXml, parseDailyIndex, personFromConformed, purposeExcerpt, type DailyIndexRow } from "./parse/thirteend";
+import { aimsOf, individualName, isActivist, parse13DXml, parseDailyIndex, personFromConformed, purposeExcerpt, stakeFigures, type DailyIndexRow, type Parsed13D } from "./parse/thirteend";
 import { displayName } from "./parse/press";
+import type { ActivistStake } from "../lib/types";
 import type { State } from "./store";
 
 /** Keep the page light: the newest stakes only, within ~18 months. */
 const MAX_STAKES = 300;
 const MAX_AGE_DAYS = 550;
+
+/**
+ * Bump when the rules in parse/thirteend.ts change: a stake is judged when first seen, so every stored one is read
+ * again once, updated, or removed if it no longer passes, and the whole window is scanned again for 13Ds left out by the
+ * older rules (DGB on Ethan Allen, Carronade on Cannae, Two Seas on Core Scientific). It needs no deal rebuild.
+ * 1: "undervalued" and "may nominate" are no demands, "(i)" isn't the SEC checklist, Item 3 is read (Koch, Elliott /
+ * Uniti, Recanati and others leave; Saba's aims become not specific; Karp's stake is the group's 5.4%).
+ */
+export const ACTIVIST_RULE_VERSION = 1;
+const ruleKey = (id: string) => `13drule${ACTIVIST_RULE_VERSION}:${id}`;
+
+const primaryDocUrl = (cik: string, adsh: string) => `https://www.sec.gov/Archives/edgar/data/${trimCik(cik)}/${adshNoDashes(adsh)}/primary_doc.xml`;
+
+/** What the current rules make of a 13D, or null when it isn't an activist's. */
+function judge(p: Parsed13D, investorName: string, issuerName: string) {
+  const { percent, shares } = stakeFigures(p);
+  if (!isActivist(investorName, p.purpose, { percent, issuerName, source: p.source })) return null;
+  return { percent, shares, aims: aimsOf(p.purpose), purpose: purposeExcerpt(p.purpose) };
+}
+
+/**
+ * EDGAR's conformed names are in capitals, and title-casing loses what the filer typed ("SIT Investment Associates",
+ * "VAN Herk Investments"): a firm's own mixed-case name wins. People are left to `individualName`.
+ */
+function typedFirmName(p: Parsed13D, investorCik: string | null): string | null {
+  const person = p.persons.find((x) => x.cik === investorCik);
+  if (!person || person.individual || person.name === person.name.toUpperCase() || person.name === person.name.toLowerCase()) return null;
+  return displayName(person.name);
+}
+
+/**
+ * One group's 13D filed several times on one day, once per member (Northstrive Fund II and Braeden Lichti, three times on
+ * Bluejay): one stake. The same company, day, percentage and share count is the proof; JANA's two Alkami filings differ
+ * in date and size and stay two. A record with no figures proves nothing and stays.
+ */
+export function collapseRefilings(stakes: ActivistStake[]): ActivistStake[] {
+  const byKey = new Map<string, ActivistStake>();
+  const out: ActivistStake[] = [];
+  for (const s of [...stakes].sort((a, b) => a.id.localeCompare(b.id))) {
+    const key = s.company.cik && s.percent != null && s.shares != null ? `${s.company.cik}|${s.filedDate}|${s.percent}|${s.shares}` : null;
+    const kept = key ? byKey.get(key) : undefined;
+    if (!kept) {
+      if (key) byKey.set(key, s);
+      out.push(s);
+      continue;
+    }
+    kept.amendments = Math.max(kept.amendments, s.amendments);
+    if (s.lastAmended && (!kept.lastAmended || s.lastAmended > kept.lastAmended)) kept.lastAmended = s.lastAmended;
+  }
+  return out;
+}
 
 function* businessDays(from: string, to: string) {
   const d = new Date(`${from}T00:00:00Z`);
@@ -33,7 +85,11 @@ interface Group {
 export async function ingestActivists(state: State, opts: { from: string; to: string; directory: Directory; log: (s: string) => void }) {
   const { directory, log } = opts;
   // XML 13Ds began on 2024-12-18; older ones are free text and not parsed here.
-  const from = opts.from < "2024-12-18" ? "2024-12-18" : opts.from;
+  const scanKey = `13dscan${ACTIVIST_RULE_VERSION}`;
+  const rescan = !state.seen.has(scanKey);
+  const windowStart = new Date(Date.parse(opts.to) - MAX_AGE_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const wanted = rescan && windowStart < opts.from ? windowStart : opts.from;
+  const from = wanted < "2024-12-18" ? "2024-12-18" : wanted;
   const rows: DailyIndexRow[] = [];
   let days = 0;
   for (const day of businessDays(from, opts.to)) {
@@ -55,7 +111,7 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
   let added = 0;
   const byId = new Map(state.activists.map((s) => [s.id, s]));
   for (const g of groups.values()) {
-    if (g.form !== "SCHEDULE 13D" || state.seen.has(`13d:${g.adsh}`)) continue;
+    if (g.form !== "SCHEDULE 13D" || byId.has(g.adsh) || (!rescan && state.seen.has(`13d:${g.adsh}`))) continue;
     // Only fetch when one of the parties is a listed company (the issuer).
     const listedCik = [...g.names.keys()].find((cik) => directory.byCik.has(cik));
     if (!listedCik) {
@@ -63,7 +119,7 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
       continue;
     }
     try {
-      const xml = await getText(`https://www.sec.gov/Archives/edgar/data/${trimCik(listedCik)}/${adshNoDashes(g.adsh)}/primary_doc.xml`);
+      const xml = await getText(primaryDocUrl(listedCik, g.adsh));
       const p = parse13DXml(xml);
       state.seen.add(`13d:${g.adsh}`);
       const issuer = p && directory.byCik.get(p.issuerCik);
@@ -72,34 +128,52 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
       const conformed = investorCik ? g.names.get(investorCik) : undefined;
       const investorName = conformed ?? p.persons.find((x) => x.cik && x.cik !== p.issuerCik)?.name ?? p.persons[0]?.name ?? "Unknown investor";
       // A person is listed by EDGAR as "ICAHN CARL C": show "Carl C. Icahn".
-      const shownName = individualName(p, investorCik, conformed) ?? displayName(investorName);
-      // A 13D means more than 5%: a figure under 1% is a misread (or one group member's direct holding).
-      const percents = p.persons.map((x) => x.percent).filter((v): v is number => v != null && v <= 100);
-      const percent = percents.length && Math.max(...percents) >= 1 ? Math.max(...percents) : null;
-      if (!isActivist(investorName, p.purpose, { percent, issuerName: issuer.name })) continue;
-      const aims = aimsOf(p.purpose);
-      const shares = p.persons.map((x) => x.shares).filter((v): v is number => v != null);
+      const shownName = individualName(p, investorCik, conformed) ?? typedFirmName(p, investorCik) ?? displayName(investorName);
+      const read = judge(p, investorName, issuer.name);
+      if (!read) continue;
       byId.set(g.adsh, {
         id: g.adsh,
         filedDate: g.date,
         eventDate: p.eventDate,
         investor: { name: shownName, cik: investorCik },
         company: { name: displayName(issuer.name), ticker: issuer.ticker, cik: p.issuerCik },
-        percent,
-        shares: shares.length ? Math.max(...shares) : null,
-        aims,
-        // Lead with what the investor actually says, not the standard hedging language.
-        purpose: purposeExcerpt(campaignText(p.purpose).length >= 80 ? campaignText(p.purpose) : p.purpose),
+        ...read,
         activist: true,
         amendments: 0,
         lastAmended: null,
         url: filingIndexUrl(p.issuerCik, g.adsh),
       });
+      state.seen.add(ruleKey(g.adsh)); // judged by these rules just now
       added++;
     } catch (err) {
       log(`  ! 13D ${g.adsh}: ${(err as Error).message}`);
     }
   }
+
+  state.seen.add(scanKey);
+
+  // Stakes judged under older rules: once each, read the 13D again. A failed read keeps the stake and retries next run.
+  let removed = 0;
+  for (const s of [...byId.values()]) {
+    const key = ruleKey(s.id);
+    if (state.seen.has(key) || !s.company.cik) continue;
+    try {
+      const p = parse13DXml(await getText(primaryDocUrl(s.company.cik, s.id)));
+      if (!p) throw new Error("no 13D in the document");
+      state.seen.add(key);
+      const read = judge(p, s.investor.name, directory.byCik.get(s.company.cik)?.name ?? p.issuerName);
+      if (!read) {
+        byId.delete(s.id);
+        removed++;
+        continue;
+      }
+      Object.assign(s, read);
+      s.investor.name = typedFirmName(p, s.investor.cik) ?? s.investor.name;
+    } catch (err) {
+      log(`  ! 13D re-read ${s.id}: ${(err as Error).message}`);
+    }
+  }
+  if (removed) log(`  ${removed} stored stakes no longer pass the activist rules`);
 
   // Stakes stored before these rules: drop a sub-1% figure, and turn a person's name around ("Icahn Carl C" ->
   // "Carl C. Icahn") when the 13D marks the investor as an individual. Once per stake.
@@ -113,7 +187,7 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
     state.seen.add(key);
     if (!personFromConformed(s.investor.name)) continue; // an entity's name
     try {
-      const p = parse13DXml(await getText(`https://www.sec.gov/Archives/edgar/data/${trimCik(s.company.cik)}/${adshNoDashes(s.id)}/primary_doc.xml`));
+      const p = parse13DXml(await getText(primaryDocUrl(s.company.cik, s.id)));
       if (!p?.persons.find((x) => x.cik === s.investor.cik)?.individual) continue;
       s.investor.name = individualName(p, s.investor.cik, (await getSubmissions(s.investor.cik)).name) ?? s.investor.name;
     } catch (err) {
@@ -134,7 +208,7 @@ export async function ingestActivists(state: State, opts: { from: string; to: st
   }
 
   const cutoff = new Date(Date.now() - MAX_AGE_DAYS * 86_400_000).toISOString().slice(0, 10);
-  state.activists = stakes
+  state.activists = collapseRefilings(stakes)
     .filter((s) => s.filedDate >= cutoff)
     .sort((a, b) => b.filedDate.localeCompare(a.filedDate) || a.id.localeCompare(b.id))
     .slice(0, MAX_STAKES);

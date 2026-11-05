@@ -232,10 +232,12 @@ interface FilingColumns {
   form: string[];
   primaryDocument: string[];
   items: string[];
+  /** The date of the event an 8-K reports (a vote's 8-K: the meeting); blank on many other forms. */
+  reportDate?: string[];
 }
 
 const rowsOf = (r: FilingColumns) =>
-  r.accessionNumber.map((adsh, i) => ({ adsh, date: r.filingDate[i], form: r.form[i], primaryDocument: r.primaryDocument[i], items: r.items?.[i] ?? "" }));
+  r.accessionNumber.map((adsh, i) => ({ adsh, date: r.filingDate[i], form: r.form[i], primaryDocument: r.primaryDocument[i], items: r.items?.[i] ?? "", reportDate: r.reportDate?.[i] ?? "" }));
 
 /**
  * Every filing up to `until` (ISO date), oldest pages included: a company with thousands of filings since its 2015

@@ -5,9 +5,9 @@
  */
 import { flatten } from "../text";
 import type { Consideration } from "../../lib/types";
-import { cleanPartyName, isPlausibleName, normalizeName, sameCompany } from "./names";
-import { extractConsideration, extractValue, isCashLeg, otherDollar, type ParsedPress, type PressContext, buyInOf } from "./press";
-import { jointBuyers } from "./sponsor";
+import { cleanPartyName, isPlaceholderBuyer, isPlausibleName, normalizeName, sameCompany } from "./names";
+import { circularAbroad, datelinesOf, extractConsideration, extractValue, isCashLeg, otherDollar, type ParsedPress, type PressContext, buyInOf } from "./press";
+import { buyerBehindParent, jointBuyers } from "./sponsor";
 
 interface Entity {
   name: string;
@@ -167,7 +167,10 @@ export const CONTINGENT = /contingent value right|\bCVRs?\b|milestones?|earn-?ou
 export function reducedPrice(section: string): number | null {
   const P = String.raw`\$\s?(\d{1,4}(?:\.\d{1,4})?)(?![,\d])`;
   const m = new RegExp(String.raw`\b(?:Offer Price|Per Share Price|per share (?:merger )?consideration|merger consideration|purchase price per share|price per share)\b[^.]{0,120}?\b(?:reduced|decreased|lowered)\s+from\s+${P}(?:[^.]|\.(?=\d)){0,200}?\bto\s+${P}`, "i").exec(section);
-  return m && Number(m[2]) < Number(m[1]) ? Number(m[2]) : null;
+  if (m) return Number(m[2]) < Number(m[1]) ? Number(m[2]) : null;
+  // The other way round: "agreed to reduce the merger consideration … to $51.75 in cash, without interest, from $61.00" (iRobot).
+  const toFrom = new RegExp(String.raw`\breduce\s+the\s+(?:merger\s+consideration|offer\s+price|per\s+share\s+(?:merger\s+)?consideration|purchase\s+price)\b(?:[^.]|\.(?=\d)){0,200}?\bto\s+${P}(?:[^.]|\.(?=\d)){0,60}?\bfrom\s+${P}`, "i").exec(section);
+  return toFrom && Number(toFrom[1]) < Number(toFrom[2]) ? Number(toFrom[1]) : null;
 }
 
 export function raisedPrice(section: string): number | null {
@@ -177,6 +180,9 @@ export function raisedPrice(section: string): number | null {
   // "increase the upfront cash consideration … from $47.50 to $65.60 in cash per share" (Pfizer / Metsera). Upfront: a mixed deal's plain "Cash Consideration" is a leg (Vista Outdoor).
   const upfront = new RegExp(String.raw`\bincreases?\s+the\s+upfront\s+cash\s+consideration\b(?:[^.]|\.(?=\d)){0,240}?\bfrom\s+${P}\s+to\s+${P}`, "i").exec(section);
   if (upfront && Number(upfront[2]) > Number(upfront[1])) return Number(upfront[2]);
+  // "increase the cash consideration to be paid by Parent for each ordinary share, par value $1.50 per share, … from $49.00 to $52.00 per Share in cash" (Janus Henderson).
+  const cash = new RegExp(String.raw`\bincrease\s+the\s+cash\s+consideration\b(?:[^.]|\.(?=\d)){0,320}?\bfrom\s+${P}\s+to\s+${P}\s+per\s+[Ss]hare\s+in\s+cash\b`).exec(section);
+  if (cash && Number(cash[2]) > Number(cash[1])) return Number(cash[2]);
   const prior = new RegExp(String.raw`\b(?:will|shall)\s+(?:be\s+entitled\s+to\s+)?receive\s+${P}\.\s+Prior\s+to\s[^.]{0,120}?\bconsideration\b[^.]{0,120}?\bwas\s+${P}`, "i").exec(section);
   if (prior && Number(prior[1]) > Number(prior[2])) return Number(prior[1]);
   const terms = /\bUnder the terms of (?:the )?Amendment(?: No\.?\s*\d+)?\b(?:[^.$]|\.(?=\s?\d))*?\bfor\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b/i.exec(section);
@@ -378,6 +384,18 @@ export function statedRelease(text: string, signedOn: string): string | undefine
 }
 
 /**
+ * The day a release says it went out, or its 8-K says it did, when that's within ten days before the filing: the exhibit can come days after the
+ * release (Greif's 8-K on Ipackchem, six; Earthstone on Independence Resources, five; ProFrac on REV, one). Nothing else: the filing date stands.
+ */
+export function ownReleaseDay(text: string, fileDate: string): string | undefined {
+  const floor = new Date(Date.parse(fileDate) - 10 * 86_400_000).toISOString().slice(0, 10);
+  const stated = statedRelease(text, floor);
+  // (Not an 8-K's cover: "Date of earliest event reported: May 15, 2014 (May 15, 2014)" is the signing. On the 8-K itself, only the release it says went out.)
+  const cover = /\bFORM\s+8-K\b|\bDate of (?:Report|earliest event reported)\b/i.test(text.slice(0, 3000));
+  return [...(cover ? [] : datelinesOf(text)), ...(stated ? [stated] : [])].find((d) => d >= floor && d <= fileDate);
+}
+
+/**
  * An Item 1.01 goes on to the deal's financing and its other agreements, whose amounts are not the deal: Switch's $300M Land
  * Purchase Agreement, Rallybio's concurrent financing, Hecla's silver stream, Turnstone's asset sale. A wrong value also
  * stops the search for the real one in the release. (Not an implied value "before giving effect to" a placement: Ambros.)
@@ -445,7 +463,8 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
   // "AvalonBay will merge with and into Merger Sub" (a subsidiary of Equity Residential): the buyer is the parent, found below.
   if (mech.acquirerHint && (SUB_NICK.test(mech.acquirerHint) || SHELL_NAME.test(mech.acquirerHint))) mech.acquirerHint = undefined;
   // A defined term cut short: "will merge with and into the Holding Company" when nothing defines it.
-  if (mech.acquirerHint && !byRef(mech.acquirerHint) && /^(?:Holding(?: Company)?|Arrangement)$/i.test(mech.acquirerHint)) mech.acquirerHint = undefined;
+  // (Defined or not, "the Arrangement" is no party: Quipt's "Plan of Arrangement (the "Arrangement")".)
+  if (mech.acquirerHint && (/^Arrangement$/i.test(mech.acquirerHint) || (!byRef(mech.acquirerHint) && /^Holding(?: Company)?$/i.test(mech.acquirerHint)))) mech.acquirerHint = undefined;
   if (mech.acquirerHint) buyer = byRef(mech.acquirerHint) ?? { name: cleanPartyName(mech.acquirerHint), nick: mech.acquirerHint, index: 0 };
   for (const nick of BUYER_NICKS) {
     if (buyer) break;
@@ -480,16 +499,24 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
   );
   // (The same company, not a shared first word: First Internet Bancorp buying First Century Bancorp.)
   if (!buyer && !(normalizeName(ctx.filerName) === normalizeName(targetName) || normalizeName(targetName).startsWith(`${normalizeName(ctx.filerName)} `) || normalizeName(ctx.filerName).startsWith(`${normalizeName(targetName)} `))) buyer = { name: ctx.filerName, nick: "Company", index: 0 };
+  // What the 8-K says stands behind the "Parent", whatever it is called: Charlesbank behind CB Neptune Holdings (Quotient).
+  // Also with no other party left to read: Quipt's only other defined party was its "Purchaser".
+  const behind = buyerBehindParent(flatten(section), targetName);
+  if (behind) buyer ??= { name: behind, nick: "Parent", index: 0 };
   if (!buyer) return null;
 
   // Prefer an ultimate parent / named sponsor over a shell buyer ("Sword Purchaser, LLC ... affiliated with CD&R").
   let acquirerName = buyer.name;
   const ultimate = entities.find((e) => /^(?:Ultimate Parent|Guarantor)$/i.test(e.nick) && !isTarget(e));
   if (ultimate && ultimate !== buyer) acquirerName = ultimate.name;
+  // (The buyer's own name stays when the sentence only repeats it: "Tekelec … an affiliate of Siris Capital Group, LLC".)
+  else if (behind && (isPlaceholderBuyer(buyer.name) || !sameCompany(behind, buyer.name))) acquirerName = behind;
   else if (
     SHELL_NAME.test(buyer.name) ||
     (BUYER_NICKS.includes(buyer.nick) && sameCompany(buyer.name, targetName)) ||
     /^(?:[A-Z][A-Za-z\-]+ )+(?:Parent|Purchaser|Holdings|Buyer|Bidco|BidCo)\b/.test(buyer.name) ||
+    // "Jupiter Company Limited, a company incorporated in Jersey ("Parent")": Janus Henderson's buyer is named later on.
+    isPlaceholderBuyer(buyer.name) ||
     // "Parent and Purchaser are newly-formed entities established by a consortium … led by funds affiliated with Elliott"
     new RegExp(`\\b${buyer.nick.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^.]{0,60}\\b(?:are|is) (?:a |an )?newly[- ]formed`).test(section)
   ) {
@@ -500,6 +527,10 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
       // ("PIF"), private investment funds affiliated with Silver Lake …": Electronic Arts.)
       // ("Parent is owned by a consortium comprised of investment funds advised by Apax Partners, and …": Kinetic Concepts.)
       /\b(?:investor\s+)?consortium\s+(?:comprised|composed|consisting)\s+of\s+(?:(?:private\s+)?(?:investment\s+)?funds?\s+(?:managed|advised|sponsored)\s+by\s+)?|(?:investment )?funds? (?:managed|advised|sponsored) by\s+|funds? affiliated with\s+|(?:acquisition|purchase) of the Company by (?:affiliates of |funds (?:managed|advised) by )?(?=[A-Z])/.exec(section),
+      // After the above, whose last wording first finds the "acquisition of the Company by Parent": "Funds and investment vehicles
+      // that are part of an investor group led by Trian Fund Management, L.P. and General Catalyst Group Management, LLC have provided
+      // the Company with limited guarantees" (Janus Henderson).
+      /\binvestor\s+group\s+led\s+by\s+(?=[A-Z])/.exec(section),
     ];
     // "a subsidiary of Parent" names a defined term, not a sponsor.
     const isTerm = (s: string) => /^(?:the\s+)?(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(s.trim()) || entities.some((e) => e.nick === s.trim() || e.alias === s.trim());
@@ -508,8 +539,8 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
       // What a holder signed isn't the buyer: "certain funds affiliated with RA Capital Management, L.P. (collectively, the
       // "Supporting Stockholders")" agreed to tender into Roche's offer for 89bio.
       // Nor who lends the money: "funds managed by Blue Owl … have committed to provide debt financing" (Envestnet).
-      if (i === 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
-      if (i === 1 && !/\bequity\b[^.;]{0,80}$/i.test(section.slice(Math.max(0, lead.index - 100), lead.index)) && /\b(?:Lenders?|Debt\s+(?:Financing|Commitment)|committed\s+to\s+provide\s+debt)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
+      if (i >= 1 && /\b(?:Support(?:ing)?\s+(?:Agreements?|Stockholders?|Shareholders?|Holders?)|Voting\s+(?:and\s+Support\s+)?Agreements?)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
+      if (i >= 1 && !/\bequity\b[^.;]{0,80}$/i.test(section.slice(Math.max(0, lead.index - 100), lead.index)) && /\b(?:Lenders?|Debt\s+(?:Financing|Commitment)|committed\s+to\s+provide\s+debt)\b/i.test(section.slice(lead.index, lead.index + 300))) continue;
       const rest = lead.input.slice(lead.index + lead[0].length);
       // Up to a parenthesis, else up to a comma; in the buyer's own description also the comma when the text up to the
       // parenthesis is no name: "Mr. Jianquan Li, the chairman of the Company's board of directors (the …".
@@ -558,7 +589,7 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
   // before.
   const announcedOn = signedOn ? statedRelease(text, signedOn) : null;
   const consideration: Consideration | null = extractConsideration(section.slice(0, 5000));
-  const value = extractValue(withoutSideMatters(section));
+  const value = extractValue(withoutSideMatters(section), { agreement: true });
   return {
     kind,
     headline: `${acquirerName} to acquire ${targetName} (8-K Item 1.01)`,
@@ -574,7 +605,8 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
     targetAdvisors: [],
     item101: true,
     // A scheme of arrangement is how a listed foreign company is taken over (Newcrest on the ASX); a US-listed one has resolved as public before this matters (Horizon, Nielsen).
-    ...(/\b(?:scheme of arrangement|Scheme Implementation)\b/i.test(section) ? { targetListedAbroad: true } : {}),
+    // So is a circular the target files with a foreign exchange (Vitesse / Lucero, TSXV).
+    ...(/\b(?:scheme of arrangement|Scheme Implementation)\b/i.test(section) || circularAbroad(flatten(text), targetName) ? { targetListedAbroad: true } : {}),
     // (Also an agreement restated at a higher price: Squarespace's, signed again at $46.50 under the same shell.)
     ...(amendment || /\bamends and restates the Agreement and Plan of Merger\b|\bAmended and Restated (?:Agreement and Plan of Merger|Merger Agreement|Transaction Agreement|Arrangement Agreement)\b/i.test(section.slice(0, 2500)) ? { amended: true } : {}),
     ...(signedOn ? { signedOn } : {}),

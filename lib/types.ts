@@ -143,7 +143,7 @@ export interface DealMilestones {
   firstFiling: { form: string; date: string } | null;
   /** Definitive proxy (DEFM14A) mailed to shareholders, for vote deals. */
   definitiveProxy: string | null;
-  /** Shareholder vote results reported (8-K Item 5.07 after the definitive proxy). */
+  /** Day of the shareholder vote (8-K Item 5.07, on or after the meeting the definitive proxy calls). */
   voteHeld?: string | null;
   closed: string | null;
   terminated: string | null;
@@ -293,11 +293,11 @@ export interface ActivistStake {
   /** Accession number of the initial 13D. */
   id: string;
   filedDate: string;
-  /** Date the 5% threshold was crossed ("date of event"). */
+  /** The 13D's "date of event": what triggered the filing, often a letter or a switch from 13G rather than crossing 5%. */
   eventDate: string | null;
   investor: { name: string; cik: string | null };
   company: Company;
-  /** Largest reported % of the class among the reporting persons (they overlap; not additive). */
+  /** Largest reported % of the class among the reporting persons (they overlap; not additive), or the group's total if Item 5 states one. */
   percent: number | null;
   shares: number | null;
   /** Tags from Item 4: "Board seats", "Sale or strategic review", "Capital return", ... */

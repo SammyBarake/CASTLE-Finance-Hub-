@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { completedAround, isSigningFor, listedOn, provablyUnlistedOn, registrantMatches, takenOverAround } from "./deals";
 import { nameOn } from "./edgar";
-import { junkReason, mergeSplitRecords, oneDeal, putReleaseFirst, reversedCopies, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
+import { correctKnownClosing, junkReason, mergeSplitRecords, oneDeal, putReleaseFirst, reversedCopies, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
 import type { StoredDeal } from "./store";
 
 describe("putReleaseFirst", () => {
@@ -120,6 +120,15 @@ describe("nameOn", () => {
 });
 
 describe("junkReason", () => {
+  it("drops a business development company as the target with or without a period after Corp", () => {
+    const target = (name: string) => ({ name, ticker: null, cik: "1" });
+    expect(junkReason(deal({ industry: null, target: target("Logan Ridge Finance Corp.") }))).toMatch(/investment fund/);
+    expect(junkReason(deal({ industry: null, target: target("SLR Senior Investment Corp.") }))).toMatch(/investment fund/);
+    expect(junkReason(deal({ industry: null, target: target("Logan Ridge Finance Corp") }))).toMatch(/investment fund/);
+    // A company with an industry code is an operating company, or a REIT.
+    expect(junkReason(deal({ industry: "Real Estate Investment Trusts", target: target("Two Harbors Investment Corp.") }))).toBeNull();
+  });
+
   it("drops a national bank subsidiary as the buyer", () => {
     expect(junkReason(deal({ acquirer: { name: "Citibank, N.A.", ticker: null, cik: null } }))).toMatch(/lender/);
   });
@@ -359,6 +368,32 @@ describe("tidyDeals", () => {
     expect(second.status).toBe("Closed");
   });
 
+  it("blanks a topped deal's terms for the next run to re-read up to its end date (MKS, Masonite), not the winner's, once", () => {
+    const coherent = { name: "Coherent Inc", ticker: "COHR", cik: "21510" };
+    const iiVi = deal({ id: "21510-2021-02-12", acquirer: { name: "II-VI Inc", ticker: "IIVI", cik: "820318" }, target: coherent, announcedDate: "2021-02-12", status: "Closed", statusDate: "2022-07-01", valueUsd: 7e9, terms: { targetFeeUsd: 108.8e6, reverseFeeUsd: 500e6, goShop: false, goShopDays: null, financingCondition: null, financingBanks: ["JPMorgan"] }, termsCheckedAt: "2026-11-05" });
+    const mks = deal({ id: "21510-2021-02-08", acquirer: { name: "MKS Instruments Inc", ticker: "MKSI", cik: "1049502" }, target: coherent, announcedDate: "2021-02-08", status: "Pending", valueUsd: 7e9, terms: { ...iiVi.terms! }, termsCheckedAt: "2026-11-05" });
+    expect(tidyDeals([mks, iiVi]).topped).toBe(1);
+    expect(mks).toMatchObject({ status: "Terminated", statusDate: "2021-02-12", termsCheckedAt: null });
+    expect(mks.terms).toBeUndefined();
+    expect(mks.milestones).toBeUndefined();
+    // The winner keeps its own.
+    expect(iiVi.terms?.reverseFeeUsd).toBe(500e6);
+    // The next run re-read it: tidy doesn't clear it again.
+    mks.terms = { targetFeeUsd: 217.6e6, reverseFeeUsd: null, goShop: false, goShopDays: null, financingCondition: null, financingBanks: [] };
+    mks.termsCheckedAt = "2026-11-06";
+    expect(tidyDeals([mks, iiVi]).topped).toBe(0);
+    expect(mks).toMatchObject({ termsCheckedAt: "2026-11-06", terms: { targetFeeUsd: 217.6e6 } });
+  });
+
+  it("a bank that is the buyer itself moves off the target, and self-advice stays credited (TriState, GreenSky)", () => {
+    const tri = deal({ acquirer: { name: "Raymond James", ticker: null, cik: null }, targetAdvisors: ["Stephens", "Raymond James"], acquirerAdvisors: [] });
+    sanitizeDeal(tri);
+    expect(tri).toMatchObject({ targetAdvisors: ["Stephens"], acquirerAdvisors: ["Raymond James"] });
+    const greensky = deal({ acquirer: { name: "Goldman Sachs Group Inc", ticker: "GS", cik: "886982" }, targetAdvisors: ["Morgan Stanley"], acquirerAdvisors: ["Goldman Sachs"] });
+    sanitizeDeal(greensky);
+    expect(greensky).toMatchObject({ targetAdvisors: ["Morgan Stanley"], acquirerAdvisors: ["Goldman Sachs"] });
+  });
+
   it("leaves an earlier deal alone when the later record is the sale of one business, with no proxy of its own", () => {
     // ICE / Black Knight (closed 2023) and Constellation buying Black Knight's Empower unit, filed under Black Knight.
     const ice = deal({ acquirer: { name: "Intercontinental Exchange, Inc.", ticker: "ICE", cik: "1571949" }, announcedDate: "2022-05-04", status: "Closed", statusDate: "2023-09-05" });
@@ -371,7 +406,7 @@ describe("tidyDeals", () => {
     const spacTarget = deal({ target: { name: "Hudson Executive Investment Corp.", ticker: null, cik: "1803901" } });
     const spacBuyer = deal({ acquirer: { name: "Vine Hill Capital Investment Corp.", ticker: null, cik: null }, target: { name: "CoinShares PLC", ticker: null, cik: "2087587" } });
     const roman = deal({ target: { name: "FS Development Corp. II", ticker: null, cik: "1822711" } });
-    const reit = deal({ acquirer: { name: "UWM Holdings Corporation", ticker: null, cik: "1783398" }, target: { name: "Two Harbors Investment Corp.", ticker: "TWO", cik: "1465740" } });
+    const reit = deal({ acquirer: { name: "UWM Holdings Corporation", ticker: null, cik: "1783398" }, target: { name: "Two Harbors Investment Corp.", ticker: "TWO", cik: "1465740" }, industry: "Real Estate Investment Trusts" });
     const deals = [spacTarget, spacBuyer, roman, reit];
     expect(tidyDeals(deals).dropped).toHaveLength(3);
     expect(deals).toEqual([reit]);
@@ -448,6 +483,93 @@ describe("SPAC_NAME", () => {
     expect(SPAC_NAME.test("Goldenstone Acquisition Ltd.")).toBe(true);
     expect(SPAC_NAME.test("Ares Capital Corp")).toBe(false);
     expect(SPAC_NAME.test("Main Street Capital Corp")).toBe(false);
+  });
+});
+
+describe("a losing bid and the winner's proxy", () => {
+  const aerojet = { name: "Aerojet Rocketdyne Holdings, Inc.", ticker: "AJRD", cik: "40888" };
+  const lockheed = { name: "Lockheed Martin Corp", ticker: "LMT", cik: "936468" };
+  const l3 = { name: "L3Harris Technologies, Inc.", ticker: "LHX", cik: "202058" };
+  const opinion = { bank: "Evercore", side: "target", ranges: [] } as unknown as NonNullable<StoredDeal["fairness"]>[number];
+  const links = [{ label: "Background", url: "https://x/#b" }];
+  const shared = { fairnessAdsh: "0001140361-23-006402", fairness: [opinion], proxySections: links, meetingDate: "2023-03-16", fairnessCheckedAt: "2026-11-04" };
+
+  it("clears it from an earlier Terminated record with a blank date, keeps it read, and leaves the winner's alone", () => {
+    const lost = deal({ id: "40888-2020-12-21", acquirer: lockheed, target: aerojet, announcedDate: "2020-12-21", status: "Terminated", statusDate: null, ...shared, milestones: { path: "vote", firstFiling: { form: "PREM14A", date: "2021-01-25" }, definitiveProxy: "2021-02-05", voteHeld: "2021-03-09", closed: "2023-07-28", terminated: null } });
+    const won = deal({ id: "40888-2022-12-19", acquirer: l3, target: aerojet, announcedDate: "2022-12-18", status: "Closed", statusDate: "2023-07-28", ...shared });
+    tidyDeals([lost, won]);
+    expect(lost).toMatchObject({ fairnessAdsh: null, meetingDate: null, fairnessCheckedAt: "2026-11-04" });
+    expect(lost.fairness).toBeUndefined();
+    expect(lost.proxySections).toBeUndefined();
+    // Its own milestones stay; what dates from the winner's deal goes.
+    expect(lost.milestones).toMatchObject({ definitiveProxy: "2021-02-05", voteHeld: "2021-03-09", closed: null });
+    expect(won).toMatchObject({ fairnessAdsh: shared.fairnessAdsh, proxySections: links, meetingDate: "2023-03-16" });
+  });
+
+  it("marks it read if the search hadn't finished, so it isn't read again", () => {
+    const lost = deal({ acquirer: lockheed, target: aerojet, announcedDate: "2020-12-21", status: "Terminated", statusDate: null, ...shared, fairnessCheckedAt: null, statusCheckedAt: "2026-11-04" });
+    const won = deal({ acquirer: l3, target: aerojet, announcedDate: "2022-12-18", status: "Closed", statusDate: "2023-07-28", ...shared });
+    tidyDeals([lost, won]);
+    expect(lost.fairnessCheckedAt).toBe("2026-11-04");
+  });
+
+  it("works when both are Terminated, as JetBlue and Frontier on Spirit", () => {
+    const spirit = { name: "Spirit Airlines, Inc.", ticker: "SAVE", cik: "1498710" };
+    const frontier = deal({ acquirer: { name: "Frontier Group Holdings, Inc.", ticker: "ULCC", cik: "1670076" }, target: spirit, announcedDate: "2022-02-07", status: "Terminated", statusDate: "2024-03-04", ...shared, milestones: { path: "vote", firstFiling: { form: "DEFM14A", date: "2022-05-11" }, definitiveProxy: "2022-05-11", voteHeld: "2022-10-19", closed: null, terminated: "2024-03-04" } });
+    const jetblue = deal({ acquirer: { name: "Jetblue Airways Corp", ticker: "JBLU", cik: "1158463" }, target: spirit, announcedDate: "2022-07-28", status: "Terminated", statusDate: "2024-03-04", ...shared });
+    tidyDeals([frontier, jetblue]);
+    // The date was JetBlue's (blanked by the rule above), and so was the proxy.
+    expect(frontier.statusDate).toBeNull();
+    expect(frontier.fairnessAdsh).toBeNull();
+    expect(jetblue.fairnessAdsh).toBe(shared.fairnessAdsh);
+  });
+
+  it("leaves two closed buyers of one company sharing theirs", () => {
+    // Gray and IAC each bought part of Meredith, on one proxy.
+    const meredith = { name: "Meredith Corp", ticker: "MDP", cik: "65011" };
+    const gray = deal({ acquirer: { name: "Gray Television, Inc.", ticker: "GTN", cik: "43196" }, target: meredith, announcedDate: "2021-05-03", status: "Closed", statusDate: "2021-12-01", partOfTarget: true, ...shared });
+    const iac = deal({ acquirer: { name: "IAC", ticker: "IAC", cik: "891103" }, target: meredith, announcedDate: "2021-10-06", status: "Closed", statusDate: "2021-12-01", partOfTarget: true, ...shared });
+    tidyDeals([gray, iac]);
+    expect(gray.fairnessAdsh).toBe(shared.fairnessAdsh);
+    expect(iac.fairnessAdsh).toBe(shared.fairnessAdsh);
+    expect(gray.proxySections).toEqual(links);
+  });
+
+  it("leaves a terminated deal with its own proxy, and the same buyer's later agreement", () => {
+    const hess = { name: "Hess Corp", ticker: "HES", cik: "4447" };
+    const own = deal({ acquirer: lockheed, target: hess, announcedDate: "2021-01-01", status: "Terminated", statusDate: "2021-06-01", ...shared, fairnessAdsh: "a" });
+    const next = deal({ acquirer: l3, target: hess, announcedDate: "2022-01-01", status: "Closed", statusDate: "2022-06-01", ...shared, fairnessAdsh: "b" });
+    tidyDeals([own, next]);
+    expect(own.fairnessAdsh).toBe("a");
+    // CP and KCS signed twice: one buyer, kept whole.
+    const kcs = { name: "Kansas City Southern", ticker: "KSU", cik: "54480" };
+    const first = deal({ acquirer: { name: "Canadian Pacific Railway Ltd", ticker: "CP", cik: "16875" }, target: kcs, announcedDate: "2021-03-21", status: "Terminated", statusDate: "2021-05-21", ...shared });
+    const second = deal({ acquirer: { name: "Canadian Pacific Railway Ltd", ticker: "CP", cik: "16875" }, target: kcs, announcedDate: "2021-09-15", status: "Closed", statusDate: "2021-12-14", ...shared });
+    tidyDeals([first, second]);
+    expect(first.fairnessAdsh).toBe(shared.fairnessAdsh);
+  });
+});
+
+describe("a closing filings can't date", () => {
+  it("sets Expro / Frank's International to October 1 2021 and lets go of its later sale's proxy, once", () => {
+    const franks = deal({ id: "1575828-2021-03-11", acquirer: { name: "Expro Ltd", ticker: "XPRO", cik: "2126198" }, target: { name: "Frank's International N.V.", ticker: "FI", cik: "1575828" }, announcedDate: "2021-03-11", status: "Closed", statusDate: "2026-07-14", fairnessAdsh: "0001104659-26-046161", fairnessCheckedAt: "2026-11-04", termsCheckedAt: "2026-11-04", proxySections: [{ label: "Background", url: "u" }], terms: { targetFeeUsd: 37_500_000, reverseFeeUsd: 71_500_000, goShop: null, goShopDays: null, financingCondition: null, financingBanks: [] }, milestones: { path: "vote", firstFiling: { form: "S-4", date: "2021-04-26" }, definitiveProxy: "2026-04-21", voteHeld: "2026-06-15", closed: "2026-07-14", terminated: null } });
+    correctKnownClosing(franks);
+    expect(franks).toMatchObject({ status: "Closed", statusDate: "2021-10-01", fairnessAdsh: null, termsCheckedAt: null, fairnessCheckedAt: "2026-11-04" });
+    expect(franks.terms).toBeUndefined();
+    expect(franks.proxySections).toBeUndefined();
+    expect(franks.milestones).toEqual({ path: "vote", firstFiling: { form: "S-4", date: "2021-04-26" }, definitiveProxy: null, voteHeld: null, closed: "2021-10-01", terminated: null });
+    // Terms read again later stay.
+    franks.termsCheckedAt = "2026-11-05";
+    correctKnownClosing(franks);
+    expect(franks.termsCheckedAt).toBe("2026-11-05");
+  });
+  it("touches nothing else, nor Expro's own purchases", () => {
+    const other = deal({ status: "Pending", statusDate: "2026-01-01", fairnessAdsh: "a" });
+    correctKnownClosing(other);
+    expect(other).toMatchObject({ status: "Pending", statusDate: "2026-01-01", fairnessAdsh: "a" });
+    const later = deal({ target: { name: "Expro Group Holdings N.V.", ticker: "XPRO", cik: "1575828" }, announcedDate: "2026-01-15", status: "Closed", statusDate: "2026-07-14" });
+    correctKnownClosing(later);
+    expect(later.statusDate).toBe("2026-07-14");
   });
 });
 
@@ -659,5 +781,16 @@ describe("one deal stored as two records", () => {
     tidyDeals([frontier, jetblue]);
     expect(frontier).toMatchObject({ status: "Terminated", statusDate: null });
     expect(jetblue.statusDate).toBe("2024-03-04");
+  });
+});
+
+describe("a new public company over the buyer of another", () => {
+  it("is a holding-company reorganization, not a takeover (New Pubco / R1 RCM, buying Cloudmed)", () => {
+    const r1 = { name: "R1 RCM Inc.", ticker: "RCM", cik: "1472595" };
+    const reorganised = deal({ id: "1472595-2022-01-10", acquirer: { name: "New Pubco and Sellers", ticker: null, cik: null }, target: r1, announcedDate: "2022-01-10", valueUsd: 41e8 });
+    const cloudmed = deal({ id: "p-cloudmed-2022-01-10", privateTarget: true, acquirer: r1, target: { name: "Cloudmed", ticker: null, cik: null }, announcedDate: "2022-01-10", valueUsd: 41e8 });
+    const deals = [reorganised, cloudmed];
+    tidyDeals(deals);
+    expect(deals.map((d) => d.id)).toEqual(["p-cloudmed-2022-01-10"]);
   });
 });

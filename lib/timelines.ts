@@ -29,12 +29,15 @@ export interface DealTimeline {
 export function dealTimeline(deal: Deal, asOf: string): DealTimeline | null {
   const m = deal.milestones;
   if (!m) return null;
-  const outcome = m.closed ? "closed" : m.terminated || deal.status === "Terminated" ? "terminated" : "open";
-  const end = m.closed ?? m.terminated ?? asOf;
+  // A terminated deal never closed, whatever date its record holds (Lockheed / Aerojet read L3Harris's Form 25).
+  const dead = !!m.terminated || deal.status === "Terminated";
+  const closed = dead ? null : m.closed;
+  const outcome = closed ? "closed" : dead ? "terminated" : "open";
+  const end = closed ?? m.terminated ?? asOf;
   return {
     deal,
     outcome,
-    daysToClose: m.closed ? daysBetween(deal.announcedDate, m.closed) : null,
+    daysToClose: closed ? daysBetween(deal.announcedDate, closed) : null,
     daysToFirstFiling: m.firstFiling ? daysBetween(deal.announcedDate, m.firstFiling.date) : null,
     daysElapsed: daysBetween(deal.announcedDate, end),
   };

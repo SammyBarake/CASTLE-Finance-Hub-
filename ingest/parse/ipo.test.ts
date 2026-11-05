@@ -1,6 +1,104 @@
 import { describe, expect, it } from "vitest";
-import { extractMaxAggregate, extractOfferPrice, extractUnderwriters, extractUnderwritingTable, isResaleOnly, parseFinalProspectus, parseRegistration } from "./ipo";
+import { findBanks } from "../../lib/banks";
+import { extractDescription, extractMaxAggregate, extractOfferPrice, extractUnderwriters, extractUnderwritingTable, isResaleOnly, isSecondStepConversion, parseFinalProspectus, parseRegistration, prospectusDate } from "./ipo";
 import { listsOnExchange, publicWithin } from "../ipos";
+
+describe("underwriters on the bank list", () => {
+  it("reads the firms IPOs name, in table order (Vogenx, Londian Wason, Ticketplus, Csquare, Jersey Mike's)", () => {
+    expect(extractUnderwritingTable("UNDERWRITING Underwriters Number of Shares JonesTrading Institutional Services LLC 6,250,000 Total 6,250,000")).toEqual(["JonesTrading"]);
+    expect(extractUnderwritingTable("Underwriters Number of ADSs Cantor Fitzgerald & Co. 1 Huatai Securities (USA), Inc. 1 CMB International Capital Limited 1 US Tiger Securities, Inc. 1 Fortune (HK) Securities Limited 1 BOCOM International Securities Limited 1 VC Brokerage Limited 1 Total")).toEqual([
+      "Cantor Fitzgerald", "Huatai Securities", "CMB International", "US Tiger Securities", "Fortune Securities", "BOCOM International", "VC Brokerage",
+    ]);
+    expect(findBanks("Roth Capital Partners Bancroft Capital, LLC MDB Capital")).toEqual(["Roth Capital", "Bancroft Capital", "MDB Capital"]);
+    expect(findBanks("SG Americas Securities, LLC 2,385,000 National Bank of Canada Financial Inc. 1,000,000 PNC Capital Markets LLC 500,000")).toEqual(["Société Générale", "National Bank Financial", "PNC Capital Markets"]);
+    expect(findBanks("Blackstone Securities Partners L.P., an underwriter, Rabo Securities USA, Inc., Tigress Financial Partners LLC, Telsey Advisory Group LLC, WR Securities, LLC")).toEqual([
+      "Blackstone Securities Partners", "Rabo Securities", "Tigress Financial Partners", "Telsey Advisory Group", "Wolfe Research",
+    ]);
+  });
+
+  it("takes whole names only: buyout firms and a company called MDB aren't underwriters", () => {
+    expect(findBanks("Blackstone Inc. and Brookfield Asset Management will acquire MDB Holdings; Blackstone Infrastructure Partners and MongoDB (MDB)")).toEqual([]);
+    expect(findBanks("Blackstone Advisory Partners L.P. is acting as financial advisor")).toEqual(["Blackstone Advisory Partners"]);
+    expect(findBanks("funds managed by Brookfield and the Titan Partners fund, with Mr. Jones trading")).toEqual([]);
+  });
+});
+
+describe("prospectusDate", () => {
+  it("reads each way a cover states it, up to ten days before the filing", () => {
+    expect(prospectusDate("Sole Book-Running Manager LifeSci Capital Prospectus dated October 22, 2026 Table of Contents", "2026-10-23")).toBe("2026-10-22"); // Lycia
+    expect(prospectusDate("Citizens Capital Markets Texas Capital Securities September 17, 2026 Table of contents Page", "2026-09-21")).toBe("2026-09-17"); // Orion180
+    expect(prospectusDate("Titan Partners The date of this prospectus is October 8 , 2026. Table of Contents", "2026-10-09")).toBe("2026-10-08"); // Retension
+    expect(prospectusDate("Roth MDB Capital The date of this prospectus is August 6, 2026 TABLE OF CONTENTS", "2026-08-07")).toBe("2026-08-06"); // Ticketplus
+    expect(prospectusDate("THE DATE OF THIS PROSPECTUS IS MARCH 5, 2015.", "2015-03-06")).toBe("2015-03-05");
+    expect(prospectusDate("Jones Prospectus dated August 11, 2026. TABLE OF CONTENTS", "2026-08-12")).toBe("2026-08-11"); // Vogenx
+  });
+
+  it("leaves it blank when the cover states none, or the date is too far from the filing", () => {
+    expect(prospectusDate("Morgan Stanley Goldman Sachs & Co. LLC Table of Contents", "2026-08-06")).toBeNull(); // Braveheart
+    expect(prospectusDate("Prospectus dated June 1, 2026 Table of Contents", "2026-08-06")).toBeNull();
+    expect(prospectusDate("Prospectus dated August 9, 2026 Table of Contents", "2026-08-06")).toBeNull(); // after the filing
+  });
+
+  it("doesn't read a date further in as the cover's", () => {
+    const pad = " x".repeat(20_000);
+    expect(prospectusDate(`Cover ends here. ${pad} Prospectus dated August 1, 2026 Table of Contents`, "2026-08-06")).toBeNull();
+    // A date before a page break, with the page number between them.
+    expect(prospectusDate("a reverse stock split of our common stock, which we effected on September 17, 2026. 16 Table of Contents Summary", "2026-09-28")).toBeNull();
+    // A summary of another document, in lower case.
+    expect(prospectusDate("the preliminary prospectus dated August 3, 2026 and the rest", "2026-08-06")).toBeNull();
+  });
+});
+
+describe("isSecondStepConversion", () => {
+  // Columbia Financial's S-1, March 2026.
+  const columbia =
+    'Columbia Financial, Inc., is offering common stock for sale in connection with the conversion of Columbia Bank MHC from the mutual holding company form of organization to the stock form of organization. The "second-step" conversion process that we are now undertaking involves a series of transactions. We are conducting the conversion and offering under the terms of our plan of conversion and reorganization that we adopted on January 31, 2026. The [●] shares of Columbia Financial currently owned by the public will be exchanged for between 1.8729 shares and 2.5340 shares of common stock of Columbia Financial, Inc. Columbia Financial\'s common stock is currently listed on the Nasdaq Global Select Market under the trading symbol "CLBK."';
+
+  it("drops a listed company re-registering on a new CIK (Columbia Financial)", () => {
+    expect(isSecondStepConversion(columbia)).toBe(true);
+    expect(isSecondStepConversion(columbia.replace(/ Columbia Financial's common stock is currently listed.*$/, ""))).toBe(true);
+    expect(isSecondStepConversion(columbia.replace(/The \[●\] shares.*Columbia Financial, Inc\. /, ""))).toBe(true);
+  });
+
+  it("keeps a first-time conversion (Hometown Financial's S-1)", () => {
+    expect(
+      isSecondStepConversion(
+        'Hometown Financial Group, Inc. is offering its common stock for sale in an initial public offering (the "IPO") in connection with the conversion of Hometown Financial Group, MHC, the mutual holding company of TruNorth Bank, from a mutual holding company to a stock holding company. There is no current public or private market for the Hometown Financial common stock. The Hometown Financial common stock is expected to be listed on the Nasdaq Stock Market under the symbol "HFG." The purchase priorities are set forth in the Plan of Conversion of Hometown Financial Group, MHC.',
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps a first-step offering that only mentions a later second step, and an ordinary IPO", () => {
+    expect(isSecondStepConversion("Sunrise Bancorp is selling a minority of its shares. Our mutual holding company could in the future undertake a second-step conversion. There is no public market for our common stock.")).toBe(false);
+    expect(isSecondStepConversion("We are offering 10,000,000 shares of common stock. This is our initial public offering. We have applied to list on the Nasdaq Global Select Market.")).toBe(false);
+  });
+});
+
+describe("extractDescription", () => {
+  const overview = (sentence: string) => `Prospectus summary\nOverview\n${sentence}\nMore text.`;
+
+  it("doesn't stop at a title or a company's legal form", () => {
+    // TFP Group's F-1 and Cortigent's S-1/A.
+    expect(extractDescription(overview("Our predecessor company, Fidelis Insurance, was founded in 2014 by Mr. Brindle as a specialty (re)insurance business and commenced underwriting in 2015. Mr. Brindle served as Chairman and CEO of Fidelis Insurance from founding until January 2023."))).toBe(
+      "Our predecessor company, Fidelis Insurance, was founded in 2014 by Mr. Brindle as a specialty (re)insurance business and commenced underwriting in 2015.",
+    );
+    expect(extractDescription(overview('Cortigent, through its predecessor Second Sight Medical Products, Inc. ("Second Sight"), is a pioneer in developing precision targeted neurostimulation systems to help patients recover critical body functions. Our technology combines advanced neuroscience with proprietary microelectronics.'))).toBe(
+      'Cortigent, through its predecessor Second Sight Medical Products, Inc. ("Second Sight"), is a pioneer in developing precision targeted neurostimulation systems to help patients recover critical body functions.',
+    );
+    expect(extractDescription(overview("Our predecessor, Second Sight Medical Products, Inc. has developed implants that restore vision. We were formed in 2021."))).toBe(
+      "Our predecessor, Second Sight Medical Products, Inc. has developed implants that restore vision.",
+    );
+  });
+
+  it("still ends a sentence that ends in a company's name, and an ordinary one", () => {
+    expect(extractDescription(overview("AMATUHI HOLDINGS, Inc., was incorporated on June 24, 2025 in Delaware to act as the holding company of AMATUHI Inc. We operate restaurants in Japan and elsewhere."))).toBe(
+      "AMATUHI HOLDINGS, Inc., was incorporated on June 24, 2025 in Delaware to act as the holding company of AMATUHI Inc.",
+    );
+    expect(extractDescription(overview("We are a clinical-stage biotechnology company focused on degraders for use in cancer care. Our lead program is in phase 2."))).toBe(
+      "We are a clinical-stage biotechnology company focused on degraders for use in cancer care.",
+    );
+  });
+});
 
 describe("isResaleOnly", () => {
   it("flags registrations where only selling holders sell", () => {

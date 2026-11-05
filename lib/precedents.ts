@@ -9,7 +9,7 @@ export type PrecedentWindow = "12m" | "24m" | "all";
 
 export interface PrecedentScreen {
   sector: Sector | "all";
-  /** Case-insensitive match on the target's SEC industry, e.g. "software". */
+  /** Case-insensitive match on the target's SEC industry, e.g. "software" (a private target's is its buyer's). */
   industry: string;
   /** Deal value bounds in USD billions, as typed (empty = no bound). */
   min: string;

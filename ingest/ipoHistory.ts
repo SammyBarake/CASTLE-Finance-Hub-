@@ -7,7 +7,7 @@ import { archiveUrl, filingsUntil, fullTextSearch, getSubmissions, getText, name
 import { monthWindows } from "./deals";
 import { EXCLUDED_SIC, FINAL_PROSPECTUS, FUNDLIKE, LISTING_SIC, listsOnExchange, MIN_RAISE, publicWithin } from "./ipos";
 import { normalizeName } from "./parse/names";
-import { isResaleOnly, parseFinalProspectus } from "./parse/ipo";
+import { isResaleOnly, isSecondStepConversion, parseFinalProspectus, prospectusDate } from "./parse/ipo";
 import { displayName } from "./parse/press";
 import { sectorForSic } from "./sectors";
 import { htmlToText } from "./text";
@@ -30,18 +30,6 @@ export interface IpoHistoryRecord {
   raiseUsd: number | null;
   underwriters: string[];
   url: string;
-}
-
-const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-
-/** "The date of this prospectus is March 5, 2015" -> "2015-03-05", if it falls within ten days before the filing. */
-export function prospectusDate(text: string, filedDate: string): string | null {
-  const m = /date of this prospectus is\s+([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/i.exec(text.slice(0, 200_000).replace(/\s+/g, " "));
-  const month = m && MONTHS[m[1].toLowerCase()];
-  if (!m || !month) return null;
-  const iso = `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
-  const days = (Date.parse(filedDate) - Date.parse(iso)) / 86_400_000;
-  return days >= 0 && days <= 10 ? iso : null;
 }
 
 type Row = { adsh: string; date: string; form: string; primaryDocument: string; items: string };
@@ -99,7 +87,7 @@ export async function backfillIpoHistory(
         const terms = parseFinalProspectus(text);
         const own = ` ${normalizeName(sub.name)} `;
         const underwriters = terms.underwriters.filter((u) => !own.includes(` ${normalizeName(u)} `));
-        if (isResaleOnly(text, underwriters)) continue;
+        if (isResaleOnly(text, underwriters) || isSecondStepConversion(text)) continue;
         if ((LISTING_SIC.has(sub.sic) || h.sics.some((s) => LISTING_SIC.has(s))) && !listsOnExchange(text)) continue;
         if ((terms.expectedRaiseUsd ?? 0) < MIN_RAISE && !underwriters.length) continue;
         const pricedDate = prospectusDate(text, h.fileDate) ?? h.fileDate;

@@ -1,7 +1,45 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, looksLikePressRelease, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
+import { banksOfTheTarget, opensNamingBuyer, coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, looksLikePressRelease, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
+
+describe("banksOfTheTarget", () => {
+  const deal = (over: Partial<Pick<StoredDeal, "status" | "acquirerAdvisors" | "targetAdvisors">> = {}): Pick<StoredDeal, "status" | "acquirer" | "acquirerAdvisors" | "targetAdvisors"> => ({ status: "Closed", acquirer: { name: "American Family Mutual Insurance Company, S.I.", ticker: null, cik: null }, acquirerAdvisors: [], targetAdvisors: [], ...over });
+  const opening = "a merger agreement with American Family Mutual Insurance Company";
+
+  it("credits each opinion for itself: the buyer's bank doesn't stop the target's (Bowhead's Ardea)", () => {
+    const opinions = [{ bank: "Stifel", side: "acquirer" as const }, { bank: "Ardea Partners", side: "target" as const }];
+    expect(banksOfTheTarget(opinions, deal(), opening)).toEqual(["Ardea Partners"]);
+  });
+
+  it("not on a joint proxy, a losing bid, or a proxy that doesn't name this buyer", () => {
+    const opinions = [{ bank: "Goldman Sachs", side: "target" as const }];
+    expect(banksOfTheTarget(opinions, deal(), `joint proxy statement/prospectus ${opening}`)).toEqual([]);
+    expect(banksOfTheTarget(opinions, deal({ status: "Terminated" }), opening)).toEqual([]);
+    expect(banksOfTheTarget(opinions, deal(), "a merger agreement with Knox Lane")).toEqual([]);
+  });
+
+  it("not a bank already on either list, nor one with no name", () => {
+    const opinions = [{ bank: "Lazard", side: "target" as const }, { bank: "Citigroup", side: "target" as const }, { bank: null, side: "target" as const }];
+    expect(banksOfTheTarget(opinions, deal({ acquirerAdvisors: ["Lazard"], targetAdvisors: ["Citigroup"] }), opening)).toEqual([]);
+  });
+});
+
+describe("opensNamingBuyer", () => {
+  it("wants the buyer's first word as a word", () => {
+    // Knox Lane's proxy doesn't name Aya, Optum's doesn't name Option Care, MITT's doesn't name AG on Terra's record.
+    expect(opensNamingBuyer("the merger consideration payable to holders of Cross Country", "Aya Healthcare")).toBe(false);
+    expect(opensNamingBuyer("a proposal to approve the adoption of the merger agreement", "Option Care Health, Inc.")).toBe(false);
+    expect(opensNamingBuyer("Western Asset Mortgage Capital", "AG Mortgage Investment Trust, Inc.")).toBe(false);
+    expect(opensNamingBuyer("merger agreement with Knox Lane, LP", "Knox Lane")).toBe(true);
+    expect(opensNamingBuyer("AGREEMENT WITH OPTUM'S SUBSIDIARY", "Optum")).toBe(true);
+    expect(opensNamingBuyer("with AT&T Inc.", "AT&T Inc.")).toBe(true);
+    expect(opensNamingBuyer("the Carlyle Group", "The Carlyle Group")).toBe(true);
+    // Taken as written, not as a pattern.
+    expect(opensNamingBuyer("merger with C3.ai", "C3.ai, Inc.")).toBe(true);
+    expect(opensNamingBuyer("merger with C3xai", "C3.ai, Inc.")).toBe(false);
+  });
+});
 
 describe("isPrivateTargetName", () => {
   it("rejects a basin and a described company", () => {

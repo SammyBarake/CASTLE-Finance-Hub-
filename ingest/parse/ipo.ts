@@ -97,7 +97,10 @@ export function extractDescription(text: string): string | null {
   for (const h of heads) {
     const after = t.slice(h.index! + h[0].length, h.index! + h[0].length + 1500);
     const para = flatten(after.split(/\n/).find((l) => l.trim().length > 80) ?? "");
-    const sentence = /^(.{40,260}?[a-z)]\.)(?:\s|$)/.exec(para)?.[1];
+    // Not "by Mr. Brindle as a specialty (re)insurance business and commenced underwriting in 2015." (TFP Group), nor
+    // "Second Sight Medical Products, Inc. ("Second Sight"), is a pioneer" (Cortigent): a title never ends a sentence, and
+    // none goes on in lower case or with a bracket. "… the holding company of AMATUHI Inc. We …" does end.
+    const sentence = /^(.{40,260}?[a-z0-9)]\.(?<!\b(?:Mr|Ms|Mrs|Dr|No|St|Jr|Sr|Co)\.))(?:\s+(?![a-z(])|$)/.exec(para)?.[1];
     if (sentence && !/prospectus|forward-looking|this summary/i.test(sentence)) return sentence;
   }
   return null;
@@ -106,8 +109,48 @@ export function extractDescription(text: string): string | null {
 /**
  * Bump after changing these parsers: stored pipeline records are then re-read on the next ingest.
  * 5: US$ prices and the cover table's total (SK hynix, Londian Wason).
+ * 8: underwriters added to the bank list (Vogenx, Londian Wason, Jersey Mike's), the priced date from the cover, a stored
+ * placeholder raise cleared (Anthropic), second-step conversions dropped (Columbia Financial), whole descriptions (TFP Group).
  */
-export const IPO_PARSER_VERSION = 7;
+export const IPO_PARSER_VERSION = 8;
+
+const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const COVER_DATE = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.? (\d{1,2}) ?, ?(\d{4})/.source;
+
+/**
+ * The date on a final prospectus, if it falls within ten days before the filing: "The date of this prospectus is March 5,
+ * 2015" and "Prospectus dated October 22, 2026" (Lycia), or a bare date closing the cover, right before the table of
+ * contents (Orion180: "September 17, 2026 Table of contents"). The 424B4 lands up to four days after pricing (Orion180,
+ * ADARx). "Prospectus dated" and the bare date only on the cover: further in, either can be another document's date.
+ */
+export function prospectusDate(text: string, filedDate: string): string | null {
+  const t = flatten(text.slice(0, 200_000));
+  const cover = t.slice(0, 30_000);
+  const m =
+    new RegExp(`\\bdate of this prospectus is ${COVER_DATE}`, "i").exec(t) ??
+    new RegExp(`\\b(?:Prospectus|PROSPECTUS) (?:dated|DATED) ${COVER_DATE}`).exec(cover) ??
+    new RegExp(`\\b${COVER_DATE}\\.? (?:Table of Contents|Table of contents|TABLE OF CONTENTS)\\b`).exec(cover);
+  const month = m && MONTHS[m[1].slice(0, 3).toLowerCase()];
+  if (!m || !month) return null;
+  const iso = `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  const days = (Date.parse(filedDate) - Date.parse(iso)) / 86_400_000;
+  return days >= 0 && days <= 10 ? iso : null;
+}
+
+/**
+ * A second-step conversion: a listed mid-tier holding company re-registers on a new CIK, so the already-public test finds
+ * no earlier report, and sells the mutual holding company's stake while the public's shares are exchanged. Not a new
+ * listing: Columbia Financial's S-1 ("The "second-step" conversion process that we are now undertaking …", "currently owned
+ * by the public will be exchanged", "currently listed on the Nasdaq Global Select Market under the trading symbol "CLBK"").
+ * The conversion wording alone isn't enough: a first-step minority offering can mention a later second step. A first-time
+ * conversion stays (Hometown Financial: "the Plan of Conversion of Hometown Financial Group, MHC", "no current public or
+ * private market").
+ */
+export function isSecondStepConversion(text: string): boolean {
+  const head = flatten(text.slice(0, 80_000));
+  if (!/\bplan of conversion and reorganization\b|\bsecond[- ]step\W{0,2}\s*(?:conversion|offering)\b/i.test(head)) return false;
+  return /\b(?:owned|held) by (?:the )?public(?: (?:stock|share)holders)?\b[^.]{0,120}\bwill be exchanged\b/i.test(head) || /\bcommon stock is currently (?:listed|quoted|traded) on\b/i.test(head);
+}
 
 /**
  * A registration that isn't an IPO offering: a direct listing (holders resell on the exchange, nothing is sold or

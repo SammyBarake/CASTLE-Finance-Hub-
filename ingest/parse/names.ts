@@ -14,6 +14,12 @@ const SHORT_FORMS: Record<string, string> = {
   "h i g": "h i g capital",
 };
 
+/**
+ * EDGAR's state tag off a registrant's name: "ENTERPRISE BANCORP INC /MA/", "HEALTH NET INC /DE/", "QUALCOMM INC/DE",
+ * "ONEOK INC /NEW/". Two letters at least, so "Novo Nordisk A/S" and "Ambev S/A" keep theirs.
+ */
+export const withoutStateTag = (name: string) => name.replace(/\s*[\\/][A-Za-z]{2,4}[\\/]?\s*$/, "");
+
 /** "Copart, Inc." -> "copart"; "The Baldwin Group, Inc." -> "baldwin" */
 export function normalizeName(name: string): string {
   const n = name
@@ -234,6 +240,9 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself
   s = s.replace(/^(?:privately[- ](?:held|owned)|family[- ]owned|[A-Za-z.]+-based|(?:Nasdaq|NYSE|NYSE American|publicly)[- ](?:listed|traded))\s+(?=\S)/i, "");
+  // A place of two or three words too: "San Diego-Based IRISYS" (Recro), "NEW YORK-BASED ACME". Words such places start with: not
+  // "Three Hospital-Based Branded …" (Akorn's products), "Medicare Value-Based Care …".
+  s = s.replace(/^(?:San|Santa|Los|Las|New|Salt|Saint|St\.|Fort|Ft\.|Kansas|Oklahoma|North|South|East|West|Hong|Tel|Bay|Long|Rhode|El|Baton|Palo|Puerto|Sao|Cape|Costa|Corpus|Grand|Des|Little)\s(?:[a-z.]+\s)?[a-z.]+-based\s+(?=\S)/i, "");
   // An all-capitals headline run into the dateline's listing: "ROTRON AERO NASDAQ: ONDS" -> "ROTRON AERO".
   s = s.replace(/\s+(?:NASDAQ|NYSE|Nasdaq)$/, "");
   s = s.replace(/['’]s$/, "");
@@ -262,7 +271,9 @@ export const isPlausibleName =(s: string | null | undefined): s is string =>
   s.length >= 2 &&
   s.length <= 90 &&
   /[A-Za-z]/.test(s) &&
-  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco)$/i.test(s) &&
+  // ("Arrangement" of "Arrangement Agreement": Quipt's; "the estimated consolidated indebtedness of the Company as of the Closing": Digital Ally's subsidiary and a SPAC.)
+  !/^(it|we|the company|company|shareholders|stockholders|merger|the merger|transaction|the transaction|controlling|holdco|opco|pubco|newco|arrangement|the arrangement)$/i.test(s) &&
+  !/\bas of the Closing\b/.test(s) &&
   // A bare legal suffix ("Corp" cut from "Corp Merger Sub") once resolved to International Bancshares Corp; "BV" was
   // left of "argenx BV".
   !/^(?:corp|corporation|inc|incorporated|co|llc|l\.l\.c|ltd|limited|lp|l\.p|plc|n\.?v|b\.?v|s\.a|s\.?p\.?a|ag|gmbh|ulc|n\.?a)\.?$/i.test(s.trim()) &&

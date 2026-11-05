@@ -33,6 +33,9 @@ describe("dealTimeline", () => {
     expect(dealTimeline(deal({ milestones: ms({}) }), ASOF)).toMatchObject({ outcome: "open", daysElapsed: 243 });
     expect(dealTimeline(deal({ milestones: ms({ terminated: "2026-02-01" }) }), ASOF)).toMatchObject({ outcome: "terminated", daysElapsed: 31 });
     expect(dealTimeline(deal({}), ASOF)).toBeNull();
+    // Lockheed / Aerojet read L3Harris's Form 25: a terminated deal never closed, with or without a date.
+    expect(dealTimeline(deal({ status: "Terminated", milestones: ms({ closed: "2026-03-02" }) }), ASOF)).toMatchObject({ outcome: "terminated", daysToClose: null });
+    expect(dealTimeline(deal({ milestones: ms({ closed: "2026-03-02", terminated: "2026-02-01" }) }), ASOF)).toMatchObject({ outcome: "terminated", daysToClose: null, daysElapsed: 31 });
   });
 });
 
