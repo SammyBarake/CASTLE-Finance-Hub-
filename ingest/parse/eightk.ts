@@ -498,7 +498,8 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
     acquirerAdvisors: [],
     targetAdvisors: [],
     item101: true,
-    ...(amendment ? { amended: true } : {}),
+    // (Also an agreement restated at a higher price: Squarespace's, signed again at $46.50 under the same shell.)
+    ...(amendment || /\bAmended and Restated (?:Agreement and Plan of Merger|Merger Agreement|Transaction Agreement|Arrangement Agreement)\b/i.test(lead) ? { amended: true } : {}),
     ...(signedOn ? { signedOn } : {}),
     ...(announcedOn ? { announcedOn } : {}),
     ...(signing && kind === "announcement" && endsEarlierAgreement(text) ? { endsEarlierAgreement: true } : {}),

@@ -1817,7 +1817,7 @@ export function parsePressRelease(text: string, ctx: PressContext): ParsedPress 
     consideration: extractConsideration(terms),
     ...advisors,
     ...(opensAsResults(flatten(text)) ? { resultsReport: true } : {}),
-    ...(/\b(?:amend(?:s|ed|ment)|revis(?:es|ed)|increas(?:es|ed)|rais(?:es|ed)|improved|sweeten\w*)\b[^.]{0,60}\b(?:offer|bid|price|proposal|merger|agreement|consideration|terms|acquisition)\b/i.test(headline) ? { amended: true } : {}),
+    ...(/\b(?:amend(?:s|ed|ment)?|revis(?:e|es|ed)|increas(?:e|es|ed)|rais(?:e|es|ed)|improved|sweeten\w*)\b[^.]{0,60}\b(?:offer|bid|price|proposal|merger|agreement|consideration|terms|acquisition)\b/i.test(headline) ? { amended: true } : {}),
     // ("IAC's Dotdash to Acquire Meredith Corporation's National Media Group": holders got $42.18 from IAC, and Gray bought the rest.)
     ...(/['’]s\s(?:[A-Z][\w&-]*\s){0,3}Media Group\b/.test(headline) ? { partOfTarget: true } : {}),
   };

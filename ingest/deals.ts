@@ -635,6 +635,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
       ...(fromSigning ? { dateIsSigning: true } : {}),
       acquirer: company(parsed.acquirer, acquirer),
       ...(parsed.item101 ? { buyerFromItem101: true } : {}),
+      ...(parsed.amended ? { termsAmended: true } : {}),
       ...(parsed.partOfTarget ? { partOfTarget: true } : {}),
       target: company(parsed.target, target),
       valueUsd: null,
@@ -666,7 +667,8 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   const earlier = parsed.kind === "announcement" && announced < deal.announcedDate;
   const filedFirst = deal.filings[0]?.filedDate;
   const reallyFirst = !!filedFirst && hit.fileDate < filedFirst;
-  const prefer = earlier && (!parsed.item101 || reallyFirst);
+  // (Not over a raised offer: Pluralsight's December signing, read after its March revision, stays history at $20.26.)
+  const prefer = earlier && (!parsed.item101 || reallyFirst) && !deal.termsAmended;
   const signingRelease = !parsed.item101 && parsed.kind === "announcement" && !!deal.buyerFromItem101 && thisSigning(deal);
   const set = <K extends "valueUsd" | "pricePerShare" | "premiumPct" | "consideration">(k: K, v: StoredDeal[K]) => {
     if (v != null && (deal![k] == null || prefer || (signingRelease && k === "consideration"))) deal![k] = v;
@@ -701,6 +703,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
     delete deal.valueImplied;
     if (deal.valueUsd == null) deal.valueCheck = VALUE_CHECK_VERSION;
     deal.financialsCheckedAt = null;
+    deal.termsAmended = true;
   }
   // A signing doesn't move a date a release gave (Friday's signing, Monday's release, Wednesday's 8-K), and a release's
   // date replaces a signing's.
@@ -742,6 +745,9 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   ) {
     deal.acquirer.name = parsed.acquirer.name;
   }
+  // One release replaces the bare 8-K's value, not each document after it: AES's DEFA14A, the same 8-K wrapped, put $10.7B back
+  // over its release's $33.4B.
+  if (signingRelease && parsed.valueUsd != null) delete deal.buyerFromItem101;
   deal.acquirer.ticker ??= acquirer.ticker;
   deal.acquirer.cik ??= acquirer.cik;
   deal.acquirerAdvisors = [...new Set([...deal.acquirerAdvisors, ...parsed.acquirerAdvisors])];

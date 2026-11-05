@@ -18,6 +18,8 @@ export interface StoredDeal extends Deal {
   sources: string[];
   /** The announced date is only the signing an Item 1.01 states: a release's own date replaces it, later or not. */
   dateIsSigning?: boolean;
+  /** The terms are a raised offer's: a document found later that predates it moves the date, not the price. */
+  termsAmended?: boolean;
   /** A named part of the company, beside another buyer's deal for the rest: neither tops the other. */
   partOfTarget?: boolean;
   /** The buyer came from a bare Item 1.01, whose vehicle or shell the release of the same signing may name better. */

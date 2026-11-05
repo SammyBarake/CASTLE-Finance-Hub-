@@ -230,6 +230,14 @@ describe("a bare 8-K read before its own release", () => {
     expect(state.deals[0]).toMatchObject({ acquirer: { name: "TowerBrook and CD&R" }, valueUsd: 33_400_000_000, valueKind: "enterprise", consideration: "Cash", pricePerShare: 15 });
   });
 
+  it("gives way to one release only: the same 8-K wrapped in a DEFA14A doesn't put its value back (AES)", () => {
+    const state = emptyState();
+    applyParsed(state, item("Horizon Parent, L.P.", { pricePerShare: 15, valueUsd: 10_700_000_000, valueKind: "equity" }), hit("2026-03-02", "0001-26-1"), target, unlisted, false);
+    applyParsed(state, release("Consortium Led by GIP and EQT", { valueUsd: 33_400_000_000, valueKind: "enterprise", announcedOn: undefined }), hit("2026-03-02", "0001-26-2"), target, unlisted, false);
+    applyParsed(state, release("Consortium", { valueUsd: 10_700_000_000, valueKind: "equity", announcedOn: undefined }), hit("2026-03-02", "0001-26-3"), target, unlisted, false);
+    expect(state.deals[0]).toMatchObject({ valueUsd: 33_400_000_000, valueKind: "enterprise" });
+  });
+
   it("keeps its buyer against a release calling it a description (Heidrick / Advent's Investor Consortium)", () => {
     const state = emptyState();
     applyParsed(state, item("Advent International"), hit("2026-03-03", "0001-26-1"), target, unlisted, false);
@@ -255,6 +263,21 @@ describe("a raised offer", () => {
     const state = signed();
     applyParsed(state, parsed("update", "Atlas Holdings LLC", { amended: true, pricePerShare: 22.5 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
     expect(state.deals[0]).toMatchObject({ pricePerShare: 22.5, valueUsd: null, premiumPct: null });
+  });
+
+  it("stands when its signing, older, is read after it (Pluralsight: March's $22.50, then December's $20.26 from the backstop)", () => {
+    const state = emptyState();
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { amended: true, pricePerShare: 22.5 }), hit("2021-03-08", "0001-21-2"), target, unlisted, false);
+    applyParsed(state, parsed("announcement", "Atlas Holdings LLC", { pricePerShare: 20.26, valueUsd: 3_500_000_000, valueKind: "transaction" }), hit("2020-12-14", "0001-20-1"), target, unlisted, false);
+    expect(state.deals[0]).toMatchObject({ pricePerShare: 22.5, announcedDate: "2020-12-14" });
+  });
+
+  it("through a restated agreement under the same shell (Squarespace $44 to $46.50)", () => {
+    const state = emptyState();
+    applyParsed(state, parsed("announcement", "Spaceship Purchaser, Inc.", { item101: true, pricePerShare: 44, signedOn: "2024-05-13" }), hit("2024-05-13", "0001-24-1"), target, unlisted, false);
+    applyParsed(state, parsed("announcement", "Spaceship Purchaser, Inc.", { item101: true, amended: true, pricePerShare: 46.5, signedOn: "2024-09-09" }), hit("2024-09-09", "0001-24-2"), target, unlisted, false);
+    expect(state.deals).toHaveLength(1);
+    expect(state.deals[0].pricePerShare).toBe(46.5);
   });
 
   it("needs its own words: another document's higher price doesn't replace it", () => {

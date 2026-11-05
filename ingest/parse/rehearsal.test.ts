@@ -346,3 +346,20 @@ describe("what the second review of the rehearsal found", () => {
     expect(closingNames("Item 1.01. See Item 2.01 below. The merger with Innovex is a condition. Item 2.01 Completion of Acquisition. The Company completed the separation of Grafiti. Item 9.01 Exhibits.", named)).toBe(false);
   });
 });
+
+describe("a raised offer's words", () => {
+  const ctx2 = { filerName: "Pluralsight, Inc.", filerTickers: ["PS"] };
+
+  it("a release amending its agreement to increase the price (Pluralsight)", () => {
+    const p = parsePressRelease("Pluralsight and Vista Equity Partners Amend Definitive Agreement to Increase Offer Price to $22.50 Per Share in Cash\nFARMINGTON, Utah, March 8, 2021 - Pluralsight, Inc. (NASDAQ: PS) and Vista Equity Partners today announced a revised definitive agreement under which Vista will acquire all outstanding shares of Pluralsight for $22.50 in cash.", ctx2);
+    expect(p?.amended).toBe(true);
+    expect(p?.pricePerShare).toBe(22.5);
+  });
+
+  it("an 8-K restating its merger agreement (Squarespace), and not an ordinary signing", () => {
+    const item = (agreement: string) =>
+      parseMergerItem(`Item 1.01 Entry into a Material Definitive Agreement. On September 9, 2024, Bluebird, Inc. (the "Company") entered into an ${agreement} with Bluejay Purchaser, Inc. ("Parent") and Bluejay MergerCo, Inc. ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Company. Each share will be converted into the right to receive $46.50 in cash.`, { filerName: "Bluebird, Inc.", filerTickers: [] });
+    expect(item("Amended and Restated Agreement and Plan of Merger")?.amended).toBe(true);
+    expect(item("Agreement and Plan of Merger")?.amended).toBeUndefined();
+  });
+});
