@@ -228,6 +228,11 @@ describe("a list of defined terms", () => {
       item(`Securities Purchase Agreement On August 14, 2015, Tempus Applied Solutions Holdings, Inc. (the "Company", "Tempus Holdings", "we" or "us") entered into a Securities Purchase Agreement with Chart Acquisition Group LLC ("CAG"), under which the Investors acquired from the Company, for an aggregate purchase price of $1 million, 250,000 shares and warrants. The warrants adjust upon a merger, a purchase, tender or exchange offer, or a scheme of arrangement.`, "Tempus Applied Solutions Holdings, Inc."),
     ).toBeNull();
   });
+  it("Dana: a Reverse Morris Trust is a spun-off business combining with the filer, not Eaton buying Dana", () => {
+    expect(
+      item(`On June 10, 2026, Dana Incorporated, a Delaware corporation ("Dana"), entered into definitive agreements with Eaton Corporation plc, an Irish public limited company ("Eaton"), Mobility (USA) Corporation, a Delaware corporation and a wholly owned subsidiary of Eaton ("SpinCo"), and Atlas Mobility Sub, Inc., a Delaware corporation and a wholly owned subsidiary of SpinCo ("Merger Sub"), with respect to a Reverse Morris Trust transaction. Pursuant to the Agreement and Plan of Merger (the "Merger Agreement"), Merger Sub will merge with and into Dana, with Dana surviving as a wholly owned subsidiary of SpinCo.`, "DANA INC"),
+    ).toBeNull();
+  });
   it("an offer the 8-K makes still reads", () => {
     const p = item(`On May 1, 2024, Acme Therapeutics, Inc. (the "Company") entered into an Agreement and Plan of Merger (the "Merger Agreement") with Big Pharma Inc. ("Parent") and Bolt Sub, Inc. ("Merger Sub"). Merger Sub will commence a cash tender offer (the "Offer") for all of the outstanding shares of the Company's common stock at $12.00 per share.`, "Acme Therapeutics, Inc.");
     expect(p?.target.name).toBe("Acme Therapeutics, Inc.");

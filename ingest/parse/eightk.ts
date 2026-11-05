@@ -84,6 +84,10 @@ export function item101(text: string): string | null {
   if (first && /asset purchase|purchase and sale/i.test(first[1])) return null;
   // One business dropped into the shell first: "will acquire all outstanding shares of common stock of the Company which, following the proposed reorganization, will hold the Company's Atlantic Aviation business" (KKR / Macquarie Infrastructure).
   if (/\bwill\s+acquire\b[^.]{0,120}\bwhich\b[^.]{0,80}\bwill\s+hold\b[^.]{0,80}\bbusiness\b/i.test(section.slice(0, 1200))) return null;
+  // A Reverse Morris Trust is a spun-off business combining with the filer, a carve-out on one side: "with respect to a
+  // Reverse Morris Trust transaction … Eaton's Vehicle and eMobility business segments" (Dana, whose holders keep 49.9%), not
+  // Eaton buying Dana.
+  if (/\bReverse Morris Trust\b/i.test(section.slice(0, 3000))) return null;
   return section;
 }
 

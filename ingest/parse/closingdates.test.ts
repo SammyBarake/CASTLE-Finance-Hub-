@@ -43,6 +43,21 @@ describe("the closing day a buyer's 8-K states", () => {
   });
 });
 
+describe("a closing stated without \"completed\"", () => {
+  it("Inpixon / XTI: the Closing Date the Introductory Note defines", () => {
+    const k = `Introductory Note As previously described in a current report on Form 8-K filed on July 25, 2023, on July 24, 2023, Inpixon, a Nevada corporation ("Inpixon," or the "Company"), entered into an Agreement and Plan of Merger (as amended, the "Merger Agreement") by and among Inpixon, Superfly Merger Sub Inc. ("Merger Sub"), and XTI Aircraft Company, a Delaware corporation ("XTI"). Pursuant to the Merger Agreement, on March 12, 2024 (the "Closing Date"), Merger Sub merged with and into XTI (the "Merger"), with XTI surviving the Merger as a wholly-owned subsidiary of Inpixon. Item 2.01 Completion of Acquisition or Disposition of Assets. The information in the Introductory Note is incorporated herein by reference.`;
+    expect(statedClosingDay(k, /\bXTI Aircraft\b/i, "2023-07-25", "2024-03-15")).toBe("2024-03-12");
+  });
+  it("the day nearest before the words, a completed sentence first, and no name change", () => {
+    const fast = `Introductory Note As described in the proxy statement/prospectus filed with the SEC on September 15, 2023, the Business Combination was effected in two steps: (a) on October 5, 2023 (the "SPAC Merger Effective Time"), FAST II merged with and into Pubco (the "SPAC Merger"). Item 9.01 Exhibits.`;
+    expect(statedClosingDay(fast, /\bFalcon\b/, "2023-01-31", "2023-10-11")).toBe("2023-10-05");
+    const both = `Introductory Note On March 16, 2020 (the "Closing Date"), Merger Sub merged with and into the Company. Item 2.01 Completion of Acquisition or Disposition of Assets. On March 17, 2020, the Company completed the acquisition. Item 9.01 Exhibits.`;
+    expect(statedClosingDay(both, /\bZZZ\b/, "2019-11-03", "2020-03-20")).toBe("2020-03-17");
+    const rename = `Item 2.01 Completion of Acquisition or Disposition of Assets. On August 18, 2011, we filed a Certificate of Ownership and Merger whereby our wholly owned subsidiary was merged with and into the Company and the Company adopted the name of the subsidiary. Item 9.01 Exhibits.`;
+    expect(statedClosingDay(rename, /\bZZZ\b/, "2011-01-01", "2011-08-26")).toBeNull();
+  });
+});
+
 describe("iSun: the 10-K dates it instead", () => {
   it("reads \"we acquired\" with its day", () => {
     const tenK = `On January 19, 2021, we completed a business combination (the "Merger Agreement") pursuant to which we acquired iSun Energy LLC ("iSun Energy, LLC").`;

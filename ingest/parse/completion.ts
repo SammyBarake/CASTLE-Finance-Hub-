@@ -273,21 +273,33 @@ export function statedClosingDay(text: string, named: RegExp, announcedDate: str
   const main = [...sentencesOf(item201), ...sentencesOf(section(flat, INTRO_NOTE))];
   // (An 8-K is due in four business days: a day long before it is something else. Of 735 cached 8-Ks with an Item 2.01, those were another deal's or an offering's.)
   const floor = new Date(Date.parse(fileDate) - 30 * 86_400_000).toISOString().slice(0, 10);
+  const inRange = (day: string | null) => (day && day > announcedDate && day >= floor && day <= fileDate ? day : null);
   const read = (s: string) => {
     const at = s.search(DONE_VERB);
     if (at < 0 || CONDITIONAL.test(s.slice(0, at)) || /\b(?:entered into|amended|issued)\b/i.test(s.slice(0, at))) return null;
-    const day = statedDate(s.replace(AGREEMENT_DAY, " "));
-    return day && day > announcedDate && day >= floor && day <= fileDate ? day : null;
+    return inRange(statedDate(s.replace(AGREEMENT_DAY, " ")));
+  };
+  // Only where no sentence says completed, consummated or closed: "on March 12, 2024 (the "Closing Date"), Merger Sub merged with and into
+  // XTI" (Inpixon). The day nearest before those words ("filed with the SEC on September 15, 2023, … on October 5, 2023 …, FAST II merged
+  // with and into Pubco"), not a name change ("our wholly owned subsidiary … was merged with and into the Company and the Company adopted the name").
+  const readMerged = (s: string) => {
+    const m = /\bmerged\s+with\s+and\s+into\b|\(\s*the\s+["“]\s*Closing Date\s*["”]\s*\)/i.exec(s);
+    if (!m || CONDITIONAL.test(s.slice(0, m.index)) || /\b(?:amended|issued)\b/i.test(s.slice(0, m.index)) || /\b(?:adopted the name|change (?:in|of) (?:our|its|the Company['’]s) (?:corporate )?name)\b/i.test(s)) return null;
+    const before = s.slice(0, m.index + m[0].length).replace(AGREEMENT_DAY, " ");
+    const days = [...before.matchAll(/\b(?:on|effective(?: as of)?|as of)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi)];
+    return inRange(days.length ? statedDate(days[days.length - 1][0]) : statedDate(s.replace(AGREEMENT_DAY, " ")));
   };
   // Item 1.01 goes on to credit facilities and notes: by another deal word only when Item 2.01 sends the reader there (BurgerFi's "Stock Acquisition").
   const pointsToItem101 = item201.length < 400 && /\bItem\s*1\.01\b/i.test(item201) && /\bincorporated\b/i.test(item201);
-  for (const s of [...main, ...item101]) {
-    const day = named.test(s) ? read(s) : null;
-    if (day) return day;
-  }
-  for (const s of pointsToItem101 ? [...main, ...item101] : main) {
-    const day = CLOSED_DEAL_WORD.test(s) ? read(s) : null;
-    if (day) return day;
+  for (const reader of [read, readMerged]) {
+    for (const s of [...main, ...item101]) {
+      const day = named.test(s) ? reader(s) : null;
+      if (day) return day;
+    }
+    for (const s of pointsToItem101 ? [...main, ...item101] : main) {
+      const day = CLOSED_DEAL_WORD.test(s) ? reader(s) : null;
+      if (day) return day;
+    }
   }
   return null;
 }
