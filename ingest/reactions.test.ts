@@ -167,6 +167,38 @@ describe("carryReactions", () => {
     expect(carryReactions(first.unplaced, next)).toEqual({ carried: 1, unplaced: [] });
   });
 
+  it("finds a record whose buyer isn't linked yet through its target, and gives the link back (Gray Television, today Gray Media)", () => {
+    const gray = { name: "Gray Television, Inc.", ticker: "GTN", cik: "43196" };
+    const target = { name: "Meredith Corp", ticker: "MDP", cik: "65011" };
+    const rebuilt = deal({ id: "65011-2021-05-03-2", announcedDate: "2021-05-03", acquirer: { name: "Gray Television Inc", ticker: null, cik: null }, target });
+    expect(carryReactions([held({ id: "65011-2021-05-03", announcedDate: "2021-05-03", acquirer: gray, target })], [rebuilt])).toMatchObject({ carried: 1, unplaced: [] });
+    expect(rebuilt.reaction).toEqual(reaction);
+    expect(rebuilt.acquirer).toMatchObject({ cik: "43196", ticker: "GTN" });
+  });
+
+  it("compares a private target once cleaned, as tidy will clean it (\"Westfield Jointly\")", () => {
+    const buyer = { name: "Unibail-Rodamco SE", ticker: "URW", cik: "1" };
+    const rebuilt = [deal({ id: "new", announcedDate: "2024-03-04", acquirer: buyer, target: { name: "Westfield", ticker: null, cik: null } })];
+    expect(carryReactions([held({ id: "old", acquirer: buyer, target: { name: "Westfield Jointly", ticker: null, cik: null } })], rebuilt).carried).toBe(1);
+  });
+
+  it("leaves nothing parked for a figure the same buyer's record of those days holds: that deal under another name (Regency / UBP = Urstadt Biddle)", () => {
+    const buyer = { name: "Regency Centers Corp", ticker: "REG", cik: "910606" };
+    const record = deal({ id: "1-2023-05-18", announcedDate: "2023-05-18", acquirer: buyer, target: { name: "Urstadt Biddle Properties Inc", ticker: "UBA", cik: "1034563" }, reaction });
+    const r = carryReactions([held({ id: "p-ubp-2023-05-18", announcedDate: "2023-05-18", acquirer: buyer, target: { name: "UBP", ticker: null, cik: null } })], [record]);
+    expect(r.unplaced).toEqual([]);
+    expect(record.reaction).toEqual(reaction);
+  });
+
+  it("takes a figure from the wrong day off the record holding it, and parks it (Fincastle's closing-day figure on the February record)", () => {
+    const buyer = { name: "First National Corp", ticker: "FXNC", cik: "719402" };
+    const target = { name: "The Bank of Fincastle", ticker: null, cik: null };
+    const record = deal({ id: "p-bank-of-fincastle-2021-02-20", announcedDate: "2021-02-20", acquirer: buyer, target, reaction });
+    const r = carryReactions([held({ id: "p-bank-of-fincastle-2021-07-01", announcedDate: "2021-07-01", acquirer: buyer, target })], [record]);
+    expect(r.unplaced.map((h) => h.id)).toEqual(["p-bank-of-fincastle-2021-07-01"]);
+    expect(record.reaction).toBeUndefined();
+  });
+
   it("holds only what it needs, from the deals that have a reaction", () => {
     const held1 = heldReactions([deal(), held({ sources: ["a"], filings: [] })]);
     expect(held1).toHaveLength(1);

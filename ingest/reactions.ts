@@ -8,7 +8,7 @@
  * doesn't prove that: ids are target + date, so a rival announcing that day, or a buyer the parsers now read differently
  * (a buyout firm once linked to a listed company of the same name), can hold the same one.
  */
-import { normalizeName, notTheSponsor } from "./parse/names";
+import { cleanPartyName, normalizeName, notTheSponsor } from "./parse/names";
 import type { StoredDeal } from "./store";
 
 /** A stored reaction and what it takes to find its deal again. */
@@ -51,13 +51,15 @@ export function sameBuyer(a: HeldReaction["acquirer"], b: HeldReaction["acquirer
   return !!name && name === normalizeName(b.name) && !notTheSponsor(a.name, b.name) && !notTheSponsor(b.name, a.name);
 }
 
+// Compared once cleaned, as tidy will clean it ("IGY Marinas Significantly", "Westfield Jointly").
+const targetName = (n: string) => normalizeName(cleanPartyName(n));
 const sameTarget = (a: HeldReaction["target"], b: HeldReaction["target"]) => {
   if (a.cik && b.cik) return a.cik === b.cik;
-  const name = normalizeName(a.name);
-  return !!name && name === normalizeName(b.name);
+  const name = targetName(a.name);
+  return !!name && name === targetName(b.name);
 };
 
-const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= MAX_DAYS_APART * DAY;
+export const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= MAX_DAYS_APART * DAY;
 
 /**
  * Hands each reaction in `old` on to its deal's record in `next`: the same id with the same buyer, else the same buyer
@@ -71,6 +73,10 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
   const buyerKeys = (a: HeldReaction["acquirer"]) => [a.cik ? `c:${a.cik}` : null, a.ticker ? `t:${a.ticker.toUpperCase()}` : null].filter((k): k is string => !!k);
   const byBuyer = new Map<string, StoredDeal[]>();
   for (const d of next) for (const k of buyerKeys(d.acquirer)) byBuyer.set(k, [...(byBuyer.get(k) ?? []), d]);
+  // A record whose buyer isn't linked yet (a registrant renamed since: Gray Television, today Gray Media) is found through its target.
+  const targetKey = (t: HeldReaction["target"]) => (t.cik ? `c:${t.cik}` : `n:${targetName(t.name)}`);
+  const byTarget = new Map<string, StoredDeal[]>();
+  for (const d of next) byTarget.set(targetKey(d.target), [...(byTarget.get(targetKey(d.target)) ?? []), d]);
 
   let carried = 0;
   const unplaced: HeldReaction[] = [];
@@ -87,9 +93,7 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
     const record =
       sameDeal && near(held.announcedDate, sameDeal.announcedDate)
         ? sameDeal
-        : buyerKeys(held.acquirer)
-            .flatMap((k) => byBuyer.get(k) ?? [])
-            .find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));
+        : [...buyerKeys(held.acquirer).flatMap((k) => byBuyer.get(k) ?? []), ...(byTarget.get(targetKey(held.target)) ?? []).filter((d) => sameBuyer(held.acquirer, d.acquirer))].find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));
     if (!record) {
       unplaced.push(held);
       continue;
@@ -97,7 +101,24 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
     if (record.reaction) continue;
     record.reaction = held.reaction;
     if (held.reactionCheckedAt) record.reactionCheckedAt = held.reactionCheckedAt;
+    // The figure's buyer was linked; a record that lost the link by name gets it back.
+    record.acquirer.cik ??= held.acquirer.cik;
+    record.acquirer.ticker ??= held.acquirer.ticker;
     carried++;
   }
-  return { carried, unplaced };
+  // One figure, one place. Unplaced, but the same buyer's record of about that day holds the very figure: that deal under another name (UBP =
+  // Urstadt Biddle), nothing to park. A record dated further off holds a figure from the wrong day (Fincastle's closing-day figure on the February
+  // record): it leaves the record and stays parked.
+  const same = (a: HeldReaction, d: StoredDeal) => !!d.reaction && JSON.stringify(d.reaction) === JSON.stringify(a.reaction) && sameBuyer(a.acquirer, d.acquirer);
+  const parked: HeldReaction[] = [];
+  for (const h of unplaced) {
+    const holders = [...buyerKeys(h.acquirer).flatMap((k) => byBuyer.get(k) ?? []), ...(byTarget.get(targetKey(h.target)) ?? [])].filter((d) => same(h, d));
+    if (holders.some((d) => near(h.announcedDate, d.announcedDate))) continue;
+    for (const d of holders) {
+      delete d.reaction;
+      delete d.reactionCheckedAt;
+    }
+    parked.push(h);
+  }
+  return { carried, unplaced: parked };
 }

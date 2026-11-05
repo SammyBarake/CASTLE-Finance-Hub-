@@ -3,7 +3,7 @@
  * it also repairs records stored before a rule existed. Each rule mirrors a check in `audit-rules.ts`.
  */
 import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
-import { sameBuyer } from "./reactions";
+import { near, sameBuyer } from "./reactions";
 import { saneFee } from "./parse/terms";
 import type { StoredDeal } from "./store";
 
@@ -151,6 +151,159 @@ export interface TidyResult {
   sanitized: number;
 }
 
+const daysApart = (a: StoredDeal, b: StoredDeal) => Math.abs(days(a.announcedDate, b.announcedDate));
+const listedBuyer = (a: StoredDeal, b: StoredDeal) => (!!a.acquirer.cik && a.acquirer.cik === b.acquirer.cik) || (!!a.acquirer.ticker && !!b.acquirer.ticker && a.acquirer.ticker.toUpperCase() === b.acquirer.ticker.toUpperCase());
+const namedBuyer = (a: StoredDeal, b: StoredDeal) => listedBuyer(a, b) || ((!a.acquirer.cik || !b.acquirer.cik) && sameCompany(a.acquirer.name, b.acquirer.name));
+const within = (x: number | null, y: number | null, tolerance: number) => x == null || y == null || Math.abs(x - y) <= tolerance * Math.max(x, y);
+const paidAlike = (a: StoredDeal, b: StoredDeal) => !a.consideration || !b.consideration || a.consideration === b.consideration || a.consideration === "Mixed" || b.consideration === "Mixed";
+const nothingDiffers = (a: StoredDeal, b: StoredDeal) => within(a.valueUsd, b.valueUsd, 0.02) && within(a.pricePerShare, b.pricePerShare, 0.001) && paidAlike(a, b);
+const filerCiks = (d: StoredDeal) => new Set(d.filings.map((f) => Number(/edgar\/data\/(\d+)\//.exec(f.url)?.[1])));
+const accessions = (d: StoredDeal) => new Set(d.sources.map((s) => s.split(":")[0]));
+const shareFiling = (a: StoredDeal, b: StoredDeal) => {
+  const other = accessions(b);
+  return [...accessions(a)].some((x) => other.has(x));
+};
+const closedTogether = (a: StoredDeal, b: StoredDeal) => a.status === "Closed" && b.status === "Closed" && !!a.statusDate && a.statusDate === b.statusDate;
+const nameInside = (a: string, b: string) => {
+  const [x, y] = [normalizeName(a), normalizeName(b)];
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 5 && ` ${long} `.includes(` ${short} `);
+};
+
+/**
+ * Why two records are one deal stored under two names, or null. Every test needs a listed buyer or a filing in common, because a
+ * serial buyer's deals look alike: Prosperity's two Texas banks of one day, Onfolio's and IonQ's purchases, CarGurus's two CarOffer stakes all stay apart.
+ */
+export function oneDeal(a: StoredDeal, b: StoredDeal): string | null {
+  if (a.partOfTarget || b.partOfTarget) return null;
+  const [privateA, privateB] = [!!a.privateTarget, !!b.privateTarget];
+  if (privateA !== privateB) {
+    const [copy, listed] = privateA ? [a, b] : [b, a];
+    if (!listed.target.cik) return null;
+    if (copy.acquirer.cik && Number(copy.acquirer.cik) === Number(listed.target.cik)) return null;
+    // The private "target" is a listed company in its own filing's words (Baxter / "HILLROM", DoorDash / "Instacart").
+    if (namedBuyer(copy, listed) && daysApart(copy, listed) <= 400 && filerCiks(copy).has(Number(listed.target.cik))) return "filed by the listed target";
+    if (listedBuyer(copy, listed) && daysApart(copy, listed) <= 1 && nothingDiffers(copy, listed)) return "same buyer, same day, no figure differs";
+    return null;
+  }
+  if (privateA && privateB) {
+    if (!listedBuyer(a, b)) return null;
+    // A holding company and the business it holds: Vroom / Unitas Holdings and United Auto Credit, both $300M.
+    if (a.valueUsd != null && a.valueUsd === b.valueUsd && daysApart(a, b) <= 7) return "same stated value within a week";
+    if (closedTogether(a, b) && a.consideration && b.consideration && nothingDiffers(a, b) && (daysApart(a, b) <= 2 || (shareFiling(a, b) && daysApart(a, b) <= 120))) return "closed the same day, same payment";
+    if (closedTogether(a, b) && nameInside(a.target.name, b.target.name) && daysApart(a, b) <= 730) return "closed the same day, one name inside the other";
+    return null;
+  }
+  // Two registrants trading as one (Crestwood Equity and Crestwood Midstream, both CEQP).
+  if (listedBuyer(a, b) && a.target.cik !== b.target.cik && !!a.target.ticker && a.target.ticker.toUpperCase() === b.target.ticker?.toUpperCase() && daysApart(a, b) <= 14) return "same buyer and target ticker";
+  return null;
+}
+
+const FILLED_FROM_THE_COPY = ["valueUsd", "pricePerShare", "premiumPct", "consideration", "enterpriseValueUsd", "evEbitda", "evEbitdaReported", "evRevenue", "valueKind"] as const;
+function fillBlank<K extends keyof StoredDeal>(keep: StoredDeal, extra: StoredDeal, key: K) {
+  if (keep[key] == null && extra[key] != null) keep[key] = extra[key];
+}
+const byFiledDate = (a: { filedDate: string }, b: { filedDate: string }) => a.filedDate.localeCompare(b.filedDate);
+
+/** Folds a copy into the record that stays. A share-price figure moves only if it was measured around the announcement (a closing-day one parks). */
+function fold(keep: StoredDeal, extra: StoredDeal) {
+  if (!keep.acquirer.cik && extra.acquirer.cik && sameCompany(keep.acquirer.name, extra.acquirer.name)) keep.acquirer = { ...extra.acquirer };
+  if (sameBuyer(keep.acquirer, extra.acquirer)) {
+    const earlier = extra.announcedDate < keep.announcedDate && !extra.dateIsSigning;
+    if (earlier && extra.reaction) {
+      keep.reaction = extra.reaction;
+      keep.reactionCheckedAt = extra.reactionCheckedAt;
+    } else if (near(keep.announcedDate, extra.announcedDate)) keep.reaction ??= extra.reaction;
+    if (keep.reaction) keep.reactionCheckedAt ??= extra.reactionCheckedAt;
+  }
+  const signingOnly = !!extra.dateIsSigning && daysApart(keep, extra) <= 5;
+  if (extra.announcedDate < keep.announcedDate && !signingOnly) {
+    keep.announcedDate = extra.announcedDate;
+    if (extra.dateIsSigning) keep.dateIsSigning = true;
+    else delete keep.dateIsSigning;
+  } else if (keep.dateIsSigning && !extra.dateIsSigning && extra.announcedDate > keep.announcedDate && daysApart(keep, extra) <= 5) {
+    keep.announcedDate = extra.announcedDate;
+    delete keep.dateIsSigning;
+    if (extra.reaction && sameBuyer(keep.acquirer, extra.acquirer)) {
+      keep.reaction = extra.reaction;
+      keep.reactionCheckedAt = extra.reactionCheckedAt;
+    }
+  }
+  for (const key of FILLED_FROM_THE_COPY) fillBlank(keep, extra, key);
+  keep.targetAdvisors = [...new Set([...keep.targetAdvisors, ...extra.targetAdvisors])];
+  keep.acquirerAdvisors = [...new Set([...keep.acquirerAdvisors, ...extra.acquirerAdvisors])].filter((bank) => !keep.targetAdvisors.includes(bank));
+  for (const f of extra.filings) if (!keep.filings.some((x) => x.url === f.url)) keep.filings.push(f);
+  keep.filings.sort(byFiledDate);
+  keep.sources = [...new Set([...keep.sources, ...extra.sources])];
+  if ((keep.status === "Announced" || keep.status === "Pending") && (extra.status === "Closed" || extra.status === "Terminated") && keep.privateTarget) {
+    keep.status = extra.status;
+    keep.statusDate = extra.statusDate;
+  }
+}
+
+const documented = (d: StoredDeal) => (d.privateTarget ? 0 : 100) + d.sources.length + (d.valueUsd != null ? 2 : 0) + (d.premiumPct != null ? 1 : 0) + (d.acquirer.cik ? 1 : 0);
+
+/** Merges one deal stored as two records. The better documented stays, under its id. */
+export function mergeSplitRecords(deals: StoredDeal[]) {
+  const made: { keep: StoredDeal; extra: StoredDeal; why: string }[] = [];
+  const firstWord = (d: StoredDeal) => `n:${normalizeName(d.acquirer.name).split(" ")[0]}`;
+  const groups = new Map<string, StoredDeal[]>();
+  for (const d of deals) {
+    const keys = new Set([firstWord(d), ...(d.acquirer.cik ? [`c:${d.acquirer.cik}`] : []), ...(d.acquirer.ticker ? [`t:${d.acquirer.ticker.toUpperCase()}`] : [])]);
+    for (const k of keys) groups.set(k, [...(groups.get(k) ?? []), d]);
+  }
+  const gone = new Set<StoredDeal>();
+  const tried = new Set<string>();
+  for (const group of groups.values()) {
+    for (let i = 0; i < group.length; i++)
+      for (let j = i + 1; j < group.length; j++) {
+        const [a, b] = [group[i], group[j]];
+        if (gone.has(a) || gone.has(b)) continue;
+        const pair = [a.id, b.id].sort().join("|");
+        if (tried.has(pair)) continue;
+        tried.add(pair);
+        const why = oneDeal(a, b);
+        if (!why) continue;
+        const [keep, extra] = documented(a) > documented(b) || (documented(a) === documented(b) && a.announcedDate <= b.announcedDate) ? [a, b] : [b, a];
+        fold(keep, extra);
+        gone.add(extra);
+        made.push({ keep, extra, why });
+      }
+  }
+  for (const d of gone) deals.splice(deals.indexOf(d), 1);
+  return made;
+}
+
+/**
+ * One deal read both ways round, where the "buyer" of a private target is the listed company being bought: Seacor buying "American Industrial
+ * Partners" (Apollo / New Home too). The record whose target filed a proxy or tender response stays, unless it is a stock deal of the same stated
+ * value: then the listed company is issuing the shares (JFB Construction merging in XTEND, "XTEND buying JFB"), and the private record stays with its status.
+ */
+export function reversedCopies(deals: StoredDeal[]) {
+  const made: { keep: StoredDeal; extra: StoredDeal }[] = [];
+  const proxyFirst = (d: StoredDeal) => /^(?:PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T)$/.test(d.milestones?.firstFiling?.form ?? "");
+  for (const x of deals.filter((d) => !d.privateTarget && d.target.cik)) {
+    const back = deals.find((y) => y.privateTarget && y.acquirer.cik === x.target.cik && sameCompany(y.target.name, x.acquirer.name) && daysApart(x, y) <= 180);
+    if (!back || !proxyFirst(x)) continue;
+    if (x.consideration === "Stock" && back.valueUsd != null && back.valueUsd === x.valueUsd) {
+      back.status = x.status;
+      back.statusDate = x.statusDate;
+      back.filings = [...x.filings, ...back.filings].sort(byFiledDate);
+      back.sources = [...new Set([...back.sources, ...x.sources])];
+      back.acquirerAdvisors = [...new Set([...back.acquirerAdvisors, ...x.targetAdvisors])];
+      back.targetAdvisors = [...new Set([...back.targetAdvisors, ...x.acquirerAdvisors])];
+      deals.splice(deals.indexOf(x), 1);
+      made.push({ keep: back, extra: x });
+      continue;
+    }
+    for (const key of ["valueUsd", "consideration", "valueKind"] as const) fillBlank(x, back, key);
+    x.sources = [...new Set([...x.sources, ...back.sources])];
+    deals.splice(deals.indexOf(back), 1);
+    made.push({ keep: x, extra: back });
+  }
+  return made;
+}
+
 export function tidyDeals(deals: StoredDeal[]): TidyResult {
   const result: TidyResult = { dropped: [], merged: 0, topped: 0, sanitized: 0 };
   const drop = (d: StoredDeal, reason: string) => {
@@ -282,6 +435,16 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
     }
   }
 
+  // One deal stored under two names, and the same deal read both ways round with a listed buyer.
+  for (const m of mergeSplitRecords(deals)) {
+    result.dropped.push({ id: m.extra.id, reason: `same deal as ${m.keep.id}: ${m.why}` });
+    result.merged++;
+  }
+  for (const m of reversedCopies(deals)) {
+    result.dropped.push({ id: m.extra.id, reason: `same deal as ${m.keep.id} read backwards` });
+    result.merged++;
+  }
+
   // Group by target: the CIK for listed targets, the name for private ones.
   const byTarget = new Map<string, StoredDeal[]>();
   for (const d of deals) {
@@ -313,6 +476,11 @@ export function tidyDeals(deals: StoredDeal[]): TidyResult {
         // (Optum over Option Care for Amedisys, MITER over Masonite for PGT): that agreement was terminated.
         // (Not a named part of the company, beside another buyer's deal for the rest: IAC and Gray each bought part of Meredith.)
         if (earlier.partOfTarget || later.partOfTarget) continue;
+        // An agreement can't end after a rival has signed with the target: this date is the rival's (Frontier / Spirit read JetBlue's March 2024 termination, the "revival" rule having skipped July 2022's). Blank, not wrong.
+        if (!sameBuyer && earlier.target.cik && earlier.status === "Terminated" && earlier.statusDate && earlier.statusDate > later.announcedDate) {
+          earlier.statusDate = null;
+          earlier.milestones = undefined;
+        }
         if (!sameBuyer && earlier.target.cik && gap > 0 && gap <= 120 && earlier.status !== "Terminated" && later.status !== "Terminated") {
           earlier.status = "Terminated";
           earlier.statusDate = later.announcedDate;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { completedAround, isSigningFor, listedOn, provablyUnlistedOn, registrantMatches, takenOverAround } from "./deals";
 import { nameOn } from "./edgar";
-import { junkReason, putReleaseFirst, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
+import { junkReason, mergeSplitRecords, oneDeal, putReleaseFirst, reversedCopies, sanitizeDeal, SPAC_NAME, tidyDeals } from "./tidy";
 import type { StoredDeal } from "./store";
 
 describe("putReleaseFirst", () => {
@@ -518,5 +518,146 @@ describe("merging a duplicate", () => {
     tidyDeals([gm, ge]);
     expect(gm.reaction).toBeUndefined();
     expect(gm.reactionCheckedAt).toBeUndefined();
+  });
+});
+
+describe("one deal stored as two records", () => {
+  const EDGAR = "https://www.sec.gov/Archives/edgar/data";
+  const figure = (twoDay: number) => ({ twoDay } as unknown as StoredDeal["reaction"]);
+  const buyer = (name: string, ticker: string | null, cik: string | null) => ({ name, ticker, cik });
+  const closed = (over: Partial<StoredDeal>) => deal({ privateTarget: true, status: "Closed", ...over });
+
+  it("a private copy filed by the listed target (Baxter / HILLROM, in Hill-Rom's own release)", () => {
+    const baxter = buyer("Baxter International Inc", "BAX", "10456");
+    const listed = deal({ id: "47518-2021-09-02", acquirer: baxter, target: { name: "Hill-Rom Holdings, Inc.", ticker: null, cik: "47518" }, announcedDate: "2021-09-02", status: "Closed", statusDate: "2021-12-13", sources: ["a:1", "a:2"] });
+    const copy = closed({ id: "p-hillrom-2021-12-13", acquirer: baxter, target: { name: "HILLROM", ticker: null, cik: null }, announcedDate: "2021-12-13", statusDate: "2021-12-13", filings: [{ form: "8-K", filedDate: "2021-12-13", url: EDGAR + "/47518/000119312521355520/d210479dex991.htm" }], sources: ["b:1"], reaction: figure(-2) });
+    const deals = [copy, listed];
+    expect(mergeSplitRecords(deals).map((m) => m.why)).toEqual(["filed by the listed target"]);
+    expect(deals).toEqual([listed]);
+    expect(listed.announcedDate).toBe("2021-09-02");
+    expect(listed.filings).toHaveLength(1);
+    // Measured around the closing, three months after the announcement: not this deal's reaction.
+    expect(listed.reaction).toBeUndefined();
+  });
+
+  it("not when the buyer of the private record is the listed target itself (Prosperity's banks, Stellar in the filing's words)", () => {
+    const stellar = buyer("Stellar Bancorp, Inc.", "STEL", "1473844");
+    const listed = deal({ acquirer: buyer("Prosperity Bancshares Inc", "PB", "1068851"), target: { name: "Stellar Bancorp, Inc.", ticker: "STEL", cik: "1473844" } });
+    const own = closed({ acquirer: stellar, target: { name: "Other Bank", ticker: null, cik: null }, filings: [{ form: "8-K", filedDate: "2024-01-10", url: EDGAR + "/1473844/000000000000000001/a.htm" }] });
+    expect(oneDeal(own, listed)).toBeNull();
+  });
+
+  it("the same buyer on the same day with nothing that differs (Simmons / Texas Bancshares), but not with another figure", () => {
+    const simmons = buyer("Simmons First National Corp", "SFNC", "90498");
+    const listed = deal({ acquirer: simmons, target: { name: "Spirit of Texas Bancshares, Inc.", ticker: "STXB", cik: "1499453" }, announcedDate: "2021-11-19", valueUsd: 581e6, pricePerShare: null, consideration: "Stock" });
+    expect(oneDeal(closed({ acquirer: simmons, target: { name: "Texas Bancshares, Inc.", ticker: null, cik: null }, announcedDate: "2021-11-19", valueUsd: 581e6, pricePerShare: null, consideration: "Stock" }), listed)).toBe("same buyer, same day, no figure differs");
+    expect(oneDeal(closed({ acquirer: simmons, target: { name: "Landmark Community Bank", ticker: null, cik: null }, announcedDate: "2021-11-19", valueUsd: 92e6, pricePerShare: null, consideration: "Stock" }), listed)).toBeNull();
+  });
+
+  it("a holding company and its business at one stated value (Vroom / Unitas and United Auto Credit), never by a value alone a month apart", () => {
+    const vroom = buyer("Vroom, Inc.", "VRM", "1580864");
+    const a = closed({ acquirer: vroom, target: { name: "Unitas Holdings Corp.", ticker: null, cik: null }, announcedDate: "2021-10-12", statusDate: "2022-02-01", valueUsd: 3e8 });
+    const b = closed({ acquirer: vroom, target: { name: "United Auto Credit Corporation", ticker: null, cik: null }, announcedDate: "2021-10-12", statusDate: "2022-02-01", valueUsd: 3e8 });
+    expect(oneDeal(a, b)).toBe("same stated value within a week");
+    expect(oneDeal(a, { ...b, announcedDate: "2021-11-20" })).toBeNull();
+  });
+
+  it("two names closed together and paid alike (Hilton Grand Vacations / Dakota Holdings and Diamond Resorts)", () => {
+    const hgv = buyer("Hilton Grand Vacations Inc.", "HGV", "1674168");
+    const a = closed({ acquirer: hgv, target: { name: "Dakota Holdings, Inc.", ticker: null, cik: null }, announcedDate: "2021-03-11", statusDate: "2021-08-03", valueUsd: null, pricePerShare: null, consideration: "Stock" });
+    const b = closed({ acquirer: hgv, target: { name: "Diamond Resorts", ticker: null, cik: null }, announcedDate: "2021-03-11", statusDate: "2021-08-03", valueUsd: 14e8, pricePerShare: null, consideration: "Stock" });
+    expect(oneDeal(a, b)).toBe("closed the same day, same payment");
+  });
+
+  it("one name inside the other, closed together (US Bancorp / MUFG Union Bank and Union Bank, a year apart)", () => {
+    const usb = buyer("US Bancorp", "USB", "36104");
+    const a = closed({ acquirer: usb, target: { name: "MUFG Union Bank", ticker: null, cik: null }, announcedDate: "2021-09-21", statusDate: "2022-12-01", valueUsd: null, pricePerShare: null, consideration: null });
+    const b = closed({ acquirer: usb, target: { name: "Union Bank", ticker: null, cik: null }, announcedDate: "2022-12-01", statusDate: "2022-12-01", valueUsd: null, pricePerShare: null, consideration: null });
+    expect(oneDeal(a, b)).toBe("closed the same day, one name inside the other");
+  });
+
+  it("two registrants of one ticker (Energy Transfer / Crestwood Equity and Crestwood Midstream, both CEQP)", () => {
+    const et = buyer("Energy Transfer LP", "ET", "1276187");
+    const a = deal({ acquirer: et, target: { name: "Crestwood Midstream Partners LP", ticker: "CEQP", cik: "1304464" }, announcedDate: "2023-08-16" });
+    const b = deal({ acquirer: et, target: { name: "Crestwood Equity Partners LP", ticker: "CEQP", cik: "1136352" }, announcedDate: "2023-08-16" });
+    expect(oneDeal(a, b)).toBe("same buyer and target ticker");
+  });
+
+  it("leaves a serial buyer's real deals apart", () => {
+    const prosperity = buyer("Prosperity Bancshares Inc", "PB", "1068851");
+    const onfolio = buyer("Onfolio Holdings, Inc", "ONFO", "1825452");
+    const ionq = buyer("IonQ, Inc.", "IONQ", "1824920");
+    const cargurus = buyer("CarGurus, Inc.", "CARG", "1494259");
+    const none = { valueUsd: null, pricePerShare: null, consideration: null };
+    const pairs = [
+      // Two Texas banks announced together, at different values.
+      [closed({ acquirer: prosperity, status: "Announced", target: { name: "First Bancshares of Texas", ticker: null, cik: null }, announcedDate: "2022-10-11", valueUsd: 3416e5, pricePerShare: null, consideration: "Stock" }), closed({ acquirer: prosperity, status: "Announced", target: { name: "Lone Star State Bancshares", ticker: null, cik: null }, announcedDate: "2022-10-11", valueUsd: 2287e5, pricePerShare: null, consideration: "Stock" })],
+      // Two sites bought and closed on one day, with nothing stated.
+      [closed({ acquirer: onfolio, target: { name: "Proofread Anywhere", ticker: null, cik: null }, announcedDate: "2022-10-19", statusDate: "2022-10-19", ...none }), closed({ acquirer: onfolio, target: { name: "SEOButler", ticker: null, cik: null }, announcedDate: "2022-10-19", statusDate: "2022-10-19", ...none })],
+      // A private purchase on the day of a listed one's date, whose filing isn't the target's.
+      [closed({ acquirer: ionq, target: { name: "Skyloom", ticker: null, cik: null }, announcedDate: "2026-01-30", statusDate: "2026-01-30", ...none }), deal({ acquirer: ionq, target: { name: "SkyWater Technology, Inc", ticker: "SKYT", cik: "1819974" }, announcedDate: "2026-01-26", status: "Closed", statusDate: "2026-07-31", valueUsd: null, pricePerShare: null, consideration: "Mixed" })],
+      // A stake, then the rest, three years on.
+      [closed({ acquirer: cargurus, target: { name: "CarOffer", ticker: null, cik: null }, announcedDate: "2021-01-14", statusDate: "2021-01-14", valueUsd: null, pricePerShare: null, consideration: null }), closed({ acquirer: cargurus, target: { name: "CarOffer", ticker: null, cik: null }, announcedDate: "2023-12-04", statusDate: "2023-12-04", valueUsd: 75e6, pricePerShare: null, consideration: null })],
+    ];
+    for (const [a, b] of pairs) expect(oneDeal(a, b)).toBeNull();
+    expect(oneDeal(deal({ partOfTarget: true }), deal())).toBeNull();
+  });
+
+  it("the record that stays takes a figure from the same days, and an earlier announcement's over its closing-day one (Helix / Hornbeck, MGP / Luxco)", () => {
+    const helix = buyer("Helix Energy Solutions Group Inc", "HLX", "866829");
+    const hornbeck = closed({ id: "p-hornbeck-2026-04-23", acquirer: helix, target: { name: "Hornbeck", ticker: null, cik: null }, announcedDate: "2026-04-23", statusDate: "2026-09-01", valueUsd: null, pricePerShare: null, consideration: "Stock", sources: ["a:1", "a:2"] });
+    const vehicle = closed({ id: "p-odyssey-sub-2026-04-24", acquirer: { ...helix, ticker: "HOS" }, target: { name: "Odyssey Sub, Inc.", ticker: null, cik: null }, announcedDate: "2026-04-24", statusDate: "2026-09-01", valueUsd: null, pricePerShare: null, consideration: "Stock", sources: ["b:1"], reaction: figure(3) });
+    const first = [hornbeck, vehicle];
+    mergeSplitRecords(first);
+    expect(first).toEqual([hornbeck]);
+    expect(hornbeck.reaction).toEqual(figure(3));
+
+    const mgp = buyer("MGP Ingredients Inc", "MGPI", "835011");
+    const luxco = closed({ id: "p-luxco-2021-04-01", acquirer: mgp, target: { name: "Luxco", ticker: null, cik: null }, announcedDate: "2021-04-01", statusDate: "2021-04-01", valueUsd: 475e6, pricePerShare: null, consideration: "Mixed", sources: ["c:1", "c:2"], reaction: figure(-9) });
+    const holdco = closed({ id: "p-london-holdco-2021-01-25", acquirer: { ...mgp, ticker: "CASK" }, target: { name: "London HoldCo, Inc.", ticker: null, cik: null }, announcedDate: "2021-01-25", statusDate: "2021-04-01", valueUsd: null, pricePerShare: null, consideration: "Stock", sources: ["d:1", "c:1"], reaction: figure(6) });
+    const second = [holdco, luxco];
+    mergeSplitRecords(second);
+    expect(second).toEqual([luxco]);
+    expect(luxco.announcedDate).toBe("2021-01-25");
+    expect(luxco.reaction).toEqual(figure(6));
+  });
+
+  it("through tidy, the merged record is reported dropped so the database removes it", () => {
+    const vroom = buyer("Vroom, Inc.", "VRM", "1580864");
+    const a = closed({ id: "p-united-auto-credit-2021-10-12", acquirer: vroom, target: { name: "United Auto Credit Corporation", ticker: null, cik: null }, announcedDate: "2021-10-12", statusDate: "2022-02-01", valueUsd: 3e8, pricePerShare: null, sources: ["a:1", "a:2"] });
+    const b = closed({ id: "p-unitas-2021-10-12", acquirer: vroom, target: { name: "Unitas Holdings Corp.", ticker: null, cik: null }, announcedDate: "2021-10-12", statusDate: "2022-02-01", valueUsd: 3e8, pricePerShare: null, sources: ["b:1"] });
+    const deals = [a, b];
+    const r = tidyDeals(deals);
+    expect(deals.map((d) => d.id)).toEqual(["p-united-auto-credit-2021-10-12"]);
+    expect(r.dropped.map((d) => d.id)).toEqual(["p-unitas-2021-10-12"]);
+  });
+
+  it("a buyout read backwards goes, and the record the target filed for stays (Seacor buying American Industrial Partners)", () => {
+    const seacor = { name: "Seacor Holdings Inc", ticker: null, cik: "859598" };
+    const real = deal({ id: "859598-2020-12-07", acquirer: buyer("American Industrial Partners", null, null), target: seacor, announcedDate: "2020-12-07", status: "Closed", statusDate: "2021-04-16", valueUsd: 845445221, pricePerShare: 41.5, milestones: { firstFiling: { form: "SC 14D9", date: "2020-12-15" } } as StoredDeal["milestones"] });
+    const back = closed({ id: "p-american-industrial-partners-2021-04-16", acquirer: buyer("Seacor Holdings Inc", "CKH", "859598"), target: { name: "American Industrial Partners", ticker: null, cik: null }, announcedDate: "2021-04-16", status: "Announced", statusDate: null, valueUsd: null, sources: ["b:1"] });
+    const deals = [real, back];
+    expect(reversedCopies(deals).map((m) => m.extra.id)).toEqual([back.id]);
+    expect(deals).toEqual([real]);
+    expect(real.sources).toEqual(["b:1"]);
+  });
+
+  it("a listed company issuing the shares keeps the private record, with the closing (JFB Construction / XTEND)", () => {
+    const jfb = { name: "JFB Construction Holdings", ticker: "JFB", cik: "2024306" };
+    const swapped = deal({ id: "2024306-2026-02-18", acquirer: buyer("Xtend AI Robotics, Inc.", "XTND", "2111860"), target: jfb, announcedDate: "2026-02-13", status: "Closed", statusDate: "2026-09-03", valueUsd: 15e8, pricePerShare: null, consideration: "Stock", milestones: { firstFiling: { form: "DEFM14C", date: "2026-08-01" } } as StoredDeal["milestones"], sources: ["a:1"] });
+    const own = closed({ id: "p-xtend-reality-expansion-2026-02-17", acquirer: jfb, target: { name: "XTEND Reality Expansion Ltd.", ticker: null, cik: null }, announcedDate: "2026-02-17", status: "Announced", statusDate: null, valueUsd: 15e8, pricePerShare: null, consideration: "Stock", sources: ["b:1"] });
+    const deals = [swapped, own];
+    reversedCopies(deals);
+    expect(deals).toEqual([own]);
+    expect(own).toMatchObject({ status: "Closed", statusDate: "2026-09-03" });
+  });
+
+  it("an agreement can't end after its rival signed: the date is the rival's, so it goes blank (Frontier / Spirit, JetBlue's 2024 date)", () => {
+    const spirit = { name: "Spirit Airlines, Inc.", ticker: "SAVE", cik: "1498710" };
+    const frontier = deal({ id: "1498710-2022-02-07", acquirer: buyer("Frontier Group Holdings, Inc.", "ULCC", "1670076"), target: spirit, announcedDate: "2022-02-07", status: "Terminated", statusDate: "2024-03-04", valueUsd: 29e8 });
+    const jetblue = deal({ id: "1498710-2022-07-28", acquirer: buyer("JetBlue Airways Corp", "JBLU", "1158463"), target: spirit, announcedDate: "2022-07-28", status: "Terminated", statusDate: "2024-03-04", valueUsd: 38e8 });
+    tidyDeals([frontier, jetblue]);
+    expect(frontier).toMatchObject({ status: "Terminated", statusDate: null });
+    expect(jetblue.statusDate).toBe("2024-03-04");
   });
 });
