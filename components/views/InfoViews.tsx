@@ -185,6 +185,10 @@ export function AboutView() {
           <PanelHead title="Who builds it" />
           <div className="info-body">
             <p>
+              The name stands for <strong>C</strong>apital <strong>A</strong>dvisory &amp; <strong>S</strong>ecurities <strong>T</strong>ransactions <strong>L</strong>edger, from{" "}
+              <strong>E</strong>DGAR: who advised, what was bought or listed, kept as a record from the SEC&apos;s own filings.
+            </p>
+            <p>
               Castle is built and maintained independently. It costs nothing to use and needs no account{AUTH_ENABLED ? " (signing in only saves your workspace across devices)" : ""}.
             </p>
             <p>
