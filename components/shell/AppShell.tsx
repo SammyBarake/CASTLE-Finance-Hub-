@@ -18,12 +18,13 @@ import { LiveStatus } from "./LiveStatus";
 import { NavigationProgress } from "./NavigationProgress";
 import { PageSkeleton } from "./PageSkeleton";
 import { SectionTabs } from "./SectionTabs";
+import { SettingsPanel } from "./SettingsPanel";
 
 /** Sidebar, top bar and footer around every page. */
 export function AppShell({ children }: { children: ReactNode }) {
   const { data, ready, detailsReady, loadError, reload } = useHubData();
   const { openDefinitions } = useDetails();
-  const { openMenu } = useUi();
+  const { openMenu, openDialog } = useUi();
   const ws = useWorkspace();
   const { openWatchlist, openShortcuts, openManageViews } = useWorkspaceDialogs();
 
@@ -47,6 +48,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       ],
       { anchor },
     );
+  // The sidebar's Settings: the same options as the top bar's menu, laid out as a panel with the workspace and help screens.
+  const openSettingsPanel = () =>
+    openDialog({
+      eyebrow: "Castle",
+      title: "Settings",
+      body: (
+        <SettingsPanel
+          onManageViews={() => openManageViews(applyViewFromAnywhere)}
+          onWatchlist={openWatchlist}
+          onShortcuts={openShortcuts}
+          onDefinitions={openDefinitions}
+        />
+      ),
+    });
   const pathname = usePathname();
   const router = useRouter();
   const route = routeForPath(pathname);
@@ -119,6 +134,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button type="button" onClick={openDefinitions}>
             <Icon name="file" />
             Data definitions
+          </button>
+          <button type="button" onClick={openSettingsPanel}>
+            <Icon name="settings" />
+            Settings
           </button>
           <button type="button" className="sidebar-shortcuts" onClick={openShortcuts}>
             <Icon name="info" />
