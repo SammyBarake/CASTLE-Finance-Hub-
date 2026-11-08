@@ -82,7 +82,7 @@ export function EconomiesView() {
       </Kpis>
 
       <div className="section-heading">
-        <span className="dim" style={{ fontSize: 10 }}>
+        <span className="dim econ-filter-label" style={{ fontSize: 10 }}>
           Economic indicators
         </span>
         <Select

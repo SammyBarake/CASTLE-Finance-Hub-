@@ -218,6 +218,8 @@
   .tool-icon .icon { width: 14px; height: 14px; }
   .tool-icon.wide { width: auto; padding: 0 8px; font-size: 10px; }
   .search { position: relative; width: 280px; max-width: 40vw; }
+  /* Phones only (shown in the ≤760px block): the icon that opens the search, and its Cancel. */
+  .tool-icon.search-toggle, .search-cancel { display: none; }
   .search-field { display: flex; align-items: center; gap: 8px; border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 0 9px; height: 31px; }
   .search-field .icon { width: 13px; height: 13px; color: #868686; }
   .search-field:focus-within { border-color: #595959; }
@@ -1605,21 +1607,43 @@
   .nav-link .icon { width: 16px; }
   .menu-toggle { display: inline-flex; }
   .topbar { height: 58px; padding: 0 16px; gap: 13px; }
-  .top-location { gap: 7px; font-size: 11px; }
-  .top-location > span, .top-location > .icon { display: none; }
+  /* The top bar: menu, then search, live and settings as icons of one size. The section tabs and the h1 name the page. */
+  .top-location { display: none; }
   .top-tools { flex: 1; justify-content: flex-end; gap: 6px; }
-  .search { width: 210px; max-width: 55vw; }
-  .live-status { font-size: 0; gap: 0; padding: 0 10px; }
+  .search { position: static; width: auto; max-width: none; }
+  .tool-icon.search-toggle { display: inline-flex; }
+  .search:not(.open) .search-field { display: none; }
+  /* Open, the field takes the whole bar (over the other tools), with Cancel beside it. */
+  .search.open { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #000; animation: fade-in 0.15s ease both; }
+  .search.open .search-toggle { display: none; }
+  .search.open .search-field { flex: 1; min-width: 0; height: 36px; padding: 0 10px; }
+  .search.open .search-cancel { display: block; flex: none; font-size: 13px; color: #cfcfcf; padding: 8px 0; }
+  .live-status { justify-content: center; width: 29px; height: 29px; padding: 0; gap: 0; font-size: 0; border-radius: 5px; }
+  .live-status span { display: none; }
   .drawer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drawer-stats > div:nth-child(3) { border-left: 0; }
   .drawer-stats > div:nth-child(n + 3) { border-top: 1px solid #222; }
-  .search-field { height: 29px; padding: 0 7px; }
   .search-field kbd { display: none; }
-  .search input { font-size: 11px; }
-  .search-results { right: -1px; max-width: calc(100vw - 32px); }
+  .search input { font-size: 12px; }
+  /* Results pinned under the bar, the page's width less its gutters. */
+  .search-results { position: fixed; top: 62px; left: 16px; right: 16px; width: auto; max-width: none; max-height: calc(100dvh - 78px); transform-origin: top center; }
   .main { padding: 24px 16px 0; }
-  .page-heading { margin-bottom: 20px; }
-  .page-heading p { font-size: 12px; max-width: 260px; }
+  .page-heading { align-items: flex-start; margin-bottom: 20px; gap: 14px; }
+  .page-heading-text { flex: 1; min-width: 0; }
+  .page-heading p { font-size: 12px; text-wrap: balance; }
+  .head-tools { flex: none; gap: 8px; }
+  .head-tools .phone-folded { display: none; }
+  /* Section tabs scroll sideways: the right end fades instead of cutting a word. */
+  .section-tabs { gap: 18px; mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+  /* Stacked columns keep the panels' own 18px rhythm. */
+  .two-col { gap: 0; }
+  .panel-foot { flex-direction: column; gap: 4px; }
+  .econ-filter-label { display: none; }
+  .econ-filter-label + .select-wrap { margin-left: auto; }
+  /* Data definitions sits just under the sections, after a hairline, instead of at the menu's foot. */
+  .sidebar-foot { margin-top: 10px; padding: 8px 0; border-top: 1px solid var(--color-line); }
+  .sidebar-foot button { font-size: 12px; gap: 12px; padding: 10px 13px; }
+  .sidebar-foot .icon { width: 16px; height: 16px; }
   h1 { font-size: 25px; }
   .head-tools .button { padding: 7px; font-size: 0; gap: 0; }
   .head-tools .button .icon { width: 15px; height: 15px; }
@@ -1744,5 +1768,9 @@
   .sort-button { min-height: 32px; }
   input[type="checkbox"] { width: 20px; height: 20px; }
   input, select, textarea, .search input, .filter-search input, .select-wrap select { font-size: 16px; }
+  .sidebar-shortcuts { display: none; }
+  @media (max-width: 760px) {
+    .live-status { width: 36px; height: 36px; }
+  }
 }
 

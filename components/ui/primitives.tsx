@@ -8,6 +8,7 @@ import { ExportButton } from "@/components/export/ExportButton";
 import type { LiveLinkSpec } from "@/components/export/LiveLink";
 import type { WorkbookSpec } from "@/lib/excel/spec";
 import { Icon } from "./Icon";
+import type { MenuItem } from "./UiProvider";
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
 
@@ -168,6 +169,7 @@ export function PageHeading({
   excel,
   exportLabel,
   extra,
+  phoneMore,
   live,
 }: {
   title: string;
@@ -178,12 +180,14 @@ export function PageHeading({
   excel?: () => WorkbookSpec | null;
   exportLabel?: string;
   extra?: ReactNode;
+  /** `extra`'s actions as menu items: on phones `extra`'s `phone-folded` buttons hide and these end the Export menu. */
+  phoneMore?: MenuItem[];
   /** The live data link (Export menu → Live link for Excel / Sheets). */
   live?: () => LiveLinkSpec | null;
 }) {
   return (
     <div className="page-heading">
-      <div>
+      <div className="page-heading-text">
         <h1 id="page-title" tabIndex={-1}>
           {title}
         </h1>
@@ -191,7 +195,7 @@ export function PageHeading({
       </div>
       <div className="head-tools">
         {extra}
-        {(onExport || excel) && <ExportButton title={title} onCsv={onExport} excel={excel} live={live} label={exportLabel} />}
+        {(onExport || excel) && <ExportButton title={title} onCsv={onExport} excel={excel} live={live} label={exportLabel} phoneMore={phoneMore} />}
       </div>
     </div>
   );

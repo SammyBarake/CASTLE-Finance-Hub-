@@ -260,6 +260,25 @@ test.describe("phone drawers and tables", () => {
     expect(fit, "reaction table wider than its panel, in px").toBeLessThanOrEqual(1);
     expect(errors).toEqual([]);
   });
+
+  test("the search sits behind an icon: it opens across the top bar, its results fit the screen, Cancel closes it", async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto("/hub", { waitUntil: "networkidle" });
+    await expectLoaded(page);
+    await expect(page.locator("#global-search")).toBeHidden();
+    await page.locator(".search-toggle").click();
+    await expect(page.locator("#global-search")).toBeFocused();
+    await page.keyboard.type("a");
+    const results = page.locator("#search-results");
+    await expect(results).toBeVisible();
+    const box = (await results.boundingBox())!;
+    expect(box.x, "results start inside the screen").toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, "results end inside the screen").toBeLessThanOrEqual(375);
+    await page.locator(".search-cancel").click();
+    await expect(page.locator("#global-search")).toBeHidden();
+    await expect(page.locator(".search-toggle")).toBeFocused();
+    expect(errors).toEqual([]);
+  });
 });
 
 test("Excel export downloads a workbook", async ({ page }) => {

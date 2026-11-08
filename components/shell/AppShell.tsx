@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon name="file" />
             Data definitions
           </button>
-          <button type="button" onClick={openShortcuts}>
+          <button type="button" className="sidebar-shortcuts" onClick={openShortcuts}>
             <Icon name="info" />
             Shortcuts <kbd style={{ marginLeft: "auto" }}>?</kbd>
           </button>

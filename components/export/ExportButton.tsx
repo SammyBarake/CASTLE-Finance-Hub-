@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
-import { useUi } from "@/components/ui/UiProvider";
+import { useUi, type MenuItem } from "@/components/ui/UiProvider";
 import type { WorkbookSpec } from "@/lib/excel/spec";
 import { downloadWorkbook } from "./excel";
 import { LiveLinkBody, type LiveLinkSpec } from "./LiveLink";
@@ -18,6 +18,7 @@ export function ExportButton({
   excel,
   live,
   label,
+  phoneMore,
 }: {
   title: string;
   onCsv?: () => void;
@@ -25,6 +26,8 @@ export function ExportButton({
   /** The page's live data link for Excel / Google Sheets (null: none for what's on screen). */
   live?: () => LiveLinkSpec | null;
   label?: string;
+  /** The heading's other buttons, offered at the end of this menu on phones, where those buttons are hidden (`phone-folded`). */
+  phoneMore?: MenuItem[];
 }) {
   const { openMenu, openDialog, toast } = useUi();
   // Pages that show before the full dataset (BOOT_READY) must not export the few rows they have so far.
@@ -73,6 +76,8 @@ export function ExportButton({
             { kind: "action", label: "Excel workbook (.xlsx)", icon: "download", onSelect: whenReady(() => void toExcel()) },
             ...(onCsv ? [{ kind: "action" as const, label: "CSV file", onSelect: whenReady(onCsv) }] : []),
             ...(live ? [{ kind: "rule" as const }, { kind: "action" as const, label: "Live link for Excel / Sheets…", icon: "link" as const, onSelect: openLive }] : []),
+            // Read at click time, never during render: the server can't know the screen's width.
+            ...(phoneMore?.length && window.matchMedia("(max-width: 760px)").matches ? [{ kind: "rule" as const }, ...phoneMore] : []),
           ],
           { anchor: e.currentTarget },
         )

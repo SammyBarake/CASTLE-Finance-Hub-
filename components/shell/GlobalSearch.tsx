@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
@@ -12,15 +13,38 @@ import { matchAdvisor, matchDeal, matchIpo } from "@/lib/search";
 
 const noopSubscribe = () => () => {};
 
-/** Top-bar search with grouped results (deals, IPOs, advisors). Ctrl/⌘ K focuses it. */
+/**
+ * Top-bar search with grouped results (deals, IPOs, advisors). Ctrl/⌘ K focuses it.
+ * On phones the field sits behind a search icon: the icon opens it across the top bar with a Cancel button
+ * (`expanded`, styled only in the phone CSS, so on desktop the flag changes nothing on screen).
+ */
 export function GlobalSearch() {
   const { data, ready } = useHubData();
   const { openDeal, openIpo, openAdvisor } = useDetails();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // Show the field first, then focus it in the same tap or key press (iOS raises the keyboard only within the gesture).
+  const openField = () => {
+    flushSync(() => setExpanded(true));
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  };
+  const closeField = () => {
+    flushSync(() => {
+      setOpen(false);
+      setQuery("");
+      setExpanded(false);
+    });
+    inputRef.current?.blur();
+    // Back to the icon that opened it (hidden on desktop, where this does nothing).
+    if (expanded) toggleRef.current?.focus({ preventScroll: true });
+  };
   const isApple = useSyncExternalStore(noopSubscribe, () => /Mac|iPhone|iPad/.test(navigator.platform), () => false);
 
   const q = query.trim().toLowerCase();
@@ -39,12 +63,16 @@ export function GlobalSearch() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         document.querySelector<HTMLDialogElement>("dialog[open]")?.close();
+        flushSync(() => setExpanded(true));
         inputRef.current?.focus();
         inputRef.current?.select();
       }
     };
     const onPointer = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!wrapRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setExpanded(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer);
@@ -56,6 +84,7 @@ export function GlobalSearch() {
 
   const pick = (go: () => void, href: string) => {
     setOpen(false);
+    setExpanded(false);
     router.push(href);
     go();
   };
@@ -74,16 +103,25 @@ export function GlobalSearch() {
       e.preventDefault();
       items[0]?.click();
     } else if (e.key === "Escape") {
-      setOpen(false);
-      setQuery("");
-      inputRef.current?.blur();
+      closeField();
     }
   };
 
   const empty = results && !results.companies.length && !results.deals.length && !results.ipos.length && !results.advisors.length;
 
   return (
-    <div className="search" ref={wrapRef} onKeyDown={onKeyDown}>
+    <div className={`search ${expanded ? "open" : ""}`} ref={wrapRef} onKeyDown={onKeyDown}>
+      <button
+        ref={toggleRef}
+        type="button"
+        className="tool-icon search-toggle"
+        aria-label="Search companies, deals, banks"
+        aria-controls="global-search"
+        aria-expanded={expanded}
+        onClick={openField}
+      >
+        <Icon name="search" />
+      </button>
       <div className="search-field">
         <Icon name="search" />
         <label className="sr-only" htmlFor="global-search">
@@ -109,6 +147,9 @@ export function GlobalSearch() {
         />
         <kbd>{isApple ? "⌘ K" : "Ctrl K"}</kbd>
       </div>
+      <button type="button" className="search-cancel" onClick={closeField}>
+        Cancel
+      </button>
       {open && results && (
         <div className="search-results" id="search-results" aria-label="Search results">
           {empty && <div className="search-empty">{ready ? "No matching companies, deals, or advisors." : "Loading data…"}</div>}

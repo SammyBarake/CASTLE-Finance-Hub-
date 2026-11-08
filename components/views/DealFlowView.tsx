@@ -6,7 +6,7 @@ import { useBookActions } from "@/components/books/AddToBook";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
+import { CopyLinkButton, copyPageLink } from "@/components/ui/CopyLinkButton";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, SectorLabel, Select, StatusTag } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
@@ -209,7 +209,8 @@ export function DealFlowView() {
               })
             : null
         }
-        extra={<CopyLinkButton />}
+        extra={<CopyLinkButton className="phone-folded" />}
+        phoneMore={[{ kind: "action", label: "Copy link", icon: "copy", onSelect: () => void copyPageLink(toast) }]}
       />
 
       <Kpis label="Filtered transaction summary">

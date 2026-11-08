@@ -6,7 +6,7 @@ import { useBookActions } from "@/components/books/AddToBook";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
-import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
+import { CopyLinkButton, copyPageLink } from "@/components/ui/CopyLinkButton";
 import { Icon } from "@/components/ui/Icon";
 import { AboutData, FilterSearch, Kpi, Kpis, PageHeading, PanelHead, Select } from "@/components/ui/primitives";
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
@@ -92,6 +92,11 @@ function Precedents({ dealId }: { dealId: string | null }) {
     downloadCsv(csv, `Castle_Precedents${screen.sector === "all" ? "" : `_${screen.sector}`}${data.isSample ? "_Sample" : ""}.csv`);
     toast(`${included.length} precedents exported with summary rows.`);
   };
+  const saveAsBook = () =>
+    openAddToBook(
+      included,
+      subject ? `Comps: ${subject.acquirer.name} → ${subject.target.name}`.slice(0, 80) : `${screen.sector === "all" ? "M&A" : screen.sector} precedents${screen.industry.trim() ? `: ${screen.industry.trim()}` : ""}`,
+    );
 
   return (
     <>
@@ -120,20 +125,14 @@ function Precedents({ dealId }: { dealId: string | null }) {
           const q = query.toString();
           return { path: `/api/live/precedents.csv${q ? `?${q}` : ""}`, note: excluded.size ? "The outliers you unticked stay out of the sheet too." : undefined };
         }}
+        phoneMore={[
+          { kind: "action", label: "Copy link", icon: "copy", onSelect: () => void copyPageLink(toast) },
+          { kind: "action", label: "Save as book…", icon: "book", onSelect: () => (included.length ? saveAsBook() : toast("No precedents ticked.")) },
+        ]}
         extra={
           <>
-            <CopyLinkButton label="Copy a link to this precedent set" />
-            <button
-              type="button"
-              className="button"
-              disabled={!included.length}
-              onClick={() =>
-                openAddToBook(
-                  included,
-                  subject ? `Comps: ${subject.acquirer.name} → ${subject.target.name}`.slice(0, 80) : `${screen.sector === "all" ? "M&A" : screen.sector} precedents${screen.industry.trim() ? `: ${screen.industry.trim()}` : ""}`,
-                )
-              }
-            >
+            <CopyLinkButton label="Copy a link to this precedent set" className="phone-folded" />
+            <button type="button" className="button phone-folded" disabled={!included.length} onClick={saveAsBook}>
               <Icon name="book" />
               Save as book
             </button>
