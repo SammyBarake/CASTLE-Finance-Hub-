@@ -6,6 +6,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Kpi, Kpis, PageHeading, Select } from "@/components/ui/primitives";
 import { EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
+import { usePhone } from "@/components/ui/usePhone";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { economiesWorkbook } from "@/lib/excel/workbooks";
@@ -35,6 +36,7 @@ export function EconomiesView() {
   const { toast } = useUi();
   const macro = data.macro;
   const [region, setRegion] = useState<Region | "all">("all");
+  const phone = usePhone();
 
   const rows = useMemo(() => (macro?.economies ?? []).filter((e) => region === "all" || e.region === region), [macro, region]);
   const us = macro?.economies.find((e) => e.code === "US");
@@ -64,6 +66,7 @@ export function EconomiesView() {
 
   const byGrowth = [...rows].sort((a, b) => (b.gdpGrowth ?? -99) - (a.gdpGrowth ?? -99));
   const labelOf = (e: Economy) => e.name;
+  const inflationRows = phone ? byGrowth : rows;
 
   return (
     <>
@@ -119,16 +122,19 @@ export function EconomiesView() {
           <div className="panel-head">
             <h2>Inflation &amp; policy rates</h2>
             <span className="dim" style={{ fontSize: 10 }}>
-              %
+              <span className="phone-only">{year} est. · </span>%
             </span>
           </div>
           <div className="chart-card">
+            {/* On a phone, where the two charts stack, this one reads like the GDP chart above it: names, in the same
+                order, in two greys. Desktop keeps the codes and the green policy rate. */}
             <BarChart
               legend
-              labels={rows.map((e) => e.code)}
+              className="horizontal-chart-pairs"
+              labels={inflationRows.map((e) => (phone ? e.name : e.code))}
               series={[
-                { label: `Inflation ${year} est.`, data: rows.map((e) => e.inflation), color: "#aeaeae" },
-                { label: "Policy rate", data: rows.map((e) => e.policyRate), color: "#617e70" },
+                { label: `Inflation ${year} est.`, data: inflationRows.map((e) => e.inflation), color: phone ? "#d8d8d8" : "#aeaeae" },
+                { label: "Policy rate", data: inflationRows.map((e) => e.policyRate), color: phone ? "#6a6a6a" : "#617e70" },
               ]}
               ariaLabel="Inflation and central-bank policy rates by economy"
             />

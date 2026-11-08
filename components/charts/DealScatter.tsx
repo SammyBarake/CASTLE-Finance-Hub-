@@ -2,6 +2,7 @@
 
 import { Chart, LinearScale, LogarithmicScale, PointElement, ScatterController, Tooltip, type Plugin, type TooltipModel } from "chart.js";
 import { useEffect, useRef, useState } from "react";
+import { usePhone } from "@/components/ui/usePhone";
 import { formatDate, formatPct, formatUsd } from "@/lib/format";
 import { SECTOR_COLORS } from "@/lib/sectors";
 import type { Deal } from "@/lib/types";
@@ -46,7 +47,18 @@ const nameLabels: Plugin<"scatter"> = {
   },
 };
 
-const radius = (usd: number) => Math.min(18, 3 + Math.sqrt(usd / 1e9) * 1.6);
+const radius = (usd: number, phone = false) => Math.min(phone ? 10 : 18, 3 + Math.sqrt(usd / 1e9) * 1.6);
+/** Desktop value ticks: 1, 2 and 5 of each power of ten. */
+const valueTick = (n: number) => {
+  const lead = n / 10 ** Math.floor(Math.log10(n));
+  return [1, 2, 5].includes(Math.round(lead)) ? formatUsd(n) : "";
+};
+/** Phone value ticks: powers of ten only, written short ($1M … $100B), so they don't run into each other. */
+const phoneValueTick = (n: number) => {
+  const exp = Math.log10(n);
+  if (Math.abs(exp - Math.round(exp)) > 1e-9) return "";
+  return n >= 1e9 ? `$${Math.round(n / 1e9)}B` : n >= 1e6 ? `$${Math.round(n / 1e6)}M` : `$${Math.round(n / 1e3)}K`;
+};
 const monthTick = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }).replace(" ", " ’");
 
 /**
@@ -58,6 +70,7 @@ export function DealScatter({ deals, onOpen, focusMonth, className = "chart-wrap
   const tipRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart<"scatter", Point[]> | null>(null);
   const openRef = useRef(onOpen);
+  const phone = usePhone();
   const [tip, setTip] = useState<{ visible: boolean; left: number; top: number; deal: Deal | null }>({ visible: false, left: 0, top: 0, deal: null });
 
   useEffect(() => {
@@ -109,14 +122,7 @@ export function DealScatter({ deals, onOpen, focusMonth, className = "chart-wrap
             type: "logarithmic",
             grid: { color: "#242424" },
             border: { display: false },
-            ticks: {
-              font: { size: 9 },
-              callback: (v) => {
-                const n = Number(v);
-                const lead = n / 10 ** Math.floor(Math.log10(n));
-                return [1, 2, 5].includes(Math.round(lead)) ? formatUsd(n) : "";
-              },
-            },
+            ticks: { font: { size: 9 }, callback: (v) => valueTick(Number(v)) },
           },
         },
       },
@@ -134,24 +140,35 @@ export function DealScatter({ deals, onOpen, focusMonth, className = "chart-wrap
     const bySector = new Map<string, Point[]>();
     for (const d of plotted) bySector.set(d.sector, [...(bySector.get(d.sector) ?? []), { x: Date.parse(`${d.announcedDate}T12:00:00Z`), y: d.valueUsd!, deal: d }]);
     const focus = (p: Point) => !focusMonth || p.deal.announcedDate.startsWith(focusMonth);
+    // On a phone: 10px ticks, short value ticks, smaller and lighter dots, no name labels, and the date axis running
+    // from the first deal's month to the last's, not to round steps either side. Desktop keeps its own drawing.
+    type Axis = { min?: number; max?: number; ticks: { font: { size: number }; callback: (v: string | number) => string } };
+    const scales = chart.options.scales as unknown as { x: Axis; y: Axis };
+    scales.x.ticks.font.size = scales.y.ticks.font.size = phone ? 10 : 9;
+    scales.y.ticks.callback = (v) => (phone ? phoneValueTick : valueTick)(Number(v));
+    const dates = plotted.map((d) => d.announcedDate).sort();
+    const monthStart = (iso: string, plus = 0) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1 + plus, 1);
+    scales.x.min = phone && dates.length ? monthStart(dates[0]) : undefined;
+    scales.x.max = phone && dates.length ? monthStart(dates.at(-1)!, 1) : undefined;
     chart.data.datasets = [...bySector].map(([sector, points]) => {
       const color = SECTOR_COLORS[sector as keyof typeof SECTOR_COLORS];
       return {
         label: sector,
         data: points,
-        pointRadius: points.map((p) => radius(p.y)),
-        pointHoverRadius: points.map((p) => radius(p.y) + 2),
-        pointBackgroundColor: points.map((p) => (focus(p) ? `${color}99` : `${color}22`)),
+        pointRadius: points.map((p) => radius(p.y, phone)),
+        pointHoverRadius: points.map((p) => radius(p.y, phone) + 2),
+        // Lighter fills on a phone, where several hundred dots share a 300px plot.
+        pointBackgroundColor: points.map((p) => (focus(p) ? `${color}${phone ? "55" : "99"}` : `${color}22`)),
         pointBorderColor: points.map((p) => (focus(p) ? color : `${color}44`)),
         pointBorderWidth: 1,
       };
     });
     // Label the ten largest (in the focused month, if any).
-    const ids = new Set(sortByValue(plotted.filter((d) => !focusMonth || d.announcedDate.startsWith(focusMonth))).slice(0, 10).map((d) => d.id));
+    const ids = new Set(phone ? [] : sortByValue(plotted.filter((d) => !focusMonth || d.announcedDate.startsWith(focusMonth))).slice(0, 10).map((d) => d.id));
     (chart.options.plugins as { castleNames?: { ids: Set<string> } }).castleNames = { ids };
     chart.update();
     setTip((t) => ({ ...t, visible: false }));
-  }, [deals, focusMonth]);
+  }, [deals, focusMonth, phone]);
 
   const d = tip.deal;
   return (

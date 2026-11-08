@@ -78,11 +78,12 @@ export function ValuationsView() {
         <div className="chart-main">
           <div className="chart-meta">
             <Legend visible={visible} onToggle={toggle} label="Visible valuation sectors" />
-            <span className="chart-unit">{metric === "premium" ? "Percent" : "Multiple (x)"}</span>
+            <span className="chart-unit tick-unit">{metric === "premium" ? "Percent" : "Multiple (x)"}</span>
           </div>
         </div>
         <LineChart
           className="quarter-chart"
+          fitOnPhone
           labels={quarters.map(formatQuarter)}
           series={series}
           points

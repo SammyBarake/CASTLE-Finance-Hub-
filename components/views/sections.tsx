@@ -7,7 +7,8 @@ import { Icon } from "@/components/ui/Icon";
 import { VolumeExplorer } from "./VolumeExplorer";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { DOWN, PageLink, SectorDot, Segment, Sparkline, UP } from "@/components/ui/primitives";
-import { useUi } from "@/components/ui/UiProvider";
+import { useUi, type MenuItem } from "@/components/ui/UiProvider";
+import { usePhone } from "@/components/ui/usePhone";
 import { formatMonth, formatQuarter, formatSignedPct } from "@/lib/format";
 import { completeMonths, sectorMomentum, valuationCards, type ValuationMetric, type VolumeMetric } from "@/lib/metrics";
 import { SECTOR_COLORS, SECTORS } from "@/lib/sectors";
@@ -99,10 +100,20 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
   const [grid, setGrid] = useState(true);
   const [exploring, setExploring] = useState(false);
   const closeExplorer = useCallback(() => setExploring(false), []);
+  const phone = usePhone();
   const tick = (on: boolean) => (on ? "✓" : "  ");
+  // On a phone the time range lives in this menu (its segment is hidden there), so the panel head is one row.
+  const rangeItems: MenuItem[] = phone
+    ? [
+        { kind: "title", label: "Time range" },
+        ...rangesFor(matrix.months.length).map((r) => ({ kind: "action" as const, label: `${tick(range === r.value)} ${r.label}`, onSelect: () => state.setRange(r.value) })),
+        { kind: "rule" },
+      ]
+    : [];
   const openOptions = (anchor: HTMLElement) =>
     openMenu(
       [
+        ...rangeItems,
         { kind: "title", label: "Chart" },
         { kind: "action", label: `${tick(chartStyle === "stacked")} Stacked bars`, onSelect: () => setChartStyle("stacked") },
         { kind: "action", label: `${tick(chartStyle === "bars")} Side-by-side bars`, onSelect: () => setChartStyle("bars") },
@@ -146,11 +157,13 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
   const shortMonth = (m?: string) => (m ? formatMonth(m).split(" ")[0] : "");
 
   return (
-    <section className="panel" aria-label="M&A volume">
+    <section className="panel volume-panel" aria-label="M&A volume">
       <div className="panel-head">
         <div className="panel-heading">
           <h2>{large ? "Monthly activity" : "M&A volume"}</h2>
-          <small>Announced U.S. M&A by target sector · {periodLabel}</small>
+          <small>
+            Announced U.S. M&A by target sector<span className="hide-phone"> · {periodLabel}</span>
+          </small>
         </div>
         <div className="panel-controls">
           <Segment
@@ -162,13 +175,13 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
               { value: "count", label: "Deal count" },
             ]}
           />
-          <Segment label="Chart time range" value={range} onChange={state.setRange} options={rangesFor(matrix.months.length)} />
+          <Segment label="Chart time range" className="range-seg" value={range} onChange={state.setRange} options={rangesFor(matrix.months.length)} />
           <button type="button" className="tool-icon" aria-label="Chart options" title="Chart options" onClick={(e) => openOptions(e.currentTarget)}>
             <Icon name="settings" />
           </button>
-          <button type="button" className="button explorer-open" onClick={() => setExploring(true)} title="Open the full-screen explorer">
+          <button type="button" className="button explorer-open" onClick={() => setExploring(true)} title="Open the full-screen explorer" aria-label="Expand">
             <Icon name="expand" />
-            Expand
+            <span className="explorer-open-label">Expand</span>
           </button>
           {!large && <PageLink href="/deal-volume">Open</PageLink>}
         </div>
@@ -195,12 +208,12 @@ export function VolumePanel({ state, large = false }: { state: VolumeState; larg
                   <SectorDot sector={s} />
                   {s}
                   {/* Off a near-empty month a change means nothing: a banker's "n.m.", with the figure in the tooltip. */}
-                  {change != null && <span className={`legend-change mono ${change >= 0 ? "up" : "down"}`}>{Math.abs(change) >= 1000 ? "n.m." : formatSignedPct(change)}</span>}
+                  {change != null && <span className={`legend-change mono ${change >= 0 ? "up" : "down"}`}>{Math.abs(change) >= (phone ? 300 : 1000) ? "n.m." : formatSignedPct(change)}</span>}
                 </button>
               );
             })}
           </div>
-          <span className="chart-unit">{metric === "value" ? "USD billions" : "Transactions"}</span>
+          <span className="chart-unit tick-unit">{metric === "value" ? "USD billions" : "Transactions"}</span>
         </div>
         <LineChart
           className={`chart-wrap ${large ? "large" : ""}`}

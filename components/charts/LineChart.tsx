@@ -2,6 +2,7 @@
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip, type Plugin, type TooltipModel } from "chart.js";
 import { useEffect, useRef, useState } from "react";
+import { usePhone } from "@/components/ui/usePhone";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 
 Chart.register(LineController, LineElement, PointElement, BarController, BarElement, LinearScale, CategoryScale, Tooltip);
@@ -60,11 +61,26 @@ const highlightBand: Plugin<"line" | "bar"> = {
 };
 
 /**
+ * Where a fitted y axis starts: a round step (half a power of ten of the data's spread) a little under the lowest
+ * value, so the bottom gridline carries a label; never below zero for data that isn't.
+ */
+const fitFloor = (lo: number, hi: number) => {
+  const step = 10 ** Math.floor(Math.log10(Math.max(hi - lo, 1))) / 2;
+  const floor = Math.floor((lo - step * 0.2) / step) * step;
+  return lo >= 0 ? Math.max(0, floor) : floor;
+};
+
+/**
  * Multi-series line chart with the design's tooltip and crosshair.
  * `format` renders values in the tooltip; `formatTick` the y axis.
  * `onPointClick` reports the clicked period (and the series under the pointer, if any); `highlight` shades a period.
  * `partialIndex` marks a period still in progress (the current month): lighter bars, a dashed line into it, and
  * "to date" in its tooltip.
+ *
+ * At phone width (`usePhone`) the chart is drawn finer for a 340px canvas: 10px ticks, thinner lines without
+ * resting points, faint solid gridlines, and the period in progress as an outlined, half-filled bar. `fitOnPhone`
+ * lets the y axis start near the data there instead of at zero (multiples, premiums); `phoneLabels` replaces the
+ * x labels there and shows every one of them. The desktop drawing doesn't change.
  */
 export function LineChart({
   labels,
@@ -82,6 +98,8 @@ export function LineChart({
   maxTicks = 8,
   showTotal = false,
   partialIndex = null,
+  fitOnPhone = false,
+  phoneLabels,
 }: {
   labels: string[];
   series: ChartSeries[];
@@ -100,9 +118,15 @@ export function LineChart({
   /** Add a total row to the tooltip (additive series such as deal value or count). */
   showTotal?: boolean;
   partialIndex?: number | null;
+  /** Phones only: start the y axis just under the lowest value rather than at zero. */
+  fitOnPhone?: boolean;
+  /** Phones only: shorter x labels, one per period, all shown. */
+  phoneLabels?: string[];
 }) {
   const clickRef = useRef(onPointClick);
   const { prefs } = useWorkspace();
+  const phone = usePhone();
+  const phoneLabelsRef = useRef<string[] | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart<"line" | "bar"> | null>(null);
@@ -175,6 +199,8 @@ export function LineChart({
               maxTicksLimit: 8,
               padding: 9,
               callback(value) {
+                const short = phoneLabelsRef.current?.[value as number];
+                if (short != null) return short;
                 return String(this.getLabelForValue(value as number)).replace(" 20", " ’");
               },
             },
@@ -199,19 +225,37 @@ export function LineChart({
     if (!chart) return;
     chart.options.animation = prefs.motion && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { duration: 450, easing: "easeOutCubic" } : false;
     if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.display = grid;
-    const scales = chart.options.scales as { x: { stacked?: boolean; ticks: { maxTicksLimit?: number } }; y: { stacked?: boolean } };
+    type Ticks = { font: { size: number }; maxTicksLimit?: number; autoSkip?: boolean };
+    const scales = chart.options.scales as {
+      x: { stacked?: boolean; ticks: Ticks };
+      y: { stacked?: boolean; ticks: Ticks; beginAtZero?: boolean; min?: number; grid: { color: string; lineWidth: number }; border: { dash: number[] } };
+    };
     scales.x.stacked = scales.y.stacked = type === "bar" && stacked;
     scales.x.ticks.maxTicksLimit = maxTicks;
+    // Phone drawing (see above); every value here is the desktop one when `phone` is false.
+    const shortLabels = phone && phoneLabels?.length === labels.length ? phoneLabels : null;
+    phoneLabelsRef.current = shortLabels;
+    scales.x.ticks.autoSkip = !shortLabels;
+    scales.x.ticks.font.size = scales.y.ticks.font.size = phone ? 10 : 9;
+    scales.y.grid.color = phone ? "#1c1c1c" : "#242424";
+    scales.y.grid.lineWidth = phone ? 0.5 : 1;
+    scales.y.border.dash = phone ? [] : [2, 4];
+    const fit = phone && fitOnPhone;
+    const values = fit ? series.filter((s) => !s.hidden).flatMap((s) => s.data.filter((v): v is number => v != null)) : [];
+    scales.y.beginAtZero = !fit;
+    scales.y.min = values.length ? fitFloor(Math.min(...values), Math.max(...values)) : undefined;
     (chart.options.plugins as { castleHighlight?: { index: number | null } }).castleHighlight = { index: highlight };
-    // The period in progress is drawn lighter (bars) or reached by a dashed segment (lines).
+    // The period in progress is drawn lighter (bars) or reached by a dashed segment (lines). On a phone a light bar on
+    // black reads as a dark slab, so there it is the sector's colour at half strength inside a full-colour outline.
     const isPartial = (i: number) => partialIndex != null && i === partialIndex;
     const style = (s: ChartSeries) =>
       type === "bar"
         ? {
             type: "bar" as const,
             borderColor: s.color,
-            backgroundColor: partialIndex == null ? `${s.color}b0` : s.data.map((_, i) => (isPartial(i) ? `${s.color}48` : `${s.color}b0`)),
-            borderWidth: 0,
+            backgroundColor:
+              partialIndex == null ? `${s.color}b0` : s.data.map((_, i) => (isPartial(i) ? (phone ? `${s.color}73` : `${s.color}48`) : `${s.color}b0`)),
+            borderWidth: phone && partialIndex != null ? s.data.map((_, i) => (isPartial(i) ? 1 : 0)) : 0,
             borderRadius: stacked ? 0 : 2,
             maxBarThickness: stacked ? 28 : 14,
           }
@@ -219,9 +263,9 @@ export function LineChart({
             type: "line" as const,
             borderColor: s.color,
             backgroundColor: s.color,
-            borderWidth: 1.8,
-            pointRadius: points ? 2 : 0,
-            pointHoverRadius: 4,
+            borderWidth: phone ? 1.5 : 1.8,
+            pointRadius: points && !phone ? 2 : 0,
+            pointHoverRadius: phone ? 3 : 4,
             pointHoverBorderWidth: 2,
             pointHoverBorderColor: "#080808",
             // Monotone curves never overshoot, so lines don't dip below zero around big spikes.
@@ -255,7 +299,7 @@ export function LineChart({
       chart.update(labelsChanged ? "none" : undefined);
     }
     setTip((t) => ({ ...t, visible: false }));
-  }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks, partialIndex]);
+  }, [labels, series, points, type, grid, prefs.motion, stacked, highlight, maxTicks, partialIndex, phone, fitOnPhone, phoneLabels]);
 
   return (
     <div className={className}>

@@ -134,6 +134,8 @@
   .dim { color: var(--color-dim); }
   .right { text-align: right; }
   .nowrap { white-space: nowrap; }
+  /* Phones only (shown in the ≤760px block): text and controls that stand in for a desktop one hidden there. */
+  .phone-only, .range-select, .segmented.acc-ahead-phone { display: none; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color); display: inline-block; flex-shrink: 0; }
   .button { border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 7px 11px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #d1d1d1; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s var(--ease-out); }
   .button:hover { background: #202020; border-color: #484848; }
@@ -1663,16 +1665,51 @@
   .segmented button { font-size: 11px; padding: 4px 8px; }
   .chart-main { padding: 0 13px 5px; }
   .chart-meta { gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
-  .legend { gap: 12px; }
+  .legend { column-gap: 14px; row-gap: 0; }
   .legend button { font-size: 10.5px; gap: 4px; }
   .legend-basis { font-size: 10px; padding: 1px 5px; }
   .chart-unit { font-size: 10px; }
-  .chart-wrap { height: 205px; }
+  /* A unit the ticks already carry ($B, x, %) gives its line back to the chart. */
+  .chart-unit.tick-unit { display: none; }
+  .chart-wrap { height: 220px; }
   .chart-wrap.large { height: 260px; }
   .panel-foot { padding: 9px 13px; font-size: 10px; }
   .volume-foot .secondary-note { display: none; }
   .section-heading h2 { font-size: 14px; }
-  .section-heading small { display: block; margin: 3px 0 0; font-size: 11px; }
+  /* A section heading with a metric switch: the title and its link on one row, the switch full width under them. The
+     metric line is left out: the pressed button names it. */
+  .section-heading:has(.segmented) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; }
+  .section-heading > .panel-controls { display: contents; }
+  .section-heading .segmented { grid-column: 1 / -1; grid-row: 2; }
+  .section-heading .segmented button { flex: 1; }
+  .section-heading small { display: none; }
+  /* Shown or hidden only on phones (the classes are display: none / inline elsewhere). */
+  .hide-phone { display: none; }
+  .phone-only { display: inline; }
+  .range-select { display: block; }
+  /* The volume panel's head in one row: the metric switch, ⚙ (which carries the time range here) and Expand as an
+     icon; "Open" sits top right like "View all"; the date range is in the page subtitle. */
+  .volume-panel .panel-head { position: relative; }
+  .volume-panel .panel-controls { width: 100%; flex-wrap: nowrap; }
+  .volume-panel .panel-controls > .segmented:first-child { margin-right: auto; }
+  .volume-panel .range-seg { display: none; }
+  .explorer-open { width: 29px; height: 29px; padding: 0; }
+  .explorer-open .icon { width: 14px; height: 14px; }
+  .explorer-open-label { display: none; }
+  .volume-panel .panel-controls > .small-link { position: absolute; top: 15px; right: 15px; }
+  .volume-panel .panel-head:has(> .panel-controls > .small-link) .panel-heading { padding-right: 60px; }
+  /* Explorer: view and metric switches share a row, the time range is a select under them. */
+  .explorer-head h1 { font-size: 16px; }
+  .explorer-controls { gap: 8px; }
+  .explorer-controls .range-seg { display: none; }
+  .explorer-controls .segmented button { padding-left: 8px; padding-right: 8px; }
+  /* Accuracy: the quarter switch moves onto the chart legend's row, at its right. */
+  .acc-controls .acc-ahead { display: none; }
+  /* The two legend keys stack at the left, the switch spans both lines at the right. */
+  .acc-chart-legend { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
+  .segmented.acc-ahead-phone { display: flex; grid-column: 2; grid-row: 1 / span 2; }
+  /* World Economies: the inflation chart names each economy, two bars apiece, so it needs more height. */
+  .horizontal-chart.horizontal-chart-pairs { height: 330px; }
   .small-link { font-size: 11px; }
   .valuation-grid { display: flex; overflow-x: auto; padding-bottom: 4px; gap: 8px; margin-bottom: 17px; }
   .valuation-card { flex: 0 0 143px; padding: 12px; }
@@ -1771,6 +1808,9 @@
   .sidebar-shortcuts { display: none; }
   @media (max-width: 760px) {
     .live-status { width: 36px; height: 36px; }
+    .explorer-open { width: 36px; height: 36px; }
+    /* Legend rows sit close: 28px each is still a fair target, and the 32px + padding rows left an empty band. */
+    .legend button { min-height: 28px; padding-block: 0; }
   }
 }
 

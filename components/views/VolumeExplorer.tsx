@@ -112,6 +112,12 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
   const scopeLabel = month ? periodLabel(month) : `${labels[0]} – ${labels.at(-1)}`;
   const unplotted = inWindow.filter((d) => d.valueUsd == null).length;
 
+  const pickRange = (r: number) => {
+    setRange(r);
+    setMonth(null);
+    setShown(PAGE);
+  };
+
   const pickMonth = (i: number) => {
     setMonth((cur) => (cur === months[i] ? null : months[i]));
     setShown(PAGE);
@@ -122,7 +128,12 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
       <header className="explorer-head">
         <div>
           <h1 id="explorer-title">M&amp;A activity</h1>
-          <p className="explorer-sub">Every U.S.-listed company agreed to be bought · {labels[0]} – {labels.at(-1)}</p>
+          <p className="explorer-sub">
+            Announced deals involving U.S.-listed companies ·{" "}
+            <span className="nowrap">
+              {labels[0]} – {labels.at(-1)}
+            </span>
+          </p>
         </div>
         <button ref={closeRef} type="button" className="button" onClick={onClose} aria-label="Close (Esc)">
           <Icon name="close" />
@@ -152,7 +163,17 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
               ]}
             />
           )}
-          <Segment label="Time range" value={range} onChange={(r) => (setRange(r), setMonth(null), setShown(PAGE))} options={rangesFor(matrix.months.length)} />
+          <Segment label="Time range" className="range-seg" value={range} onChange={pickRange} options={rangesFor(matrix.months.length)} />
+          {/* On a phone the range is a compact select (the segment above is hidden there), so the controls take two rows, not three. */}
+          <div className="range-select">
+            <Select
+              id="ex-range"
+              label="Time range"
+              value={String(range)}
+              onChange={(r) => pickRange(Number(r))}
+              options={rangesFor(matrix.months.length).map((r) => ({ value: String(r.value), label: r.label }))}
+            />
+          </div>
         </div>
 
         <div className="explorer-grid">

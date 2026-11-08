@@ -9,9 +9,11 @@ import { AboutData, Kpi, Kpis, PageHeading, PanelHead, SectorDot, Segment, Takea
 import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
 import { SECTOR_COLORS } from "@/lib/sectors";
-import { MIN_CLOSE_DAYS, months, STALE_OPEN_DAYS, timelineInsights, timelineStats, type DealTimeline } from "@/lib/timelines";
+import { BUCKETS, MIN_CLOSE_DAYS, months, STALE_OPEN_DAYS, timelineInsights, timelineStats, type DealTimeline } from "@/lib/timelines";
 
 const PAGE = 20;
+/** The histogram's buckets written short for a phone, where all eight labels show: "<1 mo", "1–2" … "9–12", "1 yr+". */
+const phoneBuckets = BUCKETS.map((b, i) => (i === 0 ? b.label.replace("< ", "<") : b.label.replace(/ mo$/, "").replace(" +", "+")));
 
 const stage = (t: DealTimeline) => {
   const m = t.deal.milestones!;
@@ -61,6 +63,7 @@ export function TimelinesView() {
                 className="chart-wrap timeline-chart"
                 type="bar"
                 labels={s.histogram.map((b) => b.label)}
+                phoneLabels={phoneBuckets}
                 series={[{ label: "Deals", color: "#bdbdbd", data: s.histogram.map((b) => b.count), hidden: false }]}
                 format={(v) => `${v} deals`}
                 formatTick={(v) => String(v)}

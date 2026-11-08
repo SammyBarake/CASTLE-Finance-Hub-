@@ -16,6 +16,7 @@ const AHEAD = ["Same quarter", "1 quarter on", "2 quarters on", "3 quarters on"]
 const INSIGHTS = accuracyInsights(B);
 const CHANGES = tuningChanges(B);
 const TOP_SETUPS = B.candidates.slice(0, 6);
+const AHEAD_OPTIONS = [1, 2, 3, 4].map((n) => ({ value: n, label: `Q${n}` }));
 
 /** Cell shade for a direction rate: grey at a coin flip, greener the better. */
 function shade(hit: number | null): React.CSSProperties {
@@ -53,16 +54,19 @@ export function WhatIfAccuracyView() {
         <PanelHead title="Predicted vs what happened" subtitle={`${FEATURE_NAMES[feature]}, ${AHEAD[k - 1].toLowerCase()} · average over the five sectors · % versus trend`}>
           <div className="acc-controls">
             <Segment label="Feature" value={feature} onChange={setFeature} options={FEATURES.map((f) => ({ value: f, label: SHORT[f] }))} />
-            <Segment label="Quarters ahead" value={k} onChange={setAhead} options={[1, 2, 3, 4].map((n) => ({ value: n, label: `Q${n}` }))} />
+            <Segment label="Quarters ahead" className="acc-ahead" value={k} onChange={setAhead} options={AHEAD_OPTIONS} />
           </div>
         </PanelHead>
-        <div className="acc-chart-legend" aria-hidden="true">
-          <span>
+        <div className="acc-chart-legend">
+          <span aria-hidden="true">
             <i style={{ background: "#e6e6e6" }} /> What happened
           </span>
-          <span>
+          <span aria-hidden="true">
             <i style={{ background: "#6fba98" }} /> Engine predicted
           </span>
+          {/* On a phone the quarter switch sits here, at the legend's right, instead of on a row of its own under the
+              features (the one above is hidden there). */}
+          <Segment label="Quarters ahead" className="acc-ahead-phone" value={k} onChange={setAhead} options={AHEAD_OPTIONS} />
         </div>
         <LineChart
           key={`${feature}|${k}`}

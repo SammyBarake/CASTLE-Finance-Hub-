@@ -94,14 +94,16 @@ export function Segment<T extends string | number>({
   options,
   value,
   onChange,
+  className,
 }: {
   label: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  className?: string;
 }) {
   return (
-    <div className="segmented" role="group" aria-label={label}>
+    <div className={className ? `segmented ${className}` : "segmented"} role="group" aria-label={label}>
       {options.map((o) => (
         <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
           {o.label}
