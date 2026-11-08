@@ -176,6 +176,9 @@ export function LineChart({
         // First draw grows in from the baseline; later updates ease between values.
         animation: reduceMotion ? false : { duration: 750, easing: "easeOutQuart" },
         interaction: { mode: "index", intersect: false },
+        // On a touch screen only a tap opens a month's breakdown: a finger passing over the chart while scrolling sent
+        // touchmove events that kept popping the tooltip up.
+        ...(window.matchMedia("(pointer: coarse)").matches ? { events: ["click" as const] } : {}),
         onClick(event, elements, chart) {
           if (!clickRef.current || !elements.length) return;
           const near = chart.getElementsAtEventForMode(event as unknown as Event, "nearest", { intersect: true }, false)[0];
@@ -214,7 +217,18 @@ export function LineChart({
         },
       },
     });
+    // A tapped month's breakdown closes as soon as the page scrolls, so it never rides along over the content.
+    const hide = () => {
+      const chart = chartRef.current;
+      if (!chart?.tooltip?.getActiveElements().length) return;
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      chart.setActiveElements([]);
+      chart.update("none");
+      setTip((t) => (t.visible ? { ...t, visible: false } : t));
+    };
+    window.addEventListener("scroll", hide, { passive: true, capture: true });
     return () => {
+      window.removeEventListener("scroll", hide, { capture: true });
       chartRef.current?.destroy();
       chartRef.current = null;
     };

@@ -37,6 +37,11 @@ const prefsScript = `try{var p={};try{p=JSON.parse(localStorage.getItem("castle-
 // a menu or drawer hands focus back to its button, so track the last input method and hide rings for mouse use.
 const inputModeScript = `(function(){var d=document.documentElement;d.dataset.input="mouse";document.addEventListener("pointerdown",function(){d.dataset.input="mouse"},true);document.addEventListener("keydown",function(e){if(/^(Tab|Arrow|Home|End|Page)/.test(e.key))d.dataset.input="keyboard"},true)})()`;
 
+// iOS Safari zooms the whole page into any field whose text is under 16px, which forced oversized search and filter boxes
+// on phones. maximum-scale=1 stops that focus zoom, and iOS still lets people pinch to zoom (it ignores the limit for
+// that). Only on iOS: Android honours the limit and would lose pinch zoom, and it never zooms into fields anyway.
+const iosViewportScript = `(function(){var n=navigator;if(!(/iP(hone|ad|od)/.test(n.userAgent)||(n.platform==="MacIntel"&&n.maxTouchPoints>1)))return;var m=document.querySelector('meta[name="viewport"]');if(m)m.setAttribute("content","width=device-width, initial-scale=1, maximum-scale=1");document.documentElement.classList.add("ios")})()`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
@@ -44,7 +49,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: prefsScript }} />
         <script dangerouslySetInnerHTML={{ __html: inputModeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* In the body, so Next's own viewport meta tag (in the head) already exists for the script to amend. */}
+        <script dangerouslySetInnerHTML={{ __html: iosViewportScript }} />
+        {children}
+      </body>
     </html>
   );
 }

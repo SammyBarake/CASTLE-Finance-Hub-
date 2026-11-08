@@ -100,6 +100,8 @@ export function DealScatter({ deals, onOpen, focusMonth, className = "chart-wrap
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Touch: only a tap shows a deal's tooltip, never a finger scrolling past.
+        ...(window.matchMedia("(pointer: coarse)").matches ? { events: ["click" as const] } : {}),
         animation: { duration: 250 },
         interaction: { mode: "nearest", intersect: true },
         plugins: { legend: { display: false }, tooltip: { enabled: false, external } },

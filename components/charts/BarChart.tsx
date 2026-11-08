@@ -43,6 +43,8 @@ export function BarChart({
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Touch: only a tap shows a bar's tooltip, never a finger scrolling past.
+        ...(window.matchMedia("(pointer: coarse)").matches ? { events: ["click" as const] } : {}),
         indexAxis: "y",
         plugins: {
           legend: {

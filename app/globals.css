@@ -1988,12 +1988,16 @@
   .legend button { min-height: 32px; padding-block: 6px; }
   .sort-button { min-height: 32px; }
   input[type="checkbox"] { width: 20px; height: 20px; }
-  input, select, textarea, .search input, .filter-search input, .select-wrap select { font-size: 16px; }
+  /* Fields take the page's own sizes. iOS would zoom the page into any field under 16px; the root layout's viewport script
+     stops that on iOS (pinch zoom still works there), and Android never zooms into fields. Search and filter boxes read
+     13px like the rows around them, toolbar selects 12px like the buttons beside them. */
+  input, textarea, .search input, .filter-search input { font-size: 13px; }
+  select, .select-wrap select { font-size: 12px; }
   .sidebar-shortcuts { display: none; }
   @media (max-width: 760px) {
     .live-status { width: 36px; height: 36px; }
     .explorer-open { width: 36px; height: 36px; }
-    /* Toolbar selects: a 32px box with tight padding, the text still 16px (iOS zooms into smaller fields). */
+    /* Toolbar selects: a 32px box with tight padding. */
     .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap) select { height: 32px; min-height: 32px; padding: 0 24px 0 9px; line-height: 1.2; color: #c4c4c4; }
     .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap)::after { right: 10px; }
     /* Legend rows sit close: 28px each is still a fair target, and the 32px + padding rows left an empty band. */
