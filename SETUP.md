@@ -101,7 +101,7 @@ they wait for the custom domain (Resend's free tier, set as Supabase's custom SM
 
 ## 5. Custom domain and email (launch day)
 
-The domain is the one thing here that costs money. With `castle.example` standing for it:
+Done in November 2026: **castleterminal.com**, bought on Vercel ($12.03 a year), with email at **hello@castleterminal.com** on Google Workspace. The site's address and contact email are now the defaults in `lib/site.ts`, so steps 4 and 6 below need no environment variables. The steps as they were, with `castle.example` standing for the domain:
 
 1. **Check the name.** Search it in USPTO's [Trademark Search](https://tmsearch.uspto.gov), classes 36 (financial services) and
    42 (software as a service), before paying for anything.
