@@ -261,6 +261,25 @@ test.describe("phone drawers and tables", () => {
     expect(errors).toEqual([]);
   });
 
+  test("wide tables stack into two-line rows that keep their row menu", async ({ page }) => {
+    const errors = watchErrors(page);
+    for (const path of ["/deal-flow", "/ipo-pipeline", "/advisors"]) {
+      await page.goto(path, { waitUntil: "networkidle" });
+      await expectLoaded(page);
+      const row = page.locator(".table-stack tbody tr.row-link").first();
+      await expect(row.locator('[data-area="main"]'), `${path}: the row's name line`).toBeVisible();
+      await expect(row.locator('[data-area="fig"]'), `${path}: the row's figure`).toBeVisible();
+      const box = await row.boundingBox();
+      expect(box && box.x + box.width, `${path}: row inside the screen`).toBeLessThanOrEqual(375);
+    }
+    // The ⋯ button stays on a deal row and opens its menu.
+    await page.goto("/deal-flow", { waitUntil: "networkidle" });
+    await expectLoaded(page);
+    await page.locator('.table-stack tbody tr [data-area="act"] .row-icon').first().click();
+    await expect(page.locator(".context-menu")).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test("the search sits behind an icon: it opens across the top bar, its results fit the screen, Cancel closes it", async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto("/hub", { waitUntil: "networkidle" });

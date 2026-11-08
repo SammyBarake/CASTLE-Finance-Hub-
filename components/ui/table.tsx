@@ -43,6 +43,18 @@ export function ShowMore({ shown, total, onMore }: { shown: number; total: numbe
   );
 }
 
+/** A phone-only cell for a stacked row (`.table-stack`; hidden on wider screens): "Acquirer → Target", each name cut
+    short on its own so a long buyer never hides the target. */
+export function DealPairCell({ acquirer, target }: { acquirer: string; target: string }) {
+  return (
+    <td className="phone-cell stack-pair" data-area="main">
+      <span>{acquirer}</span>
+      <span className="stack-sep">→</span>
+      <span>{target}</span>
+    </td>
+  );
+}
+
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <tr>

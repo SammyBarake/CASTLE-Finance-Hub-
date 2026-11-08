@@ -6,8 +6,8 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { AboutData, Kpi, Kpis, PageHeading, PanelHead, SectorDot, Segment, Takeaways } from "@/components/ui/primitives";
-import { EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
+import { DealPairCell, EmptyRow, RowLink, ShowMore } from "@/components/ui/table";
+import { formatDate, formatDateLong, formatMonth } from "@/lib/format";
 import { SECTOR_COLORS } from "@/lib/sectors";
 import { BUCKETS, MIN_CLOSE_DAYS, months, STALE_OPEN_DAYS, timelineInsights, timelineStats, type DealTimeline } from "@/lib/timelines";
 
@@ -122,7 +122,7 @@ export function TimelinesView() {
               />
             </PanelHead>
             <div className="table-scroll">
-              <table>
+              <table className="table-stack">
                 <caption className="sr-only">{list === "waiting" ? "Open deals" : "Closed deals"}</caption>
                 <thead>
                   <tr>
@@ -147,9 +147,18 @@ export function TimelinesView() {
                         </td>
                         <td className="table-date">{formatDate(t.deal.announcedDate)}</td>
                         <td className="dim">{list === "waiting" ? stage(t) : formatDate(t.deal.milestones!.closed!)}</td>
-                        <td className="right mono">{months(list === "waiting" ? t.daysElapsed : t.daysToClose)}</td>
+                        <td className="right mono" data-area="fig">
+                          {months(list === "waiting" ? t.daysElapsed : t.daysToClose)}
+                        </td>
+                        {/* The phone's stacked row (hidden on wider screens): buyer → target, then the stage or the dates. */}
+                        <DealPairCell acquirer={t.deal.acquirer.name} target={t.deal.target.name} />
+                        <td className="phone-cell" data-area="sub">
+                          {list === "waiting"
+                            ? `${stage(t)} · since ${formatMonth(t.deal.announcedDate.slice(0, 7))}`
+                            : `${formatDateLong(t.deal.announcedDate)} – ${formatDateLong(t.deal.milestones!.closed!)}`}
+                        </td>
                         {open && (
-                          <td className="timeline-progress-cell">
+                          <td className="timeline-progress-cell" data-area="tag">
                             <span className={`timeline-progress ${(open.progressPct ?? 0) > 150 ? "late" : ""}`}>
                               <i style={{ width: `${Math.min(open.progressPct ?? 0, 100)}%` }} />
                             </span>

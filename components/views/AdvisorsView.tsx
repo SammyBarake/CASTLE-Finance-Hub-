@@ -6,7 +6,7 @@ import { useHubData } from "@/components/data/HubDataProvider";
 import { Icon } from "@/components/ui/Icon";
 import { AboutData, CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, Select } from "@/components/ui/primitives";
 import { AdvisorFees } from "./AdvisorFees";
-import { EmptyRow, RowLink } from "@/components/ui/table";
+import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -26,6 +26,9 @@ export function AdvisorsView() {
   const [sort, setSort] = useState<Sort>("value");
   const [query, setQuery] = useState("");
   const [minDeals, setMinDeals] = useState("");
+  // A long table shows a page at a time; a new search, filter or ranking starts again from the top.
+  const [shown, setShown] = useState(TABLE_PAGE);
+  const reset = <T,>(set: (v: T) => void) => (v: T) => (set(v), setShown(TABLE_PAGE));
   const entries = data.leagueTable.entries;
 
   // Rank follows the chosen sort across all advisors; filters only hide rows.
@@ -107,13 +110,13 @@ export function AdvisorsView() {
 
       <section className="panel">
         <div className="table-tools">
-          <FilterSearch id="advisor-search" label="Filter advisors" placeholder="Find an advisor" value={query} onChange={setQuery} />
+          <FilterSearch id="advisor-search" label="Filter advisors" placeholder="Find an advisor" value={query} onChange={reset(setQuery)} />
           <div className="table-filters">
             <Select
               id="advisor-min"
               label="Minimum deals advised"
               value={minDeals}
-              onChange={setMinDeals}
+              onChange={reset(setMinDeals)}
               options={[
                 { value: "", label: "Any deal count" },
                 { value: "3", label: "3+ deals" },
@@ -125,7 +128,7 @@ export function AdvisorsView() {
             id="advisor-sort"
             label="Rank advisors by"
             value={sort}
-            onChange={setSort}
+            onChange={reset(setSort)}
             options={[
               { value: "value", label: "Rank by deal value" },
               { value: "deals", label: "Rank by deal count" },
@@ -134,7 +137,7 @@ export function AdvisorsView() {
           </div>
         </div>
         <div className="table-scroll">
-          <table>
+          <table className="table-stack stack-rank">
             <caption className="sr-only">Advisor league table</caption>
             <thead>
               <tr>
@@ -146,12 +149,12 @@ export function AdvisorsView() {
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ e, valueRank, rank }) => {
+              {visibleRows.slice(0, shown).map(({ e, valueRank, rank }) => {
                 const change = sort === "value" ? e.rankChange : (e.dealCountRankChange ?? 0);
                 const showChange = change !== 0;
                 return (
                   <RowLink key={e.advisor.name} label={`${e.advisor.name} advisory activity`} onOpen={() => openAdvisor(e, valueRank)}>
-                    <td className="table-date">
+                    <td className="table-date" data-area="rank">
                       {String(rank).padStart(2, "0")}
                       <span className={`rank-change ${showChange ? (change > 0 ? "up" : "down") : "muted"}`} aria-label={change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}>
                         {showChange ? (
@@ -164,14 +167,19 @@ export function AdvisorsView() {
                         )}
                       </span>
                     </td>
-                    <td className="company">
+                    <td className="company" data-area="main">
                       <span className="company-line">
                         <CompanyMark name={e.advisor.name} letters={e.advisor.shortName} />
                         {e.advisor.name}
                       </span>
                     </td>
                     <td className="right mono">{e.dealCount}</td>
-                    <td className="right table-value">
+                    {/* The phone's second line carries the deal count and the average the desktop gives columns. */}
+                    <td className="phone-cell" data-area="sub">
+                      {e.dealCount.toLocaleString("en-US")} {e.dealCount === 1 ? "deal" : "deals"} advised
+                      {e.dealCount ? ` · avg. ${formatUsd(e.dealValueUsd / e.dealCount)}` : ""}
+                    </td>
+                    <td className="right table-value" data-area="fig">
                       {formatUsdB1(e.dealValueUsd)}
                       <span className="value-bar">
                         <i style={{ width: `${Math.min((e.dealValueUsd / maxValue) * 100, 100)}%` }} />
@@ -185,6 +193,7 @@ export function AdvisorsView() {
             </tbody>
           </table>
         </div>
+        <ShowMore shown={shown} total={visibleRows.length} onMore={() => setShown((n) => n + TABLE_PAGE)} />
         <div className="panel-foot">
           <span>
             {data.leagueTable.period} · Through {formatDate(dataDay(data.asOf))}

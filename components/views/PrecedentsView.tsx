@@ -15,7 +15,7 @@ import { PrecedentsDcf } from "@/components/views/PrecedentsDcf";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { precedentsWorkbook } from "@/lib/excel/workbooks";
-import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { considerationLabel, formatDate, formatMonth, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { ADJ_EBITDA_DEFINITION } from "@/lib/metrics";
 import {
   dcfRows,
@@ -32,10 +32,29 @@ import {
   type Summary,
 } from "@/lib/precedents";
 import { CONSIDERATION_OPTIONS } from "@/lib/screen";
-import { SECTORS } from "@/lib/types";
+import { SECTORS, type Deal } from "@/lib/types";
 import { decodeState, encodeState, replaceQuery } from "@/lib/urlState";
 
-const range = (s: Summary, fmt: (v: number | null) => string) => (s.n >= 4 ? `25th–75th: ${fmt(s.p25)} – ${fmt(s.p75)}` : `${s.n} data point${s.n === 1 ? "" : "s"}`);
+/** A row's phone-only lead cells (hidden on wider screens): the name column that holds still while the figures
+    scroll, then the multiple and premium moved up beside it. */
+function PhoneLead({ d }: { d: Deal }) {
+  return (
+    <>
+      <td className="phone-cell sticky-col">
+        <span className="comps-name">
+          <span className="company">{d.target.name}</span>
+          <small>
+            {formatMonth(d.announcedDate.slice(0, 7))} · {d.acquirer.name}
+          </small>
+        </span>
+      </td>
+      <td className="phone-cell right mono">{formatMultiple(d.evEbitda)}</td>
+      <td className="phone-cell right mono">{formatPct(d.premiumPct)}</td>
+    </>
+  );
+}
+
+const range =(s: Summary, fmt: (v: number | null) => string) => (s.n >= 4 ? `25th–75th: ${fmt(s.p25)} – ${fmt(s.p75)}` : `${s.n} data point${s.n === 1 ? "" : "s"}`);
 
 export function PrecedentsView() {
   const dealId = useSearchParams().get("deal");
@@ -203,13 +222,34 @@ function Precedents({ dealId }: { dealId: string | null }) {
                 <th scope="col" className="cell-controls">
                   <span className="sr-only">Include</span>
                 </th>
-                <th scope="col">ANNOUNCED</th>
-                <th scope="col">TARGET</th>
-                <th scope="col">ACQUIRER</th>
+                {/* On a phone the name column holds still (target, then acquirer and month) and the multiple and premium
+                    come first: .phone-cell columns stand in for the .hide-phone ones. */}
+                <th scope="col" className="phone-cell sticky-col">
+                  TARGET / ACQUIRER
+                </th>
+                <th scope="col" className="phone-cell right">
+                  EV / ADJ. EBITDA
+                </th>
+                <th scope="col" className="phone-cell right">
+                  PREMIUM
+                </th>
+                <th scope="col" className="hide-phone">
+                  ANNOUNCED
+                </th>
+                <th scope="col" className="hide-phone">
+                  TARGET
+                </th>
+                <th scope="col" className="hide-phone">
+                  ACQUIRER
+                </th>
                 <th scope="col" className="right">DEAL VALUE</th>
-                <th scope="col" className="right">EV / ADJ. EBITDA</th>
+                <th scope="col" className="right hide-phone">
+                  EV / ADJ. EBITDA
+                </th>
                 <th scope="col" className="right">EV / REVENUE</th>
-                <th scope="col" className="right">PREMIUM</th>
+                <th scope="col" className="right hide-phone">
+                  PREMIUM
+                </th>
                 <th scope="col">CONSIDERATION</th>
               </tr>
             </thead>
@@ -219,17 +259,18 @@ function Precedents({ dealId }: { dealId: string | null }) {
                   <td className="cell-controls">
                     <Icon name="right" />
                   </td>
-                  <td className="table-date">{formatDate(subject.announcedDate)}</td>
-                  <td className="company">
+                  <PhoneLead d={subject} />
+                  <td className="table-date hide-phone">{formatDate(subject.announcedDate)}</td>
+                  <td className="company hide-phone">
                     <CompanyLink company={subject.target} />
                   </td>
-                  <td className="company">
+                  <td className="company hide-phone">
                     <CompanyLink company={subject.acquirer} />
                   </td>
                   <td className="right table-value">{formatUsd(dealSize(subject))}</td>
-                  <td className="right mono">{formatMultiple(subject.evEbitda)}</td>
+                  <td className="right mono hide-phone">{formatMultiple(subject.evEbitda)}</td>
                   <td className="right mono">{formatMultiple(subject.evRevenue)}</td>
-                  <td className="right mono">{formatPct(subject.premiumPct)}</td>
+                  <td className="right mono hide-phone">{formatPct(subject.premiumPct)}</td>
                   <td className="dim">Subject deal</td>
                 </RowLink>
               )}
@@ -240,17 +281,18 @@ function Precedents({ dealId }: { dealId: string | null }) {
                     <td className="cell-controls" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" aria-label={`Include ${d.target.name}`} checked={!out} onChange={() => toggle(d.id)} />
                     </td>
-                    <td className="table-date">{formatDate(d.announcedDate)}</td>
-                    <td className="company">
+                    <PhoneLead d={d} />
+                    <td className="table-date hide-phone">{formatDate(d.announcedDate)}</td>
+                    <td className="company hide-phone">
                       <CompanyLink company={d.target} />
                     </td>
-                    <td className="company">
+                    <td className="company hide-phone">
                       <CompanyLink company={d.acquirer} />
                     </td>
                     <td className="right table-value">{formatUsd(dealSize(d))}</td>
-                    <td className="right mono">{formatMultiple(d.evEbitda)}</td>
+                    <td className="right mono hide-phone">{formatMultiple(d.evEbitda)}</td>
                     <td className="right mono">{formatMultiple(d.evRevenue)}</td>
-                    <td className="right mono">{formatPct(d.premiumPct)}</td>
+                    <td className="right mono hide-phone">{formatPct(d.premiumPct)}</td>
                     <td className="dim">{considerationLabel(d.consideration)}</td>
                   </RowLink>
                 );
@@ -269,13 +311,18 @@ function Precedents({ dealId }: { dealId: string | null }) {
                 {SUMMARY_ROWS.map(({ key, label }) => (
                   <tr key={key} className={key === "median" ? "comps-median" : ""}>
                     <td />
-                    <th scope="row" colSpan={3}>
+                    <th scope="row" className="phone-cell sticky-col">
+                      {label}
+                    </th>
+                    <td className="phone-cell right mono">{formatMultiple(stats.evEbitda[key])}</td>
+                    <td className="phone-cell right mono">{formatPct(stats.premium[key])}</td>
+                    <th scope="row" colSpan={3} className="hide-phone">
                       {label}
                     </th>
                     <td className="right table-value">{formatUsd(stats.size[key])}</td>
-                    <td className="right mono">{formatMultiple(stats.evEbitda[key])}</td>
+                    <td className="right mono hide-phone">{formatMultiple(stats.evEbitda[key])}</td>
                     <td className="right mono">{formatMultiple(stats.evRevenue[key])}</td>
-                    <td className="right mono">{formatPct(stats.premium[key])}</td>
+                    <td className="right mono hide-phone">{formatPct(stats.premium[key])}</td>
                     <td />
                   </tr>
                 ))}

@@ -150,14 +150,26 @@ export function EconomiesView() {
           </span>
         </div>
         <div className="table-scroll">
-          <table>
+          {/* On a phone: short headers, the rate's date under the rate, each change on a line of its own. */}
+          <table className="econ-table">
             <thead>
               <tr>
                 <th scope="col">ECONOMY</th>
-                <th scope="col" className="right">GDP GROWTH {year}E</th>
-                <th scope="col" className="right">INFLATION {year}E</th>
-                <th scope="col" className="right">POLICY RATE</th>
-                <th scope="col" className="right">RATE AS OF</th>
+                <th scope="col" className="right">
+                  <span className="hide-phone">GDP GROWTH {year}E</span>
+                  <span className="phone-only">GDP {String(year).slice(2)}E</span>
+                </th>
+                <th scope="col" className="right">
+                  <span className="hide-phone">INFLATION {year}E</span>
+                  <span className="phone-only">CPI {String(year).slice(2)}E</span>
+                </th>
+                <th scope="col" className="right">
+                  <span className="hide-phone">POLICY RATE</span>
+                  <span className="phone-only">POLICY</span>
+                </th>
+                <th scope="col" className="right hide-phone">
+                  RATE AS OF
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -175,8 +187,11 @@ export function EconomiesView() {
                     {pct(e.inflation)}
                     <Delta now={e.inflation} prior={e.inflationPrior} />
                   </td>
-                  <td className="right mono">{rate(e.policyRate)}</td>
-                  <td className="right table-date">{e.policyRateDate ? formatDate(e.policyRateDate) : "—"}</td>
+                  <td className="right mono">
+                    {rate(e.policyRate)}
+                    {e.policyRateDate && <small className="phone-only econ-rate-date">{formatDate(e.policyRateDate)}</small>}
+                  </td>
+                  <td className="right table-date hide-phone">{e.policyRateDate ? formatDate(e.policyRateDate) : "—"}</td>
                 </tr>
               ))}
               {!rows.length && <EmptyRow colSpan={5}>No economies in this region.</EmptyRow>}

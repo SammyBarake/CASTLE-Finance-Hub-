@@ -3,6 +3,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { AboutData, Kpi, Kpis, PageHeading, PanelHead, Takeaways } from "@/components/ui/primitives";
+import { usePhone } from "@/components/ui/usePhone";
 import { coverageStart } from "@/lib/aggregate";
 import { coverage, coverageTakeaways, IPO_FIELDS, PRIVATE_FIELDS, privateDeals, PUBLIC_FIELDS, publicDeals, type Coverage, type Share } from "@/lib/coverage";
 import { formatPct } from "@/lib/format";
@@ -20,7 +21,11 @@ function Cell({ s, strong }: { s: Share; strong?: boolean }) {
   );
 }
 
-function CoverageTable({ c, caption, first }: { c: Coverage; caption: string; first: string }) {
+function CoverageTable({ c, caption, first, byYear }: { c: Coverage; caption: string; first: string; byYear?: boolean }) {
+  // On a phone the newest years come first, next to ALL, since only a few columns fit beside the held field names.
+  // (This page waits for the dataset, so the table first renders after hydration with the real width.)
+  const phone = usePhone();
+  const years = byYear && phone ? [...c.years].reverse() : c.years;
   return (
     <div className="table-scroll">
       <table className="coverage-table">
@@ -31,7 +36,7 @@ function CoverageTable({ c, caption, first }: { c: Coverage; caption: string; fi
             <th scope="col" className="right">
               ALL
             </th>
-            {c.years.map((y) => (
+            {years.map((y) => (
               <th scope="col" className="right" key={y}>
                 {y.toUpperCase()}
               </th>
@@ -46,7 +51,7 @@ function CoverageTable({ c, caption, first }: { c: Coverage; caption: string; fi
                 {r.note && <small>{r.note}</small>}
               </th>
               <Cell s={r.all} strong />
-              {c.years.map((y) => (
+              {years.map((y) => (
                 <Cell key={y} s={r.byYear[y]} />
               ))}
             </tr>
@@ -56,7 +61,7 @@ function CoverageTable({ c, caption, first }: { c: Coverage; caption: string; fi
           <tr>
             <th scope="row">Records</th>
             <td className="right mono">{c.total.toLocaleString("en-US")}</td>
-            {c.years.map((y) => (
+            {years.map((y) => (
               <td className="right mono" key={y}>
                 {c.totalByYear[y].toLocaleString("en-US")}
               </td>
@@ -94,12 +99,12 @@ export function CoverageView() {
 
       <section className="panel">
         <PanelHead title="Public-target deals" subtitle="Share of deals with each figure, by year announced" />
-        <CoverageTable c={pub} caption="Coverage of public-target deals by field and year" first="FIELD" />
+        <CoverageTable c={pub} caption="Coverage of public-target deals by field and year" first="FIELD" byYear />
       </section>
 
       <section className="panel">
         <PanelHead title="Private-target deals" subtitle="Private companies bought by US-listed acquirers" />
-        <CoverageTable c={priv} caption="Coverage of private-target deals by field and year" first="FIELD" />
+        <CoverageTable c={priv} caption="Coverage of private-target deals by field and year" first="FIELD" byYear />
       </section>
 
       <section className="panel">

@@ -136,6 +136,8 @@
   .nowrap { white-space: nowrap; }
   /* Phones only (shown in the ≤760px block): text and controls that stand in for a desktop one hidden there. */
   .phone-only, .range-select, .segmented.acc-ahead-phone { display: none; }
+  /* Table cells that exist only for the phone layout (a stacked row's summary, a reordered column). */
+  td.phone-cell, th.phone-cell { display: none; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color); display: inline-block; flex-shrink: 0; }
   .button { border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 7px 11px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #d1d1d1; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s var(--ease-out); }
   .button:hover { background: #202020; border-color: #484848; }
@@ -1740,6 +1742,86 @@
   .table-value { font-size: 12px; }
   .table-date { font-size: 11px; }
   .table-underwriters { font-size: 11px; }
+  /* Wide tables, stacked: a table with .table-stack shows each row as two lines on a grid, the name and its figure,
+     then the detail and a tag. Cells name their place with data-area (main, fig, sub, tag; act = the ⋯ button, sel =
+     a checkbox, rank = a league position, each spanning both lines); any other cell is hidden. A .phone-cell exists
+     only here: a summary the desktop spreads over several columns. Row menus stay on the row. */
+  td.phone-cell, th.phone-cell { display: table-cell; }
+  .table-scroll:has(> .table-stack) { overflow-x: visible; }
+  .table-stack, .table-stack tbody { display: block; width: 100%; }
+  .table-stack thead { display: none; }
+  .table-stack tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main fig" "sub tag"; align-items: center; column-gap: 12px; row-gap: 4px; padding: 12px 14px; border-bottom: 1px solid var(--color-soft); }
+  .table-stack tbody tr:last-child { border-bottom: 0; }
+  .table-scroll .table-stack td { display: none; padding: 0; border: 0; min-width: 0; max-width: none; width: auto; white-space: nowrap; }
+  .table-scroll .table-stack td[data-area], .table-scroll .table-stack td[colspan] { display: block; }
+  .table-scroll .table-stack td[colspan] { grid-column: 1 / -1; white-space: normal; }
+  .table-scroll .table-stack td[data-area="main"] { grid-area: main; overflow: hidden; text-overflow: ellipsis; color: #e2e2e2; font-size: 13px; font-weight: 450; }
+  .table-scroll .table-stack td[data-area="fig"] { grid-area: fig; text-align: right; color: #ececec; font-size: 13px; }
+  .table-scroll .table-stack td[data-area="sub"] { grid-area: sub; overflow: hidden; text-overflow: ellipsis; color: #8c8c8c; font-size: 11px; }
+  .table-scroll .table-stack td[data-area="tag"] { grid-area: tag; justify-self: end; text-align: right; color: #a8a8a8; font-size: 11px; }
+  .table-scroll .table-stack td[data-area="act"] { grid-area: act; }
+  .table-scroll .table-stack td[data-area="sel"] { grid-area: sel; }
+  .table-scroll .table-stack td[data-area="rank"] { grid-area: rank; align-self: start; }
+  .table-stack.stack-act tbody tr { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main fig act" "sub tag act"; column-gap: 10px; padding-right: 6px; }
+  .table-stack.stack-act.stack-sel tbody tr { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "sel main fig act" "sel sub tag act"; padding-left: 12px; }
+  .table-stack.stack-rank tbody tr { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "rank main fig" "rank sub tag"; }
+  .table-stack .company-mark { display: none; }
+  .table-stack .company-line { display: inline; }
+  .table-stack td[data-area="main"] small { display: inline; margin: 0 0 0 6px; }
+  .table-stack td[data-area="main"] .aim-chip { margin-left: 6px; }
+  .table-stack td[data-area="tag"] .aim-chip { margin: 0; }
+  .table-stack td[data-area="sel"] input { margin: 0; }
+  .table-stack td[data-area="sel"] .row-icon { display: none; }
+  .table-stack td[data-area="rank"] .rank-change { display: flex; margin: 4px 0 0; min-width: 0; }
+  .table-stack td[data-area="fig"] .value-bar { width: 64px; margin-top: 5px; }
+  .table-scroll .table-stack td.timeline-progress-cell[data-area] { display: flex; min-width: 0; width: 104px; }
+  .stack-sep { color: #4a4a4a; margin: 0 5px; }
+  /* "Acquirer → Target": each name is cut on its own, both giving up length in proportion to it. */
+  .table-scroll .table-stack td.stack-pair[data-area] { display: flex; align-items: baseline; }
+  .stack-pair > span:not(.stack-sep) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .stack-pair > .stack-sep { flex: none; }
+  /* Precedents and the banks' DCFs stay tables (the figures are compared down a column); the name column holds still
+     while the figures scroll under it. */
+  .comps-table .sticky-col, .comps-table:not(.dcf-table) tr > :first-child:not([colspan]) { position: sticky; left: 0; z-index: 1; }
+  .comps-table:not(.dcf-table) tr > :first-child:not([colspan]) { width: 36px; min-width: 36px; padding-left: 10px; padding-right: 4px; }
+  .comps-table:not(.dcf-table) .sticky-col { left: 36px; }
+  .comps-table .sticky-col { box-shadow: inset -1px 0 0 var(--color-line); padding-right: 12px; }
+  .comps-table tbody td.sticky-col, .comps-table:not(.dcf-table) tbody td:first-child:not([colspan]) { background: var(--color-panel); }
+  .comps-table tbody .comps-subject > td { background: #101010; }
+  .comps-excluded td.sticky-col { opacity: 1; }
+  .comps-excluded td.sticky-col > * { opacity: 0.35; }
+  .table-scroll .comps-table th, .table-scroll .comps-table td { padding-left: 10px; padding-right: 10px; }
+  .table-scroll .comps-table thead th { white-space: normal; line-height: 1.35; vertical-align: bottom; }
+  .comps-name { display: block; width: 122px; }
+  .comps-name > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .comps-name small { margin-top: 3px; color: #7c7c7c; font-size: 10.5px; font-weight: 400; }
+  .dcf-table .dcf-bar-col { width: 120px; min-width: 120px; }
+  /* "Show more" inside a sideways-scrolling table stays under the visible part (the panel's inner width). */
+  .comps-table .show-more { position: sticky; left: 0; width: calc(100vw - 34px); }
+  /* Coverage: the field names hold still while the years scroll (newest first on a phone). */
+  .coverage-table tr > th:first-child { position: sticky; left: 0; z-index: 1; box-shadow: inset -1px 0 0 var(--color-line); }
+  .coverage-table tbody th[scope="row"] { min-width: 130px; max-width: 150px; background: var(--color-panel); }
+  .table-scroll .coverage-table th, .table-scroll .coverage-table td { padding-left: 11px; padding-right: 11px; }
+  /* World Economies: four columns that fit; each change and the rate's date sit under their figure. */
+  .econ-table .country-code { display: none; }
+  .econ-table .econ-delta { display: block; margin: 3px 0 0; }
+  .econ-table .econ-rate-date.phone-only { display: block; margin-top: 3px; color: #7c7c7c; font-size: 10.5px; }
+  .table-scroll .econ-table th, .table-scroll .econ-table td { padding-left: 10px; padding-right: 10px; vertical-align: top; }
+  .table-scroll .econ-table th:first-child, .table-scroll .econ-table td:first-child { padding-left: 14px; white-space: normal; }
+  /* A figure's reference on a line under it (Valuations' prior quarter under the change). */
+  .stack-under.phone-only { display: block; margin-top: 3px; color: #7c7c7c; font-size: 10.5px; }
+  /* About's sources: one block per source, the name over what it's used for and its terms. */
+  .table-scroll:has(> .info-sources) { overflow-x: visible; }
+  .info-sources, .info-sources tbody, .info-sources tr { display: block; }
+  .info-sources thead { display: none; }
+  .info-sources tr { padding: 13px 14px; border-bottom: 1px solid var(--color-soft); }
+  .info-sources tr:last-child { border-bottom: 0; }
+  .table-scroll .info-sources tbody th[scope="row"], .table-scroll .info-sources td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .table-scroll .info-sources tbody th[scope="row"] { font-size: 12px; font-weight: 600; color: #e6e6e6; margin-bottom: 4px; }
+  .table-scroll .info-sources td { font-size: 12px; }
+  .table-scroll .info-sources td + td { margin-top: 4px; font-size: 11px; color: #858585; }
+  /* Valuations' sector comparison: the title and its sort on one row. */
+  .sector-compare .table-tools { flex-direction: row; align-items: center; justify-content: space-between; }
   .footer { margin: 0 16px; padding: 17px 0 20px; font-size: 10.5px; gap: 12px; }
   .footer button { font-size: 10.5px; white-space: nowrap; }
   .footer { flex-direction: column; align-items: flex-start; }

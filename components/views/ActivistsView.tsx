@@ -152,7 +152,7 @@ export function ActivistsView() {
           )}
         </PanelHead>
         <div className="table-scroll">
-          <table>
+          <table className="table-stack">
             <caption className="sr-only">Activist stakes</caption>
             <thead>
               <tr>
@@ -169,12 +169,28 @@ export function ActivistsView() {
                 <RowLink key={s.id} label={`${s.investor.name} stake in ${s.company.name}`} onOpen={() => openStake(s)}>
                   <td className="table-date">{formatDate(s.filedDate)}</td>
                   <td className="company">{s.investor.name}</td>
-                  <td className="company">
+                  <td className="company" data-area="main">
                     <CompanyLink company={s.company} />
                     {s.company.ticker && <small className="dim"> {s.company.ticker}</small>}
                     {soldIds.has(s.id) && <span className="aim-chip sold">Later sold</span>}
                   </td>
-                  <td className="right mono">{pct(s.percent)}</td>
+                  <td className="right mono" data-area="fig">
+                    {pct(s.percent)}
+                  </td>
+                  {/* The phone's second line (hidden on wider screens): who filed and when, and their first aim. */}
+                  <td className="phone-cell" data-area="sub">
+                    {s.investor.name} · {formatDateLong(s.filedDate)}
+                  </td>
+                  <td className="phone-cell" data-area="tag">
+                    {s.aims.length ? (
+                      <span className="aim-chip">
+                        {s.aims[0]}
+                        {s.aims.length > 1 && ` +${s.aims.length - 1}`}
+                      </span>
+                    ) : (
+                      <span className="dim">Not specific</span>
+                    )}
+                  </td>
                   <td>
                     {s.aims.length ? (
                       s.aims.slice(0, 3).map((a) => (

@@ -9,14 +9,14 @@ import { CompanyLink } from "@/components/ui/CompanyLink";
 import { CopyLinkButton, copyPageLink } from "@/components/ui/CopyLinkButton";
 import { Icon } from "@/components/ui/Icon";
 import { CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, SectorLabel, Select, StatusTag } from "@/components/ui/primitives";
-import { EmptyRow } from "@/components/ui/table";
+import { DealPairCell, EmptyRow } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions, useWorkspaceDialogs, WatchButton } from "@/components/workspace/actions";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { dealsWorkbook } from "@/lib/excel/workbooks";
-import { considerationLabel, formatDate, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { considerationLabel, formatDate, formatDateLong, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { dataDay } from "@/lib/freshness";
 import { median, sum } from "@/lib/metrics";
 import {
@@ -145,6 +145,8 @@ export function DealFlowView() {
   const visibleIds = rows.map((d) => d.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => ws.selected.has(id));
   const someSelected = visibleIds.some((id) => ws.selected.has(id));
+  // On a phone the row checkboxes show only once something is selected (the row menu's "Select for comparison").
+  const selecting = ws.selected.size > 0;
   useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected && !allSelected;
   }, [someSelected, allSelected]);
@@ -360,6 +362,12 @@ export function DealFlowView() {
               Add to book
             </button>
             <span className="bulk-spacer" />
+            {/* The header's select-all box is hidden with the phone's column headers. */}
+            <span className="phone-only">
+              <button type="button" className="small-link" onClick={() => toggleAll(!allSelected)}>
+                {allSelected ? "Unselect all" : "Select all"}
+              </button>
+            </span>
             <button type="button" className="small-link" onClick={() => ws.setSelected(new Set())}>
               Clear
             </button>
@@ -367,7 +375,7 @@ export function DealFlowView() {
         )}
 
         <div className="table-scroll">
-          <table>
+          <table className={`table-stack stack-act ${selecting ? "stack-sel" : ""}`}>
             <caption className="sr-only">M&amp;A deal screener. Select a row for details; right-click for actions.</caption>
             <thead>
               <tr>
@@ -413,14 +421,27 @@ export function DealFlowView() {
                       openRowMenu("deal", d, { x: e.clientX, y: e.clientY });
                     }}
                   >
-                    <td className="cell-controls" onClick={(e) => e.stopPropagation()}>
+                    <td className="cell-controls" data-area={selecting ? "sel" : undefined} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" aria-label={`Select ${d.target.name}`} checked={isSel} onChange={() => ws.toggleSelected(d.id)} />
                       <WatchButton kind="deal" id={d.id} label={d.target.name} />
                     </td>
                     {columns.map((c) => (
                       <Cell key={c.key} d={d} col={c.key} />
                     ))}
-                    <td className="cell-end">
+                    {/* The phone's stacked row (hidden on wider screens): buyer → target, value, date · premium, status. */}
+                    <DealPairCell acquirer={d.acquirer.name} target={d.target.name} />
+                    <td className="phone-cell table-value" data-area="fig">
+                      {formatUsd(d.valueUsd)}
+                    </td>
+                    <td className="phone-cell" data-area="sub">
+                      {formatDateLong(d.announcedDate)}
+                      {d.premiumPct != null && ` · ${formatPct(d.premiumPct)} premium`}
+                      {d.privateTarget && " · Private target"}
+                    </td>
+                    <td className="phone-cell" data-area="tag">
+                      <StatusTag status={d.status} />
+                    </td>
+                    <td className="cell-end" data-area="act">
                       <button
                         type="button"
                         className="row-icon"

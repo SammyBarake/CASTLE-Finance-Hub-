@@ -53,12 +53,29 @@ export function PrecedentsDcf({ deals, onOpen }: { deals: Deal[]; onOpen: (d: De
           <caption className="sr-only">Target banks&apos; DCF ranges against the offer</caption>
           <thead>
             <tr>
-              <th scope="col">TARGET</th>
-              <th scope="col">ADVISOR</th>
+              {/* On a phone the name column (target, then its bank) holds still, and the bar and the gap to the
+                  midpoint come first: .phone-cell columns stand in for the .hide-phone ones. */}
+              <th scope="col" className="phone-cell sticky-col">
+                TARGET / ADVISOR
+              </th>
+              <th scope="col" className="phone-cell dcf-bar-col">
+                <span className="sr-only">DCF range against the offer</span>
+              </th>
+              <th scope="col" className="phone-cell right">
+                VS. MIDPOINT
+              </th>
+              <th scope="col" className="hide-phone">
+                TARGET
+              </th>
+              <th scope="col" className="hide-phone">
+                ADVISOR
+              </th>
               <th scope="col" className="right">DCF VALUE / SHARE</th>
               <th scope="col" className="right">OFFER</th>
-              <th scope="col" className="right">VS. MIDPOINT</th>
-              <th scope="col" className="dcf-bar-col">
+              <th scope="col" className="right hide-phone">
+                VS. MIDPOINT
+              </th>
+              <th scope="col" className="dcf-bar-col hide-phone">
                 <span className="sr-only">DCF range against the offer</span>
               </th>
               <th scope="col" className="right">DISCOUNT RATE</th>
@@ -70,25 +87,33 @@ export function PrecedentsDcf({ deals, onOpen }: { deals: Deal[]; onOpen: (d: De
               const offer = deal.pricePerShare;
               const style = offer ? ({ "--lo": `${x(dcf.low / offer)}%`, "--hi": `${x(dcf.high / offer)}%`, "--offer": `${x(1)}%` } as CSSProperties) : undefined;
               const where = offer == null ? "" : offer > dcf.high ? "above" : offer < dcf.low ? "below" : "within";
+              const bar = style && (
+                <span className={`dcf-bar ${where}`} style={style} role="img" aria-label={`Offer ${where} the DCF range`}>
+                  <span className="dcf-range" />
+                  <span className="dcf-offer" />
+                </span>
+              );
+              const gap = vsMid == null ? "—" : formatSignedPct(vsMid);
               return (
                 <RowLink key={deal.id} label={`${deal.acquirer.name} to acquire ${deal.target.name}`} onOpen={() => onOpen(deal)}>
-                  <td className="company">
+                  <td className="phone-cell sticky-col">
+                    <span className="comps-name">
+                      <span className="company">{deal.target.name}</span>
+                      <small>{dcf.bank ?? "—"}</small>
+                    </span>
+                  </td>
+                  <td className="phone-cell dcf-bar-col">{bar}</td>
+                  <td className="phone-cell right mono">{gap}</td>
+                  <td className="company hide-phone">
                     <CompanyLink company={deal.target} />
                   </td>
-                  <td className="dim">{dcf.bank ?? "—"}</td>
+                  <td className="dim hide-phone">{dcf.bank ?? "—"}</td>
                   <td className="right mono">
                     {formatPrice(dcf.low)} – {formatPrice(dcf.high)}
                   </td>
                   <td className="right mono">{formatPrice(offer)}</td>
-                  <td className="right mono">{vsMid == null ? "—" : formatSignedPct(vsMid)}</td>
-                  <td className="dcf-bar-col">
-                    {style && (
-                      <span className={`dcf-bar ${where}`} style={style} role="img" aria-label={`Offer ${where} the DCF range`}>
-                        <span className="dcf-range" />
-                        <span className="dcf-offer" />
-                      </span>
-                    )}
-                  </td>
+                  <td className="right mono hide-phone">{gap}</td>
+                  <td className="dcf-bar-col hide-phone">{bar}</td>
                   <td className="right mono">{span(dcf.discountRatePct)}</td>
                   <td className="right mono">{span(dcf.perpetuityGrowthPct)}</td>
                 </RowLink>

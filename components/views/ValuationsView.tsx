@@ -103,7 +103,8 @@ export function ValuationsView() {
 
       <BuyerReactions />
 
-      <section className="panel">
+      {/* On a phone the prior quarter moves under the change, so the range column fits. */}
+      <section className="panel sector-compare">
         <div className="table-tools">
           <h2>Sector comparison</h2>
           <Select
@@ -124,10 +125,18 @@ export function ValuationsView() {
               <tr>
                 <th scope="col">SECTOR</th>
                 <th scope="col" className="right">{latestQ ? formatQuarter(latestQ).toUpperCase() : "LATEST"}</th>
-                <th scope="col" className="right">{priorQ ? formatQuarter(priorQ).toUpperCase() : "PRIOR"}</th>
+                <th scope="col" className="right hide-phone">
+                  {priorQ ? formatQuarter(priorQ).toUpperCase() : "PRIOR"}
+                </th>
                 <th scope="col" className="right">CHANGE</th>
-                <th scope="col" className="right">8-QUARTER RANGE</th>
-                <th scope="col" className="right">DEALS IN MEDIAN (LTM)</th>
+                <th scope="col" className="right">
+                  <span className="hide-phone">8-QUARTER RANGE</span>
+                  <span className="phone-only">8-QTR RANGE</span>
+                </th>
+                <th scope="col" className="right">
+                  <span className="hide-phone">DEALS IN MEDIAN (LTM)</span>
+                  <span className="phone-only">DEALS (LTM)</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -139,8 +148,13 @@ export function ValuationsView() {
                       <SectorLabel sector={c.sector} />
                     </td>
                     <td className="right table-value">{fmt(c.latest)}</td>
-                    <td className="right mono">{fmt(c.previous)}</td>
-                    <td className={`right mono ${change == null ? "" : change >= 0 ? "up" : "down"}`}>{change == null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}${m.deltaUnit}`}</td>
+                    <td className="right mono hide-phone">{fmt(c.previous)}</td>
+                    <td className={`right mono ${change == null ? "" : change >= 0 ? "up" : "down"}`}>
+                      {change == null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}${m.deltaUnit}`}
+                      <small className="phone-only stack-under">
+                        {priorQ ? formatQuarter(priorQ) : "Prior"} {fmt(c.previous)}
+                      </small>
+                    </td>
                     <td className="right mono">{c.series.length ? `${fmt(Math.min(...c.series))} – ${fmt(Math.max(...c.series))}` : "—"}</td>
                     <td className="right mono">{sampleLtm(c.sector)}</td>
                   </tr>

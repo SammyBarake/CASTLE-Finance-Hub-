@@ -11,7 +11,7 @@ import { useRecordActions, WatchButton } from "@/components/workspace/actions";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { iposWorkbook } from "@/lib/excel/workbooks";
-import { formatDate, formatRaise } from "@/lib/format";
+import { formatDate, formatDateLong, formatRaise } from "@/lib/format";
 import { sum } from "@/lib/metrics";
 import { IPO_STAGES, SECTORS, type IpoStage, type Sector } from "@/lib/types";
 
@@ -141,7 +141,7 @@ export function IpoView() {
           </div>
         </div>
         <div className="table-scroll">
-          <table>
+          <table className="table-stack stack-act">
             <caption className="sr-only">IPO pipeline</caption>
             <thead>
               <tr>
@@ -165,7 +165,7 @@ export function IpoView() {
                   <td className="cell-end" onClick={(e) => e.stopPropagation()}>
                     <WatchButton kind="ipo" id={i.id} label={i.company.name} />
                   </td>
-                  <td className="company">
+                  <td className="company" data-area="main">
                     <span className="company-line">
                       <CompanyMark name={i.company.name} />
                       <span>
@@ -178,14 +178,22 @@ export function IpoView() {
                     <SectorLabel sector={i.sector} />
                   </td>
                   <td className="table-date">{formatDate(i.filedDate)}</td>
-                  <td className="right table-value">{formatRaise(i.expectedRaiseUsd)}</td>
+                  <td className="right table-value" data-area="fig">
+                    {formatRaise(i.expectedRaiseUsd)}
+                  </td>
                   <td className="table-underwriters">
                     {i.underwriters.length ? i.underwriters.slice(0, 2).join(" · ") + (i.underwriters.length > 2 ? ` +${i.underwriters.length - 2}` : "") : <span className="dim">—</span>}
                   </td>
-                  <td>
+                  {/* The phone's second line: filing date, lead underwriter, sector. */}
+                  <td className="phone-cell" data-area="sub">
+                    {[`Filed ${formatDateLong(i.filedDate)}`, i.underwriters.length ? i.underwriters[0] + (i.underwriters.length > 1 ? ` +${i.underwriters.length - 1}` : "") : null, i.sector]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </td>
+                  <td data-area="tag">
                     <StatusTag status={i.stage} />
                   </td>
-                  <td className="cell-end">
+                  <td className="cell-end" data-area="act">
                     <button
                       type="button"
                       className="row-icon"

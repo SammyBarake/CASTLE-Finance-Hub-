@@ -5,17 +5,19 @@ import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { CompanyLink } from "@/components/ui/CompanyLink";
 import { AboutData, CompanyMark, Kpi, Kpis, PageHeading, PanelHead, SectorLabel, Segment, Takeaways } from "@/components/ui/primitives";
-import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
+import { DealPairCell, EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
 import { useUi } from "@/components/ui/UiProvider";
 import { bankShortName } from "@/lib/banks";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { termsWorkbook } from "@/lib/excel/workbooks";
-import { formatDate, formatPct, formatUsd } from "@/lib/format";
+import { formatDate, formatDateLong, formatPct, formatUsd } from "@/lib/format";
 import { feeLabel, feeUsd, financingLabel, financingShort, goShopLabel, termsInsights, termsRows, termsStats, type TermsRow } from "@/lib/terms";
 
 type Filter = "all" | "goshop" | "reverse" | "financed";
 const pct = (v: number | null) => formatPct(v);
+/** A fee as a share of the deal where it's known, else in dollars (the phone's one-line summary). */
+const feeShort = (fee: number | null | undefined, pctOfValue: number | null) => (fee == null ? "—" : pctOfValue != null ? formatPct(pctOfValue) : feeUsd(fee));
 
 export function DealTermsView() {
   const { data } = useHubData();
@@ -209,7 +211,7 @@ export function DealTermsView() {
           />
         </PanelHead>
         <div className="table-scroll">
-          <table className="terms-table">
+          <table className="terms-table table-stack">
             <caption className="sr-only">Deal protection terms</caption>
             <thead>
               <tr>
@@ -239,6 +241,19 @@ export function DealTermsView() {
                   <td className={r.deal.terms!.goShop ? "" : "dim"}>{goShopLabel(r.deal.terms!)}</td>
                   <td className={`terms-financing ${r.deal.terms!.financingBanks.length ? "" : "dim"}`} title={financingLabel(r.deal.terms!, 8)}>
                     {financingShort(r.deal.terms!, bankShortName)}
+                  </td>
+                  {/* The phone's stacked row (hidden on wider screens): buyer → target, value, the fees, the date. */}
+                  <DealPairCell acquirer={r.deal.acquirer.name} target={r.deal.target.name} />
+                  <td className="phone-cell table-value" data-area="fig">
+                    {formatUsd(r.deal.valueUsd)}
+                  </td>
+                  <td className="phone-cell" data-area="sub">
+                    {[`Break ${feeShort(r.deal.terms!.targetFeeUsd, r.targetFeePct)}`, `Reverse ${feeShort(r.deal.terms!.reverseFeeUsd, r.reverseFeePct)}`, goShopLabel(r.deal.terms!)]
+                      .filter((part) => part !== "—")
+                      .join(" · ")}
+                  </td>
+                  <td className="phone-cell" data-area="tag">
+                    {formatDateLong(r.deal.announcedDate)}
                   </td>
                 </RowLink>
               ))}
