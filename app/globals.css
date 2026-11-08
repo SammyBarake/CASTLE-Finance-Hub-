@@ -1783,11 +1783,10 @@
   .table-stack td[data-area="fig"] .value-bar { width: 64px; margin-top: 5px; }
   .table-scroll .table-stack td.timeline-progress-cell[data-area] { display: flex; min-width: 0; width: 92px; }
   .stack-sep { color: #4a4a4a; margin: 0 5px; }
-  /* "Acquirer → Target": the row's width is shared out evenly and a name shorter than its share keeps all of it, so the
-     longer name is cut first (and only as far as it must). Each column is as wide as its text, so the arrow sits right
-     after the buyer. */
-  .table-scroll .table-stack td.stack-pair[data-area] { display: grid; grid-template-columns: minmax(0, max-content) auto minmax(0, max-content); justify-content: start; align-items: baseline; }
-  .stack-pair > span:not(.stack-sep) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* "Acquirer → Target" reads as one phrase that wraps onto a second line rather than cutting both names ("Willdan
+     Grou… → Mantis Innov…" with room to spare); only a pair longer than two lines is cut. */
+  .table-scroll .table-stack td.stack-pair[data-area] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+  .stack-pair > span { display: inline; }
   /* A sub-line whose first part gives way: "Buyer · date" keeps the date whole. */
   .table-scroll .table-stack td.stack-line[data-area] { display: flex; }
   .stack-line > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
