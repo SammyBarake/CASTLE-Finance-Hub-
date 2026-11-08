@@ -28,6 +28,8 @@ function shade(hit: number | null): React.CSSProperties {
 export function WhatIfAccuracyView() {
   const [feature, setFeature] = useState<Feature>("ipoCount");
   const [ahead, setAhead] = useState(2);
+  // Phones show the chosen setup and fold the runners-up behind one line.
+  const [runnersOpen, setRunnersOpen] = useState(false);
   // The same quarter's valuation is the engine's input, so it isn't scored.
   const k = feature === "valuation" && ahead === 1 ? 2 : ahead;
   const series = forecastSeries(B, feature, k);
@@ -177,7 +179,7 @@ export function WhatIfAccuracyView() {
               </div>
             ))}
           </div>
-          <ol className="acc-setups" aria-label="Best setups by average skill">
+          <ol className={`acc-setups ${runnersOpen ? "open" : ""}`} aria-label="Best setups by average skill">
             {TOP_SETUPS.map((c, i) => (
               <li key={c.label} className={`acc-setup ${i === 0 ? "chosen" : ""}`} style={{ "--i": i } as React.CSSProperties}>
                 <span>{c.label}</span>
@@ -188,6 +190,14 @@ export function WhatIfAccuracyView() {
               </li>
             ))}
           </ol>
+          {TOP_SETUPS.length > 1 && (
+            <button type="button" className="acc-runners-toggle" aria-expanded={runnersOpen} onClick={() => setRunnersOpen((o) => !o)}>
+              <span>
+                {runnersOpen ? "Hide" : "Show"} {TOP_SETUPS.length - 1} runners-up
+              </span>
+              <Icon name="chevron" />
+            </button>
+          )}
           <div className="acc-halves">
             {B.halves.map((h) => (
               <span key={h.from}>

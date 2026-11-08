@@ -135,7 +135,8 @@
   .right { text-align: right; }
   .nowrap { white-space: nowrap; }
   /* Phones only (shown in the ≤760px block): text and controls that stand in for a desktop one hidden there. */
-  .phone-only, .range-select, .segmented.acc-ahead-phone { display: none; }
+  .phone-only, .range-select, .segmented.acc-ahead-phone, .filter-summary, .tool-icon.drawer-more, .why-small-toggle,
+    .acc-runners-toggle { display: none; }
   /* Table cells that exist only for the phone layout (a stacked row's summary, a reordered column). */
   td.phone-cell, th.phone-cell { display: none; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color); display: inline-block; flex-shrink: 0; }
@@ -1852,6 +1853,84 @@
   .book-add-new div, .share-link-row { flex-wrap: wrap; }
   .book-add-list li { flex-wrap: wrap; }
   .live-apps { grid-template-columns: minmax(0, 1fr); }
+  /* Toolbars: one row of controls, the rest behind Filters. Saved views scroll sideways and fade at the right edge. */
+  .views-row { scrollbar-width: none; mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+  .views-row::-webkit-scrollbar { display: none; }
+  /* Precedents: the screen folds behind a one-line summary and a Filters button; open, the fields stack. */
+  .filter-summary { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid #242424; background: #0b0b0b; }
+  .filter-summary-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #a8a8a8; }
+  .filter-summary .button { flex: none; }
+  .precedents-filters:not(.open) { display: none; }
+  .precedents-filters { grid-template-columns: minmax(0, 1fr); border-top: 0; }
+  .precedents-filters .field select { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .precedents-check { margin: 2px 0 0; }
+  /* What-if: the presets in one scrolling row; the size's number box on the Size label's line. */
+  .whatif-scenario .panel-head > :last-child { width: 100%; min-width: 0; }
+  .whatif-presets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -15px; padding-right: 24px; mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .whatif-presets::-webkit-scrollbar { display: none; }
+  .whatif-preset { flex: none; }
+  .whatif-editor { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 12px; }
+  .whatif-slider { grid-column: 1 / -1; grid-row: 2; }
+  .whatif-slider > span:first-child { min-height: 36px; align-items: center; justify-content: flex-start; }
+  .whatif-slider > span:first-child small { display: none; }
+  .whatif-number { grid-column: 2; grid-row: 2; justify-self: end; align-self: start; width: 90px; z-index: 1; }
+  .whatif-number > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .whatif-number-box { height: 36px; }
+  /* Valuation cards: the rail bleeds to the screen's edges and a third card peeks in; the sparkline runs under the figure. */
+  .valuation-grid, .valuation-grid.expanded { display: flex; overflow-x: auto; margin: 0 -16px 17px; padding: 0 16px 4px; gap: 8px; scroll-padding-inline: 16px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .valuation-grid::-webkit-scrollbar { display: none; }
+  .valuation-card, .valuation-grid.expanded .valuation-card { flex: 0 0 calc((100vw - 40px) / 2.3); height: auto; padding: 12px; scroll-snap-align: start; }
+  .valuation-grid.expanded .valuation-number { font-size: 23px; }
+  .valuation-grid.expanded .valuation-delta { margin-left: 5px; }
+  .valuation-card .valuation-label { margin-top: 4px; }
+  .spark, .valuation-grid.expanded .spark { position: static; display: block; width: 100%; height: 20px; margin-top: 8px; opacity: 1; }
+  /* KPI tiles share one structure: the figure, then its change on a line of its own. */
+  .kpi-line { flex-direction: column; align-items: flex-start; gap: 4px; }
+  /* Hub recent deals: an undisclosed value leaves the sector alone in the value slot. */
+  .preview-value .value-none { display: none; }
+  .preview-value:has(> .value-none) small { margin-top: 0; }
+  /* Timelines: the three comparisons stay side by side. */
+  .timeline-compare { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .timeline-compare div { padding: 11px 10px; border-top: 0; border-left: 1px solid var(--color-line); }
+  .timeline-compare div:first-child { border-left: 0; padding-left: 14px; }
+  .timeline-compare span { font-size: 10.5px; line-height: 1.35; }
+  .timeline-compare b { font-size: 15px; }
+  /* Deal Terms lenders: no bar, the largest deal on one line, the count right. */
+  .lender-row .lender-bar { display: none; }
+  .lender-row .preview-company small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lender-meter { flex: none; }
+  .lender-meter .preview-value { min-width: 0; }
+  /* Checkboxes: a quiet grey box with a light tick, not the browser's glaring white. */
+  .check-label input[type="checkbox"], .cell-controls input[type="checkbox"], .bulk-bar input[type="checkbox"] { appearance: none; -webkit-appearance: none; flex: none; display: inline-grid; place-content: center; width: 16px; height: 16px; margin: 0; border: 1px solid #444; border-radius: 3px; background: #0b0b0b; cursor: pointer; }
+  .check-label input[type="checkbox"]::before, .cell-controls input[type="checkbox"]::before, .bulk-bar input[type="checkbox"]::before { content: ""; width: 9px; height: 5px; margin-top: -2px; border: solid #d8d8d8; border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg) scale(0); transition: transform 0.12s var(--ease-out); }
+  .check-label input[type="checkbox"]:checked, .cell-controls input[type="checkbox"]:checked, .bulk-bar input[type="checkbox"]:checked { border-color: #777; background: #1c1c1c; }
+  .check-label input[type="checkbox"]:checked::before, .cell-controls input[type="checkbox"]:checked::before, .bulk-bar input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
+  .check-label input[type="checkbox"]:focus-visible, .cell-controls input[type="checkbox"]:focus-visible, .bulk-bar input[type="checkbox"]:focus-visible { outline: 2px solid #8a8a8a; outline-offset: 2px; }
+  /* Deal drawer: Watch and Tear sheet stay buttons; Precedents, Add to book, link, copy and compare are one ⋯ menu. */
+  .drawer-actions { margin-top: 12px; flex-wrap: nowrap; }
+  .drawer-actions .drawer-folded { display: none; }
+  .drawer-actions .drawer-more { display: inline-flex; }
+  .drawer-actions .button { min-height: 36px; }
+  .drawer-stats .status { justify-self: start; width: auto; }
+  /* What-if: paths under 0.05 points fold into one line. */
+  .why-small { display: none; }
+  .why-small-toggle, .acc-runners-toggle { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 36px; font-size: 11px; color: #9a9a9a; text-align: left; }
+  .why-small-toggle { padding: 4px 15px 8px; }
+  .why-small-toggle .icon, .acc-runners-toggle .icon { width: 11px; height: 11px; transition: transform 0.2s var(--ease-out); }
+  .why-small-toggle[aria-expanded="true"] .icon, .acc-runners-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
+  /* Accuracy: the chosen setup, then the runners-up behind one line. */
+  .acc-setups:not(.open) .acc-setup:not(.chosen) { display: none; }
+  .acc-setups { padding-bottom: 6px; }
+  .acc-runners-toggle { padding: 0 15px 10px; }
+  /* About: the FRED citations fold into one line. */
+  .info-citations-fold.phone-only { display: block; padding: 10px 14px 14px; border-top: 1px solid var(--color-soft); }
+  .info-citations-fold summary { min-height: 32px; display: flex; align-items: center; font-size: 11px; color: #9a9a9a; cursor: pointer; }
+  .info-citations-fold .info-citations { padding: 4px 0 0; }
+  /* Deal Books empty state: the button first, then the three ways as a tight numbered list. */
+  .books-intro-body .button.primary { order: -1; }
+  .books-ways { gap: 0; }
+  .books-ways li { grid-template-columns: 18px minmax(0, 1fr); column-gap: 8px; row-gap: 2px; padding: 10px 0; border: 0; border-top: 1px solid var(--color-soft); border-radius: 0; background: none; line-height: 1.5; }
+  .books-ways li::before { grid-row: 1 / span 2; padding-top: 2px; }
   /* Nothing under 10px (e2e/pages.e2e.ts checks every page): tags, counts, monograms and capitals at 10px, other
      secondary text at 10.5px. The desktop sizes above are unchanged. */
   .nav-count, kbd, .badge, .status, .legend-change, .rank-change, .tab span, .view-count, .inline-count, .watch-count,

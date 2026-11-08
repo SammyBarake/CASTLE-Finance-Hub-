@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useDetails } from "@/components/details/details";
 import { useHubData } from "@/components/data/HubDataProvider";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { Change, CompanyMark, Kpi, Kpis, PageHeading, PageLink } from "@/components/ui/primitives";
 import { useUi } from "@/components/ui/UiProvider";
 import { useRecordActions } from "@/components/workspace/actions";
 import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { dealsWorkbook } from "@/lib/excel/workbooks";
-import { formatDate, formatDateLong, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1 } from "@/lib/format";
+import { formatDate, formatDateLong, formatMonth, formatPct, formatRaise, formatUsd, formatUsdB1, formatUsdShort } from "@/lib/format";
 import type { ValuationMetric } from "@/lib/metrics";
 import { useVolumeState, ValuationCards, ValuationMetricToggle, VALUATION_METRICS, VolumePanel } from "./sections";
 
@@ -45,7 +46,23 @@ export function HubView() {
       />
 
       <Kpis label="Market snapshot">
-        <Kpi label="Announced M&A value" value={ytd ? formatUsd(ytd.value) : "—"} note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />
+        <Kpi
+          label="Announced M&A value"
+          value={
+            ytd ? (
+              // Phones show three significant figures ("$955B"): "$954.80B" at 23px crowds the change beside it.
+              <>
+                <span className="hide-phone">
+                  <AnimatedNumber text={formatUsd(ytd.value)} />
+                </span>
+                <span className="phone-only">
+                  <AnimatedNumber text={formatUsdShort(ytd.value)} />
+                </span>
+              </>
+            ) : (
+              "—"
+            )
+          } note={ytdNote} change={ytd && <Change value={ytd.valueChangePct} />} />
         <Kpi label="M&A transactions" value={ytd ? ytd.count.toLocaleString("en-US") : "—"} note={ytdNote} change={ytd && <Change value={ytd.countChangePct} />} />
         <Kpi label="Median premium" value={formatPct(medianPremiumPct)} note={`Latest ${premiumSample} public-target deals`} />
         <Kpi label="IPO pipeline" value={formatRaise(ipoSummary.expectedRaiseUsd)} note={`${ipoSummary.filedCount} filed companies · expected raise`} />
@@ -94,7 +111,8 @@ export function HubView() {
                 </span>
               </span>
               <span className="preview-value">
-                {formatUsd(d.valueUsd)}
+                {/* An undisclosed value leaves the sector alone in the slot on phones (a big "—" read as missing data). */}
+                <span className={d.valueUsd == null ? "value-none" : undefined}>{formatUsd(d.valueUsd)}</span>
                 <small>{d.sector}</small>
               </span>
             </button>

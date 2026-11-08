@@ -5,7 +5,7 @@
  * Pure; uses relative imports because Vitest doesn't resolve "@/".
  */
 import { coverageStart } from "./aggregate";
-import { considerationLabel, formatDateFull, formatDateLong, formatMonth, formatMultiple, formatPct, formatPrice, formatRaise, formatTimestampET, formatUsd, formatUsdB1 } from "./format";
+import { considerationLabel, formatDateFull, formatDateLong, formatMonth, formatMultiple, formatPct, formatPrice, formatRaise, formatTimestampET, formatUsd, formatUsdB1, formatUsdShort } from "./format";
 import { dataDay } from "./freshness";
 import { buildVolumeMatrix, completeMonths, headlineFigures, sum, ytdSummary, type VolumeMatrix, type YtdSummary } from "./metrics";
 import { initials, isPlaceholderBuyer, withoutLegalForm } from "./names";
@@ -184,17 +184,7 @@ function priorYearValue(matrix: VolumeMatrix, ytd: YtdSummary, toDate: HubData["
   return sum(matrix.months.map((m, i) => (m.slice(0, 4) === prior && m.slice(5) <= ytd.throughMonth.slice(5) ? monthValue(matrix, i) : 0)));
 }
 
-/** "$652B", "$98.4B", "$5.71B", "$1.21T", "$980M": three significant figures, for figures set large. */
-export function formatUsdShort(value: number | null): string {
-  if (value == null) return "—";
-  if (value === 0) return "$0";
-  if (value < 5e5) return "<$1M";
-  if (value >= 999.5e9) return `$${(value / 1e12).toFixed(2)}T`;
-  if (value >= 99.95e9) return `$${Math.round(value / 1e9)}B`;
-  if (value >= 9.995e9) return `$${(value / 1e9).toFixed(1)}B`;
-  if (value >= 999.5e6) return `$${(value / 1e9).toFixed(2)}B`;
-  return `$${Math.round(value / 1e6)}M`;
-}
+export { formatUsdShort };
 
 /** "Oct 8" */
 const shortDay = (iso: string) => formatDateLong(iso).split(",")[0];

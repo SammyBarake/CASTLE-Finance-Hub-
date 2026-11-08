@@ -16,7 +16,7 @@ import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { exportContext } from "@/components/export/excel";
 import { dealsToCsv, downloadCsv } from "@/lib/csv";
 import { dealsWorkbook } from "@/lib/excel/workbooks";
-import { considerationLabel, formatDate, formatDateLong, formatMultiple, formatPct, formatUsd } from "@/lib/format";
+import { considerationLabel, formatCount, formatDate, formatDateLong, formatMultiple, formatPct, formatUsd } from "@/lib/format";
 import { dataDay } from "@/lib/freshness";
 import { median, sum } from "@/lib/metrics";
 import {
@@ -216,7 +216,7 @@ export function DealFlowView() {
       />
 
       <Kpis label="Filtered transaction summary">
-        <Kpi label="Transactions" value={rows.length} note="Current selection" />
+        <Kpi label="Transactions" value={formatCount(rows.length)} note="Current selection" />
         <Kpi label="Total deal value" value={formatUsd(sum(rows.map((d) => d.valueUsd ?? 0)))} note="Disclosed transaction value" />
         <Kpi label="Median premium" value={medianPrem == null ? "—" : formatPct(medianPrem)} note="Offer vs. unaffected share price" />
         <Kpi label="Pending" value={rows.filter((d) => d.status === "Pending").length} note="Current selection" />

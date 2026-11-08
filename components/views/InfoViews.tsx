@@ -155,7 +155,7 @@ export function AboutView() {
             </tbody>
           </table>
         </div>
-        <ul className="info-citations" aria-label="FRED citations">
+        <ul className="info-citations hide-phone" aria-label="FRED citations">
           {FRED_CITATIONS.map((c) => (
             <li key={c.id}>
               {c.source}, {c.series} [{c.id}], retrieved from FRED, Federal Reserve Bank of St. Louis;{" "}
@@ -165,6 +165,20 @@ export function AboutView() {
             </li>
           ))}
         </ul>
+        {/* Phones fold the citations (the series' terms ask for them, so they stay on the page). */}
+        <details className="info-citations-fold phone-only">
+          <summary>FRED citations ({FRED_CITATIONS.length})</summary>
+          <ul className="info-citations" aria-label="FRED citations">
+            {FRED_CITATIONS.map((c) => (
+              <li key={c.id}>
+                {c.source}, {c.series} [{c.id}], retrieved from FRED, Federal Reserve Bank of St. Louis;{" "}
+                <a href={`https://fred.stlouisfed.org/series/${c.id}`} target="_blank" rel="noopener noreferrer">
+                  https://fred.stlouisfed.org/series/{c.id}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       <div className="info-grid">

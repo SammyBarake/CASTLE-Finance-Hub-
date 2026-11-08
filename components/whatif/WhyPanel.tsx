@@ -13,6 +13,8 @@ import type { Selection } from "./RippleGrid";
 const pct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
 /** Paths listed; the rest are summed in one line (effects of effects can add many small ones). */
 const SHOWN = 5;
+/** On phones, listed paths smaller than this (points) start folded. */
+const SMALL_PATH = 0.05;
 const LAG: Record<number, string> = { 0: "same quarter", 1: "1 quarter later", 2: "2 quarters later" };
 const LAG_SHORT: Record<number, string> = { 0: "same qtr", 1: "+1 qtr", 2: "+2 qtrs" };
 
@@ -88,6 +90,10 @@ export function WhyPanel({ selection, quarter, contributions, ipoLoading, assume
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const keyOf = (c: Contribution) => `${title}|${c.kind}|${c.source}|${c.via.join(">")}|${c.lag}|${c.round}`;
   const firstPath = shown.find((c) => c.kind !== "shock");
+  // Phones fold the listed paths under 0.05 points into one line that opens them (the desktop lists all five).
+  const isSmall = (c: Contribution) => !ipoLoading && c.kind !== "shock" && Math.abs(c.value) < SMALL_PATH;
+  const small = shown.filter(isSmall);
+  const [smallOpen, setSmallOpen] = useState(false);
 
   return (
     <section className="panel why-panel" id="whatif-why" aria-live="polite">
@@ -107,7 +113,7 @@ export function WhyPanel({ selection, quarter, contributions, ipoLoading, assume
             const open = opened[key] ?? c === firstPath;
             return (
               // Keyed by selection and path: picking another cell replays the entrance, changing the quarter just moves the bars.
-              <li key={key} className="why-item">
+              <li key={key} className={`why-item ${isSmall(c) && !smallOpen ? "why-small" : ""}`}>
                 <div className="why-head">
                   <span className="why-source">
                     {c.kind === "shock" ? "Your shock" : `From ${sourceLabel(c.source)}`}
@@ -146,6 +152,14 @@ export function WhyPanel({ selection, quarter, contributions, ipoLoading, assume
         </ol>
       ) : (
         <p className="why-empty">No link reaches {title} from this scenario{quarter === 1 ? " in Q1 (some links take a quarter or two)" : ""}.</p>
+      )}
+      {small.length > 0 && (
+        <button type="button" className="why-small-toggle" aria-expanded={smallOpen} onClick={() => setSmallOpen((o) => !o)}>
+          <span>
+            {smallOpen ? "Hide" : "Show"} {small.length} smaller {small.length === 1 ? "path" : "paths"} (under {SMALL_PATH} pts)
+          </span>
+          <Icon name="chevron" />
+        </button>
       )}
       {contributions.length > SHOWN && (
         <p className="why-more">

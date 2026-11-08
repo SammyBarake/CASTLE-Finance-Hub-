@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { useHubData } from "@/components/data/HubDataProvider";
 import { useFullDeal } from "@/components/data/useFullDeal";
@@ -13,7 +14,7 @@ import { feeLabel, financingLabel, goShopLabel } from "@/lib/terms";
 import { DealTimeline } from "./DealTimeline";
 import { ValuationTab } from "./Valuation";
 import { StatusTag } from "@/components/ui/primitives";
-import { DetailGrid, DetailItem, Note, useUi } from "@/components/ui/UiProvider";
+import { DetailGrid, DetailItem, Note, useUi, type MenuItem } from "@/components/ui/UiProvider";
 import { considerationLabel, formatDateLong, formatMonth, formatMultiple, formatPct, formatPrice, formatRaise, formatSignedPct, formatUsd, formatUsdB1 } from "@/lib/format";
 import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION } from "@/lib/metrics";
 import { REACTION_STUDY_THROUGH } from "@/lib/reactions";
@@ -84,7 +85,8 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
   const { isWatched, selected } = useWorkspace();
   const { toggleWatch, copySummary, toggleCompare } = useRecordActions();
   const { openBookMenu } = useBookActions();
-  const { closeDialog, toast } = useUi();
+  const { closeDialog, toast, openMenu } = useUi();
+  const router = useRouter();
   const watched = isWatched(kind, record.id);
   // A deal's shareable page is its tear sheet: server-rendered, with a link preview of the parties and figures.
   const copyLink = async () => {
@@ -95,6 +97,24 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
       toast("Couldn't copy the link");
     }
   };
+  const inCompare = selected.has(record.id);
+  // Phones keep Watch and Tear sheet as buttons; the rest is one ⋯ menu (the buttons are hidden there by CSS).
+  const openMore = (anchor: HTMLElement) =>
+    openMenu(
+      [
+        ...(kind === "deal"
+          ? ([
+              { kind: "action", label: "Precedents", icon: "comps", onSelect: () => (closeDialog(), router.push(`/precedents?deal=${encodeURIComponent(record.id)}`)) },
+              { kind: "action", label: "Add to book…", icon: "book", onSelect: () => openBookMenu(record as Deal, { anchor }) },
+              { kind: "rule" },
+              { kind: "action", label: "Copy a link to this deal", icon: "link", onSelect: () => void copyLink() },
+            ] as MenuItem[])
+          : []),
+        { kind: "action", label: "Copy summary", icon: "copy", onSelect: () => copySummary(kind, record) },
+        ...(kind === "deal" ? ([{ kind: "action", label: inCompare ? "Remove from comparison" : "Add to comparison", icon: "compare", onSelect: () => toggleCompare(record.id) }] as MenuItem[]) : []),
+      ],
+      { anchor },
+    );
   return (
     <div className="drawer-actions">
       <button type="button" className="button" aria-pressed={watched} onClick={() => toggleWatch(kind, record.id)}>
@@ -108,38 +128,41 @@ function DrawerActions({ kind, record }: { kind: RecordKind; record: Deal | Ipo 
         </a>
       )}
       {kind === "deal" && (
-        <Link className="button" href={`/precedents?deal=${encodeURIComponent(record.id)}`} onClick={closeDialog}>
+        <Link className="button drawer-folded" href={`/precedents?deal=${encodeURIComponent(record.id)}`} onClick={closeDialog}>
           <Icon name="comps" />
           Precedents
         </Link>
       )}
       {kind === "deal" && (
-        <button type="button" className="button" aria-haspopup="menu" onClick={(e) => openBookMenu(record as Deal, { anchor: e.currentTarget })}>
+        <button type="button" className="button drawer-folded" aria-haspopup="menu" onClick={(e) => openBookMenu(record as Deal, { anchor: e.currentTarget })}>
           <Icon name="book" />
           Add to book
         </button>
       )}
       <span className="drawer-actions-spacer" />
       {kind === "deal" && (
-        <button type="button" className="tool-icon" aria-label="Copy a link to this deal" title="Copy a link to this deal" onClick={copyLink}>
+        <button type="button" className="tool-icon drawer-folded" aria-label="Copy a link to this deal" title="Copy a link to this deal" onClick={copyLink}>
           <Icon name="link" />
         </button>
       )}
-      <button type="button" className="tool-icon" aria-label="Copy summary" title="Copy summary" onClick={() => copySummary(kind, record)}>
+      <button type="button" className="tool-icon drawer-folded" aria-label="Copy summary" title="Copy summary" onClick={() => copySummary(kind, record)}>
         <Icon name="copy" />
       </button>
       {kind === "deal" && (
         <button
           type="button"
-          className={`tool-icon ${selected.has(record.id) ? "on" : ""}`}
-          aria-pressed={selected.has(record.id)}
-          aria-label={selected.has(record.id) ? "Remove from comparison" : "Add to comparison"}
-          title={selected.has(record.id) ? "Selected for comparison" : "Add to comparison"}
+          className={`tool-icon drawer-folded ${inCompare ? "on" : ""}`}
+          aria-pressed={inCompare}
+          aria-label={inCompare ? "Remove from comparison" : "Add to comparison"}
+          title={inCompare ? "Selected for comparison" : "Add to comparison"}
           onClick={() => toggleCompare(record.id)}
         >
           <Icon name="compare" />
         </button>
       )}
+      <button type="button" className="tool-icon drawer-more" aria-label="More actions" aria-haspopup="menu" onClick={(e) => openMore(e.currentTarget)}>
+        <Icon name="dots" />
+      </button>
     </div>
   );
 }

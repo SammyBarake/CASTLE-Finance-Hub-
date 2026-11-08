@@ -11,6 +11,21 @@ export function formatUsd(value: number | null): string {
   return `$${Math.round(value / M).toLocaleString("en-US")}M`;
 }
 
+/** 2,610: a count with thousands separators. */
+export const formatCount = (value: number) => value.toLocaleString("en-US");
+
+/** "$652B", "$98.4B", "$5.71B", "$1.21T", "$980M": three significant figures, for figures set large. */
+export function formatUsdShort(value: number | null): string {
+  if (value == null) return "—";
+  if (value === 0) return "$0";
+  if (value < 5e5) return "<$1M";
+  if (value >= 999.5e9) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 99.95e9) return `$${Math.round(value / 1e9)}B`;
+  if (value >= 9.995e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 999.5e6) return `$${(value / 1e9).toFixed(2)}B`;
+  return `$${Math.round(value / 1e6)}M`;
+}
+
 /** $286.4B. League-table style, one decimal. */
 export const formatUsdB1 = (value: number) => `$${(value / B).toFixed(1)}B`;
 

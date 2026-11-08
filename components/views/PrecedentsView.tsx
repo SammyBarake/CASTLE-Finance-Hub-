@@ -54,6 +54,22 @@ function PhoneLead({ d }: { d: Deal }) {
   );
 }
 
+/** The screen in one line, for the phone's folded filters: "All sectors · 24 months · any size". */
+function screenSummary(s: PrecedentScreen): string {
+  const min = s.min.trim();
+  const max = s.max.trim();
+  const size = min && max ? `$${min}B–$${max}B` : min ? `$${min}B+` : max ? `under $${max}B` : "any size";
+  return [
+    s.sector === "all" ? "All sectors" : s.sector,
+    ...(s.industry.trim() ? [`“${s.industry.trim()}”`] : []),
+    s.window === "all" ? "all dates" : s.window === "12m" ? "12 months" : "24 months",
+    size,
+    ...(s.consideration === "all" ? [] : [{ Cash: "all cash", Stock: "all stock", Mixed: "cash and stock" }[s.consideration]]),
+    ...(s.withMultiples ? [] : ["multiples optional"]),
+    ...(s.includeTerminated ? ["incl. terminated"] : []),
+  ].join(" · ");
+}
+
 const range =(s: Summary, fmt: (v: number | null) => string) => (s.n >= 4 ? `25th–75th: ${fmt(s.p25)} – ${fmt(s.p75)}` : `${s.n} data point${s.n === 1 ? "" : "s"}`);
 
 export function PrecedentsView() {
@@ -81,7 +97,9 @@ function Precedents({ dealId }: { dealId: string | null }) {
     replaceQuery(query.toString());
   }, [screen, excluded, dealId]);
   const [shown, setShown] = useState(TABLE_PAGE);
-  const edit = (patch: Partial<PrecedentScreen>) => (setScreen((s) => ({ ...s, ...patch })), setShown(TABLE_PAGE));
+  // Phones fold the screen's fields behind a one-line summary (the drawer is always open on wider screens).
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const edit =(patch: Partial<PrecedentScreen>) => (setScreen((s) => ({ ...s, ...patch })), setShown(TABLE_PAGE));
 
   const rows = useMemo(() => screenPrecedents(data.deals, screen, data.asOf).filter((d) => d.id !== subject?.id), [data.deals, data.asOf, screen, subject]);
   const included = rows.filter((d) => !excluded.has(d.id));
@@ -180,7 +198,14 @@ function Precedents({ dealId }: { dealId: string | null }) {
             Reset
           </button>
         </PanelHead>
-        <div className="filters-drawer precedents-filters">
+        <div className="filter-summary">
+          <span className="filter-summary-text">{screenSummary(screen)}</span>
+          <button type="button" className="button" aria-expanded={filtersOpen} aria-controls="precedents-filters" onClick={() => setFiltersOpen((o) => !o)}>
+            <Icon name="filter" />
+            Filters
+          </button>
+        </div>
+        <div id="precedents-filters" className={`filters-drawer precedents-filters ${filtersOpen ? "open" : ""}`}>
           <div className="field">
             <label htmlFor="p-sector">Sector</label>
             <Select id="p-sector" label="Sector" value={screen.sector} onChange={(sector) => edit({ sector })} options={[{ value: "all", label: "All sectors" }, ...SECTORS.map((s) => ({ value: s, label: s }))]} />
