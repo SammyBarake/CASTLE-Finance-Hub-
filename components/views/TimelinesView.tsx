@@ -24,6 +24,16 @@ const stage = (t: DealTimeline) => {
   return "Announced, no filing yet";
 };
 
+/** The stage in a few words, for a phone's stacked row, where the date after it must show. */
+const shortStage = (t: DealTimeline) => {
+  const m = t.deal.milestones!;
+  if (m.path === "tender") return "Tender under way";
+  if (m.voteHeld) return "Awaiting regulators";
+  if (m.definitiveProxy) return "Awaiting vote";
+  if (m.firstFiling) return m.firstFiling.form.startsWith("S-4") || m.firstFiling.form.startsWith("F-4") ? "Registration filed" : "Proxy filed";
+  return "No filing yet";
+};
+
 export function TimelinesView() {
   const { data } = useHubData();
   const { openDeal } = useDetails();
@@ -152,10 +162,15 @@ export function TimelinesView() {
                         </td>
                         {/* The phone's stacked row (hidden on wider screens): buyer → target, then the stage or the dates. */}
                         <DealPairCell acquirer={t.deal.acquirer.name} target={t.deal.target.name} />
-                        <td className="phone-cell" data-area="sub">
-                          {list === "waiting"
-                            ? `${stage(t)} · since ${formatMonth(t.deal.announcedDate.slice(0, 7))}`
-                            : `${formatDateLong(t.deal.announcedDate)} – ${formatDateLong(t.deal.milestones!.closed!)}`}
+                        <td className={list === "waiting" ? "phone-cell stack-line" : "phone-cell"} data-area="sub">
+                          {list === "waiting" ? (
+                            <>
+                              <span>{shortStage(t)}</span>
+                              <span> · since {formatMonth(t.deal.announcedDate.slice(0, 7))}</span>
+                            </>
+                          ) : (
+                            `${formatDateLong(t.deal.announcedDate)} – ${formatDateLong(t.deal.milestones!.closed!)}`
+                          )}
                         </td>
                         {open && (
                           <td className="timeline-progress-cell" data-area="tag">

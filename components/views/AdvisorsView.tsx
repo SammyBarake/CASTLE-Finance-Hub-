@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { AboutData, CompanyMark, FilterSearch, Kpi, Kpis, PageHeading, Segment, Select } from "@/components/ui/primitives";
 import { AdvisorFees } from "./AdvisorFees";
 import { EmptyRow, RowLink, ShowMore, TABLE_PAGE } from "@/components/ui/table";
+import { usePhone } from "@/components/ui/usePhone";
 import { useUi } from "@/components/ui/UiProvider";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -26,6 +27,8 @@ export function AdvisorsView() {
   const [sort, setSort] = useState<Sort>("value");
   const [query, setQuery] = useState("");
   const [minDeals, setMinDeals] = useState("");
+  // On a phone the two filters' options are written short, so both fit on one row at the touch font size.
+  const phone = usePhone();
   // A long table shows a page at a time; a new search, filter or ranking starts again from the top.
   const [shown, setShown] = useState(TABLE_PAGE);
   const reset = <T,>(set: (v: T) => void) => (v: T) => (set(v), setShown(TABLE_PAGE));
@@ -118,7 +121,7 @@ export function AdvisorsView() {
               value={minDeals}
               onChange={reset(setMinDeals)}
               options={[
-                { value: "", label: "Any deal count" },
+                { value: "", label: phone ? "Any count" : "Any deal count" },
                 { value: "3", label: "3+ deals" },
                 { value: "5", label: "5+ deals" },
                 { value: "10", label: "10+ deals" },
@@ -130,8 +133,8 @@ export function AdvisorsView() {
             value={sort}
             onChange={reset(setSort)}
             options={[
-              { value: "value", label: "Rank by deal value" },
-              { value: "deals", label: "Rank by deal count" },
+              { value: "value", label: phone ? "By value" : "Rank by deal value" },
+              { value: "deals", label: phone ? "By count" : "Rank by deal count" },
             ]}
           />
           </div>

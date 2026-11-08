@@ -64,9 +64,9 @@ export function Kpi({ label, value, note, change, text, title }: { label: string
   );
 }
 
-export function Kpis({ label, children }: { label: string; children: ReactNode }) {
+export function Kpis({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <section className="kpis" aria-label={label}>
+    <section className={className ? `kpis ${className}` : "kpis"} aria-label={label}>
       {children}
     </section>
   );
@@ -97,7 +97,7 @@ export function Segment<T extends string | number>({
   className,
 }: {
   label: string;
-  options: { value: T; label: string }[];
+  options: { value: T; label: ReactNode }[];
   value: T;
   onChange: (v: T) => void;
   className?: string;

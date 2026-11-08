@@ -253,7 +253,9 @@ function Precedents({ dealId }: { dealId: string | null }) {
                   TARGET / ACQUIRER
                 </th>
                 <th scope="col" className="phone-cell right">
-                  EV / ADJ. EBITDA
+                  EV/ADJ.
+                  <br />
+                  EBITDA
                 </th>
                 <th scope="col" className="phone-cell right">
                   PREMIUM

@@ -150,6 +150,17 @@ export function GlobalSearch() {
       <button type="button" className="search-cancel" onClick={closeField}>
         Cancel
       </button>
+      {/* Phones only (display: none elsewhere): the page dims behind the results, and a tap on it closes them. */}
+      {open && results && expanded && (
+        <div
+          className="search-scrim"
+          aria-hidden="true"
+          onClick={() => {
+            setOpen(false);
+            setExpanded(false);
+          }}
+        />
+      )}
       {open && results && (
         <div className="search-results" id="search-results" aria-label="Search results">
           {empty && <div className="search-empty">{ready ? "No matching companies, deals, or advisors." : "Loading data…"}</div>}

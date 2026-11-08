@@ -145,7 +145,10 @@ export function HubView() {
                   </small>
                 </span>
               </span>
-              <span className="preview-value">{formatRaise(i.expectedRaiseUsd)}</span>
+              <span className="preview-value">
+                {/* Like Recent deals: an undisclosed raise leaves the slot empty on phones, not a lone "—". */}
+                <span className={i.expectedRaiseUsd == null ? "value-none" : undefined}>{formatRaise(i.expectedRaiseUsd)}</span>
+              </span>
             </button>
           ))}
           {!data.ipos.length && <div className="empty-small">No companies in the pipeline.</div>}

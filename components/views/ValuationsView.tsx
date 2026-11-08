@@ -133,9 +133,8 @@ export function ValuationsView() {
                   <span className="hide-phone">8-QUARTER RANGE</span>
                   <span className="phone-only">8-QTR RANGE</span>
                 </th>
-                <th scope="col" className="right">
-                  <span className="hide-phone">DEALS IN MEDIAN (LTM)</span>
-                  <span className="phone-only">DEALS (LTM)</span>
+                <th scope="col" className="right hide-phone">
+                  DEALS IN MEDIAN (LTM)
                 </th>
               </tr>
             </thead>
@@ -146,17 +145,28 @@ export function ValuationsView() {
                   <tr key={c.sector}>
                     <td>
                       <SectorLabel sector={c.sector} />
+                      <small className="phone-only stack-under">{sampleLtm(c.sector)} deals (LTM)</small>
                     </td>
                     <td className="right table-value">{fmt(c.latest)}</td>
                     <td className="right mono hide-phone">{fmt(c.previous)}</td>
                     <td className={`right mono ${change == null ? "" : change >= 0 ? "up" : "down"}`}>
                       {change == null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}${m.deltaUnit}`}
                       <small className="phone-only stack-under">
-                        {priorQ ? formatQuarter(priorQ) : "Prior"} {fmt(c.previous)}
+                        {priorQ ? formatQuarter(priorQ).split(" ")[0] : "Prior"} {fmt(c.previous)}
                       </small>
                     </td>
-                    <td className="right mono">{c.series.length ? `${fmt(Math.min(...c.series))} – ${fmt(Math.max(...c.series))}` : "—"}</td>
-                    <td className="right mono">{sampleLtm(c.sector)}</td>
+                    <td className="right mono">
+                      {c.series.length ? (
+                        <>
+                          <span className="hide-phone">{`${fmt(Math.min(...c.series))} – ${fmt(Math.max(...c.series))}`}</span>
+                          {/* The unit once on a phone: "11.1–18.0x". */}
+                          <span className="phone-only">{`${Math.min(...c.series).toFixed(1)}–${fmt(Math.max(...c.series))}`}</span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="right mono hide-phone">{sampleLtm(c.sector)}</td>
                   </tr>
                 );
               })}

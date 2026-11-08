@@ -224,7 +224,7 @@
   .tool-icon.wide { width: auto; padding: 0 8px; font-size: 10px; }
   .search { position: relative; width: 280px; max-width: 40vw; }
   /* Phones only (shown in the ≤760px block): the icon that opens the search, and its Cancel. */
-  .tool-icon.search-toggle, .search-cancel { display: none; }
+  .tool-icon.search-toggle, .search-cancel, .search-scrim { display: none; }
   .search-field { display: flex; align-items: center; gap: 8px; border: 1px solid #303030; border-radius: 5px; background: #101010; padding: 0 9px; height: 31px; }
   .search-field .icon { width: 13px; height: 13px; color: #868686; }
   .search-field:focus-within { border-color: #595959; }
@@ -1631,7 +1631,9 @@
   .search-field kbd { display: none; }
   .search input { font-size: 12px; }
   /* Results pinned under the bar, the page's width less its gutters. */
-  .search-results { position: fixed; top: 62px; left: 16px; right: 16px; width: auto; max-width: none; max-height: calc(100dvh - 78px); transform-origin: top center; }
+  .search-results { position: fixed; top: 66px; left: 12px; right: 12px; width: auto; max-width: none; max-height: calc(100dvh - 78px); transform-origin: top center; background: #0d0d0d; backdrop-filter: none; border-color: #3c3c3c; box-shadow: 0 1px 0 #ffffff12 inset, 0 24px 60px #000; }
+  /* The page dims under the open results (a tap there closes them); the bar stays clear above it. */
+  .search.open .search-scrim { display: block; position: fixed; top: 58px; left: 0; right: 0; bottom: 0; background: #000c; animation: fade-in 0.15s ease both; }
   .main { padding: 24px 16px 0; }
   .page-heading { align-items: flex-start; margin-bottom: 20px; gap: 14px; }
   .page-heading-text { flex: 1; min-width: 0; }
@@ -1701,9 +1703,10 @@
   .explorer-open-label { display: none; }
   .volume-panel .panel-controls > .small-link { position: absolute; top: 15px; right: 15px; }
   .volume-panel .panel-head:has(> .panel-controls > .small-link) .panel-heading { padding-right: 60px; }
-  /* Explorer: view and metric switches share a row, the time range is a select under them. */
+  /* Explorer: the view and metric switches (short labels here) and the time range's compact select share one row. */
   .explorer-head h1 { font-size: 16px; }
-  .explorer-controls { gap: 8px; }
+  .explorer-controls { gap: 8px; flex-wrap: nowrap; }
+  .explorer-controls .range-select { margin-left: auto; flex: none; }
   .explorer-controls .range-seg { display: none; }
   .explorer-controls .segmented button { padding-left: 8px; padding-right: 8px; }
   /* Accuracy: the quarter switch moves onto the chart legend's row, at its right. */
@@ -1735,7 +1738,10 @@
   .filter-search, .table-tools .filter-search { width: 100%; }
   .table-filters { gap: 6px; }
   .table-filters select { font-size: 11px; }
-  .tabs { gap: 20px; padding: 0 14px; }
+  /* Toolbar selects (not the stacked form fields): a compact box only as wide as the chosen option, so they share a
+     row with their neighbours. The touch block keeps their text at 16px and sets the height. */
+  .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap) select { field-sizing: content; max-width: 100%; }
+  .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap)::after { top: calc(50% - 4px); }  .tabs { gap: 20px; padding: 0 14px; }
   .tab { font-size: 12px; }
   .table-scroll th { font-size: 10px; padding: 10px 14px; }
   .table-scroll td { padding: 13px 14px; font-size: 12px; }
@@ -1775,17 +1781,22 @@
   .table-stack td[data-area="sel"] .row-icon { display: none; }
   .table-stack td[data-area="rank"] .rank-change { display: flex; margin: 4px 0 0; min-width: 0; }
   .table-stack td[data-area="fig"] .value-bar { width: 64px; margin-top: 5px; }
-  .table-scroll .table-stack td.timeline-progress-cell[data-area] { display: flex; min-width: 0; width: 104px; }
+  .table-scroll .table-stack td.timeline-progress-cell[data-area] { display: flex; min-width: 0; width: 92px; }
   .stack-sep { color: #4a4a4a; margin: 0 5px; }
-  /* "Acquirer → Target": each name is cut on its own, both giving up length in proportion to it. */
-  .table-scroll .table-stack td.stack-pair[data-area] { display: flex; align-items: baseline; }
-  .stack-pair > span:not(.stack-sep) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .stack-pair > .stack-sep { flex: none; }
+  /* "Acquirer → Target": the row's width is shared out evenly and a name shorter than its share keeps all of it, so the
+     longer name is cut first (and only as far as it must). Each column is as wide as its text, so the arrow sits right
+     after the buyer. */
+  .table-scroll .table-stack td.stack-pair[data-area] { display: grid; grid-template-columns: minmax(0, max-content) auto minmax(0, max-content); justify-content: start; align-items: baseline; }
+  .stack-pair > span:not(.stack-sep) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* A sub-line whose first part gives way: "Buyer · date" keeps the date whole. */
+  .table-scroll .table-stack td.stack-line[data-area] { display: flex; }
+  .stack-line > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .stack-line > :not(:first-child) { flex: none; white-space: pre; }
   /* Precedents and the banks' DCFs stay tables (the figures are compared down a column); the name column holds still
      while the figures scroll under it. */
   .comps-table .sticky-col, .comps-table:not(.dcf-table) tr > :first-child:not([colspan]) { position: sticky; left: 0; z-index: 1; }
-  .comps-table:not(.dcf-table) tr > :first-child:not([colspan]) { width: 36px; min-width: 36px; padding-left: 10px; padding-right: 4px; }
-  .comps-table:not(.dcf-table) .sticky-col { left: 36px; }
+  .comps-table:not(.dcf-table) tr > :first-child:not([colspan]) { width: 30px; min-width: 30px; padding-left: 6px; padding-right: 2px; }
+  .comps-table:not(.dcf-table) .sticky-col { left: 30px; }
   .comps-table .sticky-col { box-shadow: inset -1px 0 0 var(--color-line); padding-right: 12px; }
   .comps-table tbody td.sticky-col, .comps-table:not(.dcf-table) tbody td:first-child:not([colspan]) { background: var(--color-panel); }
   .comps-table tbody .comps-subject > td { background: #101010; }
@@ -1793,7 +1804,13 @@
   .comps-excluded td.sticky-col > * { opacity: 0.35; }
   .table-scroll .comps-table th, .table-scroll .comps-table td { padding-left: 10px; padding-right: 10px; }
   .table-scroll .comps-table thead th { white-space: normal; line-height: 1.35; vertical-align: bottom; }
+  /* Precedents: the name, the multiple, the premium and the deal value fit the screen's width before the table scrolls;
+     the figures' headers take two lines at most. */
+  .table-scroll .comps-table:not(.dcf-table) th:not(.sticky-col, :first-child), .table-scroll .comps-table:not(.dcf-table) td:not(.sticky-col, :first-child) { padding-left: 6px; padding-right: 6px; }
+  .table-scroll .comps-table:not(.dcf-table) thead th.right { white-space: nowrap; }
+  .table-scroll .comps-table:not(.dcf-table) .sticky-col { padding-left: 8px; padding-right: 6px; }
   .comps-name { display: block; width: 122px; }
+  .comps-table:not(.dcf-table) .comps-name { width: 100px; }
   .comps-name > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .comps-name small { margin-top: 3px; color: #7c7c7c; font-size: 10.5px; font-weight: 400; }
   .dcf-table .dcf-bar-col { width: 120px; min-width: 120px; }
@@ -1891,7 +1908,8 @@
   .preview-value:has(> .value-none) small { margin-top: 0; }
   /* Timelines: the three comparisons stay side by side. */
   .timeline-compare { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .timeline-compare div { padding: 11px 10px; border-top: 0; border-left: 1px solid var(--color-line); }
+  /* A label that wraps takes its extra line above the figure, so the three figures stay on one line. */
+  .timeline-compare div { display: flex; flex-direction: column; justify-content: space-between; padding: 11px 10px; border-top: 0; border-left: 1px solid var(--color-line); }
   .timeline-compare div:first-child { border-left: 0; padding-left: 14px; }
   .timeline-compare span { font-size: 10.5px; line-height: 1.35; }
   .timeline-compare b { font-size: 15px; }
@@ -1912,6 +1930,12 @@
   .drawer-actions .drawer-more { display: inline-flex; }
   .drawer-actions .button { min-height: 36px; }
   .drawer-stats .status { justify-self: start; width: auto; }
+  /* The Private tag sits under a target's name, flush with it, instead of wrapping onto an indented line. */
+  .private-chip { display: block; width: fit-content; margin: 5px 0 0; }
+  /* Drawer titles above a block (Fingerprint, Recent transactions …) read like the section labels around them. */
+  .related-title { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #777; }
+  /* Coverage: its shares are figures like the counts beside them, so they take the same size. */
+  .coverage-kpis .kpi-value.text { font-size: 23px; letter-spacing: -0.9px; }
   /* What-if: paths under 0.05 points fold into one line. */
   .why-small { display: none; }
   .why-small-toggle, .acc-runners-toggle { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 36px; font-size: 11px; color: #9a9a9a; text-align: left; }
@@ -1970,6 +1994,9 @@
   @media (max-width: 760px) {
     .live-status { width: 36px; height: 36px; }
     .explorer-open { width: 36px; height: 36px; }
+    /* Toolbar selects: a 32px box with tight padding, the text still 16px (iOS zooms into smaller fields). */
+    .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap) select { height: 32px; min-height: 32px; padding: 0 24px 0 9px; line-height: 1.2; color: #c4c4c4; }
+    .select-wrap:not(.field .select-wrap, .whatif-field .select-wrap)::after { right: 10px; }
     /* Legend rows sit close: 28px each is still a fair target, and the 32px + padding rows left an empty band. */
     .legend button { min-height: 28px; padding-block: 0; }
   }

@@ -148,7 +148,8 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
             value={view}
             onChange={setView}
             options={[
-              { value: "trend", label: "Trend over time" },
+              // Shorter on a phone, so the view, the metric and the range share one row.
+              { value: "trend", label: <><span className="hide-phone">Trend over time</span><span className="phone-only">Trend</span></> },
               { value: "deals", label: "Every deal" },
             ]}
           />
@@ -159,12 +160,12 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
               onChange={setMetric}
               options={[
                 { value: "value", label: "$ Value" },
-                { value: "count", label: "Deal count" },
+                { value: "count", label: <><span className="hide-phone">Deal count</span><span className="phone-only">Count</span></> },
               ]}
             />
           )}
           <Segment label="Time range" className="range-seg" value={range} onChange={pickRange} options={rangesFor(matrix.months.length)} />
-          {/* On a phone the range is a compact select (the segment above is hidden there), so the controls take two rows, not three. */}
+          {/* On a phone the range is a compact select (the segment above is hidden there), so the controls take one row. */}
           <div className="range-select">
             <Select
               id="ex-range"
@@ -323,7 +324,7 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
             />
           </div>
           <div className="table-scroll">
-            <table>
+            <table className="table-stack">
               <caption className="sr-only">Deals in this selection</caption>
               <thead>
                 <tr>
@@ -340,7 +341,7 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
                 {rows.slice(0, shown).map((d) => (
                   <RowLink key={d.id} label={`${d.acquirer.name} to acquire ${d.target.name}`} onOpen={() => openDeal(d)}>
                     <td className="table-date">{formatDate(d.announcedDate)}</td>
-                    <td className="company">
+                    <td className="company" data-area="main">
                       <CompanyLink company={d.target} />
                     </td>
                     <td className="company">
@@ -352,10 +353,17 @@ export function VolumeExplorer({ seed, onClose }: { seed: ExplorerSeed; onClose:
                         {d.sector}
                       </span>
                     </td>
-                    <td className="right table-value">{formatUsd(d.valueUsd)}</td>
+                    <td className="right table-value" data-area="fig">
+                      {formatUsd(d.valueUsd)}
+                    </td>
                     <td className="right mono">{formatPct(d.premiumPct)}</td>
-                    <td>
+                    <td data-area="tag">
                       <StatusTag status={d.status} />
+                    </td>
+                    {/* The phone's stacked row (hidden on wider screens): the target and value, then buyer · date and the status. */}
+                    <td className="phone-cell stack-line" data-area="sub">
+                      <span>{d.acquirer.name}</span>
+                      <span> · {formatDate(d.announcedDate)}</span>
                     </td>
                   </RowLink>
                 ))}

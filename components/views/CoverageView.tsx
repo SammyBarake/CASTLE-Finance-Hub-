@@ -89,7 +89,7 @@ export function CoverageView() {
   return (
     <>
       <PageHeading title="Data Coverage" subtitle="How complete each field is · Read from SEC EDGAR filings" />
-      <Kpis label="Coverage summary">
+      <Kpis label="Coverage summary" className="coverage-kpis">
         <Kpi label="Public-target deals" value={pub.total.toLocaleString("en-US")} note={`Since ${start.slice(0, 4)}, not terminated`} />
         <Kpi label="With a deal value" value={pct(pub, "value")} note={`Premium ${pct(pub, "premium")}`} text />
         <Kpi label="With EV / Adj. EBITDA" value={pct(pub, "evEbitda")} note={`EV / Revenue ${pct(pub, "evRevenue")}`} text />

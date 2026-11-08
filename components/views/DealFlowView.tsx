@@ -268,9 +268,9 @@ export function DealFlowView() {
               <Icon name="filter" />
               Filters <span className="inline-count">{chips.length}</span>
             </button>
-            <button type="button" className="button" onClick={(e) => openColumns(e.currentTarget)}>
+            <button type="button" className="button" aria-label="Columns" onClick={(e) => openColumns(e.currentTarget)}>
               <Icon name="columns" />
-              Columns
+              <span className="hide-phone">Columns</span>
             </button>
           </div>
         </div>
