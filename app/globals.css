@@ -493,6 +493,8 @@
   .about-data-body strong { color: #d4d4d4; font-weight: 500; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 21px; }
   .country-code { display: inline-grid; place-items: center; border: 1px solid #353535; border-radius: 4px; background: #171717; width: 28px; height: 23px; font: 9px var(--font-mono); color: #b9b9b9; margin-right: 10px; }
+  /* World Economies: the change from the prior estimate beside a figure. */
+  .econ-delta { margin-left: 6px; font-size: 9px; }
 
   /* ---------- dialogs & drawer ---------- */
   /*
@@ -643,6 +645,8 @@
     .explorer-chart { height: 320px; }
     .explorer-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
     .explorer-controls .segmented button { white-space: nowrap; }
+    .explorer-side-eyebrow, .explorer-rank { font-size: 10px; }
+    .explorer-stats span, .explorer-deal-names small, .scatter-tip-hint { font-size: 10.5px; }
   }
 
   /* ---------- valuation football field (deal drawer) ---------- */
@@ -665,7 +669,8 @@
   .ff-bank { margin-top: 6px; }
   @media (max-width: 760px) {
     .ff-row { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
-    .ff-lo, .ff-hi { font-size: 8px; }
+    .ff-lo, .ff-hi, .ff-offer-label { font-size: 10px; }
+    .ff-label small { font-size: 10.5px; }
   }
 
   /* ---------- deal timelines ---------- */
@@ -708,6 +713,7 @@
     .timeline-compare { grid-template-columns: 1fr; }
     .timeline-compare div { border-left: 0; border-top: 1px solid var(--color-line); }
     .timeline-compare div:first-child { border-top: 0; }
+    .timeline-sector-value small, .timeline-compare span { font-size: 10.5px; }
   }
 
   /* ---------- live-data outage banner ---------- */
@@ -875,7 +881,13 @@
   }
   @media (max-width: 760px) {
     .buyer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .buyer-stats dt { font-size: 10.5px; }
+    .buyer-top-label { font-size: 10px; }
     .reaction-grid { padding: 4px 12px 6px; }
+    /* Five columns in a 306px panel at 375px: the headings ("BEAT S&P", "6 MONTHS") and, only when still short of room,
+       the row labels take two lines, so the last column shows without scrolling. The figures never wrap. */
+    .reaction-table th, .reaction-table td:first-child { white-space: normal; }
+    .reaction-table th { vertical-align: bottom; }
   }
 
   /* ---------- precedent transactions ---------- */
@@ -980,6 +992,7 @@
   @media (max-width: 760px) {
     .dcf-stats > div { padding: 10px 10px; }
     .dcf-stats strong { font-size: 15px; }
+    .dcf-stats small { font-size: 10.5px; }
   }
   .filing-link { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #252525; padding: 10px 0; font-size: 11px; color: #ccc; }
   .filing-link:hover { color: #fff; }
@@ -1430,17 +1443,26 @@
     .ripple-table .ripple-corner { width: 72px; }
     .ripple-table .long { display: none; }
     .ripple-table .short { display: inline; }
-    .ripple-sector { font-size: 9.5px; }
+    .ripple-table thead th, .ripple-sector { font-size: 10px; }
     .ripple-sector .dot { margin-right: 5px; }
     .ripple-cell { height: 50px; padding: 6px 7px; }
     .ripple-value { font-size: 11px; }
     .ripple-range { margin-top: 6px; }
     .ripple-mark { top: 5px; right: 5px; width: 6px; height: 6px; }
     /* A shock has no range, so on a phone the tag takes the range bar's place instead of covering the value. */
-    .ripple-shock-tag { top: auto; right: auto; bottom: 5px; left: 7px; height: 11px; font-size: 6px; padding: 0 3px; }
-    .ripple-loading { font-size: 7.5px; }
-    .ripple-legend { padding: 4px 15px 14px; }
-    .ripple-legend small { text-align: left; }
+    .ripple-shock-tag { top: auto; right: auto; bottom: 4px; left: 7px; height: 14px; font-size: 10px; letter-spacing: 0.02em; padding: 0 4px; }
+    .ripple-loading { font-size: 10px; line-height: 1.2; }
+    .ripple-legend { padding: 4px 15px 14px; font-size: 10.5px; }
+    .ripple-legend small { text-align: left; font-size: 10.5px; }
+    .panel-legend { font-size: 10.5px; }
+    .assumption-badge { height: 16px; font-size: 10px; }
+    .whatif-field > span:first-child, .whatif-number-box i { font-size: 10.5px; }
+    .whatif-field > span:first-child small { font-size: 10px; }
+    /* In the chart's own units: its 340-wide drawing is shown about 300px wide at 375px, so 12 reads as ~10.6px. */
+    .rc-tick, .rc-q, .rc-value { font-size: 12px; }
+    .why-source small, .why-chain, .why-evidence, .why-more { font-size: 10.5px; }
+    .why-toggle-label, .why-tag { font-size: 10px; }
+    .adviser-change small { font-size: 10.5px; }
     .range-chart-wrap, .why-list { padding-left: 15px; padding-right: 15px; }
     .adviser-fold summary { padding-inline: 15px; font-size: 11px; }
     .adviser-fold-note, .adviser-split-head { padding-inline: 15px; font-size: 10.5px; }
@@ -1451,10 +1473,12 @@
     .adviser-bar { width: 96px; }
     .acc-grid { padding: 0 9px 6px; border-spacing: 4px; }
     .acc-grid .acc-corner { width: 70px; }
-    .acc-cell { height: 54px; padding: 7px 8px; }
+    .acc-cell { height: 54px; padding: 7px 8px; gap: 5px; }
     .acc-cell b { font-size: 12px; }
+    .acc-grid th, .acc-cell small { font-size: 10px; }
+    .acc-chart-legend, .acc-legend, .acc-halves { font-size: 10.5px; }
     .acc-change { padding: 0 15px 6px; }
-    .acc-change-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 14px minmax(0, 1fr); gap: 8px; font-size: 10px; }
+    .acc-change-row, .acc-change-row.head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 14px minmax(0, 1fr); gap: 8px; font-size: 10px; }
   }
 
   /* After .page-enter > *, so the logo keeps its own entrance (the sidebar crest's). */
@@ -1591,7 +1615,7 @@
   .drawer-stats > div:nth-child(n + 3) { border-top: 1px solid #222; }
   .search-field { height: 29px; padding: 0 7px; }
   .search-field kbd { display: none; }
-  .search input { font-size: 9px; }
+  .search input { font-size: 11px; }
   .search-results { right: -1px; max-width: calc(100vw - 32px); }
   .main { padding: 24px 16px 0; }
   .page-heading { margin-bottom: 20px; }
@@ -1685,6 +1709,14 @@
   .book-add-new div, .share-link-row { flex-wrap: wrap; }
   .book-add-list li { flex-wrap: wrap; }
   .live-apps { grid-template-columns: minmax(0, 1fr); }
+  /* Nothing under 10px (e2e/pages.e2e.ts checks every page): tags, counts, monograms and capitals at 10px, other
+     secondary text at 10.5px. The desktop sizes above are unchanged. */
+  .nav-count, kbd, .badge, .status, .legend-change, .rank-change, .tab span, .view-count, .inline-count, .watch-count,
+  .company-mark, .country-code, .econ-delta, .book-shared-tag, .aim-chip, .filter-chip, .bulk-bar .button { font-size: 10px; }
+  .takeaways h2, .modal-eyebrow, .detail-section, .fp-head, .terms-sectors-head { font-size: 10px; }
+  .sample-label, .check-label, .field label, .company small, .notes-help, .menu-title, .menu-shortcut, .search-group,
+  .search-result-label small, .terms-band-label small, .coverage-table tbody th[scope="row"] small { font-size: 10.5px; }
+  .drawer-stats span, .drawer-stats small, .related-figures small, .related-deal small { font-size: 10.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }

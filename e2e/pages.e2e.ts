@@ -28,6 +28,23 @@ async function expectLoaded(page: Page) {
   expect(text.length, "page content").toBeGreaterThan(200);
 }
 
+/** Text drawn under 10px inside `scope` (phone text never goes below 10px), as "TAG.class: size" lines. */
+function smallText(page: Page, scope: string) {
+  return page.evaluate((scope) =>
+    [...document.querySelectorAll(scope)]
+      .filter((el) => {
+        // Not drawn, or for screen readers only.
+        if (el.getClientRects().length === 0 || el.closest(".sr-only")) return false;
+        if (![...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())) return false;
+        // SVG text is drawn at its size times the drawing's scale, which the computed size doesn't show.
+        const size = parseFloat(getComputedStyle(el).fontSize) * (el instanceof SVGGraphicsElement ? (el.getScreenCTM()?.a ?? 1) : 1);
+        // Size 0 is text hidden on purpose (the phone's icon-only buttons).
+        return size > 0 && size < 10;
+      })
+      .map((el) => `${el.tagName}.${el.getAttribute("class") ?? ""}: ${getComputedStyle(el).fontSize}`),
+  scope);
+}
+
 for (const width of [1366, 375]) {
   test.describe(width === 375 ? "phone" : "desktop", () => {
     test.use({ viewport: { width, height: width === 375 ? 812 : 900 } });
@@ -41,6 +58,8 @@ for (const width of [1366, 375]) {
         // Nothing scrolls sideways (tables scroll inside their own containers).
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         expect(overflow, "horizontal overflow in px").toBeLessThanOrEqual(1);
+        // Phone text never below 10px: the page, the sidebar behind the menu button and the footer.
+        if (width === 375) expect(await smallText(page, "body *"), "phone text under 10px").toEqual([]);
         expect(errors).toEqual([]);
       });
     }
@@ -78,21 +97,7 @@ for (const width of [1366, 375]) {
       for (const t of tombs) expect(t).toEqual({ fits: true, abovenote: true });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, "horizontal overflow in px").toBeLessThanOrEqual(1);
-      if (width === 375) {
-        // Phone text never below 10px.
-        const tiny = await page.evaluate(() =>
-          [...document.querySelectorAll(".landing *")]
-            .filter(
-              (el) =>
-                el.getClientRects().length > 0 &&
-                [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()) &&
-                // SVG text is drawn at its size times the drawing's scale, which the computed size doesn't show.
-                parseFloat(getComputedStyle(el).fontSize) * (el instanceof SVGGraphicsElement ? (el.getScreenCTM()?.a ?? 1) : 1) < 10,
-            )
-            .map((el) => `${el.tagName}.${el.className}: ${getComputedStyle(el).fontSize}`),
-        );
-        expect(tiny, "phone text under 10px").toEqual([]);
-      }
+      if (width === 375) expect(await smallText(page, ".landing *"), "phone text under 10px").toEqual([]);
       expect(dataset, "the landing page never downloads the dataset").toEqual([]);
       expect(errors).toEqual([]);
     });
@@ -232,6 +237,29 @@ test("deal drawer, company page and tear sheet", async ({ page, request }) => {
   await page.goto(`/tearsheet/deal/${encodeURIComponent(deal.id)}`);
   await expect(page.locator("body")).toContainText(deal.target.name.split(" ")[0]);
   expect(errors).toEqual([]);
+});
+
+test.describe("phone drawers and tables", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("the deal and advisor drawers keep text at 10px or more, and the buyers' reaction table fits", async ({ page }) => {
+    const errors = watchErrors(page);
+    for (const path of ["/deal-flow", "/advisors"]) {
+      await page.goto(path, { waitUntil: "networkidle" });
+      await expectLoaded(page);
+      const row = page.locator("tr.row-link").first();
+      await row.focus();
+      await row.press("Enter");
+      await expect(page.locator("dialog[open]").first()).toBeVisible();
+      expect(await smallText(page, "dialog[open] *"), `${path} drawer: phone text under 10px`).toEqual([]);
+    }
+    // Five columns in a 306px panel: the last (6 MONTHS) shows without scrolling the table sideways.
+    await page.goto("/valuations", { waitUntil: "networkidle" });
+    await expectLoaded(page);
+    const fit = await page.locator(".reaction-table").evaluate((t) => t.scrollWidth - t.closest(".table-scroll")!.clientWidth);
+    expect(fit, "reaction table wider than its panel, in px").toBeLessThanOrEqual(1);
+    expect(errors).toEqual([]);
+  });
 });
 
 test("Excel export downloads a workbook", async ({ page }) => {

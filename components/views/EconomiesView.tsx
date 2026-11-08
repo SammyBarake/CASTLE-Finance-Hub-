@@ -21,9 +21,9 @@ const monthYear = (iso: string) => new Date(iso).toLocaleDateString("en-US", { m
 function Delta({ now, prior }: { now: number | null; prior: number | null }) {
   if (now == null || prior == null) return null;
   const d = now - prior;
-  if (Math.abs(d) < 0.05) return <span className="dim" style={{ marginLeft: 6, fontSize: 9 }}>±0.0</span>;
+  if (Math.abs(d) < 0.05) return <span className="econ-delta dim">±0.0</span>;
   return (
-    <span className={d > 0 ? "up" : "down"} style={{ marginLeft: 6, fontSize: 9 }}>
+    <span className={`econ-delta ${d > 0 ? "up" : "down"}`}>
       {d > 0 ? "+" : ""}
       {d.toFixed(1)}
     </span>
