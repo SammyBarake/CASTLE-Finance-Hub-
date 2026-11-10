@@ -22,4 +22,14 @@ describe("htmlToText", () => {
     expect(text).toContain('(the " Company ")');
     expect(text).toContain("Agreement and Plan of Merger");
   });
+
+  it("keeps the paragraphs of a release laid out as an image, whose hidden 1pt text layer marks them with runs of spaces", () => {
+    const html =
+      '<html><body><DIV><IMG src="p001.jpg"><DIV><FONT size="1" style="font-size:1pt;color:white">  FOR IMMEDIATE RELEASE    Federal Signal Completes Acquisition of Hog Technologies, A Leading U.S.  Manufacturer of Equipment    Downers Grove, Illinois, February 12, 2025 &#8212; Federal Signal Corporation (NYSE: FSS) today announced that it has  completed the acquisition of Hog Technologies.</FONT></DIV></DIV></body></html>';
+    const lines = htmlToText(html).split("\n");
+    expect(lines).toContain("Federal Signal Completes Acquisition of Hog Technologies, A Leading U.S. Manufacturer of Equipment");
+    expect(lines.some((l) => l.startsWith("Downers Grove, Illinois, February 12, 2025"))).toBe(true);
+    // Elsewhere runs of spaces stay spaces.
+    expect(htmlToText("<html><body><p>Acme    Corp</p></body></html>")).toBe("Acme Corp");
+  });
 });

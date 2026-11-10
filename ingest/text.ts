@@ -79,6 +79,11 @@ export function htmlToText(html: string): string {
   const isHtml = /<(?:html|body|p|div|table|font|span)\b/i.test(html.slice(0, 5000));
   if (!isHtml) return decodeEntities(html).replace(/[ \t\r\f\v]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   const text = html
+    // A release laid out as an image (Workiva) carries its text in a hidden 1pt layer whose only paragraph marks are runs of
+    // three or more spaces ("FOR IMMEDIATE RELEASE    Federal Signal Completes Acquisition of Hog Technologies …    Downers Grove,
+    // Illinois, February 12, 2025"); two spaces are a wrapped line. 405 of the 542 cached releases that read as one line, with no
+    // headline or dateline found.
+    .replace(/(<font\b[^>]*font-size:\s*1pt[^>]*>)([^<]*)/gi, (_, open: string, inner: string) => open + inner.replace(/ {3,}/g, "<br>"))
     // Newlines in HTML source are just whitespace; only tags create line breaks.
     .replace(/\s*\r?\n\s*/g, " ")
     .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, " ")

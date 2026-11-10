@@ -1857,6 +1857,15 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // "Food Production and Processing IP"); a company of that name carries a legal suffix ("… IP Holdings, Inc.").
   // (After another word: Twilio bought a company called Segment.)
   if (/\S\s+(?:Segment|Division|IP|Intellectual Property|Patents|Patent Portfolio|Assets)$/.test(targetName.trim())) return true;
+  // A property or a pipeline, not a company: "AC HOTEL MINNEAPOLIS DOWNTOWN", "CHICO HOT SPRINGS RESORT" (DiamondRock), "Lifestyle Office"
+  // (Cousins), "West Texas LPG Pipeline System" (ONEOK). Not a company with a legal form, nor "Hotels & Resorts".
+  // (A company named so stays: "LaSalle Hotel Properties", "TA Pipeline, LLC", "Bridge Terminal Transport".)
+  if (
+    !/\b(?:Inc|Corp|Corporation|LLC|L\.?P|Ltd|Limited|Company|Co|Holdings|Group|Trust|plc|N\.V|S\.A|AG|GmbH|Properties|Partners|Investors|REIT|Hospitality|Resorts|Hotels|Entertainment|Gaming)\b\.?/i.test(targetName) &&
+    /\b(?:hotel|resort)\b(?![\s\S]*\bcasino)|\S\s+(?:office|offices|office portfolio|portfolio|pipeline system|gathering system)$/i.test(targetName.trim()) &&
+    !/\bcasino\b/i.test(targetName)
+  )
+    return true;
   // Unless the target carries a legal form (a company bought from its owner: "StonePoint Ultimate Holding, LLC … from an affiliate of Sun Capital"):
   if (!/\b(?:Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Company|Co|GmbH|AG|S\.A|N\.V|B\.V|plc|LP|L\.P|Holdings|Group|Trust|REIT|Bancorp|Bank|Partners)\.?$/.test(targetName.trim())) {
     const opening = intro.slice(0, 1500);
@@ -2106,6 +2115,34 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // A headline's next sentence run on to the name: "VSE CORPORATION ANNOUNCES ACQUISITION OF KELLSTROM AEROSPACE PROVIDES
   // PRELIMINARY THIRD QUARTER 2024 RESULTS". (A verb only with more words after it: "Consumer Reports" is a name.)
   parties.tgt = parties.tgt.replace(/\s+(?:PROVIDES|REPORTS|Provides|Reports)\s+\S.*$/, "");
+  // …or a sub-headline in capitals: "MATERION CORPORATION TO ACQUIRE OPTICS BALZERS" / "COMBINATION CREATES A GLOBAL LEADER IN …".
+  parties.tgt = parties.tgt.replace(/\s+(?:COMBINATION|TRANSACTION|ACQUISITION|MERGER|DEAL)\s+(?:CREATES|WILL|EXPANDS|ADDS|STRENGTHENS|ACCELERATES|BRINGS|ENHANCES|POSITIONS|DELIVERS|FORMS)\b.*$/, "");
+  // …or the dateline's place: "Mercury Systems Completes Acquisition of American Panel Corporation ANDOVER, Mass." / "- Sept. 23, 2019".
+  parties.tgt = parties.tgt.replace(/(\b(?:Corporation|Corp\.?|Inc\.?|Company|LLC|Ltd\.?))\s+(?!(?:LLC|LLP|LTD|INC|PLC|USA|LP|SCA|SAS|SPA|SARL|GMBH|AG|SA|NV|BV)\b)[A-Z]{3,}(?:\s+[A-Z]{3,})*$/, "$1");
+  parties.tgt = parties.tgt.replace(/\s+[A-Z]{3,}(?:\s+[A-Z]{3,})*,\s+(?:Mass|Calif|Fla|Va|Ga|Pa|Tex|Ill|Mich|Wash|Colo|Conn|Md|Minn|Mo|Wis|Ariz|Ore|Tenn|Ky|Ala|La|Okla|Kan|Neb|Nev|N\.J|N\.Y|N\.C|S\.C|N\.H|Del|Ind|Utah|Ohio|Texas)\.?$/, "");
+  // A slide deck's title around the names (some deals are read only from their deck: Jazz / GW, Armstrong / Zahner): "Investor Presentation
+  // VNCE Acquires OVO AUGUST 2026", "November 2020 Griffin Capital Essential Asset REIT to Acquire CCIT II", "Coeur Mining Creates Coeur Capital
+  // and Announces Definitive Agreement to Acquire Global Royalty Corporation".
+  const MONTH_YEAR = String.raw`(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}`;
+  parties.acq = parties.acq
+    .replace(/^(?:Investors?|Analyst|Investor and Analyst)\s+(?:Presentation|Update)\s+/i, "")
+    .replace(new RegExp(String.raw`^${MONTH_YEAR}\s+`, "i"), "")
+    .replace(/\s+(?:Creates|CREATES)\s+\S.*$/, "");
+  // ("UCB to Acquire Zogenix Capital Markets Conference Call 19 January 2022". A trailing month and year the ingest's name cleaning takes off,
+  // after the carve-out checks: cut here, "IRISYS" met the deck's "IRISYS's business" and Recro's purchase, read only from its deck, was lost.)
+  parties.tgt = parties.tgt.replace(/\s+(?:Capital Markets\s+)?(?:Conference|Investor|Analyst)\s+Call\b.*$/i, "");
+  // A headline naming no company ("AMERICAN CAPITAL AGENCY CORP. TO ACQUIRE ITS EXTERNAL MANAGER"): the body names it.
+  // (Or after a comma: "iRobot Acquires Its Largest European Distributor, Robopolis SAS".)
+  if (/^(?:its|their|our)\s/i.test(parties.tgt)) {
+    const named = /,\s+([A-Z][^,]{1,80})$/.exec(parties.tgt)?.[1] ?? new RegExp(`${escapeRx(parties.tgt)},\\s+([A-Z][\\w&.' -]{1,60}?)(?=\\s+[A-Z][a-z]+\\s+[a-z]|\\s*$)`).exec(headline)?.[1];
+    if (named && isPlausibleName(named)) parties = { ...parties, tgt: named };
+    else if (bodyParties && !/^(?:its|their|our)\s/i.test(bodyParties.tgt)) parties = { ...bodyParties };
+    // (Else the description stays for the name-from-the-text step below: "La Rosa Holdings Acquires Its Twelfth Real Estate Brokerage
+    // Franchisee" is BF Prime LLC.)
+  }
+  // A stake alone is no takeover: "CONSTELLATION COMPLETES ACQUISITION OF OWNERSHIP STAKE IN TEXAS NUCLEAR PLANT", "Vespoint Acquires Controlling
+  // Interest In Midwest Holding". (A stake with more words goes on: "Controlling Stake and Assume Sponsorship of TerraForm Power".)
+  if (/^(?:an?\s+)?(?:[\d.]+\s*(?:%|percent)\s+)?(?:ownership|minority|majority|equity|controlling|non-controlling)\s+(?:stake|interest)$/i.test(parties.tgt.trim())) return null;
   // …or joined by "and": "E2open to Acquire BluJay Solutions and Raises $1.1 Billion …" (the target read "BluJay Solutions and Raises").
   // …or a verb with no "and": "Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming …".
   parties.tgt = parties.tgt.replace(/\s+(?:Brings|Adds|Expands|Strengthens|Bolsters|Broadens|Accelerates|Enhances|Extends)\s+(?:Total|Its|the|Our|New|More|\d)[\s\S]*$/, "");

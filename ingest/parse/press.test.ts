@@ -1059,6 +1059,21 @@ describe("assets and a headline verb run into the name", () => {
     expect(p("Squarespace Enters Definitive Agreement to Acquire Google Domains Assets\nNEW YORK, June 15, 2023 - Squarespace, Inc. (NYSE: SQSP) today announced it has entered into a definitive agreement to acquire Google Domains assets.")).toBeNull();
     expect(p("Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming to Over 35,000\nCOS COB, CT - October 25, 2018 - Chicken Soup for the Soul Entertainment, Inc. (Nasdaq: CSSE) today announced that it has acquired Truli.com.")?.target.name).toBe("Truli.com");
   });
+  it("drops a single hotel, a property portfolio, a gathering system and a bare stake, but not a company named so", () => {
+    expect(p("DIAMONDROCK HOSPITALITY ACQUIRES THE AC HOTEL MINNEAPOLIS DOWNTOWN\nBETHESDA, Md., November 15, 2024 - DiamondRock Hospitality Company (NYSE: DRH) today announced that it has acquired the AC Hotel Minneapolis Downtown for $30 million.")).toBeNull();
+    expect(p("CorEnergy to Acquire Grand Isle Gathering System for $245 Million\nKANSAS CITY, Mo., May 26, 2015 - CorEnergy Infrastructure Trust, Inc. (NYSE: CORR) today announced that it has entered into a definitive agreement to acquire the Grand Isle Gathering System.")).toBeNull();
+    expect(p("CONSTELLATION COMPLETES ACQUISITION OF OWNERSHIP STAKE IN TEXAS NUCLEAR PLANT\nBALTIMORE, November 1, 2023 - Constellation Energy Corporation (Nasdaq: CEG) announced today it has completed its acquisition of NRG Energy Inc.'s 44 percent ownership stake in the South Texas Project.")).toBeNull();
+    expect(p("LASALLE HOTEL PROPERTIES TO BE ACQUIRED BY BLACKSTONE FOR $33.50 PER SHARE IN $4.8 BILLION TRANSACTION\nBETHESDA, Md., May 21, 2018 - LaSalle Hotel Properties (NYSE: LHO) today announced that it has entered into a definitive agreement to be acquired by Blackstone.")?.target.name).toMatch(/^LaSalle Hotel Properties/);
+    expect(p("NextTrip Acquires TA Pipeline, LLC to Expand Group Travel Platform\nSUNRISE, Fla., March 3, 2025 - NextTrip, Inc. (NASDAQ: NTRP) today announced that it has acquired TA Pipeline, LLC.")?.target.name).toMatch(/^TA Pipeline/);
+  });
+  it("takes a deck's or a headline's names, not its title, place or sub-headline", () => {
+    expect(p("Investor Presentation VNCE Acquires OVO AUGUST 2026\nVince Holding Corp. (Nasdaq: VNCE) has completed the acquisition of October's Very Own (OVO).")?.acquirer.name).not.toMatch(/Presentation/);
+    expect(p("November 2020 Griffin Capital Essential Asset REIT to Acquire CCIT II\nGriffin Capital Essential Asset REIT, Inc. to acquire Cole Office & Industrial REIT (CCIT II), Inc. in a stock-for-stock transaction under a definitive merger agreement.")?.acquirer.name).toBe("Griffin Capital Essential Asset REIT");
+    expect(p("Coeur Mining Creates Coeur Capital and Announces Definitive Agreement to Acquire Global Royalty Corporation\nNovember 24, 2013 - Coeur Mining, Inc. today announced a definitive agreement to acquire Global Royalty Corporation.")?.acquirer.name).toMatch(/^Coeur Mining/);
+    expect(p("MATERION CORPORATION TO ACQUIRE OPTICS BALZERS\nCOMBINATION CREATES A GLOBAL LEADER IN OPTICAL THIN FILM COATINGS\nMAYFIELD HEIGHTS, Ohio, June 8, 2020 -- Materion Corporation (NYSE:MTRN) today announced it has entered into a definitive agreement to acquire Optics Balzers, AG.")?.target.name).not.toMatch(/CREATES/);
+    expect(p("Mercury Systems Completes Acquisition of American Panel Corporation ANDOVER, Mass.\n- Sept. 23, 2019\n- Mercury Systems, Inc. (NASDAQ: MRCY) today announced the completion of its previously reported acquisition of American Panel Corporation (APC).")?.target.name).toBe("American Panel Corporation");
+    expect(p("iRobot Acquires Its Largest European Distributor, Robopolis SAS Acquisition further expands iRobot's direct presence\nBEDFORD, Mass., July 25, 2017 - iRobot Corp. (NASDAQ: IRBT) today announced that it has signed a definitive agreement to acquire privately-held Robopolis SAS (Robopolis).")?.target.name).toBe("Robopolis SAS");
+  });
 });
 
 describe("a number of shares worth a stated amount", () => {
