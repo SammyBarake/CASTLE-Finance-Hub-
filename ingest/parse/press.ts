@@ -1852,7 +1852,7 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // A reporting segment, a division or intellectual property ("Electronics and Software Reportable Business Segment",
   // "Food Production and Processing IP"); a company of that name carries a legal suffix ("… IP Holdings, Inc.").
   // (After another word: Twilio bought a company called Segment.)
-  if (/\S\s+(?:Segment|Division|IP|Intellectual Property|Patents|Patent Portfolio)$/.test(targetName.trim())) return true;
+  if (/\S\s+(?:Segment|Division|IP|Intellectual Property|Patents|Patent Portfolio|Assets)$/.test(targetName.trim())) return true;
   // Unless the target carries a legal form (a company bought from its owner: "StonePoint Ultimate Holding, LLC … from an affiliate of Sun Capital"):
   if (!/\b(?:Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Company|Co|GmbH|AG|S\.A|N\.V|B\.V|plc|LP|L\.P|Holdings|Group|Trust|REIT|Bancorp|Bank|Partners)\.?$/.test(targetName.trim())) {
     const opening = intro.slice(0, 1500);
@@ -2101,6 +2101,8 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // PRELIMINARY THIRD QUARTER 2024 RESULTS". (A verb only with more words after it: "Consumer Reports" is a name.)
   parties.tgt = parties.tgt.replace(/\s+(?:PROVIDES|REPORTS|Provides|Reports)\s+\S.*$/, "");
   // …or joined by "and": "E2open to Acquire BluJay Solutions and Raises $1.1 Billion …" (the target read "BluJay Solutions and Raises").
+  // …or a verb with no "and": "Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming …".
+  parties.tgt = parties.tgt.replace(/\s+(?:Brings|Adds|Expands|Strengthens|Bolsters|Broadens|Accelerates|Enhances|Extends)\s+(?:Total|Its|the|Our|New|More|\d)[\s\S]*$/, "");
   parties.tgt = parties.tgt.replace(/\s+(?:and|AND|&)\s+(?:Raises|Reports|Provides|Announces|Updates|Reaffirms|Raises|Increases|Secures|Prices|Declares|Issues|Expands|Launches|RAISES|REPORTS|PROVIDES|ANNOUNCES|UPDATES|REAFFIRMS)(?:\s.*)?$/, "");
   // A name cut at an abbreviation's period: "Kadant to Acquire German Blade Manufacturer Joh. Clouth" read "Joh".
   if (/^[A-Z][a-z]{1,3}$/.test(parties.tgt)) {

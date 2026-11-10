@@ -1047,3 +1047,11 @@ describe("a listed name with 'for the' in it", () => {
     expect(r?.acquirer.name).toBe("Chicken Soup for the Soul Entertainment, Inc.");
   });
 });
+
+describe("assets and a headline verb run into the name", () => {
+  const p = (t: string) => parsePressRelease(t, { filerName: "", filerTickers: [] });
+  it("drops a target that is a company's assets, and cuts 'Brings Total …'", () => {
+    expect(p("Squarespace Enters Definitive Agreement to Acquire Google Domains Assets\nNEW YORK, June 15, 2023 - Squarespace, Inc. (NYSE: SQSP) today announced it has entered into a definitive agreement to acquire Google Domains assets.")).toBeNull();
+    expect(p("Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming to Over 35,000\nCOS COB, CT - October 25, 2018 - Chicken Soup for the Soul Entertainment, Inc. (Nasdaq: CSSE) today announced that it has acquired Truli.com.")?.target.name).toBe("Truli.com");
+  });
+});
