@@ -435,8 +435,9 @@ function tickerMentions(text: string): PartyMention[] {
   const out: PartyMention[] = [];
   for (const m of text.matchAll(TICKER_RE)) {
     // Keep only the capitalised run right before the ticker:
-    // "Secureworks shareholders, including Dell Technologies" -> "Dell Technologies".
-    const run = /((?<![A-Za-z0-9])(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z0-9&][\w&.'’\-]*(?:\/[A-Za-z][\w&.'’\-]*)*)(?:(?:,\s(?:Inc|Corp|Ltd|LLC|L\.P|Co|N\.V|S\.A|plc)\.?)|\s(?:[A-Z0-9&][\w&.'’\-]*(?:\/[A-Za-z][\w&.'’\-]*)*|of|and|&|de))*)\s*$/.exec(m[1].trim());
+    // "Secureworks shareholders, including Dell Technologies" -> "Dell Technologies". ("for the" and "of the" may join it:
+    // "Chicken Soup for the Soul Entertainment, Inc. (Nasdaq: CSSE)" had become "Soul Entertainment, Inc.", Redbox.)
+    const run = /((?<![A-Za-z0-9])(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z0-9&][\w&.'’\-]*(?:\/[A-Za-z][\w&.'’\-]*)*)(?:(?:,\s(?:Inc|Corp|Ltd|LLC|L\.P|Co|N\.V|S\.A|plc)\.?)|\s(?:[A-Z0-9&][\w&.'’\-]*(?:\/[A-Za-z][\w&.'’\-]*)*|of(?:\s+the)?|for\s+the|and|&|de))*)\s*$/.exec(m[1].trim());
     // What a firm's "About" paragraph says it runs is not the firm: "… including management of Blackstone Mortgage Trust
     // (NYSE: BXMT)" gave Blackstone's half of the Extended Stay deal that mortgage REIT's ticker.
     const end = (m.index ?? 0) + m[1].trimEnd().length - (run?.[1].length ?? 0);

@@ -1040,3 +1040,10 @@ describe("from the November 10 fact-check of 50 live deals", () => {
     expect(q?.acquirerAdvisors).toContain("Raymond James");
   });
 });
+
+describe("a listed name with 'for the' in it", () => {
+  it("keeps the whole name the listing gives", () => {
+    const r = parsePressRelease("Chicken Soup for the Soul Entertainment to Acquire Redbox, Creating Premier Independent Entertainment Company\nCOS COB, CT - May 11, 2022 - Chicken Soup for the Soul Entertainment, Inc. (Nasdaq: CSSE), one of the largest operators of advertising-supported streaming services, and Redbox Entertainment Inc. (Nasdaq: RDBX) today announced a definitive merger agreement under which Chicken Soup for the Soul Entertainment will acquire Redbox in an all-stock transaction.", { filerName: "Redbox Entertainment Inc.", filerTickers: ["RDBX"] });
+    expect(r?.acquirer.name).toBe("Chicken Soup for the Soul Entertainment, Inc.");
+  });
+});
