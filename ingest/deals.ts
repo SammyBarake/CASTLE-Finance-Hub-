@@ -1296,8 +1296,11 @@ async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, se
   }
 }
 
-/** Bump to look again for the announcement of every private deal dated at its closing (`announceCheck`). */
-export const ANNOUNCE_CHECK_VERSION = 1;
+/**
+ * Bump to look again for the announcement of every private deal dated at its closing (`announceCheck`; 26 live records).
+ * 2: the agreement filed as exhibit 2 to the buyer's 8-K counts (Willdan / Mantis, EQT / Tug Hill, Endeavor / OpenBet).
+ */
+export const ANNOUNCE_CHECK_VERSION = 2;
 
 /**
  * A private purchase first seen at its closing, whose release says "previously announced" and gives no date (128 of them in November 2026: Planet
@@ -1326,8 +1329,11 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
       delete deal.announceCheck; // a download failed: look again next run
       continue;
     }
-    if (!readAnnouncement(text, name)) continue;
-    let day = ownReleaseDay(text, h.fileDate);
+    // Or the agreement itself, filed as exhibit 2 to the buyer's 8-K: Willdan's September 23, 2026 8-K carried the Membership Interest
+    // Purchase Agreement for Mantis (its body names "Mantis Intermediate Holdings" and says "Seller agreed to sell", no release).
+    const agreement = /^EX-2/i.test(h.fileType) && /\b(?:Purchase|Merger|Acquisition|Contribution|Exchange)\s+Agreement\b/i.test(text.slice(0, 4000));
+    if (!agreement && !readAnnouncement(text, name)) continue;
+    let day = agreement ? undefined : ownReleaseDay(text, h.fileDate);
     for (const other of hits.filter((o) => o.adsh === h.adsh && o.file !== h.file).slice(0, 2)) {
       if (day) break;
       day = await getText(archiveUrl(acquirerCik, other.adsh, other.file)).then((t) => ownReleaseDay(htmlToText(t), h.fileDate)).catch(() => undefined);
