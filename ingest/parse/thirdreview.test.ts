@@ -418,3 +418,20 @@ describe("the audit", () => {
     expect(rules({ privateTarget: true, announcedDate: "2024-01-01", status: "Closed" })).not.toContain("private-open-two-years");
   });
 });
+
+describe("the audit's value and name rules (November 2026)", () => {
+  const base = { id: "x", acquirer: { name: "Northwind Corp", ticker: "NW", cik: "1" }, target: { name: "Acme Inc.", ticker: "ACM", cik: "2" }, announcedDate: "2026-09-01", status: "Pending", pricePerShare: 10, premiumPct: null, evEbitda: null, evRevenue: null, statusDate: null, acquirerAdvisors: [], targetAdvisors: [], milestones: { firstFiling: { form: "DEFM14A", date: "2026-10-01" } } };
+  const rules = (over: object) => auditDeal({ ...base, ...over } as never, "2026-11-10T00:00:00Z").map((f) => f.rule);
+  it("compares a buy-in with its share of the EV, and passes cash shells and small indebted targets", () => {
+    expect(rules({ valueUsd: 4.58e9, enterpriseValueUsd: 32.7e9, buyIn: 17 })).not.toContain("value-vs-ev-mismatch");
+    expect(rules({ valueUsd: 4.58e9, enterpriseValueUsd: 32.7e9, buyIn: true })).toContain("value-vs-ev-mismatch");
+    expect(rules({ valueUsd: 50e6, enterpriseValueUsd: 1.2e6 })).not.toContain("value-vs-ev-mismatch");
+    expect(rules({ valueUsd: 5e9, enterpriseValueUsd: 0.2e9 })).toContain("value-vs-ev-mismatch");
+    expect(rules({ valueUsd: 50e6, enterpriseValueUsd: 350e6 })).not.toContain("value-vs-ev-mismatch");
+    expect(rules({ valueUsd: 500e6, enterpriseValueUsd: 3.5e9 })).toContain("value-vs-ev-mismatch");
+  });
+  it("lets joint buyers named in full be long, not a description", () => {
+    expect(rules({ acquirer: { name: "Elliott Investment Management, Patient Square Capital and Veritas Capital", cik: null } })).not.toContain("name-too-long");
+    expect(rules({ acquirer: { name: "Joint Venture Backed by Kemmons Wilson Hospitality Partners and Ascendant Capital Partners", cik: null } })).toContain("name-too-long");
+  });
+});

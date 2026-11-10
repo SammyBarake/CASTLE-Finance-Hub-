@@ -352,6 +352,12 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
   // Private-company deals: "Acme Acquires Widget Co.", "Acme Has Acquired …", "Acme Announces (the) Acquisition of …".
   // (SUBHEAD_STOP also ends the target where a glued-on sub-headline starts: "… Valve Systems Expands flow-control portfolio".)
   {
+    // A seller's own release, the buyer after "by": "Avenue Therapeutics Announces Acquisition of Subsidiary Baergic Bio by Axsome
+    // Therapeutics" (Axsome buys Baergic; it read as Avenue buying Axsome). Before the next pattern, which would take the seller as buyer.
+    re: rx(String.raw`^.{2,90}?\s+(?i:announces? (?:the )?(?:acquisition|sale) of)\s+(?i:(?:its )?(?:(?:majority|wholly)[- ]owned )?subsidiary\s+)?${NAME}\s+(?i:by)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
+    roles: ["tgt", "acq"],
+  },
+  {
     // ("TowerBrook and Further Global Announce Acquisition of …": two buyers, one target.)
     re: rx(String.raw`^${NAME}\s+(?i:acquires|has acquired|announces? (?:the |its |their )?${DEAL_ADJ}acquisition of|announces (?:it has|that it has) acquired)\s+${LEAD_QUAL}${NAME}(?:${STOP}|${SUBHEAD_STOP}|${TAIL_STOP})`),
     roles: ["acq", "tgt"],
@@ -371,7 +377,8 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
 ];
 
 const SYMMETRIC_HEADLINE = rx(String.raw`^${NAME}\s+(?i:and)\s+${NAME}\s+(?i:to combine|to merge|announce|agree to|enter into|sign)\b`);
-const BECOMES_SUBSIDIARY = rx(String.raw`${NAME}\s+(?:will|would)\s+become\s+an?\s+(?:(?:direct|indirect)\s+)?wholly[- ]owned\s+subsidiary\s+of\s+${NAME}(?=\s+[a-z]|\s*[,.;(]|$)`);
+// (Or "resulting in Empire becoming a wholly-owned subsidiary of Vivakor": Vivakor's merger with Empire had read backwards.)
+const BECOMES_SUBSIDIARY = rx(String.raw`${NAME}\s+(?:(?:will|would)\s+become|becoming)\s+an?\s+(?:(?:direct|indirect)\s+)?wholly[- ]owned\s+subsidiary\s+of\s+${NAME}(?=\s+[a-z]|\s*[,.;(]|$)`);
 const FOUNDER_MERGER = rx(String.raw`^([A-Z][a-z]+\s[A-Z][a-z]+)\s+(?i:and)\s+${NAME}\s+(?i:announce merger with)\s+${NAME}`);
 
 /** "<anything naming the filer> Acquires <target>": the buyer is the filer (see parsePressRelease). */
@@ -1830,6 +1837,15 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // "Food Production and Processing IP"); a company of that name carries a legal suffix ("… IP Holdings, Inc.").
   // (After another word: Twilio bought a company called Segment.)
   if (/\S\s+(?:Segment|Division|IP|Intellectual Property|Patents|Patent Portfolio)$/.test(targetName.trim())) return true;
+  // Unless the target carries a legal form (a company bought from its owner: "StonePoint Ultimate Holding, LLC … from an affiliate of Sun Capital"):
+  if (!/\b(?:Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Company|Co|GmbH|AG|S\.A|N\.V|B\.V|plc|LP|L\.P|Holdings|Group|Trust|REIT|Bancorp|Bank|Partners)\.?$/.test(targetName.trim())) {
+    const opening = intro.slice(0, 1500);
+    // An asset bought with "a": "to acquire a production winery and planted vineyards in Alexander Valley" (Duckhorn's "North Coast Winery and Vineyards").
+    // (The deal's own words, not background: "intended to invest the offering proceeds to acquire a portfolio of lodging properties".)
+    if (/\b(?:agreement to|agreed to|will)\s+acquire\s+(?:a|an)\s+(?:[a-z][\w-]*,?\s+(?:and\s+)?){0,6}(?:facility|facilities|plant|winery|vineyards?|property|properties|building|campus|vessels?|assets|site|mill|terminal|hotel|ranch|farm|mine|refinery)(?![\w-])/.test(opening)) return true;
+    // A product's business bought from its owner: "to acquire the North American BreathTek® business from Otsuka America Pharmaceutical" (Meridian's "Urea Breath Test").
+    if (/\bto acquire the\s+(?:[A-Z][\w®™&.-]*\s+){1,6}(?:business|product line|brand|rights)\s+from\s+[A-Z]/.test(opening)) return true;
+  }
   const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
   if (possessive && PART_OF.test(possessive[1])) return true;
   if (breaksAtPossessive(headline, intro, targetName)) return true;
@@ -1958,6 +1974,9 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   const text = textIn.replace(PLACE_BEFORE_NAME, "$1 ").replace(CD_AND_R_COMMA, "Clayton Dubilier & Rice");
   // A call transcript filed as an exhibit reads like a release, and its title runs into the target's name (Kaleyra's "mGage Conference Call").
   if (/\b(?:C\s?O\s?R\s?P\s?O\s?R\s?A\s?T\s?E|C\s?O\s?N\s?F\s?E\s?R\s?E\s?N\s?C\s?E\s+C\s?A\s?L\s?L)\s+P\s?A\s?R\s?T\s?I\s?C\s?I\s?P\s?A\s?N\s?T\s?S\b|\bOperator\s+(?:Good|Greetings|Welcome|Ladies|Thank)/.test(flatten(text).slice(0, 3000))) return null;
+  // An expert's report or consent filed as an exhibit is no release: "At your request, Ryder Scott Company, L.P. … has prepared an estimate of
+  // the proved reserves … to be acquired by Crescent Energy Company" made the engineers a target.
+  if (/\bAt your request\b|\bhas prepared an estimate of the (?:proved )?reserves\b|\bconsent of independent (?:petroleum engineers|registered public accounting firm)\b|\bTBPELS\b/i.test(flatten(text).slice(0, 1500))) return null;
   const { headline, body } = splitHeadline(text);
   const filerDisplay = displayName(ctx.filerName);
   // "Bernhard will acquire the Company" -> name the filer explicitly so the patterns can see it.
@@ -1973,6 +1992,11 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   if (/\b(?:propos(?:es|ed|al)|non-binding|unsolicited|indication of interest|letter of intent|letter to (?:the )?board|rejects?|bid for|submits? (?:[\w-]+\s+){0,3}(?:offer|bid)|(?:raises|increases|reaffirms)\s+(?:its\s+)?offer)\b/i.test(headline) && !/definitive (?:merger )?agreement|agreement and plan of merger/i.test(headline + " " + intro.slice(0, 600))) {
     return null;
   }
+  // A letter of intent, binding or not, is no signed deal: "Predictive Oncology Announces Agreement to be Acquired by Renovaro … has entered
+  // into a binding letter of intent with Renovaro" (it ended in 2025 without a merger agreement).
+  // (Not a completion that recalls the letter: "has completed its acquisition of … Neumann. On October 15, 2014 the Company announced it had signed a Letter of Intent".)
+  const doneNow = /\b(?:has|have)\s+(?:completed|closed|acquired)\b/i.test(intro.slice(0, 800)) || /\b(?:Completes?|Closes|Acquires|Has Acquired)\b/i.test(headline);
+  if (!doneNow && /\b(?:entered\s+into|signed|executed)\s+(?:a\s+|an\s+)?(?:binding\s+|non-binding\s+)?letter\s+of\s+intent\b/i.test(intro.slice(0, 800)) && !/definitive (?:merger |purchase |arrangement )?agreement|agreement and plan of merger|merger agreement/i.test(headline + " " + intro.slice(0, 800))) return null;
   // Financing / capital markets releases that happen to mention "premium" — unless the body clearly
   // describes an acquisition (deal sub-headlines often say "accretive to earnings").
   const dealIntro = /definitive (?:merger |arrangement )?agreement|agreement and plan of merger|(?:will|to) acquire\b|to be acquired/i.test(intro.slice(0, 1500));
@@ -2060,6 +2084,25 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // A headline's next sentence run on to the name: "VSE CORPORATION ANNOUNCES ACQUISITION OF KELLSTROM AEROSPACE PROVIDES
   // PRELIMINARY THIRD QUARTER 2024 RESULTS". (A verb only with more words after it: "Consumer Reports" is a name.)
   parties.tgt = parties.tgt.replace(/\s+(?:PROVIDES|REPORTS|Provides|Reports)\s+\S.*$/, "");
+  // …or joined by "and": "E2open to Acquire BluJay Solutions and Raises $1.1 Billion …" (the target read "BluJay Solutions and Raises").
+  parties.tgt = parties.tgt.replace(/\s+(?:and|AND|&)\s+(?:Raises|Reports|Provides|Announces|Updates|Reaffirms|Raises|Increases|Secures|Prices|Declares|Issues|Expands|Launches|RAISES|REPORTS|PROVIDES|ANNOUNCES|UPDATES|REAFFIRMS)(?:\s.*)?$/, "");
+  // A name cut at an abbreviation's period: "Kadant to Acquire German Blade Manufacturer Joh. Clouth" read "Joh".
+  if (/^[A-Z][a-z]{1,3}$/.test(parties.tgt)) {
+    const cut = new RegExp(`\\b${escapeRx(parties.tgt)}\\.\\s+([A-Z][a-z][\\w-]*)`).exec(headline);
+    if (cut) parties.tgt = `${parties.tgt}. ${cut[1]}`;
+  }
+  // A list of past purchases in a release about something else: "Over the last several years, PGTI has acquired Western Window
+  // Systems, NewSouth Window Solutions, Eco Window Systems, Anlin Windows & Doors, and Martin Door." (executive promotions).
+  if (!headline.includes(parties.tgt.split(/\s+/)[0])) {
+    const flatAll = flatten(text);
+    const at = flatAll.indexOf(parties.tgt);
+    if (at >= 0) {
+      const sentence = flatAll.slice(flatAll.lastIndexOf(". ", at) + 2, at + parties.tgt.length + 250);
+      // (Right after "acquired": "FICO Acquires Adeptra, Adding Real-Time, Mobile Customer Engagement and …" is a headline, not a list.)
+      const list = new RegExp(`\\bacquired\\s+${escapeRx(parties.tgt)},\\s+[A-Z][^,.;]{1,50},\\s+[A-Z][^,.;]{1,50},?\\s+and\\s+[A-Z]`);
+      if (/^(?:(?:Over|In|During)\s+the\s+(?:last|past)\b|Since\s+(?:its\s+)?\d{4}|In recent years)/i.test(sentence) || list.test(sentence)) return null;
+    }
+  }
 
   // Prefer the fuller body names when they clearly extend the same name (e.g. "ACV" -> "ACV Auctions Inc."),
   // but never adopt run-on captures that cross a sentence ("CD&R. About Sealed Air ...").

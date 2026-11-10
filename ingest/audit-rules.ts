@@ -12,6 +12,11 @@ export interface Finding {
 }
 
 const HEADLINE_WORDS = /\b(?:announces?|acquires?|completes?|agrees?|signs?|enters?|to acquire|to be acquired|merger agreement|definitive agreement|press release|today)\b/i;
+/** Two to five names joined by commas and "and", each under 60 characters and starting with a capital, not a description ("Joint Venture Backed by …"). */
+export function jointList(name: string): boolean {
+  const parts = name.split(/,\s*(?:and\s+)?|\s+and\s+/);
+  return name.length <= 130 && parts.length >= 2 && parts.length <= 5 && parts.every((p) => p.length >= 2 && p.length < 60 && /^[A-Z]/.test(p) && !/\b(?:Backed|Led|Formed|Controlled|Owned)\s+by\b/i.test(p));
+}
 const pct = (fee: number | null | undefined, value: number | null) => (fee != null && value ? (fee / value) * 100 : null);
 
 export function auditDeal(d: Deal, asOf: string): Finding[] {
@@ -20,18 +25,29 @@ export function auditDeal(d: Deal, asOf: string): Finding[] {
 
   // Names (a lowercase start is fine: scPharmaceuticals, iTeos, indie, e.l.f.)
   for (const [role, c] of [["acquirer", d.acquirer], ["target", d.target]] as const) {
-    if (role === "acquirer" && isPlaceholderBuyer(c.name)) add("placeholder-buyer", `no filing names the buyer behind "${c.name}"`);
+    // (A registrant's SEC name is never a placeholder: "E2open Parent Holdings, Inc.", "Concentra Group Holdings Parent, Inc.".)
+    if (role === "acquirer" && isPlaceholderBuyer(c.name) && !c.cik) add("placeholder-buyer", `no filing names the buyer behind "${c.name}"`);
     else if (!isPlausibleName(c.name)) add("name-implausible", `${role} "${c.name}"`);
     else if (HEADLINE_WORDS.test(c.name)) add("name-headline-words", `${role} "${c.name}"`);
-    else if (c.name.length > 70) add("name-too-long", `${role} "${c.name}"`);
+    // (Joint buyers named in full are long and right: "Elliott Investment Management, Patient Square Capital and Veritas Capital". Each part must be a name of its own.)
+    else if (c.name.length > 70 && !jointList(c.name)) add("name-too-long", `${role} "${c.name}"`);
   }
   if (identicalNames(d.acquirer.name, d.target.name) || (d.acquirer.cik && d.acquirer.cik === d.target.cik)) add("same-company", "acquirer and target look identical");
 
   // Money
   if (d.valueUsd != null && (d.valueUsd < 1e6 || d.valueUsd > 3e11)) add("value-out-of-range", `$${(d.valueUsd / 1e9).toFixed(3)}B`);
   if (d.privateTarget && d.valueUsd != null && d.valueUsd > 4e10) add("private-value-too-large", `$${(d.valueUsd / 1e9).toFixed(1)}B`);
-  if (d.valueUsd && d.enterpriseValueUsd && (d.enterpriseValueUsd / d.valueUsd > 6 || d.enterpriseValueUsd / d.valueUsd < 0.15))
-    add("value-vs-ev-mismatch", `value $${(d.valueUsd / 1e9).toFixed(2)}B vs EV $${(d.enterpriseValueUsd / 1e9).toFixed(2)}B`);
+  // A buy-in's value is the stake bought (Hamm's 17% of Continental), so it compares with that share of the EV. Two shapes are
+  // real and common, not misreads: a small cash shell worth little more than its cash (EV near zero: Cepton, Repare, Rain), and a
+  // small, heavily indebted company bought at a stated price (Sotherly, Urgent.ly). A misread value is large or stated as one.
+  // (Stored as a percentage, or `true` when the stake isn't stated: then the value is blank unless one is stated, and compares whole.)
+  const stake = (d as { buyIn?: number | true }).buyIn;
+  const evShare = d.enterpriseValueUsd && typeof stake === "number" ? d.enterpriseValueUsd * (stake / 100) : d.enterpriseValueUsd;
+  const evRatio = d.valueUsd && evShare ? evShare / d.valueUsd : null;
+  const cashShell = evRatio != null && evRatio < 0.15 && d.valueUsd! < 250e6;
+  const smallAndIndebted = evRatio != null && evRatio > 6 && d.valueUsd! < 100e6 && d.pricePerShare != null;
+  if (evRatio != null && (evRatio > 6 || evRatio < 0.15) && !cashShell && !smallAndIndebted)
+    add("value-vs-ev-mismatch", `value $${(d.valueUsd! / 1e9).toFixed(2)}B vs EV $${(d.enterpriseValueUsd! / 1e9).toFixed(2)}B`);
   if (d.pricePerShare != null && (d.pricePerShare < 0.05 || d.pricePerShare > 5000)) add("price-out-of-range", `$${d.pricePerShare}`);
 
   // Premium and multiples

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedPhrases, endedPhrases, nameForms, readLooseCompletion, readPastReference, readStatement, searchName, shortName, statedDate } from "./completion";
+import { completedPhrases, endedPhrases, nameForms, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName, statedDate } from "./completion";
 
 describe("private-deal completion statements", () => {
   it("reads a plain completion with its date", () => {
@@ -62,5 +62,34 @@ describe("closing wordings from the open-deal triage (November 2026)", () => {
     expect(nameForms("Tower Semiconductor")).not.toContain("TowerSemiconductor");
     expect(searchName("RE2")).toBe("RE2");
     expect(searchName("Joh")).toBeNull();
+  });
+});
+
+describe("ends a report states (November 2026)", () => {
+  it("reads a glossary row's d/b/a short name and 'termination of our previous agreement to acquire'", () => {
+    const text = "Glossary SPI SPI LLC d/b/a Specialty Products & Insulation Term Facility Two. On April 22, 2024, we agreed to a mutual termination of our previous agreement to acquire SPI.";
+    expect(readLooseEnd(text, "Specialty Products & Insulation")).toMatchObject({ found: true, date: "2024-04-22" });
+  });
+  it("reads 'the terminated acquisition of X', undated, and not a defined term in risk factors", () => {
+    expect(readLooseEnd("Expenses were incurred primarily in connection with the terminated acquisition of Knowmadics.", "Knowmadics").found).toBe(true);
+    expect(readLooseEnd("Great Plains Energy, Inc. (\"Great Plains\"). Either party may have the right to terminate the merger agreement with Great Plains.", "Great Plains Energy").found).toBe(false);
+  });
+  it("gives a closing release its 'today'", () => {
+    expect(readLooseCompletion("Stran today announced the completion of its previously announced acquisition of GAP Promotions, LLC (\"GAP Promo\").", "GAP Promo")).toMatchObject({ found: true, today: true });
+  });
+});
+
+describe("closings about something else, and ends by 'termination of the acquisition of' (November 10 2026)", () => {
+  it("doesn't take efforts involving the company, or other assets bought from it, as its closing", () => {
+    expect(readLooseCompletion('During the second quarter of 2026, the Company completed a series of transactions related to its previously announced acquisition efforts involving W3C Corp. ("W3C").', "W3C Corp").found).toBe(false);
+    expect(readLooseCompletion('On May 1, 2026, Exodus completed its acquisition of Baanx US Corp. ("Baanx US"), and agreed to acquire certain other assets from W3C Corp. ("W3C").', "W3C Corp").found).toBe(false);
+  });
+  it("reads 'the previously announced termination of the acquisition of X', not a contract's 'in the event of'", () => {
+    expect(readLooseEnd("In July 2026, following the previously announced termination of the acquisition of W3C Corp., the Company entered into two novation agreements.", "W3C Corp").found).toBe(true);
+    expect(readLooseEnd("The Delayed Draw Facility becomes payable in the event of termination of the acquisition of W3C Corp. for a breach.", "W3C Corp").found).toBe(false);
+  });
+  it("prefers the release's 'today' sentence over its headline", () => {
+    const t = 'Stran & Company Announces Closing of GAP Promo Acquisition; Adds Over $7 Million in Revenue. QUINCY, MA / February 1, 2022 / Stran & Company, Inc. (NASDAQ: SWAG) ("Stran" or the "Company"), an outsourced marketing solutions provider, today announced the completion of its previously announced acquisition of GAP Promotions, LLC ("GAP Promo") in an asset purchase transaction.';
+    expect(readLooseCompletion(t, "GAP Promo")).toMatchObject({ found: true, today: true });
   });
 });

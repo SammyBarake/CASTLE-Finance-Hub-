@@ -987,3 +987,28 @@ describe("segments, divisions and intellectual property are no companies", () =>
     expect(parsePressRelease("Twilio to Acquire Segment, the Market-leading Customer Data Platform\nSAN FRANCISCO, October 12, 2020 - Twilio Inc. (NYSE: TWLO) today announced a definitive agreement to acquire Segment for $3.2 billion.", { filerName: "Twilio Inc.", filerTickers: ["TWLO"] })?.target.name).toBe("Segment");
   });
 });
+
+describe("from the open-deal and audit triage (November 10 2026)", () => {
+  const p = (t: string, filer: string) => parsePressRelease(t, { filerName: filer, filerTickers: [] });
+  it("reads a seller's 'Acquisition of Subsidiary X by Y' as Y buying X", () => {
+    const r = p("Avenue Therapeutics Announces Acquisition of Subsidiary Baergic Bio by Axsome Therapeutics\nMIAMI, November 6, 2025 - Avenue Therapeutics, Inc. (OTC: ATXI) and its majority-owned subsidiary, Baergic Bio, Inc. (\"Baergic\"), today announced that Avenue has entered into an agreement for Baergic to be acquired by Axsome Therapeutics, Inc. (NASDAQ: AXSM) (\"Axsome\").", "Avenue Therapeutics, Inc.");
+    expect(r?.acquirer.name).toMatch(/^Axsome/);
+    expect(r?.target.name).toMatch(/^Baergic Bio/);
+  });
+  it("reads 'resulting in X becoming a wholly-owned subsidiary of Y' for the roles", () => {
+    const r = p("Vivakor Signs Definitive Merger Agreement with Empire Diversified Energy\nDALLAS, TX / March 4, 2024 / Vivakor, Inc. (NASDAQ:VIVK) (\"Vivakor\") today announced it has signed a definitive agreement and plan of merger with Empire Diversified Energy, Inc. (OTC:MPIR) (\"Empire\"). Vivakor would acquire all the outstanding shares of Empire, resulting in Empire becoming a wholly-owned subsidiary of Vivakor upon the closing.", "Vivakor, Inc.");
+    expect(r?.acquirer.name).toMatch(/^Vivakor/);
+    expect(r?.target.name).toMatch(/^Empire/);
+  });
+  it("takes no letter of intent, an expert's report, a list of past purchases or an asset bought with 'a'", () => {
+    expect(p("Predictive Oncology Announces Agreement to be Acquired by Renovaro\nPITTSBURGH, Jan. 06, 2025 -- Predictive Oncology Inc. (NASDAQ: POAI) today announced that it has entered into a binding letter of intent with Renovaro, Inc. (NASDAQ: RENB) for Predictive Oncology to be acquired by Renovaro.", "Predictive Oncology Inc.")).toBeNull();
+    expect(p("Exhibit 99.2 July 10, 2023 Crescent Energy Company. At your request, Ryder Scott Company, L.P. (Ryder Scott) has prepared an estimate of the proved reserves attributable to certain leasehold interests of Mesquite Energy to be acquired by Crescent Energy Company.", "Crescent Energy Company")).toBeNull();
+    expect(p("PGT Innovations Announces Executive Promotions to Support Growth\nTAMPA, March 3, 2023 - PGT Innovations, Inc. (NYSE: PGTI) today announced promotions. Over the last several years, PGTI has acquired Western Window Systems, NewSouth Window Solutions, Eco Window Systems, Anlin Windows & Doors, and Martin Door.", "PGT Innovations, Inc.")).toBeNull();
+    expect(p("Duckhorn Portfolio to Acquire North Coast Winery and Vineyards\nST. HELENA, Calif., May 4, 2023 - The Duckhorn Portfolio, Inc. (NYSE: NAPA) today announced it has entered into a definitive agreement to acquire a production winery and planted vineyards in Alexander Valley, Sonoma County.", "The Duckhorn Portfolio, Inc.")).toBeNull();
+    expect(p("Meridian Signs Definitive Agreement to Acquire Urea Breath Test for H. pylori from Otsuka America Pharmaceutical, Inc.\nCINCINNATI, July 23, 2021 - Meridian Bioscience, Inc. (NASDAQ: VIVO) today announced that it has signed a definitive agreement to acquire the North American BreathTek® business from Otsuka America Pharmaceutical, Inc. for $20 million in cash.", "Meridian Bioscience Inc")).toBeNull();
+  });
+  it("keeps a company bought from its owner and a name cut at an abbreviation", () => {
+    expect(p("Arcosa to Acquire StonePoint Materials\nDALLAS, March 22, 2021 - Arcosa, Inc. (NYSE: ACA) today announced that it has entered into a definitive agreement to acquire StonePoint Ultimate Holding, LLC from an affiliate of Sun Capital Partners for $375 million.", "Arcosa, Inc.")?.target.name).toMatch(/StonePoint/);
+    expect(p("Kadant to Acquire German Blade Manufacturer Joh. Clouth\nWESTFORD, Mass., June 17, 2021 - Kadant Inc. (NYSE: KAI) today announced it has entered into a definitive agreement to acquire Joh. Clouth GmbH & Co. KG and its affiliates (\"Clouth\") for approximately 78 million Euros in cash.", "Kadant Inc")?.target.name).toMatch(/^Joh\. Clouth/);
+  });
+});

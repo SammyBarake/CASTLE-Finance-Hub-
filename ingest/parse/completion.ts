@@ -110,10 +110,21 @@ const NAME_DEAL_DONE = /^(?:\s+[A-Z][\w&-]*){0,3}\s+(?:acquisition|purchase|merg
 const NET_OF_CASH = /^(?:[^.;]|\.(?=\s+[a-z])){0,130}\bnet of cash acquired\b/i;
 const ACQUISITIONS_OF = /\bacquisitions? of\s+(?:[^.;]{0,50})$/i;
 // (Not a covenant's words: "until the closing or earlier termination of the Share Exchange Agreement", which made Blackboxstocks / Evtec read Terminated from a live deal's 10-K.)
-const ENDED_DEAL = /(?<!\b(?:earlier|or|prior(?:\s+to)?|any|upon|such)\s+(?:the\s+)?)\bterminat(?:ed|ion of)\b[^.;]{0,120}\b(?:purchase|merger|exchange|acquisition|combination)\s+agreement\b/i;
+const ENDED_DEAL = /(?<!\b(?:earlier|or|prior(?:\s+to)?|any|upon|such)\s+(?:the\s+)?)\bterminat(?:ed|ion of)\b[^.;]{0,120}\b(?:(?:purchase|merger|exchange|acquisition|combination)\s+agreement\b|agreement\s+to\s+(?:acquire|purchase|merge with)\b)/i;
+// "the terminated acquisition of Knowmadics": an adjective right before the name (undated).
+// Or "following the previously announced termination of the acquisition of W3C Corp." (Exodus).
+const TERMINATED_DEAL_OF = /\b(?:the\s+terminated\s+(?:proposed\s+)?(?:acquisition|purchase|merger)|termination\s+of\s+(?:the|its|our)\s+(?:proposed\s+)?(?:acquisition|purchase|merger))\s+(?:of|with)\s+$/i;
+// (Not a contract's "in the event of termination of the acquisition of …" or "any termination of …".)
+const HYPOTHETICAL_END = /\b(?:in the event|any termination|right to|would|following any)\b/i;
 const NOT_A_NAME_TERM = /^(?:the\s+)?(?:Company|Seller|Sellers|Target|Merger|Mergers|Agreement|Acquisition|Transaction|Transactions|Purchase|Closing|Buyer|Purchaser|Parent|Sub|Merger Sub|Business|Assets|Shares|Interests|Group|Bank|Holdings)$/i;
 
 const NOT_A_SENTENCE_END = /\b(?:Inc|Corp|Co|Ltd|LLC|L\.P|LP|N\.A|U\.S|No|Mr|Ms|Dr|St|S\.A|N\.V|B\.V|Plc|PLC)$/;
+/** Where the sentence holding `at` starts, looking back at most `cap` characters (abbreviations such as "Inc." are no sentence end). */
+const sentenceStart = (flat: string, at: number, cap: number) => {
+  let dot = flat.lastIndexOf(". ", at);
+  while (dot > 0 && NOT_A_SENTENCE_END.test(flat.slice(Math.max(0, dot - 6), dot))) dot = flat.lastIndexOf(". ", dot - 1);
+  return Math.max(dot < 0 ? 0 : dot + 2, at - cap, 0);
+};
 const sentenceAround = (flat: string, at: number, length: number) => {
   let dot = flat.lastIndexOf(". ", at);
   while (dot > 0 && NOT_A_SENTENCE_END.test(flat.slice(Math.max(0, dot - 6), dot))) dot = flat.lastIndexOf(". ", dot - 1);
@@ -147,8 +158,12 @@ export function nameForms(name: string): string[] {
   return out;
 }
 
+// Between the deal word and the name, words that make it about something else: "completed a series of transactions related to its previously
+// announced acquisition efforts involving W3C Corp." (the agreement ended; Exodus took W3C's subsidiaries in a receivership), "completed its
+// acquisition of Baanx US Corp. ("Baanx US"), and agreed to acquire certain other assets from W3C".
+const ABOUT_SOMETHING_ELSE = /\b(?:efforts?|involving|related to|relating to|associated with|in connection with|agreed to acquire|to acquire|assets from)\b[^;]{0,90}$/i;
 function saysDone(before: string, after: string): boolean {
-  if (LOOSE_GUARD.test(before)) return false;
+  if (LOOSE_GUARD.test(before) || ABOUT_SOMETHING_ELSE.test(before.slice(-160))) return false;
   return (
     DONE_THEN_DEAL.test(before) ||
     DONE_THEN_TERM.test(before) ||
@@ -175,7 +190,7 @@ function saysDone(before: string, after: string): boolean {
  * and a glossary's short form, which a bank's 10-K prints as a table row, term then name: "Ametros Ametros Financial
  * Corporation", "ALCO Asset Liability Committee". Webster's reports then only say "the Bank acquired Ametros".
  */
-function namesIn(flat: string, name: string): { form: string; re: RegExp }[] {
+function namesIn(flat: string, name: string): { form: string; re: RegExp; row?: boolean }[] {
   const forms = nameForms(name);
   const rows: string[] = [];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -188,27 +203,38 @@ function namesIn(flat: string, name: string): { form: string; re: RegExp }[] {
     const row = new RegExp(`(?<![\\w-])(${esc(words[0])}|${esc(initials)}) ${esc(form)}\\b`).exec(flat)?.[1];
     if (row && row.length >= 3 && !NOT_A_NAME_TERM.test(row) && !forms.includes(row) && !rows.includes(row)) rows.push(row);
   }
+  // A row whose legal name trades under the form: "SPI SPI LLC d/b/a Specialty Products & Insulation" (TopBuild's glossary).
+  for (const form of nameForms(name)) {
+    const dba = new RegExp(`(?<![\\w-])([A-Z][A-Z&]{1,5}) [A-Z][^.;:]{0,40}? d/b/a ${esc(form)}\\b`).exec(flat)?.[1];
+    if (dba && !NOT_A_NAME_TERM.test(dba) && !forms.includes(dba) && !rows.includes(dba)) rows.push(dba);
+  }
   // A glossary's short form stands alone and in its own case: "Citizens" inside "First Citizens Bank of Georgia" is another
   // company, and the initials "AIR" are not the word "air".
   return [
     ...forms.map((form) => ({ form, re: nameRegex(form) })),
-    ...rows.map((form) => ({ form, re: new RegExp(`(?<![\\w-]|[A-Z][\\w&.'’-]*\\s)${esc(form)}(?![\\w-]|\\s+[A-Z])`, "g") })),
+    ...rows.map((form) => ({ form, row: true, re: new RegExp(`(?<![\\w-]|[A-Z][\\w&.'’-]*\\s)${esc(form)}(?![\\w-]|\\s+[A-Z])`, "g") })),
   ];
 }
 
 export function readLooseCompletion(text: string, name: string): CompletionRead {
   const flat = text.replace(/\s+/g, " ");
+  // The first statement found, unless a later one gives a day or says "today" (a release's headline, "Announces Closing of GAP Promo
+  // Acquisition", comes before its "today announced the completion …").
+  let first: CompletionRead | null = null;
   for (const { form, re } of namesIn(flat, name)) {
     for (const m of flat.matchAll(re)) {
       const { start, end } = sentenceAround(flat, m.index, form.length);
       if (saysDone(flat.slice(start, m.index), flat.slice(m.index + form.length, end))) {
         // Only a day stated close by, not "as of": "As of December 31, 2024" in the table run into this sentence is a balance sheet's (Flex / Crown).
         const near = flat.slice(Math.max(start, m.index - 240), Math.min(end, m.index + form.length + 120)).replace(/\bas of\b/gi, " ");
-        return { found: true, date: statedDate(near), today: false };
+        // "today announced the completion of …" in a release: the filing's own day, which the caller takes for an 8-K / 6-K only.
+        const read = { found: true, date: statedDate(near), today: /\btoday\b/i.test(flat.slice(sentenceStart(flat, m.index, 900), m.index)) };
+        if (read.date || read.today) return read;
+        first ??= read;
       }
     }
   }
-  return { found: false, date: null, today: false };
+  return first ?? { found: false, date: null, today: false };
 }
 
 /** A purchase called off, in a report's words: "On June 1, 2024, we terminated the Stock Purchase Agreement for Votaw". A sentence naming the company, a merger or purchase agreement and its end, not conditionally. */
@@ -217,10 +243,14 @@ export function readLooseEnd(text: string, name: string): CompletionRead {
   // By the company's own forms only: a short term reaches the risk factors and the agreement's summary ("… the right of one or
   // both of the parties to terminate the definitive merger agreement" about Great Plains; "Termination The Merger Agreement may be
   // terminated …" about NEH), which read as ended.
-  for (const form of nameForms(name)) {
-    for (const m of flat.matchAll(nameRegex(form))) {
+  // A glossary row's short form stands alone in its own case ("SPI"), so it counts here too; a defined term doesn't.
+  const own = nameForms(name);
+  for (const { form, re } of namesIn(flat, name).filter((n) => n.row || own.includes(n.form))) {
+    for (const m of flat.matchAll(re)) {
       const { start, end } = sentenceAround(flat, m.index, form.length);
       const sentence = flat.slice(start, end);
+      const before = flat.slice(start, m.index);
+      if (TERMINATED_DEAL_OF.test(before) && !CONDITIONAL.test(before) && !HYPOTHETICAL_END.test(before)) return { found: true, date: null, today: false };
       if (ENDED_DEAL.test(sentence) && !CONDITIONAL.test(sentence.slice(0, sentence.search(ENDED_DEAL)))) return { found: true, date: statedDate(sentence), today: false };
     }
   }

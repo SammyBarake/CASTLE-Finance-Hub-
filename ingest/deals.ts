@@ -1339,8 +1339,16 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
 /**
  * Bump to look every open private deal up again in its buyer's filings (`closeCheck`).
  * 2: six documents instead of three, "our May 2022 acquisition of X", three-letter acronyms ("NFP").
+ * 3: the oldest three and newest three hits (the outcome is often only in the latest reports: Prosperity / Lone Star), a
+ * closing release in an 8-K read loosely ("announced the completion of its … acquisition of GAP Promotions, LLC ("GAP Promo")"),
+ * new wordings and name forms. Only open private deals are looked at again, so a bump costs a few searches each.
  */
-export const CLOSE_CHECK_VERSION = 2;
+export const CLOSE_CHECK_VERSION = 3;
+/** The hits read: the oldest three (the closing itself) and the newest three (the latest reports, which restate the outcome). */
+const oldAndNew = <T extends { fileDate: string }>(hits: T[]) => {
+  const sorted = [...hits].sort((a, b) => a.fileDate.localeCompare(b.fileDate));
+  return sorted.length <= 6 ? sorted : [...sorted.slice(0, 3), ...sorted.slice(-3)];
+};
 const SETTLE_FORMS = ["8-K", "10-Q", "10-K", "10-KT", "20-F", "40-F", "6-K"];
 const PERIODIC_FORMS = ["10-Q", "10-K", "10-KT", "20-F", "40-F"];
 
@@ -1360,12 +1368,56 @@ function settleDue(deal: StoredDeal, today: string) {
  * that sentence states one, or says "today" in an 8-K / 6-K release (its filing date); otherwise it stays blank.
  */
 export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: string, today: string, kinds: readonly ("closed" | "ended")[] = ["closed", "ended"]) {
+  await settleOnce(deal, acquirerCik, today, kinds);
+  if (deal.status !== "Closed" || !kinds.includes("ended")) return;
+  // A closing can belong to a later agreement for the same company: TopBuild's 2023 agreement for SPI ended on April 22,
+  // 2024, and a new one closed on July 14, 2025. An end stated before the closing (or a dated end beside an undated one) wins.
+  const end = await endStatedBefore(deal, acquirerCik, today);
+  // (An undated end beside an undated closing wins too: Exodus's "previously announced termination of the acquisition of W3C Corp.")
+  if (end && (end.date ? deal.statusDate == null || end.date < deal.statusDate : deal.statusDate == null)) {
+    deal.status = "Terminated";
+    deal.statusDate = end.date;
+  }
+}
+
+/** The day the buyer's filings say the agreement ended, in the exact words or a report's (null: no dated end found). */
+async function endStatedBefore(deal: StoredDeal, acquirerCik: string, today: string): Promise<{ date: string | null } | null> {
+  const name = searchName(cleanPartyName(deal.target.name));
+  if (!name) return null;
+  const within = (d: string | null, filed: string) => (d && d > deal.announcedDate && d <= filed ? d : null);
+  let undated = false;
+  try {
+    const phrases = endedPhrases(name);
+    const hits = await fullTextSearch({ q: phrases.map((p) => `"${p}"`).join(" OR "), forms: SETTLE_FORMS, from: deal.announcedDate, to: today, ciks: [acquirerCik] });
+    for (const h of oldAndNew(hits)) {
+      const r = readStatement(htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file))), phrases);
+      const d = r.found ? (within(r.date, h.fileDate) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null)) : null;
+      if (d) return { date: d };
+      if (r.found) undated = true;
+    }
+    const reports = await fullTextSearch({ q: nameForms(name).map((n) => `"${n}"`).join(" OR "), forms: PERIODIC_FORMS, from: shiftDate(deal.announcedDate, 1), to: today, ciks: [acquirerCik] });
+    // (Every report, up to twelve, oldest first: an end is stated in the quarters right after it, which the newest reports, about a later
+    // agreement, no longer mention. Run only for a deal just found closed, so rarely.)
+    for (const h of reports.filter((h) => !/^EX-/i.test(h.fileType)).sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 12)) {
+      const r = readLooseEnd(htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file))), name);
+      const d = r.found ? within(r.date, h.fileDate) : null;
+      if (d) return { date: d };
+      if (r.found) undated = true;
+    }
+  } catch {
+    return null; // a failed search or download: keep what was found
+  }
+  return undated ? { date: null } : null;
+}
+
+async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, kinds: readonly ("closed" | "ended")[]) {
   deal.closeCheck = CLOSE_CHECK_VERSION;
   deal.closeCheckedAt = today;
   const name = searchName(cleanPartyName(deal.target.name));
   if (!name) return;
   // The short form ("acquire Tower") counts only in a document that also gives the full name.
   const short = firstNameWord(name);
+  let closedUndated = false;
   for (const kind of kinds) {
     const phrasesFor = kind === "closed" ? completedPhrases : endedPhrases;
     const phrases = phrasesFor(name);
@@ -1381,7 +1433,7 @@ export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: stri
     // to six of its hits are read, oldest first; a dated statement wins over an undated one ("our May 2022 acquisition
     // of Wolt" in a 10-Q, "On May 31, 2022, we completed …" in the 10-K).
     let undated: string | null | undefined;
-    for (const h of hits.sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 6)) {
+    for (const h of oldAndNew(hits)) {
       let text: string;
       try {
         text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
@@ -1395,32 +1447,45 @@ export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: stri
       if (!r.found) continue;
       // (After the announcement: "the agreement dated as of June 17, 2021 … completed" is the signing, read again. Freehold Bank, Planetary Systems.)
       const stated = r.date && r.date > deal.announcedDate && r.date <= h.fileDate ? r.date : null;
-      const date = stated ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
-      if (date) {
+      // A day a filing states beats a release's "today" (its filing day): Lazard's 8-K says Campbell Lutyens closed on November 1, 2026,
+      // the release of the 2nd says "today".
+      if (stated) {
         deal.status = kind === "closed" ? "Closed" : "Terminated";
-        deal.statusDate = date;
+        deal.statusDate = stated;
         return;
       }
+      if (r.today && /^(?:8-K|6-K)/.test(h.form) && !undated) undated = h.fileDate;
       if (undated === undefined) undated = null;
     }
-    if (undated === null) {
+    // A closing in the exact words but undated ("In January 2024, we completed the acquisition of Cubicure GmbH") goes on to the reports
+    // for its day ("On January 2, 2024 (the "Cubicure Acquisition Date"), we completed …"); an end, or a release's day, is final.
+    if (undated !== undefined && (undated || kind === "ended")) {
       deal.status = kind === "closed" ? "Closed" : "Terminated";
-      deal.statusDate = null;
+      deal.statusDate = undated;
       return;
     }
+    if (undated === null) {
+      // (Closed already, so a failed search below keeps it; the reports can only add the day.)
+      closedUndated = true;
+      deal.status = "Closed";
+      deal.statusDate = null;
+      break;
+    }
   }
-  // Nothing in those exact words. The buyer's next reports, by the target's name alone, read more loosely. The reports themselves, not their exhibits:
+  // Nothing dated in those exact words. The buyer's next reports, by the target's name alone, read more loosely. The reports themselves, not their exhibits:
   // a merger agreement filed with a 10-Q says a great deal about closing.
   if (!kinds.includes("closed")) return;
   let reports: FtsHit[];
   try {
-    reports = await fullTextSearch({ q: nameForms(name).map((n) => `"${n}"`).join(" OR "), forms: PERIODIC_FORMS, from: shiftDate(deal.announcedDate, 1), to: today, ciks: [acquirerCik] });
+    reports = await fullTextSearch({ q: nameForms(name).map((n) => `"${n}"`).join(" OR "), forms: [...PERIODIC_FORMS, "8-K", "6-K"], from: shiftDate(deal.announcedDate, 1), to: today, ciks: [acquirerCik] });
   } catch {
     deal.closeCheckedAt = null;
     return;
   }
   let found = false;
-  for (const h of reports.filter((h) => !/^EX-/i.test(h.fileType)).sort((a, b) => a.fileDate.localeCompare(b.fileDate)).slice(0, 6)) {
+  // (A report's own text, or a release filed with an 8-K / 6-K: "Stran & Company Announces Closing of GAP Promo Acquisition". Never another exhibit.)
+  const readable = (h: FtsHit) => (/^(?:8-K|6-K)/.test(h.form) ? /^EX-99/i.test(h.fileType) : !/^EX-/i.test(h.fileType));
+  for (const h of oldAndNew(reports.filter(readable))) {
     let text: string;
     try {
       text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
@@ -1430,7 +1495,7 @@ export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: stri
     }
     const r = readLooseCompletion(text, name);
     if (!r.found) {
-      const off = readLooseEnd(text, name);
+      const off = closedUndated ? { found: false, date: null } : readLooseEnd(text, name);
       if (off.found) {
         deal.status = "Terminated";
         deal.statusDate = off.date && off.date > deal.announcedDate && off.date <= h.fileDate ? off.date : null;
@@ -1440,14 +1505,14 @@ export async function settleFromBuyerFilings(deal: StoredDeal, acquirerCik: stri
     }
     found = true;
     // (The same day counts here: bought and closed at once, "On April 1, 2024, the Company acquired …".)
-    const stated = r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null;
+    const stated = (r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
     if (stated) {
       deal.status = "Closed";
       deal.statusDate = stated;
       return;
     }
   }
-  if (found) {
+  if (found || closedUndated) {
     deal.status = "Closed";
     deal.statusDate = null;
   }
@@ -2069,7 +2134,10 @@ export async function ingestDeals(
       const cik = filer.cik ?? trimCik(hit.ciks[0]);
       const text = htmlToText(await getText(archiveUrl(cik, hit.adsh, hit.file)));
       // …or the filing talks like one (Aimei Health Technology Co., Ltd.): the trust account, the initial business combination.
-      if (hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) {
+      // A de-SPACed filer keeps its CIK and loses the code (Venus Acquisition, now MicroAlgo, merging with WiMi's VIYI Algorithm), so the
+      // words alone count when they say both: a trust account and a blank-check company. Of 2,588 live deals' sources only Viyi's do.
+      const spacTalk = /\btrust account\b/i.test(text.slice(0, 20000)) && /\binitial business combination\b|\bspecial purpose acquisition compan|\bblank[- ]check compan/i.test(text.slice(0, 20000));
+      if ((hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) || spacTalk) {
         state.seen.add(hit.id);
         continue;
       }
@@ -2297,6 +2365,17 @@ export async function ingestDeals(
         if (sub && (wasBuyer || provablyUnlistedOn(sub, deal.announcedDate))) {
           // A private target needs a listed buyer ("Dermira" buying Journey Medical was a licence, read as a deal).
           if (!deal.acquirer.cik) {
+            drop(deal);
+            continue;
+          }
+          // …listed then, too: Galaxy Digital agreed to buy BitGo in 2021 as a TSX company filing only 425s, and its own Nasdaq
+          // listing came in 2025. No periodic report from 15 months before to 6 months after the deal: no US-listed buyer.
+          // (Judged only when the filing index reaches back that far: a busy filer's recent list may not.)
+          const buyerSub = await submissions(deal.acquirer.cik);
+          const buyerFilings = buyerSub ? recentFilings(buyerSub) : [];
+          const reachesBack = buyerFilings.some((f) => f.date <= shiftDate(deal.announcedDate, -450));
+          const reportedThen = buyerFilings.some((f) => PERIODIC.test(f.form) && f.date >= shiftDate(deal.announcedDate, -450) && f.date <= shiftDate(deal.announcedDate, 180));
+          if (buyerSub && reachesBack && !reportedThen) {
             drop(deal);
             continue;
           }
