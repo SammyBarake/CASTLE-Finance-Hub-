@@ -14,6 +14,9 @@ const PREVIOUSLY = ["", "previously announced ", "previously disclosed "];
 /** Past-tense wording a buyer uses once a purchase has closed ("completed its previously announced acquisition of X"). */
 export const completedPhrases = (name: string) => [
   ...["completed the", "completed its", "completed our", "closed the", "closed its", "closed our"].flatMap((v) => PREVIOUSLY.map((p) => `${v} ${p}acquisition of ${name}`)),
+  // A release's noun form ("today announced the completion of its previously announced acquisition of GAP Promotions"); a bank's merger.
+  ...["announced the completion of its", "announced the completion of the", "announced the closing of its"].flatMap((v) => PREVIOUSLY.map((p) => `${v} ${p}acquisition of ${name}`)),
+  ...["completed the merger of", "completed its merger with", "completed the previously announced merger of"].map((v) => `${v} ${name}`),
   `we acquired ${name}`,
   `the Company acquired ${name}`,
 ];
@@ -28,7 +31,8 @@ export const endedPhrases = (name: string) => [
 /** A short form to search too: the first word of a two-word-plus name, five letters or more ("Tower Semiconductor" → "Tower"). */
 export function shortName(name: string): string | null {
   const words = name.split(/\s+/);
-  return words.length >= 2 && /^[A-Z][a-z]{4,}$/.test(words[0]) ? words[0] : null;
+  // (Or a brand with a capital inside it, as distinctive: "StonePoint Materials" → "StonePoint".)
+  return words.length >= 2 && /^(?:[A-Z][a-z]{4,}|[A-Z][a-z]+[A-Z][a-z]+)$/.test(words[0]) && words[0].length >= 5 ? words[0] : null;
 }
 
 /** The core of a private company's name for searching: no legal suffix ("Avitide Inc." → "Avitide"). */
@@ -37,7 +41,7 @@ export function searchName(name: string): string | null {
   // Too short or generic to search for on its own ("Joh", "Home Health", "Privately Held"); an acronym in capitals is a
   // name ("NFP": Aon's 10-Q says "completed the acquisition of NFP").
   // (A brand may start in lower case: mGage, aiXscale, iSun. A capital somewhere, or a digit first: 1st Colonial.)
-  if ((core.length < 4 && !/^[A-Z]{3}$/.test(core)) || !/[A-Z]/.test(core) || /^(?:the|an?|our|its)\s/.test(core) || /^(?:privately held|home health|consumer experience|the company)$/i.test(core)) return null;
+  if ((core.length < 4 && !/^(?=[A-Z0-9]*[A-Z])[A-Z][A-Z0-9]{2}$/.test(core)) || !/[A-Z]/.test(core) || /^(?:the|an?|our|its)\s/.test(core) || /^(?:privately held|home health|consumer experience|the company)$/i.test(core)) return null;
   return core;
 }
 
@@ -92,7 +96,8 @@ const DEAL_WORD = String.raw`(?:acquisitions?|purchase|merger|combination|buyout
 const DONE_THEN_DEAL = new RegExp(String.raw`\b(?:completed|closed|consummated|finali[sz]ed)\b[^.;]{0,100}?\b${DEAL_WORD}\b[^.;]{0,70}$`, "i");
 // The name as a term the sentence defines: "the acquisition of certain subsidiaries … of Harris Freeman & Co, Inc. ("Harris Tea")".
 const DONE_THEN_TERM = new RegExp(String.raw`\b(?:completed|closed|consummated|finali[sz]ed)\b[^;]{0,100}?\b${DEAL_WORD}\b[^;]{0,150}\(\s*(?:the\s+)?["“]\s*$`, "i");
-const ANNOUNCED_DONE = /\bannounced the (?:successful )?(?:completion|closing)\b[^.;]{0,100}$/i;
+// (Also a headline: "Arcosa, Inc. Announces Completion of StonePoint Materials Acquisition".)
+const ANNOUNCED_DONE = /\bannounce[sd]? (?:the )?(?:successful )?(?:completion|closing)\b[^.;]{0,100}$/i;
 const ACQUIRED_ALL = new RegExp(String.raw`\b(?:acquired|purchased)\s+(?:(?:all|substantially all|the remaining|the entire|a (?:majority|controlling))\b|(?:an?\s+)?${PERCENT})(?:[^.;]{0,90}$|[^;]{0,130}\(\s*(?:the\s+)?["“]\s*$)`, "i");
 const ON_A_DAY_ACQUIRED = /^\s*(?:On|Effective|As of)\s+[A-Z][a-z]+\s+\d{1,2},\s*\d{4},[^.;]{0,110}\b(?:acquired|purchased)\s+(?:the\s+)?$/;
 // "we acquired 30 retail tire and automotive repair stores … from Mountain View Tire & Service", "we acquired Turbine Controls, Inc. on April 24, 2024 and Kellstrom Aerospace Group". Not a licence.
@@ -136,6 +141,9 @@ export function nameForms(name: string): string[] {
   add(name.includes(" & ") ? name.replace(" & ", " and ") : undefined);
   add(/^(.+?)\s+(?:and|&)\s+[A-Z]/.exec(name)?.[1]);
   add(/^([A-Z]{5,})\s+[A-Z][a-z]/.exec(name)?.[1]);
+  // Written as one word after the headline spaced it: "PH Precision Med" is "PHPrecisionMed Inc." (only with an initialism in it).
+  const words = name.split(/\s+/);
+  if (words.length >= 2 && words.length <= 4 && words.every((w) => /^[A-Z][A-Za-z]*$/.test(w)) && words.some((w) => /^[A-Z]{2,3}$/.test(w))) add(words.join(""));
   return out;
 }
 

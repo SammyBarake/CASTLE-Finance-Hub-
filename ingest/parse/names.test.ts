@@ -253,3 +253,9 @@ describe("isDescriptionOnly", () => {
       expect(isDescriptionOnly(n)).toBe(false);
   });
 });
+
+describe("a description with a digit in front of a name", () => {
+  it("keeps the name", () => {
+    expect(cleanPartyName("Direct 3D Printing Pioneer Cubicure")).toBe("Cubicure");
+  });
+});

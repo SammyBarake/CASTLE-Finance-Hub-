@@ -1826,6 +1826,10 @@ export function isCarveOut(headline: string, intro: string, targetName: string):
   // Branches bought from a bank ("… Announce Agreement to Acquire Vision Bank Branch Locations"), a business or a joint
   // venture ("… Remaining Ownership Interest in Mechanical Services Business", "… in Filter Joint Venture with Panasonic").
   if (/\b(?:Branch(?:es| Locations| Offices)?|Business(?:es)?|Joint(?: Venture)?)$/i.test(targetName.trim())) return true;
+  // A reporting segment, a division or intellectual property ("Electronics and Software Reportable Business Segment",
+  // "Food Production and Processing IP"); a company of that name carries a legal suffix ("… IP Holdings, Inc.").
+  // (After another word: Twilio bought a company called Segment.)
+  if (/\S\s+(?:Segment|Division|IP|Intellectual Property|Patents|Patent Portfolio)$/.test(targetName.trim())) return true;
   const possessive = new RegExp(`${escapeRx(targetName)}['’]s(\\s.{0,80})`).exec(headline);
   if (possessive && PART_OF.test(possessive[1])) return true;
   if (breaksAtPossessive(headline, intro, targetName)) return true;

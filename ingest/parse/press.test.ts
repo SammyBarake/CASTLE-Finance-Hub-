@@ -978,3 +978,12 @@ describe("a headline stating the amount before the agreement (Dayforce)", () => 
     expect(p).toMatchObject({ kind: "announcement", acquirer: { name: "Thoma Bravo" }, pricePerShare: 70, valueUsd: 12_300_000_000, valueKind: "enterprise", premiumPct: 32, consideration: "Cash" });
   });
 });
+
+describe("segments, divisions and intellectual property are no companies", () => {
+  const ctx = { filerName: "Lantronix Inc.", filerTickers: ["LTRX"] };
+  it("drops them and keeps a company of one such word", () => {
+    expect(parsePressRelease("Lantronix Announces Definitive Agreement to Acquire Electronics and Software Reportable Business Segment From Acme\nIRVINE, Calif., April 29, 2021 - Lantronix, Inc. (NASDAQ: LTRX) today announced a definitive agreement.", ctx)).toBeNull();
+    expect(parsePressRelease("AgriFORCE Announces Definitive Agreement to Acquire Food Production and Processing IP from Manna Nutrition\nVANCOUVER, September 16, 2021 - AgriFORCE today announced a definitive agreement.", ctx)).toBeNull();
+    expect(parsePressRelease("Twilio to Acquire Segment, the Market-leading Customer Data Platform\nSAN FRANCISCO, October 12, 2020 - Twilio Inc. (NYSE: TWLO) today announced a definitive agreement to acquire Segment for $3.2 billion.", { filerName: "Twilio Inc.", filerTickers: ["TWLO"] })?.target.name).toBe("Segment");
+  });
+});

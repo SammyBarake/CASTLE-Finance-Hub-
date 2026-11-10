@@ -221,7 +221,8 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/\s+Company\s+(?:Release|Has|Announces|Today)\b.*$/i, "");
   // A description glued in front of a one-word brand: "Antibody and Reagent Leader BioLegend" -> "BioLegend",
   // "Sports Betting Company Openbet" -> "Openbet", "Brazilian Collagen Producer Gelnex" -> "Gelnex".
-  const described = /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]{2,})$/.exec(s);
+  // (A description word may start with a digit: "Direct 3D Printing Pioneer Cubicure".)
+  const described = /^(?:(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z]|\d+[A-Z])[\w.-]*\s+(?:(?:and|&)\s+)?){1,4}(?:Leader|Company|Provider|Maker|Developer|Specialist|Pioneer|Platform|Producer|Creator|Manufacturer|Supplier|Distributor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.-]{2,})$/.exec(s);
   // Not when the "brand" is a bare acronym ("API Media Technology Provider API"): too ambiguous on its own.
   // (Nor a legal form: "Jupiter Company Limited" had become "Limited".)
   if (described && !/^[A-Z]{2,4}$/.test(described[1]) && !/^(?:Inc|Corp|LLC|Ltd|Limited|Holdings|Group|International|Europe|America|USA|Global|Release|Today)\.?$/i.test(described[1])) s = described[1];
@@ -230,7 +231,7 @@ export function cleanPartyName(raw: string): string {
   // sits between the two; a name ending in it ("Hunter Fan Company") or going on with "of …" ("Browser Company of New
   // York") has nothing after it to take.
   const describedLong =
-    /^(?:(?:[a-z]{1,3}(?=[A-Z]))?[A-Z][\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
+    /^(?:(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z]|\d+[A-Z])[\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
   // (Not a bare acronym: "Carlisle Management Company SCA" ends in a legal form, "… Provider API" is ambiguous.)
   if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
   // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".

@@ -588,7 +588,7 @@ function leaveTheWinnersProxy(group: StoredDeal[]): void {
 
 /** Acquirer name of a SPAC (blank-check company), out of scope as a buyer. */
 export const SPAC_NAME =
-  /\b(?:Acquisition|Merger|Growth Opportunit(?:y|ies))\s+(?:Corp(?:oration)?|Co|Company|Ltd|Limited|Inc)\b|\bCapital Corp\.?\s+[IVX]+\b|\bBlank Check\b/i;
+  /\b(?:Acquisition|Merger|Growth Opportunit(?:y|ies))(?:\s+[IVX]{1,4})?\s+(?:Corp(?:oration)?|Co|Company|Ltd|Limited|Inc)\b|\bCapital Corp\.?\s+[IVX]+\b|\bBlank Check\b/i;
 
 /**
  * A single branded hotel bought by a lodging REIT is a property, not a company: "Residence Inn by Marriott Seattle

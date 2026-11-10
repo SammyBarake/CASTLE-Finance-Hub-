@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedPhrases, endedPhrases, readPastReference, readStatement, searchName, shortName, statedDate } from "./completion";
+import { completedPhrases, endedPhrases, nameForms, readLooseCompletion, readPastReference, readStatement, searchName, shortName, statedDate } from "./completion";
 
 describe("private-deal completion statements", () => {
   it("reads a plain completion with its date", () => {
@@ -46,5 +46,21 @@ describe("private-deal completion statements", () => {
     expect(searchName("Avitide Inc.")).toBe("Avitide");
     expect(searchName("Joh")).toBeNull();
     expect(searchName("Privately Held")).toBeNull();
+  });
+});
+
+describe("closing wordings from the open-deal triage (November 2026)", () => {
+  it("reads a release's noun form, a bank merger and a headline", () => {
+    expect(readStatement("Stran today announced the completion of its previously announced acquisition of GAP Promo in an asset purchase.", completedPhrases("GAP Promo"))).toMatchObject({ found: true, today: true });
+    expect(readStatement("Effective April 1, 2024, the Company completed the merger of Lone Star State Bancshares, Inc. into the Company.", completedPhrases("Lone Star")).found).toBe(true);
+    expect(readLooseCompletion("Arcosa, Inc. Announces Completion of StonePoint Materials Acquisition and Issuance of Notes", "StonePoint Materials").found).toBe(true);
+    expect(readLooseCompletion("Arcosa announces the expected closing of StonePoint Materials acquisition next month", "StonePoint Materials").found).toBe(false);
+  });
+  it("searches a brand's short form, a spaced initialism written as one word and a three-character name with a digit", () => {
+    expect(shortName("StonePoint Materials")).toBe("StonePoint");
+    expect(nameForms("PH Precision Med")).toContain("PHPrecisionMed");
+    expect(nameForms("Tower Semiconductor")).not.toContain("TowerSemiconductor");
+    expect(searchName("RE2")).toBe("RE2");
+    expect(searchName("Joh")).toBeNull();
   });
 });

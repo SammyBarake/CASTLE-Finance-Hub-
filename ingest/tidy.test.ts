@@ -794,3 +794,10 @@ describe("a new public company over the buyer of another", () => {
     expect(deals.map((d) => d.id)).toEqual(["p-cloudmed-2022-01-10"]);
   });
 });
+
+describe("SPAC names with a series numeral", () => {
+  it("are SPACs", () => {
+    expect(SPAC_NAME.test("Roth CH Acquisition V Co.")).toBe(true);
+    expect(SPAC_NAME.test("Acquisition Vault Co.")).toBe(false);
+  });
+});
