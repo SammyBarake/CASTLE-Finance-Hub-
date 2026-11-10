@@ -1352,10 +1352,21 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
  * new wordings and name forms. Only open private deals are looked at again, so a bump costs a few searches each.
  */
 export const CLOSE_CHECK_VERSION = 3;
-/** The hits read: the oldest three (the closing itself) and the newest three (the latest reports, which restate the outcome). */
-const oldAndNew = <T extends { fileDate: string }>(hits: T[]) => {
+/**
+ * A filing that talks like a SPAC's: a trust account and a blank-check company or initial business combination, in its
+ * first 20,000 characters. A de-SPACed filer keeps its CIK and loses the code (Venus Acquisition, now MicroAlgo, merging
+ * with WiMi's VIYI Algorithm), so the words alone count when they say both. Read in discovery and in the backstop
+ * (Venus filed a merger proxy, so the backstop read its 8-Ks too). Of 2,588 live deals' sources only Viyi's do.
+ */
+export function talksLikeSpac(text: string): boolean {
+  const head = text.slice(0, 20000);
+  return /\btrust account\b/i.test(head) && /\binitial business combination\b|\bspecial purpose acquisition compan|\bblank[- ]check compan/i.test(head);
+}
+
+/** The hits read: the oldest (the closing itself) and the newest three (the latest reports, which restate the outcome). */
+const oldAndNew = <T extends { fileDate: string }>(hits: T[], oldest = 3, newest = 3) => {
   const sorted = [...hits].sort((a, b) => a.fileDate.localeCompare(b.fileDate));
-  return sorted.length <= 6 ? sorted : [...sorted.slice(0, 3), ...sorted.slice(-3)];
+  return sorted.length <= oldest + newest ? sorted : [...sorted.slice(0, oldest), ...sorted.slice(-newest)];
 };
 const SETTLE_FORMS = ["8-K", "10-Q", "10-K", "10-KT", "20-F", "40-F", "6-K"];
 const PERIODIC_FORMS = ["10-Q", "10-K", "10-KT", "20-F", "40-F"];
@@ -1491,9 +1502,16 @@ async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, 
     return;
   }
   let found = false;
+  let endedUndated = false;
   // (A report's own text, or a release filed with an 8-K / 6-K: "Stran & Company Announces Closing of GAP Promo Acquisition". Never another exhibit.)
   const readable = (h: FtsHit) => (/^(?:8-K|6-K)/.test(h.form) ? /^EX-99/i.test(h.fileType) : !/^EX-/i.test(h.fileType));
-  for (const h of oldAndNew(reports.filter(readable))) {
+  // (Reports and releases apart, the oldest of each and the newest three: a search by name alone also finds the announcement and
+  // the releases after it, which pushed Vertiv's closing release (fifth of 33) and Sun's dated 10-Q (fourteenth) out of a shared six.)
+  const byDate = (a: FtsHit, b: FtsHit) => a.fileDate.localeCompare(b.fileDate);
+  const readableHits = reports.filter(readable).sort(byDate);
+  const isRelease = (h: FtsHit) => /^(?:8-K|6-K)/.test(h.form);
+  const picked = new Set([...readableHits.filter((h) => !isRelease(h)).slice(0, 6), ...readableHits.filter(isRelease).slice(0, 8), ...readableHits.slice(-3)]);
+  for (const h of readableHits.filter((h) => picked.has(h))) {
     let text: string;
     try {
       text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
@@ -1501,14 +1519,17 @@ async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, 
       deal.closeCheckedAt = null;
       continue;
     }
-    const r = readLooseCompletion(text, name);
+    const r = endedUndated ? { found: false, date: null, today: false } : readLooseCompletion(text, name);
     if (!r.found) {
       const off = closedUndated ? { found: false, date: null } : readLooseEnd(text, name);
-      if (off.found) {
+      const day = off.found && off.date && off.date > deal.announcedDate && off.date <= h.fileDate ? off.date : null;
+      if (day) {
         deal.status = "Terminated";
-        deal.statusDate = off.date && off.date > deal.announcedDate && off.date <= h.fileDate ? off.date : null;
+        deal.statusDate = day;
         return;
       }
+      // (Undated: ended, but a later report may give the day. TopBuild's release says the SPI agreement was terminated, its 10-Q on April 22, 2024.)
+      if (off.found) endedUndated = true;
       continue;
     }
     found = true;
@@ -1520,7 +1541,10 @@ async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, 
       return;
     }
   }
-  if (found || closedUndated) {
+  if (endedUndated) {
+    deal.status = "Terminated";
+    deal.statusDate = null;
+  } else if (found || closedUndated) {
     deal.status = "Closed";
     deal.statusDate = null;
   }
@@ -2142,10 +2166,8 @@ export async function ingestDeals(
       const cik = filer.cik ?? trimCik(hit.ciks[0]);
       const text = htmlToText(await getText(archiveUrl(cik, hit.adsh, hit.file)));
       // …or the filing talks like one (Aimei Health Technology Co., Ltd.): the trust account, the initial business combination.
-      // A de-SPACed filer keeps its CIK and loses the code (Venus Acquisition, now MicroAlgo, merging with WiMi's VIYI Algorithm), so the
-      // words alone count when they say both: a trust account and a blank-check company. Of 2,588 live deals' sources only Viyi's do.
-      const spacTalk = /\btrust account\b/i.test(text.slice(0, 20000)) && /\binitial business combination\b|\bspecial purpose acquisition compan|\bblank[- ]check compan/i.test(text.slice(0, 20000));
-      if ((hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) || spacTalk) {
+      // (`talksLikeSpac`: the words alone, for a de-SPACed filer that lost the code.)
+      if ((hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) || talksLikeSpac(text)) {
         state.seen.add(hit.id);
         continue;
       }
@@ -2229,6 +2251,7 @@ export async function ingestDeals(
         const exhibits = docsIn.filter((d) => /ex-?99|dex99/i.test(d) && /\.htm/i.test(d));
         const asPress = (file: string) => async () => {
           const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, file)));
+          if (talksLikeSpac(text)) return null;
           const p = parsePressRelease(text, ctx);
           // The filer is the company being bought: its release names it as the target ("Newfield", "EFI"), or by
           // a name the release defines for it ("BTRS Holdings Inc. ("Billtrust")"), never as the buyer (that
@@ -2244,7 +2267,13 @@ export async function ingestDeals(
           ...exhibits.map((ex) => ({ file: ex, parse: asPress(ex) })),
           /^6-K/.test(f.form)
             ? { file: f.primaryDocument, parse: asPress(f.primaryDocument) }
-            : { file: f.primaryDocument, parse: async () => parseMergerItem(htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument))), ctx) },
+            : {
+                file: f.primaryDocument,
+                parse: async () => {
+                  const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, f.primaryDocument)));
+                  return talksLikeSpac(text) ? null : parseMergerItem(text, ctx);
+                },
+              },
         ];
         let deal: StoredDeal | null = null;
         for (const { file, parse } of attempts) {

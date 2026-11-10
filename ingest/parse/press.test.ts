@@ -1000,6 +1000,11 @@ describe("from the open-deal and audit triage (November 10 2026)", () => {
     expect(r?.acquirer.name).toMatch(/^Vivakor/);
     expect(r?.target.name).toMatch(/^Empire/);
   });
+  it("reads 'X … signed a definitive agreement to be acquired by Y' for the roles under an 'X and Y Sign' headline", () => {
+    const r = p("Superlatus, Inc. and TRxADE HEALTH, Inc. Sign Definitive Merger Agreement to Create a Global Strategic Platform for Food and Healthy Snack Marketplace and Distribution\nNEW YORK, June 30, 2023 - Superlatus, Inc. (\"Superlatus\"), a U.S.-based holding company of food products and distribution capabilities, announced today that it has signed a definitive agreement to be acquired by TRxADE HEALTH, Inc. (NASDAQ:MEDS) (\"TRxADE\"), a pharmaceutical exchange platform provider (the \"Merger\").", "TRxADE HEALTH, Inc.");
+    expect(r?.acquirer.name).toMatch(/^TRxADE/);
+    expect(r?.target.name).toMatch(/^Superlatus/);
+  });
   it("takes no letter of intent, an expert's report, a list of past purchases or an asset bought with 'a'", () => {
     expect(p("Predictive Oncology Announces Agreement to be Acquired by Renovaro\nPITTSBURGH, Jan. 06, 2025 -- Predictive Oncology Inc. (NASDAQ: POAI) today announced that it has entered into a binding letter of intent with Renovaro, Inc. (NASDAQ: RENB) for Predictive Oncology to be acquired by Renovaro.", "Predictive Oncology Inc.")).toBeNull();
     expect(p("Exhibit 99.2 July 10, 2023 Crescent Energy Company. At your request, Ryder Scott Company, L.P. (Ryder Scott) has prepared an estimate of the proved reserves attributable to certain leasehold interests of Mesquite Energy to be acquired by Crescent Energy Company.", "Crescent Energy Company")).toBeNull();

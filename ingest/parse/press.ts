@@ -384,6 +384,9 @@ const HEADLINE_PATTERNS: { re: RegExp; roles: ["acq" | "tgt", "acq" | "tgt"] }[]
 const SYMMETRIC_HEADLINE = rx(String.raw`^${NAME}\s+(?i:and)\s+${NAME}\s+(?i:to combine|to merge|announce|agree to|enter into|sign)\b`);
 // (Or "resulting in Empire becoming a wholly-owned subsidiary of Vivakor": Vivakor's merger with Empire had read backwards.)
 const BECOMES_SUBSIDIARY = rx(String.raw`${NAME}\s+(?:(?:will|would)\s+become|becoming)\s+an?\s+(?:(?:direct|indirect)\s+)?wholly[- ]owned\s+subsidiary\s+of\s+${NAME}(?=\s+[a-z]|\s*[,.;(]|$)`);
+// (And "Superlatus, Inc. ("Superlatus"), a U.S.-based holding company …, announced today that it has signed a definitive agreement to be
+// acquired by TRxADE HEALTH, Inc.", under "Superlatus, Inc. and TRxADE HEALTH, Inc. Sign Definitive Merger Agreement to Create …".)
+const AGREED_TO_BE_ACQUIRED = rx(String.raw`\b${NAME}\s+\([^)]{0,120}\)(?:[^.]|\.(?=\S)){0,260}?\bagreement\s+to\s+be\s+acquired\s+by\s+${NAME}`);
 const FOUNDER_MERGER = rx(String.raw`^([A-Z][a-z]+\s[A-Z][a-z]+)\s+(?i:and)\s+${NAME}\s+(?i:announce merger with)\s+${NAME}`);
 
 /** "<anything naming the filer> Acquires <target>": the buyer is the filer (see parsePressRelease). */
@@ -2098,6 +2101,8 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // Agreement with Catheter Precision", where "Catheter Precision will become a wholly owned subsidiary of Ra Medical".
   const subsidiary = BECOMES_SUBSIDIARY.exec(intro);
   if (subsidiary && sameCompany(cleanPartyName(subsidiary[1]), parties.acq) && sameCompany(cleanPartyName(subsidiary[2]), parties.tgt)) parties = { acq: parties.tgt, tgt: parties.acq };
+  const agreedToBe = AGREED_TO_BE_ACQUIRED.exec(intro);
+  if (agreedToBe && sameCompany(cleanPartyName(agreedToBe[1]), parties.acq) && sameCompany(cleanPartyName(agreedToBe[2]), parties.tgt)) parties = { acq: parties.tgt, tgt: parties.acq };
   // A headline's next sentence run on to the name: "VSE CORPORATION ANNOUNCES ACQUISITION OF KELLSTROM AEROSPACE PROVIDES
   // PRELIMINARY THIRD QUARTER 2024 RESULTS". (A verb only with more words after it: "Consumer Reports" is a name.)
   parties.tgt = parties.tgt.replace(/\s+(?:PROVIDES|REPORTS|Provides|Reports)\s+\S.*$/, "");
