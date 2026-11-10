@@ -34,7 +34,7 @@ import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/prox
 import { proxySections } from "./parse/proxySections";
 import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
-import { displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
+import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForBuyer, sectorForCompany } from "./sectors";
 import type { StoredDeal, State } from "./store";
 import { BASIN_NAME, correctKnownClosing, HOTEL_PROPERTY, moveBuyerOffTarget, SPAC_NAME, tidyDeals } from "./tidy";
@@ -1363,6 +1363,15 @@ export function talksLikeSpac(text: string): boolean {
   return /\btrust account\b/i.test(head) && /\binitial business combination\b|\bspecial purpose acquisition compan|\bblank[- ]check compan/i.test(head);
 }
 
+/**
+ * The day a release that says "today" went out: its own dateline when that's within 10 days before the filing (an 8-K can follow its
+ * release by days: Federal Signal's Hog release is dated February 12, 2025, its 8-K the 14th), else the filing day.
+ */
+export function todayOf(text: string, filed: string): string {
+  const line = datelinesOf(text)[0];
+  return line && line <= filed && (Date.parse(filed) - Date.parse(line)) / 86_400_000 <= 10 ? line : filed;
+}
+
 /** The hits read: the oldest (the closing itself) and the newest three (the latest reports, which restate the outcome). */
 const oldAndNew = <T extends { fileDate: string }>(hits: T[], oldest = 3, newest = 3) => {
   const sorted = [...hits].sort((a, b) => a.fileDate.localeCompare(b.fileDate));
@@ -1409,8 +1418,9 @@ async function endStatedBefore(deal: StoredDeal, acquirerCik: string, today: str
     const phrases = endedPhrases(name);
     const hits = await fullTextSearch({ q: phrases.map((p) => `"${p}"`).join(" OR "), forms: SETTLE_FORMS, from: deal.announcedDate, to: today, ciks: [acquirerCik] });
     for (const h of oldAndNew(hits)) {
-      const r = readStatement(htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file))), phrases);
-      const d = r.found ? (within(r.date, h.fileDate) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null)) : null;
+      const text = htmlToText(await getText(archiveUrl(acquirerCik, h.adsh, h.file)));
+      const r = readStatement(text, phrases);
+      const d = r.found ? (within(r.date, h.fileDate) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? todayOf(text, h.fileDate) : null)) : null;
       if (d) return { date: d };
       if (r.found) undated = true;
     }
@@ -1473,7 +1483,7 @@ async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, 
         deal.statusDate = stated;
         return;
       }
-      if (r.today && /^(?:8-K|6-K)/.test(h.form) && !undated) undated = h.fileDate;
+      if (r.today && /^(?:8-K|6-K)/.test(h.form) && !undated) undated = todayOf(text, h.fileDate);
       if (undated === undefined) undated = null;
     }
     // A closing in the exact words but undated ("In January 2024, we completed the acquisition of Cubicure GmbH") goes on to the reports
@@ -1534,7 +1544,7 @@ async function settleOnce(deal: StoredDeal, acquirerCik: string, today: string, 
     }
     found = true;
     // (The same day counts here: bought and closed at once, "On April 1, 2024, the Company acquired …".)
-    const stated = (r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? h.fileDate : null);
+    const stated = (r.date && r.date >= deal.announcedDate && r.date <= h.fileDate ? r.date : null) ?? (r.today && /^(?:8-K|6-K)/.test(h.form) ? todayOf(text, h.fileDate) : null);
     if (stated) {
       deal.status = "Closed";
       deal.statusDate = stated;
