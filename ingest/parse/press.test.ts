@@ -1055,3 +1055,10 @@ describe("assets and a headline verb run into the name", () => {
     expect(p("Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming to Over 35,000\nCOS COB, CT - October 25, 2018 - Chicken Soup for the Soul Entertainment, Inc. (Nasdaq: CSSE) today announced that it has acquired Truli.com.")?.target.name).toBe("Truli.com");
   });
 });
+
+describe("a number of shares worth a stated amount", () => {
+  it("is stock, whatever cash the noteholders get", () => {
+    const t = "Each share of LivePerson Common Stock will be automatically converted into the right to receive a number of shares of Class A common stock of SoundHound equal to (a) the Closing Merger Consideration, divided by (b) the total number of shares of LivePerson Common Stock. Each holder of Secured Notes will receive shares of SoundHound Common Stock and an amount in cash equal to accrued and unpaid interest.";
+    expect(extractConsideration(t)).toBe("Stock");
+  });
+});

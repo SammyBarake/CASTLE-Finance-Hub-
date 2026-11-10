@@ -1342,7 +1342,8 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     // An exchange ratio before legal words: "3.8721 fully paid and non-assessable Parent Shares" (Penumbra).
     // Not "0.640 KMI warrants per share", nor a share count ("2.785 million shares").
     /(?<![$\d.,]\s?)\b\d+\.\d{3,4}\s+(?!million|billion)(?:validly\s+issued,\s+)?(?:[\w&.'’-]+\s+){0,6}?(?<!\bper\s)(?:[Ss]hares?|ADSs?)\b/.test(forStock) ||
-    (offer && /\b(?:and|or|plus)\s+(?:\([a-z0-9]{1,4}\)\s+)?(?:a\s+number\s+of\s+(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?shares\s+of\b|a\s+fraction\s+of\s+(?:a|one)\s+share\s+of\b)/i.test(forStock)) ||
+    // (Or alone: "converted into the right to receive a number of shares of Class A common stock of SoundHound … equal to …": LivePerson.)
+    (offer && /\b(?:(?:and|or|plus)\s+(?:\([a-z0-9]{1,4}\)\s+)?|(?:right to|will|entitled to)\s+receive\s+)(?:a\s+number\s+of\s+(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?shares\s+of\b|a\s+fraction\s+of\s+(?:a|one)\s+share\s+of\b)/i.test(forStock)) ||
     // "the right to receive 0.70 of a fully paid and nonassessable share of Martin Marietta common stock" (TXI)
     /(?<![$\d.,]\s?)\b\d*\.\d+\s+of\s+(?:a|one)\s+(?:fully[- ]paid\s+(?:and\s+)?non-?assessable\s+)?(?:[A-Z][\w&.'’-]*\s+){0,3}(?:common\s+|ordinary\s+)?(?:share|ADS)\b/i.test(forStock) ||
     // "… and $82 million in equity" (Trumid), and in what holders receive, a share count: "a cash payment of $350
