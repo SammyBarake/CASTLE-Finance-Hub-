@@ -632,7 +632,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   // first seen at its completion, the announcement it refers back to (Cronos / CanAdelaar).
   const releaseOn = parsed.announcedOn && parsed.announcedOn <= hit.fileDate ? parsed.announcedOn : null;
   const gap = releaseOn ? daysApart(releaseOn, hit.fileDate) : null;
-  const stated = releaseOn && gap != null && ((parsed.kind === "announcement" && gap <= 10) || (parsed.kind === "completion" && isPrivate && gap <= 730)) ? releaseOn : null;
+  const stated = releaseOn && gap != null && ((parsed.kind === "announcement" && gap <= 10) || (parsed.kind === "completion" && isPrivate && gap <= (parsed.datedByLine ? 10 : 730))) ? releaseOn : null;
   // An Item 1.01 saying only when it was signed: the signing usually comes a day or a weekend before the release, so an
   // 8-K filed the next business day is the better date, and one filed later the signing itself, off a weekend (Santander
   // / Webster: signed February 3, filed February 6). Of 86 such 8-Ks whose release is known this is right 54 times and a
@@ -783,7 +783,9 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
 
   if (parsed.kind === "completion") {
     deal.status = "Closed";
-    deal.statusDate = hit.fileDate;
+    // (The release's dateline when within 10 days before the filing: Rumble's Callin release of May 15, 2023 came with an 8-K of May 19.)
+    const released = parsed.releasedOn && parsed.releasedOn <= hit.fileDate && daysApart(parsed.releasedOn, hit.fileDate) <= 10 ? parsed.releasedOn : null;
+    deal.statusDate = released ?? hit.fileDate;
   } else if (parsed.kind === "termination") {
     deal.status = "Terminated";
     deal.statusDate = hit.fileDate;

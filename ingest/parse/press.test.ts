@@ -1012,3 +1012,31 @@ describe("from the open-deal and audit triage (November 10 2026)", () => {
     expect(p("Kadant to Acquire German Blade Manufacturer Joh. Clouth\nWESTFORD, Mass., June 17, 2021 - Kadant Inc. (NYSE: KAI) today announced it has entered into a definitive agreement to acquire Joh. Clouth GmbH & Co. KG and its affiliates (\"Clouth\") for approximately 78 million Euros in cash.", "Kadant Inc")?.target.name).toMatch(/^Joh\. Clouth/);
   });
 });
+
+describe("a headline's defined term with another name after it", () => {
+  it("takes the defined company's full name", () => {
+    const r = parsePressRelease('Prosperity Bancshares, Inc. to Acquire Lone Star and Lone Star Bank\nHOUSTON, October 11, 2022 - Prosperity Bancshares, Inc. (NYSE: PB) ("Prosperity") and Lone Star State Bancshares, Inc. ("Lone Star"), the parent company of Lone Star State Bank of West Texas ("Lone Star Bank"), jointly announced today the signing of a definitive merger agreement whereby Prosperity will acquire Lone Star and Lone Star Bank.', { filerName: "Prosperity Bancshares, Inc.", filerTickers: ["PB"] });
+    expect(r?.target.name).toBe("Lone Star State Bancshares, Inc.");
+  });
+});
+
+describe("from the November 10 fact-check of 50 live deals", () => {
+  const p = (t: string, filer = "") => parsePressRelease(t, { filerName: filer, filerTickers: [] });
+  it("dates by a dateline in brackets, and a signed-and-closed release by its own dateline", () => {
+    expect(p("Maximus to Acquire Agile Defense\n(TYSONS, Va. - October 19, 2026) - Maximus (NYSE: MMS) today announced that it has entered into a definitive agreement to acquire Agile Defense, LLC for $660 million in cash.")?.announcedOn).toBe("2026-10-19");
+    const r = p("Rumble Acquires Podcasting and Live Streaming Platform Callin\nLONGBOAT KEY, Fla.; May 15, 2023 - Rumble (NASDAQ: RUM), the popular video-sharing platform, announced today that it has acquired Callin, the San Francisco-based podcasting platform.");
+    expect(r?.kind).toBe("completion");
+    expect(r?.announcedOn).toBe("2023-05-15");
+    expect(r?.releasedOn).toBe("2023-05-15");
+  });
+  it("reads US$ with a foreign amount in brackets, and a stock leg 'of the purchase price'", () => {
+    expect(p("Franklin Electric to Acquire Challenge Pumps\nFORT WAYNE, Ind., October 28, 2026 - Franklin Electric Co., Inc. (NASDAQ: FELE) today announced a definitive agreement. Franklin Electric will acquire Challenge Pumps for approximately US$181 million (A$259 million) in cash, subject to customary purchase price adjustments.")?.consideration).toBe("Cash");
+    expect(p("Kewaunee Scientific to Acquire Nycom\nSTATESVILLE, N.C., November 2, 2026 - Kewaunee Scientific Corporation (NASDAQ: KEQU) today announced a definitive agreement under which Kewaunee will acquire Nycom for an initial base purchase price of $55 million. $5 million of the purchase price will be payable in newly issued shares of Kewaunee's common stock. The remaining cash portion of the purchase price will be funded with cash on hand.")?.consideration).toBe("Mixed");
+  });
+  it("takes what the target's holders receive as the value, and 'advised in the Transaction by'", () => {
+    const r = p("Texas Community Bancshares and The Banc of San Jacinto County Bancshares Announce Merger Agreement\nMINEOLA, TX - October 29, 2026 - Texas Community Bancshares, Inc. (NASDAQ: TCBS) (the \"Company\") and The Banc of San Jacinto County Bancshares, Inc. (\"SJCB\") jointly announced today that they have entered into a definitive merger agreement. Under the agreement, the Company will acquire SJCB in an all-cash transaction. Under the terms of the Merger Agreement, SJCB's shareholders will receive aggregate cash consideration of $9.5 million (the \"Aggregate Merger Consideration\"). At closing, each outstanding share of SJCB common stock will be converted into the right to receive a pro rata portion.", "Texas Community Bancshares, Inc.");
+    expect(r?.valueUsd).toBe(9_500_000);
+    const q = p("Plumas Bancorp to Acquire Cornerstone Community Bancorp\nRENO, Nev., January 28, 2025 - Plumas Bancorp (Nasdaq: PLBC) today announced a definitive agreement to acquire Cornerstone Community Bancorp. Plumas was advised in the Transaction by Raymond James & Associates, Inc. as financial advisor and Sheppard, Mullin, Richter & Hampton LLP as legal counsel. Cornerstone was advised by Performance Trust Capital Partners as financial advisor.", "Plumas Bancorp");
+    expect(q?.acquirerAdvisors).toContain("Raymond James");
+  });
+});

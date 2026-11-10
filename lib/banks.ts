@@ -173,6 +173,8 @@ export const BANKS: Bank[] = [
   b("Sandler O'Neill", "SOP", /\bSandler O\s?['’]\s?Neill\b/),
   b("FT Partners", "FTP", /\bFT Partners\b|\bFinancial Technology Partners\b/),
   b("Harris Williams", "HW", /\bHarris Williams\b/),
+  // (November 2026 census: 5 releases, 5 deals; "Deloitte Corporate Finance in Australia served as financial advisor to Rhino-Rack".)
+  b("Deloitte Corporate Finance", "DELO", /\bDeloitte Corporate Finance\b/),
   b("Lincoln International", "LINC", /\bLincoln International\b/),
   b("MTS Health Partners", "MTS", /\bMTS Health Partners\b|\bMTS Securities\b/),
   b("Boenning & Scattergood", "BOEN", /\bBoenning (?:&|and) Scattergood\b/),

@@ -46,6 +46,10 @@ export interface ParsedPress {
    * Never the signing itself, which usually comes a day or a weekend before the release.
    */
   announcedOn?: string;
+  /** A completion release's dateline: the closing's day. */
+  releasedOn?: string;
+  /** A completion's `announcedOn` is its own dateline (signed and closed at once), not a date it refers back to. */
+  datedByLine?: boolean;
   /** The buyer already holds part of the company: the share it is buying, or true when no share is stated. */
   buyIn?: number | true;
   /** A completion release calling the deal "previously announced" without saying when: first seen at its closing. */
@@ -122,7 +126,8 @@ export function isoDateIn(s: string | undefined): string | undefined {
 }
 
 // "SAN FRANCISCO (June 23, 2022)" (NerdWallet / On The Barrelhead), "PRESS RELEASE DATED 09/02/2021" (PGT / Anlin).
-const PAREN_DATELINE = new RegExp(`(?:^|\\n)[^\\n]{0,160}?\\((?:${MONTHS})\\s*\\d{1,2},\\s*(?:19|20)\\d{2}\\)`, "i");
+// Or the place inside the brackets: "(TYSONS, Va. - October 19, 2026)" (Maximus / Agile Defense).
+const PAREN_DATELINE = new RegExp(`(?:^|\\n)[^\\n]{0,160}?\\((?:[^()\\n]{0,40}?[-–—]\\s*)?(?:${MONTHS})\\s*\\d{1,2},\\s*(?:19|20)\\d{2}\\)`, "i");
 const NUMERIC_RELEASE_DATE = /\bpress release dated\s+(\d{1,2})\/(\d{1,2})\/((?:19|20)\d{2})\b/i;
 /** The days a document's top gives as its own: a dateline, in any of the forms above. */
 export function datelinesOf(text: string): string[] {
@@ -941,7 +946,13 @@ export function extractValue(raw: string, opts: { agreement?: boolean } = {}): {
     // A cash total is the price only when no shares stand beside it (Noble / Diamond's "$600 million total cash paid"; a stock leg elsewhere in the sentence),
     // and said of the deal ("total cash consideration will amount to $3.3 billion": WNS). "for total cash consideration of" is any purchase the text mentions:
     // ONEOK's earlier stake in EnLink ($3.3B; the deal is $4.3B in stock), MacDermid's carve-out from OM Group ($365M).
-    if (/^(?:aggregate|total)\s+cash\s+consideration$/.test(lead) && (/\b(?:shares|stock|units|equity)\b/i.test(t.slice(Math.max(0, m.index! - 200), m.index! + m[0].length + 120)) || /^\s*of\b/i.test(m[0].slice(m[1].length)) || /\bfrom\s*$/i.test(m[0].slice(0, m[0].indexOf("$"))))) continue;
+    // (What the target's holders receive is the price, though: "SJCB's shareholders will receive aggregate cash consideration of $9.5 million".)
+    const toHolders = /\b(?:share|stock|unit)?holders\s+(?:will|would|shall)\s+receive\s+(?:an?\s+|the\s+)?$/i.test(t.slice(Math.max(0, m.index! - 80), m.index!));
+    // (Then only a stock leg in the same sentence counts, not the next sentence's "each outstanding share of SJCB common stock will be converted …".)
+    const stockNear = toHolders
+      ? /^[^.]{0,120}\b(?:and|plus)\b[^.]{0,80}\b(?:shares|stock|units)\b/i.test(t.slice(m.index! + m[0].length, m.index! + m[0].length + 220))
+      : /\b(?:shares|stock|units|equity)\b/i.test(t.slice(Math.max(0, m.index! - 200), m.index! + m[0].length + 120));
+    if (/^(?:aggregate|total)\s+cash\s+consideration$/.test(lead) && (stockNear || (/^\s*of\b/i.test(m[0].slice(m[1].length)) && !toHolders) || /\bfrom\s*$/i.test(m[0].slice(0, m[0].indexOf("$"))))) continue;
     // "an increase in the aggregate merger consideration to stockholders of approximately $10 million" is how much was added (Physicians Formula, $74.9M).
     if (/\b(?:increase|decrease|reduction)\s+(?:in|of)\s+(?:the\s+)?$/i.test(t.slice(Math.max(0, m.index! - 24), m.index!))) continue;
     // "Acquisition price of approximately $490 million" in the highlights, then "a cash and stock transaction valued (including outstanding AV Homes debt) at approximately $963 million" (Taylor Morrison).
@@ -1238,7 +1249,8 @@ const PRICE_FOR_AGREEMENT = priceFor("");
 const noFunding = (s: string) => s.replace(/,\s*(?:which\s+[^,;.]{0,80}?\bfund\w*|(?:to be\s+|expected to be\s+)?funded)\b[^,;.]*[,;]/gi, ", ");
 
 // A statement of the whole price in cash, which only its own sentence can confirm.
-const CASH_STATED = /\bfor\s+(?:approximately\s+|about\s+)?\$\s?\d[\d.,]*\s*(?:million|billion)\s+in\s+cash\b|\b(?:consist\w*|comprised)\s+of\s+cash\b(?!\s+on\s+hand)|\b(?:consideration|(?:purchase|acquisition)\s+price)\b[^.]{0,120}?\$\s?\d(?:[^.]|\.(?=\d)){0,120}?\b(?:paid|payable)\s+in\s+cash\b/gi;
+// (Also "for approximately US$181 million (A$259 million) in cash": Franklin Electric / Challenge Pumps.)
+const CASH_STATED = /\bfor\s+(?:approximately\s+|about\s+)?(?:US)?\$\s?\d[\d.,]*\s*(?:million|billion)(?:\s*\([^()]{1,40}\))?\s+in\s+cash\b|\b(?:consist\w*|comprised)\s+of\s+cash\b(?!\s+on\s+hand)|\b(?:consideration|(?:purchase|acquisition)\s+price)\b[^.]{0,120}?\$\s?\d(?:[^.]|\.(?=\d)){0,120}?\b(?:paid|payable)\s+in\s+cash\b/gi;
 const SENTENCE_STOP = /(?<!\b(?:Inc|Corp|Co|Ltd|L\.P|U\.S|No|Mr|Ms|Dr))\.(?=\s+["“(]?[A-Z]|\s*$)|;(?=\s+[A-Z])|\s[•●▪◦§]\s|\s-\s/;
 // Not "a better way to buy and sell used vehicles, today announced … to acquire" (Vroom), "best-selling" (Dave's Killer Bread).
 const SIDE_DEAL = /(?<![-\w])(?:sell|sells|sold|selling|sale\s+of|divest\w*)\b(?![^]*\b(?:acquir\w*|purchas\w*|buy\w*)\b)|\b(?:separate|first|second)\s+transaction\b/i;
@@ -1287,7 +1299,7 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
   const stated = statedCash(t);
   const cash =
     // "$148.50 per Biohaven share in cash", "$66.00 per Ordinary Share and ADS in Cash" (Talend)
-    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per (?:\w+\s+){0,3}?share(?:\s+and\s+ADS)?\s*,?\s*)?in cash|cash consideration|in cash for each|cash tender offer|net to the (?:seller|holder)s?(?: thereof)? in cash|(?<!contingent )(?:total |aggregate )?cash purchase price|\b(?:an?|the) cash transaction|\bterms\s+of\s+the\s+(?:transaction|acquisition|merger|deal)\s+include\s+a\s+cash\s+payment\b|\bin upfront cash\b|\b(?:remainder|balance|rest)\s+of\s+the\s+(?:purchase price|consideration)\b[^.;]{0,40}?\b(?:payable|paid)\s+in\s+cash\b/i.test(t) ||
+    /all[- ]cash|per share in cash|\$\s?\d[\d.,]*\s*(?:per (?:\w+\s+){0,3}?share(?:\s+and\s+ADS)?\s*,?\s*)?in cash|cash consideration|in cash for each|cash tender offer|net to the (?:seller|holder)s?(?: thereof)? in cash|(?<!contingent )(?:total |aggregate )?cash purchase price|\b(?:an?|the) cash transaction|\bterms\s+of\s+the\s+(?:transaction|acquisition|merger|deal)\s+include\s+a\s+cash\s+payment\b|\bin upfront cash\b|\b(?:remainder|balance|rest)\s+of\s+the\s+(?:purchase price|consideration)\b[^.;]{0,40}?\b(?:payable|paid)\s+in\s+cash\b|\b(?:the\s+)?(?:remaining|balance)\s+(?:of\s+the\s+)?cash\s+portion\s+of\s+the\s+(?:purchase\s+price|consideration)\b/i.test(t) ||
     stated === "cash" ||
     // The consideration in amounts: "total consideration … will consist of approximately $1.89 billion of cash … and $82
     // million in equity" (Tradeweb / Trumid).
@@ -1306,6 +1318,8 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     // (Also "1.5 shares of MITT common stock … and a cash payment from Angelo Gordon"; not one for fractional shares.)
     (offer && /\breceive,\s+in\s+cash,|\bamount\s+in\s+cash\s+equal\s+to\s+\$|\breceive\s+the\s+(?:[A-Z][\w-]*\s+){1,3}(?:Price|Amount|Consideration)\s+in\s+cash\b(?!\s+and\b)|\d\)\s+in cash|\b(?:and|plus)\s+a\s+cash\s+payment\b(?!\s+(?:in\s+lieu|for\s+(?:any\s+|the\s+)?fraction))|\breceive\s+(?:an\s+amount\s+in\s+)?cash\b(?!\s+and\b)(?!\s+in\s+lieu)|\breceive\s+the\s+(?:Offer Price|Merger Consideration|Per Share (?:Merger )?(?:Amount|Consideration|Price))\s*,?\s+(?:net\s+to\s+the\s+holder\s+)?in\s+cash\b(?!\s+and\b)|\breceive\s+an?\s+(?:upfront\s+)?cash\s+payment\s+(?:of\s+(?:approximately\s+|about\s+)?\$|equal\s+to\s+an?\s+[\d.]+%\s+premium)|\b(?:one-time|upfront|special)\s+cash\s+payment\s+of\s+(?:approximately\s+|about\s+)?\$[\d.,]+\s+(?:per|for each)\b/i.test(t));
   const stock =
+    // "$5 million of the purchase price will be payable in newly issued shares of Kewaunee's common stock" (Nycom).
+    /\$\s?\d[\d.,]*(?:\s*(?:million|billion))?\s+of\s+the\s+(?:purchase\s+price|consideration)\s+(?:will\s+be|is|was|shall\s+be)\s+(?:payable|paid|issued)\s+in\s+(?:the\s+form\s+of\s+)?(?:newly[- ]issued\s+)?(?:shares|common\s+stock)\b/i.test(forStock) ||
     // Not "available to all stockholders" (Sequenom) nor a count tendered or outstanding ("35,852,857 shares of Audentes
     // common stock were validly tendered"); an aggregate count paid counts ("will receive 30,700,000 shares of HF common
     // stock").
@@ -1716,8 +1730,9 @@ export function extractAdvisors(t: string, acq: string, tgt: string, issuerRole:
   const SENTENCE_END = /(?<![A-Z]\.[A-Z]|\b(?:Co|Inc|Corp|Ltd|L\.P|LLC|U\.S|No|[A-Z]))\.\s|;/;
   // (A name may hold periods, "PersonalizationMall.com", "Kaleyra S.p.A", "S.T. Specialty Foods", but a word ends in one
   // only as an abbreviation; a page header may run in: "Page 2 of 6 GLOBAL EAGLE ENTERTAINMENT GEE was advised by Citi".)
+  // (Also "Plumas was advised in the Transaction by Raymond James & Associates, Inc. as financial advisor": Cornerstone.)
   const WORD = String.raw`(?:[A-Z]|\b[a-z]{1,3}(?=[A-Z]))[\w&'’-]*(?:\.[\w&'’-]+)*(?:(?<=\b(?:Inc|Co|Corp|Ltd|L\.P|[A-Z]))\.)?`;
-  for (const m of t.matchAll(new RegExp(String.raw`((?:${WORD}\s+){0,4}?${WORD})\s+(?:is|are|was|were|has been|have been)\s+(?:also\s+)?(?:being\s+)?advised\s+by\s+`, "g"))) {
+  for (const m of t.matchAll(new RegExp(String.raw`((?:${WORD}\s+){0,4}?${WORD})\s+(?:is|are|was|were|has been|have been)\s+(?:also\s+)?(?:being\s+)?advised\s+(?:(?:in|on|with respect to|in connection with)\s+(?:the|this)\s+(?:[Tt]ransaction|[Mm]erger|[Aa]cquisition|[Dd]eal)\s+)?by\s+`, "g"))) {
     // The party is the subject's longest tail that names one: "L.L.P. First M&F Corporation" (an abbreviation ended the
     // sentence before), "D.C. The Nashua Bank".
     const words = m[1].replace(/^(?:.*\s)?Advis[eo]rs?:?\s+/, "").split(/\s+/);
@@ -2148,6 +2163,21 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     else if (runOnOk(named)) parties.tgt = cleanPartyName(`${parties.tgt} ${named[1]}`);
   }
 
+  // The headline gives a term the release defines for a company with a legal form: "Prosperity Bancshares to Acquire Lone Star and Lone
+  // Star Bank" over "Lone Star State Bancshares, Inc. ("Lone Star")". The company's full name then, which its later reports use.
+  {
+    const head = flatten(text).slice(0, 6000);
+    const defined = new RegExp(`([A-Z][\\w&.'’-]*(?:\\s+(?:[A-Z][\\w&.'’-]*|of|and|&))*,?\\s+(?:Inc|LLC|L\\.L\\.C|Ltd|Limited|Corp|Corporation|Company|Co|GmbH|AG|S\\.A|N\\.V|B\\.V|plc|LP|L\\.P|Holdings)\\.?)\\s*\\(\\s*(?:the\\s+)?["“]([^"”]{2,40})["”]`, "g");
+    for (const m of head.matchAll(defined)) {
+      const [full, term] = [cleanPartyName(m[1]), m[2].trim()];
+      // (Only "<term> and …": the term alone is expanded later, after the carve-out checks have read it: Sunnova / "Lennar's" SunStreet.)
+      const named = parties.tgt.startsWith(`${term} and `) || parties.tgt.startsWith(`${term} & `);
+      if (named && full !== term && full.startsWith(term.split(" ")[0]) && isPlausibleName(full) && !sameCompany(full, parties.acq)) {
+        parties.tgt = full;
+        break;
+      }
+    }
+  }
   // "Thoma Bravo PROS Shareholders" -> "Thoma Bravo": cut the acquirer where the target's name starts.
   const tgtFirst = parties.tgt.replace(/^The\s+/, "").split(/[\s,]+/)[0];
   if (tgtFirst.length >= 3) {
@@ -2215,12 +2245,19 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // The release's own date: its dateline (Cardinal's release of October 13, 2026 for Hughes Brothers came with an 8-K
   // on October 19), or for a completion, the announcement it refers back to ("the definitive share sale and purchase
   // agreement … announced on December 9, 2025": Cronos / CanAdelaar). The ingest decides how far back it may reach.
+  // The release's own dateline, in any of its forms.
+  const dateline = isoDateIn(RELEASE_DATELINE.exec(text)?.[0]) ?? datelinesOf(text)[0];
+  // A purchase signed and closed at once is announced by its closing release ("Rumble Acquires … Callin", "LONGBOAT KEY, Fla.; May 15,
+  // 2023"; Live Ventures / Flooring Liquidators, dated five days before its 8-K): its dateline then, unless it says it was announced before.
   const announcedOn =
     kind === "announcement"
-      ? isoDateIn(RELEASE_DATELINE.exec(text)?.[0])
+      ? dateline
       : kind === "completion"
-        ? (isoDateIn(ANNOUNCED_ON.exec(flatten(text).slice(0, 4000))?.[0]) ?? signedOnBefore(flatten(text).slice(0, 4000)))
+        ? (isoDateIn(ANNOUNCED_ON.exec(flatten(text).slice(0, 4000))?.[0]) ?? signedOnBefore(flatten(text).slice(0, 4000)) ?? (saysAnnouncedEarlier(text) ? undefined : dateline))
         : undefined;
+  // (Taken from the dateline: the ingest then holds it to 10 days before the filing, as for an announcement. Vishay's Newport Wafer Fab
+  // release of March 2024 says "March 6, 2023".)
+  const datedByLine = kind === "completion" && !!announcedOn && announcedOn === dateline && !ANNOUNCED_ON.test(flatten(text).slice(0, 4000));
 
   // A target the release lists abroad only: "Logan Energy Corp. ("Logan") (TSXV: LGN)" (Ovintiv). Not one listed in the US
   // too ("(TSX: ABC, NYSE: ABC)").
@@ -2245,6 +2282,9 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     acquirer: { ...acquirer, name: acquirer.name.replace("Clayton Dubilier & Rice", "Clayton, Dubilier & Rice") },
     target,
     ...(announcedOn ? { announcedOn } : {}),
+    // A closing release's own day: the deal closed then, not on the 8-K's filing day.
+    ...(kind === "completion" && dateline ? { releasedOn: dateline } : {}),
+    ...(datedByLine ? { datedByLine: true } : {}),
     ...(buyInOf(text) != null ? { buyIn: buyInOf(text)! } : {}),
     ...(kind === "completion" && !announcedOn && saysAnnouncedEarlier(text) ? { announcedEarlier: true } : {}),
     ...(targetListedAbroad ? { targetListedAbroad } : {}),
