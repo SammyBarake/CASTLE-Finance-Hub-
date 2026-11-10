@@ -177,7 +177,8 @@ export function cleanPartyName(raw: string): string {
   // Mr. Cooper, St. Joe).
   // (Lower-case initials too: "e.l.f. Beauty".)
   const sentenceBreak = /(?<!\b(?:Inc|Corp|Co|Ltd|Bros|Mfg|Intl|Mr|Mrs|Ms|Dr|St|Ft|Mt|L\.P|N\.V|S\.A|Pte|[A-Z])|\.[a-z])\.\s+(?=[A-Z])/.exec(s);
-  if (sentenceBreak) s = s.slice(0, sentenceBreak.index);
+  // (Not after a single short word, which is an abbreviation: "Joh. Clouth GmbH & Co. KG", Kadant's target.)
+  if (sentenceBreak && !/^[A-Z][a-z]{1,3}$/.test(s.slice(0, sentenceBreak.index))) s = s.slice(0, sentenceBreak.index);
   // "Standard General L.P., a Delaware limited partnership" -> "Standard General L.P."
   s = s.replace(/,\s+an?\s+(?:[A-Z][\w.]*\s+){1,3}(?:limited\s+(?:liability\s+)?(?:company|partnership)|(?:public\s+)?(?:limited\s+)?company|corporation|partnership|statutory trust|exempted company)\b.*$/, "");
   // "AkzoNobel, that certain Joinder Agreement, dated ..." -> "AkzoNobel"

@@ -169,6 +169,15 @@ describe("isPlausibleName: deal moments", () => {
   });
 });
 
+describe("cleanPartyName: an abbreviation's period", () => {
+  it("doesn't end a name after a single short word", () => {
+    expect(cleanPartyName("Joh. Clouth")).toBe("Joh. Clouth");
+    expect(cleanPartyName("Jos. A. Bank Clothiers, Inc.")).toBe("Jos. A. Bank Clothiers, Inc.");
+    // A sentence still ends a longer name.
+    expect(cleanPartyName("Acme Widgets. Capital will be")).toBe("Acme Widgets");
+  });
+});
+
 describe("cleanPartyName: two buyers' headline verb", () => {
   it("cuts 'Complete Transaction' after a pair of buyers", () => {
     expect(cleanPartyName("SD Biosensor and SJL Partners Complete Transaction")).toBe("SD Biosensor and SJL Partners");
