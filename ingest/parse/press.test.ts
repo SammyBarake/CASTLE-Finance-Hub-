@@ -484,6 +484,12 @@ IRVINE, Calif., October 21, 2026 - Northwind Digital Corporation (NASDAQ: NWDC) 
 describe("term extractors", () => {
   it("ignores par values and dividends when finding the offer price", () => {
     expect(extractPrice("Each share has a par value of $0.01 per share. Holders will receive $25.00 per share in cash.")).toBe(25);
+    // The buyer's shares issued in payment are no offer price (PPHC / Tancredi).
+    expect(
+      extractPrice(
+        'The initial consideration of £8.0 million was satisfied on completion, in part by the issuance of 111,948 New Common Shares ("Consideration Shares") of $0.001 each at a price of $9.42 per Common Share, totaling £800,000.',
+      ),
+    ).toBeNull();
     expect(extractPrice("The board declared a dividend of $0.18 per share.")).toBeNull();
   });
 

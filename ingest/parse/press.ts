@@ -667,6 +667,9 @@ export function extractPrice(raw: string): number | null {
     // price is no less than $23.12 per share"; "Sentio stockholders will receive … no less than $14.37 per share" is
     // the offer) or a top-up ("up to an additional $0.55 per share").
     if (/repurchas|buy-?backs?|\bwill\s+sell\b(?:[^.;]|\.(?=\d)){0,60}\bshares\b/i.test(clause.slice(-120))) continue;
+    // Nor the price the buyer's own shares are issued at as part of the payment ("the issuance of 111,948 New Common Shares
+    // ("Consideration Shares") of $0.001 each at a price of $9.42 per Common Share": PPHC / Tancredi),
+    if (/\b(?:issu(?:e|ed|ance|ing)\s+(?:of\s+)?[\d,.]+\s+(?:million\s+)?(?:new\s+)?(?:[\w-]+\s+){0,2}shares\b|\bconsideration\s+shares\b)(?:[^.;]|\.(?=\d)){0,140}\bat\s+(?:a|an)\s+(?:issue\s+)?price\s+of\s*$/i.test(before)) continue;
     // a listing rule, or what someone else pays for new or resold shares.
     if ((/\bPIPE\b/.test(clause) || /\bbid price\b|\bminimum bid\b|\bprivate (?:placement|offering)\b|\bregistered direct\b|\bpublic offering\b|\btarget\s+(?:stock\s+|share\s+)?price\b|\binvestors?\s+(?:will|would|shall)\s+be\s+issued\b|\bpreferred\s+(?:stock|shares?)\s+at\s+a\s+price\s+of\s*$|\bwill\s+sell\b(?:[^.;]|\.(?=\d)){0,120}\bto\b(?:[^.;]|\.(?=\d)){0,100}\bprice\s+of\s*$/i.test(clause))) continue;
     if (/(?:(?:average|closing|trading|market)(?: (?:stock|share|sale|trading))? price(?:\s+(?:on|as of)\s+[^,;$]{3,30}?)?|\bVWAP)(?: of)?(?: approximately| about)?\s*$|\badditional(?:\s+consideration)?,?\s*$/i.test(before)) continue;

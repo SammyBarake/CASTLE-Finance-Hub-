@@ -494,6 +494,11 @@ export function tidyTargetName(name: string, acquirerName: string): string {
   n = n.replace(/^(.+?\b(?:Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Limited|Corp\.|Corporation|plc|GmbH|S\.A\.|B\.V\.|N\.V\.))\s+(?!Partnership|Liability|Company|Group|Holdings)[A-Z].*$/, "$1");
   // "Second Street January 20" -> "Second Street"
   n = n.replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,?\s*\d{4})?$/, "");
+  // A deck's month and year: "VNCE Acquires OVO AUGUST 2026" -> "OVO".
+  n = n.replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}$/i, "");
+  // The buyer's initials run on from the headline: "PPHC Announces Acquisition of Tancredi PPHC, TrailRunner …" (Public Policy Holding Company).
+  const initials = acquirerName.replace(/,?\s+(?:Inc\.?|Corp\.?|Corporation|Ltd\.?|LLC|plc|N\.V\.|S\.A\.)$/i, "").split(/\s+/).filter((w) => /^[A-Z]/.test(w)).map((w) => w[0]).join("");
+  if (initials.length >= 3) n = n.replace(new RegExp(`(\\S)\\s+${initials}$`), "$1");
   const brand = normalizeName(acquirerName).split(" ")[0];
   if (brand && brand.length >= 4 && !GENERIC_FIRST_WORD.test(brand)) {
     const at = n.toLowerCase().search(new RegExp(`\\s${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`));
@@ -640,6 +645,9 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
   const signedDay = !releaseOn && parsed.kind === "announcement" && parsed.signedOn && parsed.signedOn < hit.fileDate ? (businessDaysBetween(parsed.signedOn, hit.fileDate) <= 1 ? hit.fileDate : offWeekend(parsed.signedOn)) : null;
   const fromSigning = !!signedDay && signedDay !== hit.fileDate;
   const announced = stated ?? signedDay ?? hit.fileDate;
+  // A completion release's dateline, within 10 days before the filing (Rumble's Callin release of May 15, 2023 came with an
+  // 8-K of May 19): the closing day, and the announcement of a deal first seen there (Sensata / Xirgo, April 1, filed April 5).
+  const releasedOn = parsed.kind === "completion" && parsed.releasedOn && parsed.releasedOn <= hit.fileDate && daysApart(parsed.releasedOn, hit.fileDate) <= 10 ? parsed.releasedOn : null;
 
   if (!deal) {
     // Updates about deals announced before our window can't create a deal (we'd get the date wrong).
@@ -653,7 +661,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
     deal = {
       id,
       ...(isPrivate ? { privateTarget: true } : {}),
-      announcedDate: announced,
+      announcedDate: releasedOn && !stated && releasedOn < announced ? releasedOn : announced,
       ...(fromSigning ? { dateIsSigning: true } : {}),
       ...(parsed.kind === "completion" && isPrivate && parsed.announcedEarlier && !stated ? { dateIsClosing: true } : {}),
       acquirer: company(parsed.acquirer, acquirer),
@@ -783,9 +791,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
 
   if (parsed.kind === "completion") {
     deal.status = "Closed";
-    // (The release's dateline when within 10 days before the filing: Rumble's Callin release of May 15, 2023 came with an 8-K of May 19.)
-    const released = parsed.releasedOn && parsed.releasedOn <= hit.fileDate && daysApart(parsed.releasedOn, hit.fileDate) <= 10 ? parsed.releasedOn : null;
-    deal.statusDate = released ?? hit.fileDate;
+    deal.statusDate = releasedOn ?? hit.fileDate;
   } else if (parsed.kind === "termination") {
     deal.status = "Terminated";
     deal.statusDate = hit.fileDate;

@@ -147,6 +147,9 @@ describe("tidyTargetName", () => {
     expect(tidyTargetName("WTG MIDSTREAM", "Energy Transfer LP")).toBe("WTG Midstream");
     expect(tidyTargetName("COMPUTERSHARE MORTGAGE SERVICES INC", "Rithm Capital")).toBe("Computershare Mortgage Services Inc");
     expect(tidyTargetName("Sirius Computer Solutions LINCOLNSHIRE", "CDW")).toBe("Sirius Computer Solutions");
+    expect(tidyTargetName("OVO AUGUST 2026", "Vince Holding Corp.")).toBe("OVO");
+    expect(tidyTargetName("Tancredi PPHC", "Public Policy Holding Company, Inc.")).toBe("Tancredi");
+    expect(tidyTargetName("PPHC", "Public Policy Holding Company, Inc.")).toBe("PPHC");
   });
 });
 
