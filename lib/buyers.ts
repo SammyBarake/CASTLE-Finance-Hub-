@@ -9,6 +9,12 @@ export type BuyerType = "Strategic" | "Private equity";
 /** Well-known financial sponsors (private equity, infrastructure and growth funds). */
 const SPONSORS =
   /\b(KKR|Kohlberg Kravis|Blackstone|Apollo|Carlyle|TPG|Bain Capital|Thoma Bravo|Silver Lake|Vista Equity|Advent International|Warburg Pincus|H\.?I\.?G\.? Capital|Clayton,? Dubilier|CD&R|EQT|Permira|Hellman & Friedman|Brookfield|GTCR|Francisco Partners|Clearlake|Sycamore|Searchlight|Stone Point|Platinum Equity|Kinderhook|Veritas Capital|Genstar|Insight Partners|Cinven|CVC|Ares Management|Oak Hill|Madison Dearborn|Roark|Leonard Green|Sixth Street|Elliott|Starboard|Arsenal Capital|American Securities|Audax|Berkshire Partners|Bernhard Capital|Charlesbank|Cerberus|Crestview|Gores|Grain Management|Harvest Partners|Hg\b|Irving Place|KPS Capital|L Catterton|Lindsay Goldberg|New Mountain|Onex|Patient Square|Providence Equity|Quantum Energy|Riverstone|Siris|Stonepeak|Summit Partners|Towerbrook|Trive|Vector Capital|Welsh,? Carson|Concentra Biosciences|Tang Capital|Butterfly Equity|Battery Ventures|Bayview|Global Infrastructure Partners|Macquarie|Arclight|I Squared|DigitalBridge|Public Investment Fund|GIC|Temasek|Mubadala|CPP Investments|Ontario Teachers|OMERS|CDPQ|3G Capital|Centerbridge|Haveli|Lone Star|Deerfield|ARCHIMED|TriArtisan|Abry|Ampersand|GHO Capital|Transom|Vector Capital|Accel-KKR|Siris|Thomas H\.? Lee|THL|Golden Gate Capital|Court Square|Kohlberg|Littlejohn|Wind Point|Pamlico|One Rock|Sentinel Capital|Carlyle)\b/i;
+/** More sponsors and financial buyers, from a November 2026 read of every live buyer Castle labelled strategic. */
+const MORE_SPONSORS =
+  /\b(Apax|Ardian|Altaris|American Industrial Partners|Arcline|Atlas Holdings|Aquarian|Alden Global|Antarctica Capital|Argo Infrastructure|Balmoral Funds|Bansk|Callodine|Canada Pension Plan|Centre Lane|Chatham Asset|CORE Industrial|Fundamental Advisors|GI Partners|Graham Partners|Gurnet Point|J\.\s?F\. Lehman|Kingswood Capital|Knox Lane|LKCM Headwater|Makarora|Nautic Partners|New Enterprise Associates|Novacap|Paine Schwartz|Park Cities Asset|Pacific Investment Management|PIMCO|ShoreView|Standard General|Symphony Technology Group|Syncona|Column Group|Jordan Company|Trian|Turn\/River|Wynnchurch|Yucaipa)\b|(?:^|\s)H\.I\.G\.?(?=\s|,|$)/i;
+/** Listed sponsors and their listed vehicles. A listed buyer is a sponsor only by one of these tickers: Apollo Medical
+ *  Holdings and Cerberus Cyber Sentinel are operating companies that share a sponsor's first word. */
+const LISTED_SPONSORS = new Set(["APO", "BX", "KKR", "CG", "TPG", "ARES", "OWL", "BAM", "BN", "BBU", "BBUC", "BIP", "BIPC", "BNT", "BAMR", "DBRG", "BSTT"]);
 
 /** Name shapes typical of funds and buyout vehicles ("… Capital Partners", "… Equity LP", "Madison Parent Inc."). */
 // ("Partners, LP" alone is not enough: pipeline MLPs like Western Midstream Partners use it too.)
@@ -20,11 +26,13 @@ const NOT_A_SPONSOR = /^EQT Corp|\bMortgage\b/i;
 
 export function buyerType(deal: Deal): BuyerType {
   const name = deal.acquirer.name;
-  if (SPONSORS.test(name) && !NOT_A_SPONSOR.test(name)) return "Private equity";
+  const ticker = deal.acquirer.ticker;
+  if ((SPONSORS.test(name) || MORE_SPONSORS.test(name)) && !NOT_A_SPONSOR.test(name) && (!ticker || LISTED_SPONSORS.has(ticker.toUpperCase())))
+    return "Private equity";
   // A listed company's fund-like name is just a name: a hotel REIT's "Investors", a pipeline's "Equity Partners".
-  if (FUND_SHAPE.test(name) && !deal.acquirer.ticker) return "Private equity";
+  if (FUND_SHAPE.test(name) && !ticker) return "Private equity";
   // A buyout vehicle that isn't itself a listed company is almost always sponsor-backed.
-  if (!deal.acquirer.cik && !deal.acquirer.ticker && VEHICLE.test(name)) return "Private equity";
+  if (!deal.acquirer.cik && !ticker && VEHICLE.test(name)) return "Private equity";
   return "Strategic";
 }
 

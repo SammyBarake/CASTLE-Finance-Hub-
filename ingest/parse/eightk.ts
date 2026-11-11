@@ -135,6 +135,10 @@ export function definedEntities(s: string): Entity[] {
     // "by and among Perry Ellis, Feldenkreis Holdings LLC": an earlier party's defined term in front of this one's name.
     // (Not a second company of the same name: "Columbia Financial, Inc., … ("Columbia Financial"), Columbia Financial, Inc., a newly-formed Maryland corporation (the "Holding Company")" left "Inc.".)
     for (const prev of out) for (const term of [prev.nick, prev.alias]) if (term && name.startsWith(`${term}, `) && prev.name !== name) name = name.slice(term.length + 2);
+    // …or a short form of its name: "by and among Piedmont, Duke Energy Corporation, a Delaware corporation ("Parent")"
+    // after Piedmont Natural Gas Company, Inc. (the "Company").
+    const shortForm = /^([A-Z][\w&'’-]*(?: [A-Z][\w&'’-]*){0,2}), (?=[A-Z][\w&'’-]* [A-Z])/.exec(name);
+    if (shortForm && out.some((prev) => prev.name.startsWith(`${shortForm[1]} `))) name = name.slice(shortForm[0].length);
     if (!isPlausibleName(name) || name.length > 70 || CLAUSE.test(name)) continue;
     if (/^(?:the\s+)?(?:New York Stock Exchange|NYSE(?: American| MKT| Arca)?|Nasdaq(?: Stock Market| Global(?: Select)? Market| Capital Market)?(?: LLC)?|Toronto Stock Exchange|TSX(?: Venture Exchange)?|Securities and Exchange Commission)$/i.test(name)) continue;
     if (/^(?:the )?(?:Company|Partnership|Registrant|Trust|Parent|Merger Sub|Purchaser|Board|Effective Time|Offer|Merger|Share|Delaware)$/i.test(name)) continue;
@@ -146,7 +150,9 @@ export function definedEntities(s: string): Entity[] {
     if (/\b(?:Stock|Shares|Notes|Warrants|Units|Securities|Options|Consideration|Price|Members|Holders|Stockholders|Shareholders|Unitholders|Equityholders)$/i.test(m[2].trim())) continue;
     // Nor are the company's own bodies: "… a wholly owned subsidiary of Ithaca. The board of directors (the "Board")" gave
     // an "Ithaca" defined as the Board.
-    if (/^(?:Board(?: of Directors)?|(?:Special |Transaction |Independent )?Committee)$/i.test(m[2].trim())) continue;
+    // (An MLP's "Conflicts Committee" too: "Common Units and Preferred Units, respectively. The Conflicts Committee (the
+    // "Conflicts Committee")" made "Preferred Units, respectively" Shell Midstream's buyer.)
+    if (/^(?:Board(?: of Directors)?|(?:Special |Transaction |Independent |Conflicts |Audit )?Committee|GP Board)$/i.test(m[2].trim())) continue;
     // Nor are defined terms for the deal itself: ... merge with and into RTB (the "Merger").
     if (/^(?:Mergers?|Transactions?|Offer|Closing|Effective Time|(?:Merger |Transaction |Arrangement |Implementation |Combination )?Agreement|Surviving Corporation|Scheme)$/i.test(m[2].trim())) continue;
     // Nor meetings, plans or other paperwork: "… at a special meeting (the "Meeting")", "(the "Equity Plan")".
@@ -201,7 +207,8 @@ export function raisedPrice(section: string): number | null {
 export function extractMergerPrice(s: string): number | null {
   const found: { v: number; at: number }[] = [];
   const patterns = [
-    /(?:right|entitled) to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|,? without interest|\(the)/gi,
+    // (An MLP's unit too: "the right to receive $15.85 per Public Common Unit in cash", Shell Midstream.)
+    /(?:right|entitled) to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|per (?:Public |Outstanding )?(?:Common )?Unit\b|,? without interest|\(the)/gi,
     // "for (i) $8.50 per Share, net to the seller in cash", "for a purchase price of $95.00 per share, net to the holders
     // thereof in cash" (Cerner)
     /(?:for|at a price of|offer price of|(?:for|at) a (?:purchase |cash |offer )?price of|purchase price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
@@ -451,8 +458,14 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
     mech.acquirerHint = undefined;
     mech.target = "Company";
   }
+  // A defined Parent / Buyer is the target only by its name or that name run on ("Fathom Digital Manufacturing
+  // Intermediate, LLC", the company's own vehicle), not a shared first word: Shell USA, Inc. ("Parent") buying the rest
+  // of Shell Midstream Partners, L.P. (BP / BP Midstream, a sponsor and its MLP).
+  const runsOn = (a: string, b: string) => a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `);
   const isTarget = (e: Entity) =>
-    sameCompany(e.name, targetName) || e.nick.toLowerCase() === mech.target.toLowerCase() || e.alias?.toLowerCase() === mech.target.toLowerCase();
+    e.nick.toLowerCase() === mech.target.toLowerCase() ||
+    e.alias?.toLowerCase() === mech.target.toLowerCase() ||
+    (BUYER_NICKS.some((n) => n.toLowerCase() === e.nick.toLowerCase()) ? runsOn(normalizeName(e.name), normalizeName(targetName ?? "")) :sameCompany(e.name, targetName));
 
   // A double merger under a new holding company: "all issued and outstanding common shares of Marvell … will be … converted into the right to receive one share of common stock of HoldCo". The side whose holders swap one for one is the buyer; the other is the target.
   {
@@ -575,8 +588,10 @@ export function parseMergerItem(rawText: string, ctx: PressContext): ParsedPress
       }
     }
   }
-  // (Not by a shared first word when the buyer is the filer: First Internet Bancorp, First Century Bancorp.)
-  if (!isPlausibleName(acquirerName) || (sameCompany(acquirerName, targetName) && !(acquirerName === ctx.filerName && normalizeName(acquirerName).split(" ")[0] === normalizeName(targetName).split(" ")[0] && normalizeName(acquirerName) !== normalizeName(targetName) && !normalizeName(targetName).startsWith(`${normalizeName(acquirerName)} `) && !normalizeName(acquirerName).startsWith(`${normalizeName(targetName)} `))) || /^(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(acquirerName)) return null;
+  // (Not by a shared first word when the buyer is the filer: First Internet Bancorp, First Century Bancorp; nor when
+  // both are defined apart, the buyer as Parent: Shell USA, Inc. and Shell Midstream Partners, L.P.)
+  const definedApart = acquirerName === buyer.name && BUYER_NICKS.includes(buyer.nick) && targetEntity != null && targetEntity !== buyer;
+  if (!isPlausibleName(acquirerName) || (sameCompany(acquirerName, targetName) && !((acquirerName === ctx.filerName || definedApart) && normalizeName(acquirerName).split(" ")[0] === normalizeName(targetName).split(" ")[0] && normalizeName(acquirerName) !== normalizeName(targetName) && !normalizeName(targetName).startsWith(`${normalizeName(acquirerName)} `) && !normalizeName(acquirerName).startsWith(`${normalizeName(targetName)} `))) || /^(?:Parent|Purchaser|Buyer|Company|Partnership|Registrant|Trust|Merger Sub)$/i.test(acquirerName)) return null;
 
   // An amendment to an agreement already announced ("First Amendment to Agreement and Plan of Merger. As previously
   // announced, …") updates that deal and never creates one: Vista Outdoor's amendment listed Revelyst first, which

@@ -123,6 +123,19 @@ Item 9.01 Financial Statements and Exhibits.`;
 describe("parseMergerItem: older filings and partnerships", () => {
   const ctx = { filerName: "TransMontaigne Partners L.P.", filerTickers: [] };
 
+  it("reads a sponsor buying its MLP: a shared first word, a Conflicts Committee, a price per unit", () => {
+    const text = `Item 1.01 Entry into a Material Definitive Agreement.
+On July 25, 2022, Harbor USA, Inc., a Delaware corporation ("Parent"), Harbor Midstream LP Holdings LLC, a Delaware limited liability company and indirect wholly owned subsidiary of Parent ("Holdings"), Sonic Enterprises LLC, a Delaware limited liability company and indirect wholly owned subsidiary of Parent ("Merger Sub"), Harbor Midstream Partners, L.P., a Delaware limited partnership (the "Partnership"), and Harbor Midstream Partners GP LLC, a Delaware limited liability company and the general partner of the Partnership (the "General Partner"), entered into an Agreement and Plan of Merger (the "Merger Agreement"), pursuant to which Merger Sub will merge with and into the Partnership (the "Merger").
+At the effective time of the Merger, each common unit other than Common Units owned by Parent ("Public Common Units"), will be converted into the right to receive $15.85 per Public Common Unit in cash, without any interest thereon. The Common Units owned by Parent and the Preferred Units shall remain outstanding as Common Units and Preferred Units, respectively.
+The Conflicts Committee (the "Conflicts Committee") of the board of directors of the General Partner has approved the Merger Agreement.
+Item 9.01 Financial Statements and Exhibits.`;
+    const p = parseMergerItem(text, { filerName: "Harbor Midstream Partners, L.P.", filerTickers: [] })!;
+    expect(p.target.name).toBe("Harbor Midstream Partners, L.P.");
+    expect(p.acquirer.name).toBe("Harbor USA, Inc.");
+    expect(p.pricePerShare).toBe(15.85);
+    expect(definedEntities(text.slice(0, 3000)).map((e) => e.nick)).not.toContain("Conflicts Committee");
+  });
+
   it("reads a partnership target defined as \"the Partnership\"", () => {
     const text = `Item 1.01 Entry into a Material Definitive Agreement.
 On October 8, 2018, TransMontaigne Partners L.P., a Delaware limited partnership (the "Partnership"), entered into an Agreement and Plan of Merger (the "Merger Agreement") with Kestrel Energy Holdings LLC, a Delaware limited liability company ("Parent"), and Kestrel Merger Sub LLC ("Merger Sub"), pursuant to which Merger Sub will merge with and into the Partnership, with the Partnership surviving as a subsidiary of Parent. Each common unit will be converted into the right to receive $41.00 in cash.

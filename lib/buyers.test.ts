@@ -51,6 +51,18 @@ describe("buyerType", () => {
     // A listed sponsor is still a sponsor, and an unlisted fund name still a fund.
     expect(buyerType(deal(co("Apollo Global Management, Inc.", "1858681", "APO")))).toBe("Private equity");
     expect(buyerType(deal(co("Ravine Capital Management, L.P.")))).toBe("Private equity");
+    // Operating companies that share a sponsor's first word.
+    expect(buyerType(deal(co("Apollo Medical Holdings, Inc.", "1083446", "ASTH")))).toBe("Strategic");
+    expect(buyerType(deal(co("Cerberus Cyber Sentinel Corp", "1777319", "CISO")))).toBe("Strategic");
+    expect(buyerType(deal(co("KKR & Co. Inc.", "1404912", "KKR")))).toBe("Private equity");
+  });
+
+  it("knows the sponsors a read of the live buyers found labelled strategic", () => {
+    for (const n of ["Apax Partners LLP", "GI Partners", "Altaris, LLC", "American Industrial Partners", "Arcline Investment Management", "H.I.G.", "J.F. Lehman & Company", "The Jordan Company", "Symphony Technology Group", "Turn/River Capital", "Yucaipa", "Trian and General Catalyst", "Standard General", "Canada Pension Plan Investment Board"])
+      expect(buyerType(deal(co(n))), n).toBe("Private equity");
+    // Not a word inside another: Triangle, a sponsor-sounding operating company.
+    expect(buyerType(deal(co("Triangle Petroleum")))).toBe("Strategic");
+    expect(buyerType(deal(co("Applied Intuition, Inc.")))).toBe("Strategic");
   });
 });
 
