@@ -37,7 +37,12 @@ export function shortName(name: string): string | null {
 
 /** The core of a private company's name for searching: no legal suffix ("Avitide Inc." → "Avitide"). */
 export function searchName(name: string): string | null {
-  const core = name.replace(/,?\s+(?:Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Co|Company LLC|L\.?P|plc|S\.A|N\.V|B\.V|GmbH|AG|Oy|AB|SAS)\.?$/i, "").trim();
+  // Every legal part, however many: "Joh. Clouth GmbH & Co. KG" → "Joh. Clouth" (one pass left "Joh. Clouth GmbH &", which no filing writes).
+  let core = name.trim();
+  for (let prev = ""; prev !== core; ) {
+    prev = core;
+    core = core.replace(/,?\s+(?:&\s*Co|KG|Inc|LLC|L\.L\.C|Ltd|Limited|Corp|Corporation|Co|Company LLC|L\.?P|plc|S\.A|N\.V|B\.V|GmbH|AG|Oy|AB|SAS)\.?$/i, "").replace(/\s*[&,]$/, "").trim();
+  }
   // Too short or generic to search for on its own ("Joh", "Home Health", "Privately Held"); an acronym in capitals is a
   // name ("NFP": Aon's 10-Q says "completed the acquisition of NFP").
   // (A brand may start in lower case: mGage, aiXscale, iSun. A capital somewhere, or a digit first: 1st Colonial.)
@@ -152,6 +157,8 @@ export function nameForms(name: string): string[] {
   add(name.includes(" & ") ? name.replace(" & ", " and ") : undefined);
   add(/^(.+?)\s+(?:and|&)\s+[A-Z]/.exec(name)?.[1]);
   add(/^([A-Z]{5,})\s+[A-Z][a-z]/.exec(name)?.[1]);
+  // After an abbreviated first name, the family name: "Joh. Clouth" is "The Clouth Group of Companies (Clouth)" in Kadant's reports.
+  add(/^[A-Z][a-z]{1,3}\.\s+([A-Z][a-z]{4,})$/.exec(name)?.[1]);
   // Written as one word after the headline spaced it: "PH Precision Med" is "PHPrecisionMed Inc." (only with an initialism in it).
   const words = name.split(/\s+/);
   if (words.length >= 2 && words.length <= 4 && words.every((w) => /^[A-Z][A-Za-z]*$/.test(w)) && words.some((w) => /^[A-Z]{2,3}$/.test(w))) add(words.join(""));
@@ -224,6 +231,12 @@ export function readLooseCompletion(text: string, name: string): CompletionRead 
   for (const { form, re } of namesIn(flat, name)) {
     for (const m of flat.matchAll(re)) {
       const { start, end } = sentenceAround(flat, m.index, form.length);
+      // Its sellers are "former" holders only once it's bought: "In connection with the Company's acquisition of Own Company Ltd., on November
+      // 18, 2024, the Company issued 43,682 shares … to certain former stockholders of Own Company Ltd." (Salesforce). Undated: that day is the issue's.
+      if (/\bformer\s+(?:stockholders|shareholders|owners|equity\s?holders|unitholders|members)\s+of\s+$/i.test(flat.slice(start, m.index)) && !LOOSE_GUARD.test(flat.slice(start, m.index))) {
+        first ??= { found: true, date: null, today: false };
+        continue;
+      }
       if (saysDone(flat.slice(start, m.index), flat.slice(m.index + form.length, end))) {
         // Only a day stated close by, not "as of": "As of December 31, 2024" in the table run into this sentence is a balance sheet's (Flex / Crown).
         const near = flat.slice(Math.max(start, m.index - 240), Math.min(end, m.index + form.length + 120)).replace(/\bas of\b/gi, " ");
@@ -252,6 +265,12 @@ export function readLooseEnd(text: string, name: string): CompletionRead {
       const before = flat.slice(start, m.index);
       if (TERMINATED_DEAL_OF.test(before) && !CONDITIONAL.test(before) && !HYPOTHETICAL_END.test(before)) return { found: true, date: null, today: false };
       if (ENDED_DEAL.test(sentence) && !CONDITIONAL.test(sentence.slice(0, sentence.search(ENDED_DEAL)))) return { found: true, date: statedDate(sentence), today: false };
+      // Or the deal named by the company: "Intended SenlangBio acquisition terminated, eliminating potential 80 million share issuance", "we
+      // have decided not to move ahead with the SenlangBio acquisition" (Avalon GloboCare's year-end update, January 4, 2022).
+      const after = flat.slice(m.index + form.length, end);
+      if (/^\s+(?:acquisition|purchase|merger)\s+(?:(?:was|has been|had been|is)\s+)?terminated\b/i.test(after) && !CONDITIONAL.test(before)) return { found: true, date: statedDate(sentence), today: false };
+      if (/\b(?:decided|elected|agreed)\s+not\s+to\s+(?:move|go)\s+(?:ahead|forward)\s+with\s+(?:the|its|our)\s+(?:proposed\s+|intended\s+)?$/i.test(before) && /^\s+(?:acquisition|purchase|merger)\b/i.test(after))
+        return { found: true, date: null, today: false };
     }
   }
   return { found: false, date: null, today: false };

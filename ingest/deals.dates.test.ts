@@ -301,3 +301,20 @@ describe("findAnnouncement", () => {
     expect(deal.announcedDate).toBe("2023-10-31");
   });
 });
+
+describe("purchaseAgreementEnded", () => {
+  it("reads the end of the agreement defined beside the company's name (Freedom / Maxim, Tempo / Optimum)", async () => {
+    const { purchaseAgreementEnded } = await import("./deals");
+    const maxim = 'Item 1.02 Termination of a Material Definitive Agreement. As previously disclosed, on February 15, 2023, Freedom Holding Corp. (the "Company") entered into a Membership Interest Purchase Agreement (the "Purchase Agreement") with Maxim Partners LLC for the purchase of 100% of the membership interests of Maxim Group LLC. Accordingly, effective October 31, 2023, the Company and the Sellers terminated the Purchase Agreement by their mutual written consent.';
+    expect(purchaseAgreementEnded(maxim, /\bMaxim\b/i)).toBe(true);
+    const optimum = 'pursuant to a Securities Purchase Agreement (as amended, the "Purchase Agreement") by and among the Company, Optimum Design Associates, Inc. The Purchase Agreement contained the right for either party to terminate the Purchase Agreement if the closing had not occurred. As a result, the Purchase Agreement was terminated as of August 1, 2023.';
+    expect(purchaseAgreementEnded(optimum, /\bOptimum Design Associates\b/i)).toBe(true);
+  });
+  it("not another agreement the 8-K ends, nor a right to terminate (Standard BioTools / Treeline)", async () => {
+    const { purchaseAgreementEnded } = await import("./deals");
+    const other = 'Item 1.02 The material terms of the Multiplex Bio Purchase Agreement are incorporated by reference. The Company entered into an Agreement and Plan of Merger (the "Merger Agreement") with Treeline Biosciences, Inc. The Multiplex Bio Purchase Agreement was terminated.';
+    expect(purchaseAgreementEnded(other, /\bTreeline Biosciences\b/i)).toBe(false);
+    const right = 'a Stock Purchase Agreement (the "Purchase Agreement") with Acme Widgets, Inc. Either party has the right to terminate the Purchase Agreement if the closing does not occur by June 30.';
+    expect(purchaseAgreementEnded(right, /\bAcme Widgets\b/i)).toBe(false);
+  });
+});

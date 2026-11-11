@@ -32,7 +32,7 @@ import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { closingFiling, closingsToRead, milestonesFrom, ownFilings } from "./timeline";
 import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
-import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay } from "./parse/completion";
+import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay, statedDate } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
 import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForBuyer, sectorForCompany } from "./sectors";
@@ -1279,6 +1279,27 @@ async function privateClosing(deal: StoredDeal, acquirerSub: Submissions, seen: 
  * A private purchase the buyer walked away from: its 8-K Item 1.02 says the merger agreement was terminated and names
  * the target (Adobe / Figma, December 2023). Each 8-K is read once per deal (`seen`: "term:<deal>:<accession>").
  */
+/**
+ * A private company's purchase agreement ended: the agreement defined beside the company's name is the one terminated. "entered into a Membership
+ * Interest Purchase Agreement (the "Purchase Agreement") … of Maxim Group LLC …, the Company and the Sellers terminated the Purchase Agreement" (Freedom);
+ * Tempo's "Securities Purchase Agreement (as amended, the "Purchase Agreement") by and among the Company, Optimum Design Associates, Inc. … the
+ * Purchase Agreement was terminated as of August 1, 2023". Not another agreement the same 8-K ends: Standard BioTools' Item 1.02 ended its
+ * "Multiplex Bio Purchase Agreement" while its merger with Treeline went on.
+ */
+export function purchaseAgreementEnded(text: string, named: RegExp): boolean {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const m of text.matchAll(/\((?:as amended,\s*)?the\s+["“]\s*([A-Z][^"”]{0,40}?Agreement)\s*["”]\s*\)/g)) {
+    if (!/\b(?:Purchase|Exchange|Merger|Acquisition|Contribution)\s+Agreement$/.test(m[1])) continue;
+    if (!named.test(text.slice(Math.max(0, m.index - 600), m.index + 500))) continue;
+    const term = esc(m[1]);
+    const ended = new RegExp(`\\bterminat(?:ed|ion of)\\s+(?:the\\s+)?${term}\\b|\\b${term}(?:(?!agreement)[^.]){0,80}?\\b(?:was|has been|have been|were|had been)\\s+(?:validly\\s+|mutually\\s+)?terminated`, "i");
+    // (Not a right or a condition: "the right … to terminate the Purchase Agreement if …".)
+    const t = text.replace(/\b(?:rights?|option|ability)\s+(?:of\s+[^.]{1,80}?\s+)?to\s+terminate\b/gi, "").replace(/\b(?:if|in the event(?: that)?|upon|should|unless|until|whether)\s+(?:the\s+)?[^.]{0,60}?terminated/gi, "");
+    if (ended.test(t)) return true;
+  }
+  return false;
+}
+
 async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, seen: Set<string>) {
   const core = cleanPartyName(deal.target.name).replace(/,?\s+(?:Inc|LLC|Ltd|Limited|Corp|Corporation|Co|L\.?P|plc|S\.A|N\.V|GmbH|AG)\.?$/i, "");
   if (core.length < 4) return;
@@ -1287,14 +1308,18 @@ async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, se
     .filter((f) => /^8-K/.test(f.form) && /\b1\.02\b/.test(f.items) && f.date > deal.announcedDate && f.date <= shiftDate(deal.announcedDate, 730))
     .sort((a, b) => a.date.localeCompare(b.date));
   for (const f of ends.slice(0, 4)) {
-    const key = `term:${deal.id}:${f.adsh}`;
+    // ("term2": read again once for a purchase agreement's end, which the first reading didn't take.)
+    const key = `term2:${deal.id}:${f.adsh}`;
     if (seen.has(key)) continue;
     seen.add(key);
     try {
       const text = flatten(htmlToText(await getTextHead(archiveUrl(acquirerSub.cik, f.adsh, f.primaryDocument), 120_000)));
-      if (saysMergerTerminated(text) && named.test(text)) {
+      if ((saysMergerTerminated(text) && named.test(text)) || purchaseAgreementEnded(text, named)) {
         deal.status = "Terminated";
-        deal.statusDate = f.date;
+        // The day the 8-K states when it's close before its filing: "the Purchase Agreement was terminated as of August 1, 2023" (Tempo, filed
+        // August 4), "effective October 31, 2023, the Company and the Sellers terminated the Purchase Agreement" (Freedom, filed November 6).
+        const said = text.split(/(?<=\.)\s+(?=[A-Z])/).filter((s) => /\bterminat/i.test(s)).map((s) => statedDate(s)).find((d) => d && d <= f.date && d >= shiftDate(f.date, -30));
+        deal.statusDate = said ?? f.date;
         return;
       }
     } catch {
@@ -1386,8 +1411,11 @@ function signingDay(text: string, fileDate: string): string | undefined {
  * 3: the oldest three and newest three hits (the outcome is often only in the latest reports: Prosperity / Lone Star), a
  * closing release in an 8-K read loosely ("announced the completion of its … acquisition of GAP Promotions, LLC ("GAP Promo")"),
  * new wordings and name forms. Only open private deals are looked at again, so a bump costs a few searches each.
+ * 4: from the November 11 readers of the deals open over two years: "former stockholders of Own Company Ltd." (undated), "Intended SenlangBio
+ * acquisition terminated", "decided not to move ahead with the … acquisition", the family name after an abbreviation ("Clouth"), and every
+ * legal part off a name ("Joh. Clouth GmbH & Co" was searched as "Joh. Clouth GmbH &").
  */
-export const CLOSE_CHECK_VERSION = 3;
+export const CLOSE_CHECK_VERSION = 4;
 /**
  * A filing that talks like a SPAC's: a trust account and a blank-check company or initial business combination, in its
  * first 20,000 characters. A de-SPACed filer keeps its CIK and loses the code (Venus Acquisition, now MicroAlgo, merging

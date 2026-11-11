@@ -238,6 +238,13 @@ export function cleanPartyName(raw: string): string {
   // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".
   const nameThenRole = /^(.{3,60}?\b(?:LLP|LLC|Inc\.?|Ltd\.?|Corp\.?))\s+(?:[A-Z][\w&-]*\s+){1,4}(?:Firm|Company|Provider|Platform|Business)$/.exec(s);
   if (nameThenRole) s = nameThenRole[1];
+  // …or a brand with a capital inside it, then what it is: "CreditIQ Automotive Fintech Platform" (Cars.com bought CreditIQ, Inc.). Never
+  // Company or Business: "SouthWest Water Company", "AdTheorent Holding Company" are the names, "MegaPath Managed Services Business" a unit.
+  const brandThenRole = /^([A-Z][a-z]+[A-Z][A-Za-z]*)\s+(?:[A-Z][a-z]+\s+){1,3}(?:Platform|Provider|Startup)$/.exec(s);
+  if (brandThenRole) s = brandThenRole[1];
+  // An investment bank named for what it is: "Freedom Holding Corp. to Acquire Investment Bank Maxim" (Maxim Group LLC).
+  const bank = /^(?:Boutique\s+|U\.?S\.?\s+|American\s+)?Investment\s+Bank\s+([A-Z][\w.&'’-]*(?:\s+[A-Z][\w.&'’-]*){0,2})$/.exec(s);
+  if (bank && !/^(?:Inc|Corp|LLC|Ltd|Limited|Holdings|Group|of)\b/i.test(bank[1])) s = bank[1];
   // "Blackstone Real Estate Income Trust All-Cash Transaction" -> "Blackstone Real Estate Income Trust"
   s = s.replace(/\s+(?:in\s+an?\s+)?(?:All[- ]Cash|All[- ]Stock|Cash[- ]and[- ]Stock|Cash|Stock)\s+(?:Transaction|Deal|Merger)\b.*$/i, "");
   // "PRIVATELY HELD TENEOBIO", "UK-BASED CORETRAX", "family-owned Acme" -> the name itself

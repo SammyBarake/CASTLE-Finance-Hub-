@@ -44,6 +44,9 @@ describe("private-deal completion statements", () => {
     expect(statedDate("on 21 March 2022 the purchase closed")).toBe("2022-03-21");
     expect(statedDate("the acquisition closed during the quarter")).toBeNull();
     expect(searchName("Avitide Inc.")).toBe("Avitide");
+    expect(searchName("Joh. Clouth GmbH & Co")).toBe("Joh. Clouth");
+    expect(searchName("Harris Freeman & Co, Inc.")).toBe("Harris Freeman");
+    expect(searchName("Smith & Co. KG")).toBe("Smith");
     expect(searchName("Joh")).toBeNull();
     expect(searchName("Privately Held")).toBeNull();
   });
@@ -91,5 +94,17 @@ describe("closings about something else, and ends by 'termination of the acquisi
   it("prefers the release's 'today' sentence over its headline", () => {
     const t = 'Stran & Company Announces Closing of GAP Promo Acquisition; Adds Over $7 Million in Revenue. QUINCY, MA / February 1, 2022 / Stran & Company, Inc. (NASDAQ: SWAG) ("Stran" or the "Company"), an outsourced marketing solutions provider, today announced the completion of its previously announced acquisition of GAP Promotions, LLC ("GAP Promo") in an asset purchase transaction.';
     expect(readLooseCompletion(t, "GAP Promo")).toMatchObject({ found: true, today: true });
+  });
+});
+
+describe("November 11 readings of deals open over two years", () => {
+  it("reads an end named by the deal, and former holders as a closing", async () => {
+    const { readLooseEnd, readLooseCompletion, nameForms } = await import("./completion");
+    expect(readLooseEnd("Year-end update. Intended SenlangBio acquisition terminated, eliminating potential 80 million share issuance.", "SenlangBio").found).toBe(true);
+    expect(readLooseEnd("Towards this end, we have decided not to move ahead with the SenlangBio acquisition.", "SenlangBio").found).toBe(true);
+    expect(readLooseEnd("If the SenlangBio acquisition is not completed, we may seek other targets.", "SenlangBio").found).toBe(false);
+    const own = readLooseCompletion("In connection with the Company's acquisition of Own Company Ltd., on November 18, 2024, the Company issued 43,682 shares of its common stock to certain former stockholders of Own Company Ltd. that will vest over time.", "Own Company");
+    expect(own).toEqual({ found: true, date: null, today: false });
+    expect(nameForms("Joh. Clouth")).toContain("Clouth");
   });
 });

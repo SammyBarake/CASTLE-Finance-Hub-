@@ -269,3 +269,12 @@ describe("a description with a digit in front of a name", () => {
     expect(cleanPartyName("Direct 3D Printing Pioneer Cubicure")).toBe("Cubicure");
   });
 });
+
+describe("descriptions around a name (November 11)", () => {
+  it("takes the brand before what it is, and an investment bank's own name", async () => {
+    const { cleanPartyName } = await import("./names");
+    expect(cleanPartyName("CreditIQ Automotive Fintech Platform")).toBe("CreditIQ");
+    expect(cleanPartyName("Investment Bank Maxim")).toBe("Maxim");
+    expect(cleanPartyName("Investment Bank Group")).toBe("Investment Bank Group");
+  });
+});
