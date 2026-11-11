@@ -54,6 +54,8 @@ export interface ParsedPress {
   buyIn?: number | true;
   /** A completion release calling the deal "previously announced" without saying when: first seen at its closing. */
   announcedEarlier?: boolean;
+  /** A closing release that says the purchase was "completed" without saying it was announced before: often it was (E2open / BluJay, May 27). */
+  completedWording?: boolean;
   /** Read from a merger 8-K's Item 1.01: terms as the lawyers state them, which a release's headline figures outrank. */
   item101?: boolean;
   /** Terms raised or amended ("Revised Agreement", "First Amendment to the Merger Agreement"): a higher price replaces the first. */
@@ -110,6 +112,12 @@ const SAYS_ANNOUNCED_EARLIER = new RegExp(
     `|\\bAs\\s+previously\\s+(?:disclosed|reported),[^.]{0,60}?\\b(?:${DEAL_NOUN}|acquired|agreed)\\b`,
   "i",
 );
+/** "has completed its acquisition of BluJay Solutions", "its acquisition of … Cumberland Advisors, Inc. ("Cumberland") was completed on January 1, 2026", in the opening. */
+const SAYS_COMPLETED = /\b(?:complet(?:ed|es|ion\s+of)|clos(?:ed|es|ing\s+of)|consummat(?:ed|es|ion\s+of))\s+(?:of\s+)?(?:its|the|their|our)\s+(?:[\w-]+\s+){0,3}?(?:acquisition|purchase|merger)\b|\b(?:acquisition|purchase|merger)\s+of\s+(?:[^.]|(?<=\b(?:Inc|Corp|Co|Ltd|LLC|L\.P|N\.A|Jr|St))\.){0,160}?\b(?:was|were|has\s+been|had\s+been)\s+(?:completed|closed|consummated)\b/i;
+function saysCompleted(text: string): boolean {
+  const m = SAYS_COMPLETED.exec(flatten(text).slice(0, 1600));
+  return !!m && m.index < 1500;
+}
 /** The phrase in the opening, with room for the deal word after it. */
 function saysAnnouncedEarlier(text: string): boolean {
   const m = SAYS_ANNOUNCED_EARLIER.exec(flatten(text).slice(0, 1600));
@@ -862,7 +870,7 @@ function enterpriseValueBeside(t: string, from: number, usd: number): number | n
 }
 
 /** A headline that's a ceiling: "will acquire Nordeus for up to $378 million", "a transaction valued up to $1.1 billion". */
-const CEILING = new RegExp(String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b[^.;]{0,220}?\bfor\s+up\s+to\s+${ABOUT}${DOLLARS}|\bvalued\s+up\s+to\s+${ABOUT}${DOLLARS}`, "i");
+const CEILING = new RegExp(String.raw`\b(?:acquir\w*|acquisition of|purchase of)\b[^.;]{0,220}?\bfor\s+up\s+to\s+${ABOUT}(?:(?:€|£|EUR\s?|GBP\s?|CHF\s?|C\$|CA\$|A\$|AU\$)\s?[\d.,]+\s*(?:million|billion)?\s*\(\s*(?:or\s+)?${ABOUT})?${DOLLARS}|\bvalued\s+up\s+to\s+${ABOUT}${DOLLARS}`, "i");
 /** What's paid at once under a ceiling: "$225 million in cash upfront". Not a financing's ("$115 million in upfront proceeds"). */
 const UPFRONT = new RegExp(
   String.raw`${DOLLARS}\s+(?:\d\s+)?(?:USD\s+)?(?:(?:in|of)\s+)?(?:(?:cash|stock|equity|consideration)\s+)?(?:(?:(?:is\s+|are\s+|will\s+be\s+)?(?:payable|paid|due|issued)(?:\s+in\s+cash)?|to\s+be\s+(?:paid|issued))\s+)?(?:upfront|up-front|(?:at|upon)\s+(?:the\s+)?clos(?:e|ing))\b(?!\s+(?:financing|funding|proceeds|investment))|\b(?:upfront|up-front)\s+(?:(?:cash\s+)?(?:payment|consideration|purchase\s+price|price|amount)\s+)?of\s+(?:up\s+to\s+)?${ABOUT}${DOLLARS}`,
@@ -993,8 +1001,9 @@ export function extractValue(raw: string, opts: { agreement?: boolean } = {}): {
     if (dollar > 0 && /\b(?:adjustment|reduction|decrease|holdback|escrow)s?\s+(?:of\s+)?(?:up\s+to\s+|a\s+maximum\s+(?:of\s+)?|approximately\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) continue;
     // A ceiling, not the price: "valued at up to $1.3 billion", which the release goes on to explain "includes up to $150
     // million in earnout" in another sentence (IonQ / Elisity).
-    if (dollar > 0 && !/\b(?:upfront|up-front)\b/i.test(lead) && /\bup\s+to\s+(?:approximately\s+|about\s+)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) {
-      ceiling = num(m[2]) * unitMult(m[3]);
+    // (Also in another currency first: "includes up to €10 million (approximately $11.6 million …) payable over 3 years" (GroGlass).)
+    if (dollar > 0 && !/\b(?:upfront|up-front)\b/i.test(lead) && /\bup\s+to\s+(?:approximately\s+|about\s+)?(?:(?:€|£|EUR\s?|GBP\s?|CHF\s?|C\$|CA\$|A\$|AU\$)\s?[\d.,]+\s*(?:million|billion)?\s*\(\s*(?:or\s+)?(?:approximately\s+|about\s+)?)?(?:US|U\.S\.)?$/i.test(m[0].slice(0, dollar))) {
+      ceiling = Math.max(ceiling, num(m[2]) * unitMult(m[3]));
       continue;
     }
     // "$200 million of run-rate cost synergies" is not a price.
@@ -1344,7 +1353,7 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     // share exchange); the period in "$0.01" ended the old look-ahead.)
     // (Also a ratio with no leading zero, ".30 shares of CenterState's common stock", and units: "1.3 Enterprise common
     // units".)
-    /(?<![$#\d.,]\s?)(?<!\bNo\.\s?)(?<!\brepresent(?:s|ing)\s)(?:\b(?:one|two|three|\d+\.\d+|\d+)|(?<=\s)\.\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|(?<=[Cc]ommon\s)[Uu]nits?)\b(?!\s+(?:outstanding|repurchase|points?)|[^.;]{0,40}?\b(?:more|less|fewer) than\b|[^;]{0,70}?\bof (?:the )?(?:[A-Z][\w&.'’-]*\s+){0,2}(?:[Ss]urviving|[Ss]ubsidiary)\b)/.test(forStock) ||
+    /(?<![$#\d.,]\s?)(?<!\bNo\.\s?)(?<!\brepresent(?:s|ing)\s)(?:\b(?:one|two|three|\d+\.\d+|\d+)|(?<=\s)\.\d+)\s+(?:[A-Z][\w&.'’-]*\s+){0,4}(?:common\s+|ordinary\s+)?(?:[Ss]hares?|ADSs?|(?<=[Cc]ommon\s)[Uu]nits?)\b(?!\s+(?:outstanding\w*|repurchas\w*|points?|a|an|the|their|our|its)\b|[^.;]{0,40}?\b(?:more|less|fewer) than\b|[^;]{0,70}?\bof (?:the )?(?:[A-Z][\w&.'’-]*\s+){0,2}(?:[Ss]urviving|[Ss]ubsidiary)\b)/.test(forStock) ||
     // An exchange ratio before legal words: "3.8721 fully paid and non-assessable Parent Shares" (Penumbra).
     // Not "0.640 KMI warrants per share", nor a share count ("2.785 million shares").
     /(?<![$\d.,]\s?)\b\d+\.\d{3,4}\s+(?!million|billion)(?:validly\s+issued,\s+)?(?:[\w&.'’-]+\s+){0,6}?(?<!\bper\s)(?:[Ss]hares?|ADSs?)\b/.test(forStock) ||
@@ -1415,7 +1424,9 @@ function classifyConsideration(t: string, offer = false, forStock = t): Consider
     // will receive a portion of the merger consideration in cash" (AG Mortgage / WMC)
     /\bstock\s+consideration\b(?:[^.;]|\.(?=\d)){0,120}?\bcash\s+consideration\b|\bcash\s+consideration\b(?:[^.;]|\.(?=\d)){0,120}?\bstock\s+consideration\b|(?<!\bmay\s+(?:elect\s+to\s+)?pay\s+a\s+)\b(?:portion|part)\s+of\s+the\s+(?:merger\s+|total\s+|aggregate\s+)?consideration\s+in\s+cash\b/i.test(forStock) ||
     // "for an enterprise value of $13.0 billion, including $7.0 billion cash and assumed liabilities as well as $6.0 billion in equity in the form of 19.0 million Aon shares" (Aon / NFP).
-    /\bincluding\s+\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:in\s+)?cash\b[^.;]{0,80}?\bas\s+well\s+as\s+\$\s?\d[\d.,]*\s*(?:million|billion)\s+in\s+(?:equity|stock|shares)\b/i.test(forStock);
+    /\bincluding\s+\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:in\s+)?cash\b[^.;]{0,80}?\bas\s+well\s+as\s+\$\s?\d[\d.,]*\s*(?:million|billion)\s+in\s+(?:equity|stock|shares)\b/i.test(forStock) ||
+    // "Prosperity will issue 3,583,370 shares of Prosperity common stock plus $93.4 million in cash for all outstanding shares of First Bancshares".
+    /\bwill\s+issue\s+(?:approximately\s+)?(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?\s+million)\s+shares\s+of\s+[^.;$]{0,60}?\b(?:common\s+stock|common\s+shares|shares)\s+(?:and|plus)\s+(?:approximately\s+)?\$\s?\d[\d.,]*\s*(?:million|billion)?\s+(?:in\s+)?cash\b/i.test(forStock);
   // A lump sum of cash beside shares in what holders receive: "approximately 65.6 million shares of Bunge stock and
   // approximately US$2.0 billion in cash" (Viterra). Alone, such a sum is often a CVR or one side of a merger of equals.
   const lump = offer && /\$\s?\d[\d.,]*\s*(?:million|billion)\s+(?:(?:in|of)\s+)?cash\b(?!\s+(?:flow|equivalents|balance))/i.test(t);
@@ -2336,6 +2347,7 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
     ...(datedByLine ? { datedByLine: true } : {}),
     ...(buyInOf(text) != null ? { buyIn: buyInOf(text)! } : {}),
     ...(kind === "completion" && !announcedOn && saysAnnouncedEarlier(text) ? { announcedEarlier: true } : {}),
+    ...(kind === "completion" && (!announcedOn || datedByLine) && !saysAnnouncedEarlier(text) && saysCompleted(text) ? { completedWording: true } : {}),
     ...(targetListedAbroad ? { targetListedAbroad } : {}),
     ...(targetOnOtc ? { targetOnOtc } : {}),
     privateTarget: isPrivateTarget(target.name, intro, target.ticker),

@@ -22,6 +22,9 @@ export interface StoredDeal extends Deal {
   buyIn?: number | true;
   /** The date is the closing: the release says "previously announced" and no earlier document has been found. Such a record holds no share-price figure. */
   dateIsClosing?: boolean;
+  /** Dated at a closing whose release says only "completed": the buyer's earlier 8-Ks are searched for an announcement too, but unlike
+   * dateIsClosing the date may be right (bought and closed at once), so the record keeps its share-price figure. */
+  seekAnnouncement?: boolean;
   /** ANNOUNCE_CHECK_VERSION of the search of the buyer's earlier 8-Ks for that announcement. */
   announceCheck?: number;
   /** The terms are a raised offer's: a document found later that predates it moves the date, not the price. */

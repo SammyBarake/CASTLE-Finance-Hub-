@@ -225,6 +225,7 @@ describe("isPlausibleName: documents and headings", () => {
 describe("cleanPartyName: longer descriptions", () => {
   it("keeps the name after a description, and leaves names that end in the role word", () => {
     expect(cleanPartyName("U.K. Firefighter Turnout Gear Manufacturer Bristol Uniforms")).toBe("Bristol Uniforms");
+    expect(cleanPartyName("Wisconsin-Based MEP Contractor 1901 Inc.")).toBe("1901 Inc.");
     expect(cleanPartyName("Specialist M&A Advisor Portico Capital Advisors")).toBe("Portico Capital Advisors");
     expect(cleanPartyName("Existing Strategic Partner Adlumin")).toBe("Adlumin");
     expect(cleanPartyName("Marks Paneth LLP NYC Accounting Firm")).toBe("Marks Paneth LLP");

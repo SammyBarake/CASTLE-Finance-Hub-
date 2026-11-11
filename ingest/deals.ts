@@ -664,6 +664,7 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
       announcedDate: releasedOn && !stated && releasedOn < announced ? releasedOn : announced,
       ...(fromSigning ? { dateIsSigning: true } : {}),
       ...(parsed.kind === "completion" && isPrivate && parsed.announcedEarlier && !stated ? { dateIsClosing: true } : {}),
+      ...(parsed.kind === "completion" && isPrivate && parsed.completedWording && (!stated || parsed.datedByLine) ? { seekAnnouncement: true } : {}),
       acquirer: company(parsed.acquirer, acquirer),
       ...(parsed.item101 ? { buyerFromItem101: true } : {}),
       ...(parsed.amended ? { termsAmended: true, termsAmendedOn: hit.fileDate } : {}),
@@ -1346,6 +1347,7 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
     }
     deal.announcedDate = day ?? h.fileDate;
     delete deal.dateIsClosing;
+    delete deal.seekAnnouncement;
     return;
   }
 }
@@ -2472,7 +2474,7 @@ export async function ingestDeals(
       const settlePrivate = async () => {
         const acquirerSub = deal.acquirer.cik ? await submissions(deal.acquirer.cik) : null;
         enrichPrivateDeal(deal, acquirerSub, opts.today, directory, { verifyClosing: !opts.light });
-        if (deal.dateIsClosing && acquirerSub && !opts.light && deal.announceCheck !== ANNOUNCE_CHECK_VERSION) await findAnnouncement(deal, acquirerSub.cik);
+        if ((deal.dateIsClosing || deal.seekAnnouncement) && acquirerSub && !opts.light && deal.announceCheck !== ANNOUNCE_CHECK_VERSION) await findAnnouncement(deal, acquirerSub.cik);
         if (deal.status === "Announced" && acquirerSub && !opts.light) await privateClosing(deal, acquirerSub, state.seen);
         if (deal.status === "Announced" && acquirerSub) await privateTermination(deal, acquirerSub, state.seen);
         // Still open: the buyer's later filings usually say it closed (or ended).

@@ -102,6 +102,11 @@ describe("a sub-headline about one part of the consideration (AG Mortgage / West
     expect(extractConsideration("Holders will receive cash consideration of $20.00 per share as described below.")).toBe("Cash");
   });
 
+  it("reads shares issued plus cash as mixed, and a company called 1901 sharing a culture as nothing", () => {
+    expect(extractConsideration("Under the terms of the definitive agreement, Prosperity will issue 3,583,370 shares of Prosperity common stock plus $93.4 million in cash for all outstanding shares of First Bancshares capital stock.")).toBe("Mixed");
+    expect(extractConsideration('Paul Christensen said, "Limbach and 1901 share a customer-first culture." The acquisition was completed for a purchase price of $63 million and was funded through available cash and borrowings.')).toBeNull();
+  });
+
   it("doesn't take a cash payment for fractional shares as a cash leg", () => {
     expect(extractConsideration("Each share will be converted into the right to receive 1.5 shares of MITT common stock and a cash payment in lieu of fractional shares.")).toBe("Stock");
     expect(extractConsideration("Each share will be converted into the right to receive 1.5 shares of MITT common stock and a cash payment for any fractional shares.")).toBe("Stock");
@@ -178,6 +183,16 @@ AUSTIN, June 9, 2026 -- Orbit Software, Inc. (Nasdaq: ORBT) today announced that
 });
 
 describe("parsePressRelease", () => {
+  it("marks a closing release that says only 'completed', for the announcement lookup", () => {
+    const done = parsePressRelease(
+      `MID PENN BANCORP, INC. COMPLETES ACQUISITION OF CUMBERLAND ADVISORS, INC.\n\nHARRISBURG, PENNSYLVANIA (January 5, 2026) - Mid Penn Bancorp, Inc. (NASDAQ: MPB) ("Mid Penn"), parent company of Mid Penn Bank, announced today that its acquisition of Sarasota, FL-based Cumberland Advisors, Inc. ("Cumberland") was completed on January 1, 2026. Cumberland is a registered investment advisory firm.`,
+      { filerName: "MID PENN BANCORP INC", filerTickers: ["MPB"] },
+    );
+    expect(done?.kind).toBe("completion");
+    expect(done?.completedWording).toBe(true);
+    expect(done?.announcedEarlier).toBeUndefined();
+  });
+
   it("parses a cash acquisition announced by the acquirer", () => {
     const p = parsePressRelease(CASH_DEAL, { filerName: "Northwind Systems, Inc.", filerTickers: ["NWSY"] })!;
     expect(p.kind).toBe("announcement");
@@ -794,6 +809,8 @@ describe("extractValue: figures that are not the price", () => {
     expect(extractValue(`The transaction is valued at up to $129 million, with a total consideration of $100 million payable at closing.`)?.usd).toBe(100e6);
     // "for up to" is a ceiling too, and a plain "for" still reads.
     expect(extractValue(`Take-Two will acquire Nordeus for up to $378 million.`)).toBeNull();
+    // A ceiling in euros first; the earn-out inside it is no value (Apogee / GroGlass).
+    expect(extractValue(`Apogee has entered into a definitive agreement to acquire SIA "GroGlass" for up to €62.5 million (approximately $72.5 million at current exchange rates) on a cash-free, debt-free basis. The purchase price includes up to €10 million (approximately $11.6 million at current exchange rates) payable over 3 years dependent upon Groglass achieving certain financial targets.`)).toBeNull();
     expect(extractValue(`Take-Two will acquire Nordeus for up to $378 million, comprised of $225 million in cash upfront and earn-outs.`)).toEqual({ usd: 225e6, kind: "transaction" });
     expect(extractValue(`Graham acquired Barber-Nichols in a deal valued at up to $72 million. It acquired the rest for $18.0 million in cash.`)).toEqual({ usd: 18e6, kind: "transaction" });
   });
