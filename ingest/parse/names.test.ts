@@ -278,3 +278,13 @@ describe("descriptions around a name (November 11)", () => {
     expect(cleanPartyName("Investment Bank Group")).toBe("Investment Bank Group");
   });
 });
+
+describe("long descriptions before a name (November 11, the closing sample)", () => {
+  it("takes the name after a description with a slash, a name with an \"and\", a site after a long description", async () => {
+    const { cleanPartyName } = await import("./names");
+    expect(cleanPartyName("Premium Nutrient Producer House and Garden")).toBe("House and Garden");
+    expect(cleanPartyName("Crypto/NFT Platform Redeeem")).toBe("Redeeem");
+    expect(cleanPartyName("People-Powered Job Comparison Site Breakroom")).toBe("Breakroom");
+    expect(cleanPartyName("ADA Site Compliance")).toBe("ADA Site Compliance");
+  });
+});

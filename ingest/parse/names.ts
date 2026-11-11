@@ -232,9 +232,14 @@ export function cleanPartyName(raw: string): string {
   // sits between the two; a name ending in it ("Hunter Fan Company") or going on with "of …" ("Browser Company of New
   // York") has nothing after it to take.
   const describedLong =
-    /^(?:(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z]|\d+[A-Z])[\w.&'’-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator|Contractor)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+&?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s);
+    // (A description word may hold a slash, "Crypto/NFT Platform Redeeem"; the name an "and", "Premium Nutrient Producer House and Garden".)
+    /^(?:(?:[a-z]{1,3}(?=[A-Z]))?(?:[A-Z]|\d+[A-Z])[\w.&'’/-]*\s+(?:(?:and|&)\s+)?){1,6}(?:Manufacturer|Maker|Producer|Creator|Developer|Provider|Supplier|Distributor|Platform|Innovator|Pioneer|Specialist|Leader|Partner|Company|Firm|Advisor|Integrator|Contractor)\s+((?:[a-z]{1,3}(?=[A-Z]))?[A-Z0-9][\w.&'’-]*(?:\s+(?:&|and)?\s*[A-Z0-9][\w.&'’-]*){0,3})$/.exec(s) ??
+    // A site named after a long description: "People-Powered Job Comparison Site Breakroom" (not "ADA Site Compliance", a name).
+    /^(?:[A-Z][\w'’/-]*\s+){2,5}(?:Site|Website|Marketplace)\s+([A-Z][\w.&'’-]*(?:\s+[A-Z][\w.&'’-]*){0,2})$/.exec(s);
   // (Not a bare acronym: "Carlisle Management Company SCA" ends in a legal form, "… Provider API" is ambiguous.)
-  if (describedLong && !/^[A-Z]{2,4}$/.test(describedLong[1]) && !/^(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
+  // (Never a unit or a description left over: "Platform Provider Praemium's UK and International Business", "Fair's Dealer Listing Marketplace
+  // Technology", "Leading Creator Network and Content Platform".)
+  if (describedLong && !/['’]s\b/.test(s) && !(/\band\b/.test(describedLong[1]) && /\b(?:Business|Platform|Technology|Technologies|Network|Unit|Division|Assets?|Operations|Portfolio|Solutions?|Services?)$/.test(describedLong[1])) && !/^[A-Z]{2,4}$/.test(describedLong[1]) &&!/^(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Holdings|Group|International|Of|And|The|Business|Segment|Fund)\b/i.test(describedLong[1])) s = describedLong[1];
   // A name then its description: "Marks Paneth LLP NYC Accounting Firm" -> "Marks Paneth LLP".
   const nameThenRole = /^(.{3,60}?\b(?:LLP|LLC|Inc\.?|Ltd\.?|Corp\.?))\s+(?:[A-Z][\w&-]*\s+){1,4}(?:Firm|Company|Provider|Platform|Business)$/.exec(s);
   if (nameThenRole) s = nameThenRole[1];
