@@ -34,7 +34,7 @@ import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/prox
 import { proxySections } from "./parse/proxySections";
 import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
-import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, opensAsResults, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
+import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForBuyer, sectorForCompany } from "./sectors";
 import type { StoredDeal, State } from "./store";
 import { BASIN_NAME, correctKnownClosing, HOTEL_PROPERTY, moveBuyerOffTarget, SPAC_NAME, tidyDeals } from "./tidy";
@@ -1306,8 +1306,10 @@ async function privateTermination(deal: StoredDeal, acquirerSub: Submissions, se
 /**
  * Bump to look again for the announcement of every private deal dated at its closing (`announceCheck`; 26 live records).
  * 2: the agreement filed as exhibit 2 to the buyer's 8-K counts (Willdan / Mantis, EQT / Tug Hill, Endeavor / OpenBet).
+ * 3: results releases count again, but not a recalled highlight, a deal in prospect or a recollection (Sensata / Dynapower and TransMedics / Summit
+ *    Aviation had gone back to their closings in the November 11 rebuild).
  */
-export const ANNOUNCE_CHECK_VERSION = 2;
+export const ANNOUNCE_CHECK_VERSION = 3;
 
 /**
  * A private purchase first seen at its closing, whose release says "previously announced" and gives no date (128 of them in November 2026: Planet
@@ -1340,12 +1342,12 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
     // Purchase Agreement for Mantis (its body names "Mantis Intermediate Holdings" and says "Seller agreed to sell", no release).
     const agreement = /^EX-2/i.test(h.fileType) && /\b(?:Purchase|Merger|Acquisition|Contribution|Exchange)\s+Agreement\b/i.test(text.slice(0, 4000));
     if (!agreement && !readAnnouncement(text, name)) continue;
-    // Not a document that only recalls the deal: a results release's highlights ("Announced agreement to acquire Weener Packaging", Silgan;
-    // "As announced on July 8, 2024, ESCO has agreed to acquire …"), a de-SPAC's management discussion (SoFi on Golden Pacific, agreed in March
-    // 2021, before it listed), or a letter of intent or term sheet (Agrify / PurePressure, Cosmos / Cana, GigaCloud / New Classic).
+    // Not a document that only recalls the deal: a de-SPAC's management discussion (SoFi on Golden Pacific, agreed in March 2021, before it
+    // listed), or a letter of intent or term sheet (Agrify / PurePressure, Cosmos / Cana, GigaCloud / New Classic). A results release may be
+    // the announcement itself (Sensata's first quarter of 2022: "we are excited to announce … the acquisition of Dynapower"; TransMedics'
+    // "Signed definitive agreement to acquire Summit Aviation"), so only its recalled highlights are refused (`readAnnouncement`).
     const top = flatten(text).slice(0, 6000);
-    const results = opensAsResults(top) || /\b(?:Reports|Announces|REPORTS|ANNOUNCES)\s+(?:[\w-]+\s+){0,4}(?:Quarter|QUARTER|Year|YEAR)\s+(?:[\w-]+\s+){0,2}(?:Results|RESULTS)\b/.test(top.slice(0, 400));
-    if (!agreement && (results || /\bMANAGEMENT['’]S DISCUSSION AND ANALYSIS\b/i.test(top) || /\b(?:letters? of intent|term sheet|LOI)\b/i.test(top))) continue;
+    if (!agreement && (/\bMANAGEMENT['’]S DISCUSSION AND ANALYSIS\b/i.test(top) || /\b(?:letters? of intent|term sheet|LOI)\b/i.test(top))) continue;
     let day = agreement ? undefined : ownReleaseDay(text, h.fileDate) ?? signingDay(text, h.fileDate);
     for (const other of hits.filter((o) => o.adsh === h.adsh && o.file !== h.file).slice(0, 2)) {
       if (day) break;
@@ -2376,6 +2378,8 @@ export async function ingestDeals(
         (d.status === "Announced" && d.statusCheckedAt !== opts.today) ||
         !d.statusCheckedAt ||
         d.registrantCheck !== REGISTRANT_CHECK_VERSION ||
+        // Its announcement looked for again after a change (`ANNOUNCE_CHECK_VERSION`): most are Closed, which nothing else re-reads.
+        (!opts.light && (d.dateIsClosing || d.seekAnnouncement) && d.announceCheck !== ANNOUNCE_CHECK_VERSION) ||
         (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)
       : touched.has(d) ||
       (OPEN.includes(d.status) && d.statusCheckedAt !== opts.today) ||

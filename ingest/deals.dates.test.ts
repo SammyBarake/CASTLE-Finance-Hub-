@@ -272,6 +272,20 @@ describe("findAnnouncement", () => {
     expect(deal.announcedDate).toBe("2023-10-31");
   });
 
+  it("from a results release that announces it (Sensata / Dynapower, TransMedics / Summit Aviation)", async () => {
+    h.hits = [hit({ file: "q3.htm", fileDate: "2023-08-01", adsh: "0000043920-23-000041" })];
+    h.docs["q3.htm"] = "GREIF REPORTS THIRD QUARTER 2023 RESULTS DELAWARE, Ohio, Aug. 1, 2023 -- Greif today reported results. Recent Highlights ▪ Net sales rose 5%. ▪ Signed definitive agreement to acquire Ipackchem. ▪ Completed a notes offering.";
+    const [deal] = (await enrich([closingDated()], "2024-03-28")).deals;
+    expect(deal.announcedDate).toBe("2023-08-01");
+  });
+
+  it("not from a purchase only in prospect (CarGurus: \"the potential future purchase of the remaining 49% interest in CarOffer\")", async () => {
+    h.hits = [hit({ file: "q1.htm", fileDate: "2023-05-09", adsh: "0000043920-23-000030" })];
+    h.docs["q1.htm"] = "GREIF REPORTS FIRST QUARTER 2023 RESULTS There were 7.9 million potentially dilutive shares related to the potential future purchase of the remaining 49% interest in Ipackchem.";
+    const [deal] = (await enrich([closingDated()], "2024-03-28")).deals;
+    expect(deal.announcedDate).toBe("2024-03-27");
+  });
+
   it("not from a results release, a letter of intent or a recollection: those leave the date for the next document", async () => {
     h.hits = [
       hit({ file: "q3.htm", fileDate: "2023-08-01", adsh: "0000043920-23-000041" }),

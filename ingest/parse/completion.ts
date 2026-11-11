@@ -260,9 +260,9 @@ export function readLooseEnd(text: string, name: string): CompletionRead {
 const TO_BUY = /\b(?:to|will)\s+(?:acquire|purchase|buy|merge with|combine with)\b[^.;]{0,60}$/i;
 const UNDER_AGREEMENT = /\b(?:entered into|enters into|signed|signs|executed|announc\w+|reached)\b[^.;]{0,80}\b(?:definitive|merger|purchase|sale|acquisition)\s+agreement\b[^.;]{0,140}$/i;
 // Nor one recalling it ("As announced on July 8, 2024, ESCO has agreed to acquire …"; SoFi's "In March 2021, we entered into an agreement to
-// acquire Golden Pacific", filed when the regulators approved it, and its release: "Last year, … the company announced a definitive agreement … to acquire Golden Pacific Bancorp") or changing it ("Extends and Updates its Agreement to Acquire Cana Laboratories").
+// acquire Golden Pacific", filed when the regulators approved it, and its release: "Last year, … the company announced a definitive agreement … to acquire Golden Pacific Bancorp") or changing it ("Extends and Updates its Agreement to Acquire Cana Laboratories"), or a deal only in prospect (CarGurus in 2022: "the potential future purchase of the remaining 49% interest in CarOffer", bought in December 2023); Silgan: "pleased to have recently announced an agreement to acquire Weener Packaging".
 const NOT_THE_NEWS =
-  /\b(?:completed|completion|closed|consummated|terminated|termination|previously|as announced|announced on|letters? of intent|LOI|term sheet|non-?binding|indications? of interest|proposal|extends|extended|amends|amended|amendment|last (?:year|month|quarter)|earlier this (?:year|month)|(?:In|During)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b/i;
+  /\b(?:completed|completion|closed|consummated|terminated|termination|previously|as announced|announced on|letters? of intent|LOI|term sheet|non-?binding|indications? of interest|proposal|extends|extended|amends|amended|amendment|last (?:year|month|quarter)|recently announced|the announced|potential(?:ly)?|earlier this (?:year|month)|(?:In|During)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b/i;
 
 /**
  * Does this 8-K announce the purchase of the named company? "CURO Group to Acquire First Heritage Credit", "has entered into a definitive agreement
@@ -278,6 +278,9 @@ export function readAnnouncement(text: string, name: string): boolean {
       // A part of the company, not the company: "an agreement to acquire certain Willis Towers Watson plc reinsurance, specialty and retail
       // brokerage operations" (Gallagher, May 2021: the antitrust remedy that fell away; Willis Re alone was agreed in August).
       if (/\bcertain\b|\b(?:portions?|parts?)\s+of\s*$/i.test(before)) continue;
+      // A results release's highlight that recalls the news: "• Announced agreement to acquire Weener Packaging" (Silgan's release was a
+      // week earlier). "▪ Signed definitive agreement to acquire Summit Aviation" is the news itself (TransMedics announced it so).
+      if (/(?:^|[•▪◾·])\s*Announced\b[^•▪◾·]*$/.test(before)) continue;
       if (TO_BUY.test(before) || UNDER_AGREEMENT.test(before) ||/^[^.;]{0,30}\bto be acquired by\b/i.test(flat.slice(m.index + form.length, end))) return true;
     }
   }
