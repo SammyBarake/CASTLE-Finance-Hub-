@@ -34,7 +34,7 @@ import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/prox
 import { proxySections } from "./parse/proxySections";
 import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
-import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
+import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, opensAsResults, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
 import { sectorForBuyer, sectorForCompany } from "./sectors";
 import type { StoredDeal, State } from "./store";
 import { BASIN_NAME, correctKnownClosing, HOTEL_PROPERTY, moveBuyerOffTarget, SPAC_NAME, tidyDeals } from "./tidy";
@@ -1340,7 +1340,13 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
     // Purchase Agreement for Mantis (its body names "Mantis Intermediate Holdings" and says "Seller agreed to sell", no release).
     const agreement = /^EX-2/i.test(h.fileType) && /\b(?:Purchase|Merger|Acquisition|Contribution|Exchange)\s+Agreement\b/i.test(text.slice(0, 4000));
     if (!agreement && !readAnnouncement(text, name)) continue;
-    let day = agreement ? undefined : ownReleaseDay(text, h.fileDate);
+    // Not a document that only recalls the deal: a results release's highlights ("Announced agreement to acquire Weener Packaging", Silgan;
+    // "As announced on July 8, 2024, ESCO has agreed to acquire …"), a de-SPAC's management discussion (SoFi on Golden Pacific, agreed in March
+    // 2021, before it listed), or a letter of intent or term sheet (Agrify / PurePressure, Cosmos / Cana, GigaCloud / New Classic).
+    const top = flatten(text).slice(0, 6000);
+    const results = opensAsResults(top) || /\b(?:Reports|Announces|REPORTS|ANNOUNCES)\s+(?:[\w-]+\s+){0,4}(?:Quarter|QUARTER|Year|YEAR)\s+(?:[\w-]+\s+){0,2}(?:Results|RESULTS)\b/.test(top.slice(0, 400));
+    if (!agreement && (results || /\bMANAGEMENT['’]S DISCUSSION AND ANALYSIS\b/i.test(top) || /\b(?:letters? of intent|term sheet|LOI)\b/i.test(top))) continue;
+    let day = agreement ? undefined : ownReleaseDay(text, h.fileDate) ?? signingDay(text, h.fileDate);
     for (const other of hits.filter((o) => o.adsh === h.adsh && o.file !== h.file).slice(0, 2)) {
       if (day) break;
       day = await getText(archiveUrl(acquirerCik, other.adsh, other.file)).then((t) => ownReleaseDay(htmlToText(t), h.fileDate)).catch(() => undefined);
@@ -1350,6 +1356,26 @@ export async function findAnnouncement(deal: StoredDeal, acquirerCik: string) {
     delete deal.seekAnnouncement;
     return;
   }
+}
+
+/**
+ * An 8-K with no release beside it: "On September 17, 2024, Organon & Co. … entered into an Agreement and Plan of Merger" (Dermavant; the release went out
+ * the next day, the 8-K six days on). As for a signing 8-K elsewhere: its filing day when filed the next business day, else the signing, never a weekend.
+ */
+function signingDay(text: string, fileDate: string): string | undefined {
+  const flat = flatten(text).slice(0, 20_000);
+  const m = /\bOn\s+((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}),?\s+(?:[^.;]|\.(?=[a-z,])|(?<=\b(?:Inc|Corp|Co|Ltd|L\.P|N\.V|S\.A))\.){0,400}?\bentered\s+into\b/.exec(flat);
+  if (!m) return undefined;
+  const signed = new Date(Date.parse(m[1].replace(/,/g, "") + " UTC")).toISOString().slice(0, 10);
+  const floor = new Date(Date.parse(fileDate) - 10 * 86_400_000).toISOString().slice(0, 10);
+  if (signed < floor || signed > fileDate) return undefined;
+  let next = new Date(Date.parse(signed) + 86_400_000);
+  while (next.getUTCDay() === 0 || next.getUTCDay() === 6) next = new Date(next.getTime() + 86_400_000);
+  if (next.toISOString().slice(0, 10) === fileDate) return fileDate;
+  let day = new Date(Date.parse(signed));
+  while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day = new Date(day.getTime() + 86_400_000);
+  const d = day.toISOString().slice(0, 10);
+  return d <= fileDate ? d : fileDate;
 }
 
 /**

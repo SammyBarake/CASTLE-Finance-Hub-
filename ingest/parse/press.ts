@@ -2160,7 +2160,7 @@ export function parsePressRelease(textIn: string, ctx: PressContext): ParsedPres
   // …or joined by "and": "E2open to Acquire BluJay Solutions and Raises $1.1 Billion …" (the target read "BluJay Solutions and Raises").
   // …or a verb with no "and": "Chicken Soup for the Soul Entertainment Announces Acquisition of Truli.com Brings Total Hours of Programming …".
   parties.tgt = parties.tgt.replace(/\s+(?:Brings|Adds|Expands|Strengthens|Bolsters|Broadens|Accelerates|Enhances|Extends)\s+(?:Total|Its|the|Our|New|More|\d)[\s\S]*$/, "");
-  parties.tgt = parties.tgt.replace(/\s+(?:and|AND|&)\s+(?:Raises|Reports|Provides|Announces|Updates|Reaffirms|Raises|Increases|Secures|Prices|Declares|Issues|Expands|Launches|RAISES|REPORTS|PROVIDES|ANNOUNCES|UPDATES|REAFFIRMS)(?:\s.*)?$/, "");
+  parties.tgt = parties.tgt.replace(/\s+(?:and|AND|&)\s+(?:Raises|Reports|Provides|Announces|Updates|Reaffirms|Increases|Secures|Prices|Declares|Issues|Expands|Launches|Surpasses|Exceeds|Achieves|Reaches|Delivers|Strengthens|RAISES|REPORTS|PROVIDES|ANNOUNCES|UPDATES|REAFFIRMS)(?:\s.*)?$/, "");
   // A name cut at an abbreviation's period: "Kadant to Acquire German Blade Manufacturer Joh. Clouth" read "Joh".
   if (/^[A-Z][a-z]{1,3}$/.test(parties.tgt)) {
     const cut = new RegExp(`\\b${escapeRx(parties.tgt)}\\.\\s+([A-Z][a-z][\\w-]*)`).exec(headline);

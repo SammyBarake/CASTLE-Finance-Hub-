@@ -182,6 +182,18 @@ describe("carryReactions", () => {
     expect(carryReactions([held({ id: "old", acquirer: buyer, target: { name: "Westfield Jointly", ticker: null, cik: null } })], rebuilt).carried).toBe(1);
   });
 
+  it("follows a private target's name mended on the very same day, whole words only (Joh / Joh. Clouth GmbH & Co)", () => {
+    const buyer = { name: "Kadant Inc", ticker: "KAI", cik: "886346" };
+    const was = held({ id: "p-joh-2021-06-17", announcedDate: "2021-06-17", acquirer: buyer, target: { name: "Joh", ticker: null, cik: null } });
+    const rebuilt = [deal({ id: "p-joh-clouth-gmbh-2021-06-17", announcedDate: "2021-06-17", acquirer: buyer, target: { name: "Joh. Clouth GmbH & Co", ticker: null, cik: null } })];
+    expect(carryReactions([was], rebuilt).carried).toBe(1);
+    // A day apart, or another word ("Johnson"), is another deal.
+    const dayAfter = [deal({ id: "x", announcedDate: "2021-06-18", acquirer: buyer, target: { name: "Joh. Clouth GmbH & Co", ticker: null, cik: null } })];
+    expect(carryReactions([was], dayAfter).carried).toBe(0);
+    const other = [deal({ id: "y", announcedDate: "2021-06-17", acquirer: buyer, target: { name: "Johnson Paper", ticker: null, cik: null } })];
+    expect(carryReactions([was], other).carried).toBe(0);
+  });
+
   it("leaves nothing parked for a figure the same buyer's record of those days holds: that deal under another name (Regency / UBP = Urstadt Biddle)", () => {
     const buyer = { name: "Regency Centers Corp", ticker: "REG", cik: "910606" };
     const record = deal({ id: "1-2023-05-18", announcedDate: "2023-05-18", acquirer: buyer, target: { name: "Urstadt Biddle Properties Inc", ticker: "UBA", cik: "1034563" }, reaction });

@@ -259,7 +259,10 @@ export function readLooseEnd(text: string, name: string): CompletionRead {
 
 const TO_BUY = /\b(?:to|will)\s+(?:acquire|purchase|buy|merge with|combine with)\b[^.;]{0,60}$/i;
 const UNDER_AGREEMENT = /\b(?:entered into|enters into|signed|signs|executed|announc\w+|reached)\b[^.;]{0,80}\b(?:definitive|merger|purchase|sale|acquisition)\s+agreement\b[^.;]{0,140}$/i;
-const NOT_THE_NEWS = /\b(?:completed|completion|closed|consummated|terminated|termination|previously|letters? of intent|non-?binding|indications? of interest|proposal)\b/i;
+// Nor one recalling it ("As announced on July 8, 2024, ESCO has agreed to acquire …"; SoFi's "In March 2021, we entered into an agreement to
+// acquire Golden Pacific", filed when the regulators approved it, and its release: "Last year, … the company announced a definitive agreement … to acquire Golden Pacific Bancorp") or changing it ("Extends and Updates its Agreement to Acquire Cana Laboratories").
+const NOT_THE_NEWS =
+  /\b(?:completed|completion|closed|consummated|terminated|termination|previously|as announced|announced on|letters? of intent|LOI|term sheet|non-?binding|indications? of interest|proposal|extends|extended|amends|amended|amendment|last (?:year|month|quarter)|earlier this (?:year|month)|(?:In|During)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b/i;
 
 /**
  * Does this 8-K announce the purchase of the named company? "CURO Group to Acquire First Heritage Credit", "has entered into a definitive agreement
@@ -272,7 +275,10 @@ export function readAnnouncement(text: string, name: string): boolean {
       const { start, end } = sentenceAround(flat, m.index, form.length);
       if (NOT_THE_NEWS.test(flat.slice(start, end))) continue;
       const before = flat.slice(start, m.index);
-      if (TO_BUY.test(before) || UNDER_AGREEMENT.test(before) || /^[^.;]{0,30}\bto be acquired by\b/i.test(flat.slice(m.index + form.length, end))) return true;
+      // A part of the company, not the company: "an agreement to acquire certain Willis Towers Watson plc reinsurance, specialty and retail
+      // brokerage operations" (Gallagher, May 2021: the antitrust remedy that fell away; Willis Re alone was agreed in August).
+      if (/\bcertain\b|\b(?:portions?|parts?)\s+of\s*$/i.test(before)) continue;
+      if (TO_BUY.test(before) || UNDER_AGREEMENT.test(before) ||/^[^.;]{0,30}\bto be acquired by\b/i.test(flat.slice(m.index + form.length, end))) return true;
     }
   }
   return false;

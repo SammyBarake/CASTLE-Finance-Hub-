@@ -1037,6 +1037,7 @@ describe("from the open-deal and audit triage (November 10 2026)", () => {
   });
   it("keeps a company bought from its owner and a name cut at an abbreviation", () => {
     expect(p("Arcosa to Acquire StonePoint Materials\nDALLAS, March 22, 2021 - Arcosa, Inc. (NYSE: ACA) today announced that it has entered into a definitive agreement to acquire StonePoint Ultimate Holding, LLC from an affiliate of Sun Capital Partners for $375 million.", "Arcosa, Inc.")?.target.name).toMatch(/StonePoint/);
+    expect(p("Life360 Completes Acquisition of Nativo and Surpasses 50 Million U.S. MAU\nSAN FRANCISCO, January 5, 2026 - Life360, Inc. (Nasdaq: LIF) today announced it has completed its acquisition of Nativo, Inc.", "Life360, Inc.")?.target.name).toMatch(/^Nativo\b(?! and)/);
     expect(p("Kadant to Acquire German Blade Manufacturer Joh. Clouth\nWESTFORD, Mass., June 17, 2021 - Kadant Inc. (NYSE: KAI) today announced it has entered into a definitive agreement to acquire Joh. Clouth GmbH & Co. KG and its affiliates (\"Clouth\") for approximately 78 million Euros in cash.", "Kadant Inc")?.target.name).toMatch(/^Joh\. Clouth/);
   });
 });

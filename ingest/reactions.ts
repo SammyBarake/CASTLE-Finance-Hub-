@@ -59,6 +59,13 @@ const sameTarget = (a: HeldReaction["target"], b: HeldReaction["target"]) => {
   return !!name && name === targetName(b.name);
 };
 
+// One name the other's opening words, whole words only, neither side a listed company of its own.
+const nameExtends = (a: HeldReaction["target"], b: HeldReaction["target"]) => {
+  if (a.cik || b.cik) return false;
+  const [x, y] = [targetName(a.name), targetName(b.name)];
+  return !!x && !!y && x !== y && (y.startsWith(x + " ") || x.startsWith(y + " "));
+};
+
 export const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= MAX_DAYS_APART * DAY;
 
 /**
@@ -94,7 +101,9 @@ export function carryReactions(old: HeldReaction[], next: StoredDeal[]): { carri
     const record =
       sameDeal && near(held.announcedDate, sameDeal.announcedDate)
         ? sameDeal
-        : [...buyerKeys(held.acquirer).flatMap((k) => byBuyer.get(k) ?? []), ...(byTarget.get(targetKey(held.target)) ?? []).filter((d) => sameBuyer(held.acquirer, d.acquirer))].find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate));
+        : [...buyerKeys(held.acquirer).flatMap((k) => byBuyer.get(k) ?? []), ...(byTarget.get(targetKey(held.target)) ?? []).filter((d) => sameBuyer(held.acquirer, d.acquirer))].find((d) => sameTarget(held.target, d.target) && near(held.announcedDate, d.announcedDate)) ??
+          // A name mended since, on the very same day: "Joh" (cut at the abbreviation's period) is Joh. Clouth GmbH & Co, Kadant's purchase of June 17, 2021.
+          [...buyerKeys(held.acquirer).flatMap((k) => byBuyer.get(k) ?? [])].find((d) => held.announcedDate === d.announcedDate && sameBuyer(held.acquirer, d.acquirer) && nameExtends(held.target, d.target));
     if (!record || record.dateIsClosing) {
       unplaced.push(held);
       continue;

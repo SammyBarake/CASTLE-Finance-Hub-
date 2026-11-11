@@ -263,4 +263,27 @@ describe("findAnnouncement", () => {
     const [deal] = (await enrich([closingDated()], "2024-03-28")).deals;
     expect(deal.announcedDate).toBe("2023-11-06");
   });
+
+  it("by the signing an 8-K states, filed days later (Organon / Dermavant: signed Tuesday, filed the next Monday)", async () => {
+    h.hits = [hit({ file: "body.htm", fileDate: "2023-11-06", adsh: "0000043920-23-000057" })];
+    h.docs["body.htm"] =
+      "FORM 8-K Date of Report (Date of earliest event reported): October 31, 2023 Item 1.01 Entry into a Material Definitive Agreement. On October 31, 2023, Greif, Inc. (the \"Company\"), and Greif Bermuda Ltd., an indirect wholly owned subsidiary of the Company, entered into a Share Purchase Agreement to acquire Ipackchem.";
+    const [deal] = (await enrich([closingDated()], "2024-03-28")).deals;
+    expect(deal.announcedDate).toBe("2023-10-31");
+  });
+
+  it("not from a results release, a letter of intent or a recollection: those leave the date for the next document", async () => {
+    h.hits = [
+      hit({ file: "q3.htm", fileDate: "2023-08-01", adsh: "0000043920-23-000041" }),
+      hit({ file: "loi.htm", fileDate: "2023-09-01", adsh: "0000043920-23-000045" }),
+      hit({ file: "recall.htm", fileDate: "2023-10-02", adsh: "0000043920-23-000050" }),
+      hit({ file: "rel.htm", fileDate: "2023-11-06", adsh: "0000043920-23-000057" }),
+    ];
+    h.docs["q3.htm"] = "GREIF ANNOUNCES THIRD QUARTER 2023 RESULTS Highlights • Announced agreement to acquire Ipackchem\nDELAWARE, Ohio, Aug. 1, 2023 -- Greif today reported results.";
+    h.docs["loi.htm"] = "Item 8.01 Other Events. On September 1, 2023, Greif, Inc. entered into a binding letter of intent (the \"LOI\") to acquire Ipackchem.";
+    h.docs["recall.htm"] = "Item 8.01 Other Events. In March 2023, we entered into an agreement to acquire Ipackchem. On October 2, 2023, we received the regulators' approval.";
+    h.docs["rel.htm"] = "Greif Plans to Acquire IPACKCHEM\nDELAWARE, Ohio, Oct. 31, 2023 (GLOBE NEWSWIRE) -- Greif, Inc. has entered into a definitive agreement to acquire Ipackchem.";
+    const [deal] = (await enrich([closingDated()], "2024-03-28")).deals;
+    expect(deal.announcedDate).toBe("2023-10-31");
+  });
 });
