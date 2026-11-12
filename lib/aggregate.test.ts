@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BOOT_LIST_SIZE, bootHubData, buildHubData, DEAL_FIELDS, leagueTable, monthlyVolume, sectorValuations, toPublicDeal, yearToDate } from "./aggregate";
-import { headlineFigures } from "./metrics";
+import { averageDealUsd, headlineFigures } from "./metrics";
 import type { Deal } from "./types";
 
 describe("toPublicDeal", () => {
@@ -164,6 +164,24 @@ describe("leagueTable", () => {
     expect(t.entries.indexOf(houlihan!)).toBe(31); // 32nd by value: still in the table
     expect(houlihan).toMatchObject({ dealCount: 2, dealCountRankChange: -1 }); // 1st → 2nd by count
     expect(t.entries.find((e) => e.advisor.name === "Lazard")?.dealCountRankChange).toBe(1); // 2nd → 1st
+  });
+
+  it("marks a bank first credited this quarter as new, and averages over the deals that state a value", () => {
+    const deals = [
+      deal({ announcedDate: "2026-02-01", valueUsd: 5e9, targetAdvisors: ["Lazard"] }),
+      deal({ announcedDate: "2026-08-01", valueUsd: 4e9, acquirerAdvisors: ["Moelis", "Lazard"] }),
+      deal({ announcedDate: "2026-08-15", valueUsd: null, acquirerAdvisors: ["Moelis"] }),
+    ];
+    const t = leagueTable(deals, "2026-09-25", (n) => n.slice(0, 2));
+    const moelis = t.entries.find((e) => e.advisor.name === "Moelis")!;
+    expect(moelis).toMatchObject({ dealCount: 2, valuedCount: 1, isNew: true, rankChange: 0 });
+    expect(averageDealUsd(moelis)).toBe(4e9); // not 2e9: the undisclosed deal isn't a $0 deal
+    expect(t.entries.find((e) => e.advisor.name === "Lazard")?.isNew).toBeUndefined();
+    // In the first quarter there is no prior quarter end to be new against.
+    expect(leagueTable(deals, "2026-02-25", (n) => n).entries[0].isNew).toBeUndefined();
+    // Older snapshots without valuedCount fall back to every deal.
+    expect(averageDealUsd({ dealCount: 4, dealValueUsd: 8e9 })).toBe(2e9);
+    expect(averageDealUsd({ dealCount: 1, dealValueUsd: 0, valuedCount: 0 })).toBeNull();
   });
 });
 

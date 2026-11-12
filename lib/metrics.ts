@@ -9,6 +9,15 @@ export type VolumeMetric = "value" | "count";
 
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
+/**
+ * A bank's average deal size: its credited value over the deals that state one. Dividing by every mandate counted an
+ * undisclosed deal as $0 and read low for banks with many small private deals. Older snapshots carry no valuedCount.
+ */
+export function averageDealUsd(e: { dealCount: number; dealValueUsd: number; valuedCount?: number }): number | null {
+  const n = e.valuedCount ?? e.dealCount;
+  return n ? e.dealValueUsd / n : null;
+}
+
 export function median(xs: number[]): number | null {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);

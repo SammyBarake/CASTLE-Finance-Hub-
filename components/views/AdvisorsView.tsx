@@ -14,7 +14,7 @@ import { downloadCsv, toCsv } from "@/lib/csv";
 import { leagueWorkbook } from "@/lib/excel/workbooks";
 import { formatDate, formatUsd, formatUsdB1 } from "@/lib/format";
 import { dataDay } from "@/lib/freshness";
-import { sum } from "@/lib/metrics";
+import { averageDealUsd, sum } from "@/lib/metrics";
 import { matchAdvisor } from "@/lib/search";
 
 type Sort = "value" | "deals";
@@ -49,7 +49,7 @@ export function AdvisorsView() {
   const exportRows = () => {
     const csv = toCsv(
       ["Rank", "Advisor", "Deals advised", "Deal value (USD)", "Rank change vs prior quarter"],
-      rows.map(({ e }, i) => [i + 1, e.advisor.name, e.dealCount, e.dealValueUsd, e.rankChange]),
+      rows.map(({ e }, i) => [i + 1, e.advisor.name, e.dealCount, e.dealValueUsd, e.isNew ? "New" : sort === "value" ? e.rankChange : (e.dealCountRankChange ?? 0)]),
       data.isSample,
     );
     downloadCsv(csv, `Castle_Advisors${data.isSample ? "_Sample" : ""}.csv`);
@@ -155,12 +155,19 @@ export function AdvisorsView() {
               {visibleRows.slice(0, shown).map(({ e, valueRank, rank }) => {
                 const change = sort === "value" ? e.rankChange : (e.dealCountRankChange ?? 0);
                 const showChange = change !== 0;
+                const average = averageDealUsd(e);
                 return (
                   <RowLink key={e.advisor.name} label={`${e.advisor.name} advisory activity`} onOpen={() => openAdvisor(e, valueRank)}>
                     <td className="table-date" data-area="rank">
                       {String(rank).padStart(2, "0")}
-                      <span className={`rank-change ${showChange ? (change > 0 ? "up" : "down") : "muted"}`} aria-label={change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}>
-                        {showChange ? (
+                      <span
+                        className={`rank-change ${e.isNew ? "muted" : showChange ? (change > 0 ? "up" : "down") : "muted"}`}
+                        aria-label={e.isNew ? "New this quarter" : change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}`}
+                        title={e.isNew ? "No credited deal before the prior quarter end" : undefined}
+                      >
+                        {e.isNew ? (
+                          "New"
+                        ) : showChange ? (
                           <>
                             <Icon name={change > 0 ? "arrow-up" : "arrow-down"} />
                             {Math.abs(change)}
@@ -180,7 +187,7 @@ export function AdvisorsView() {
                     {/* The phone's second line carries the deal count and the average the desktop gives columns. */}
                     <td className="phone-cell" data-area="sub">
                       {e.dealCount.toLocaleString("en-US")} {e.dealCount === 1 ? "deal" : "deals"} advised
-                      {e.dealCount ? ` · avg. ${formatUsd(e.dealValueUsd / e.dealCount)}` : ""}
+                      {average != null ? ` · avg. ${formatUsd(average)}` : ""}
                     </td>
                     <td className="right table-value" data-area="fig">
                       {formatUsdB1(e.dealValueUsd)}
@@ -188,7 +195,7 @@ export function AdvisorsView() {
                         <i style={{ width: `${Math.min((e.dealValueUsd / maxValue) * 100, 100)}%` }} />
                       </span>
                     </td>
-                    <td className="right table-value">{e.dealCount ? formatUsd(e.dealValueUsd / e.dealCount) : "—"}</td>
+                    <td className="right table-value">{average != null ? formatUsd(average) : "—"}</td>
                   </RowLink>
                 );
               })}

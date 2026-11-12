@@ -8,7 +8,7 @@ import { dealSize, type DcfRow } from "../precedents";
 import { SECTORS } from "../sectors";
 import type { Company, Deal, Economy, Ipo, LeagueTableEntry, SectorValuation } from "../types";
 import { dataDay } from "../freshness";
-import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION, type VolumeMatrix } from "../metrics";
+import { ADJ_EBITDA_DEFINITION, averageDealUsd, REPORTED_EBITDA_DEFINITION, type VolumeMatrix } from "../metrics";
 import { fileName, link, num, pctFrac, usdM, type CellValue, type Column, type Figure, type WorkbookSpec } from "./spec";
 
 export interface ExportContext {
@@ -356,15 +356,18 @@ export function leagueWorkbook(rows: { e: LeagueTableEntry; rank: number }[], ct
         ],
         rows: rows.map(({ e, rank }) => [
           rank,
-          (opts.by === "value" ? e.rankChange : e.dealCountRankChange) ?? 0,
+          e.isNew ? "New" : ((opts.by === "value" ? e.rankChange : e.dealCountRankChange) ?? 0),
           e.advisor.name,
           e.dealCount,
           usdM(e.dealValueUsd),
-          e.dealCount ? usdM(e.dealValueUsd / e.dealCount) : null,
+          usdM(averageDealUsd(e)),
         ]),
       },
     ],
-    notes: ["Every named financial advisor is credited with the full deal value, so totals include shared mandates and don't add up to market volume."],
+    notes: [
+      "Every named financial advisor is credited with the full deal value, so totals include shared mandates and don't add up to market volume.",
+      "Average deal is the deal value over the deals that state one; a deal with no disclosed value counts in Deals advised only. \"New\": no credited deal before the prior quarter end.",
+    ],
   };
 }
 

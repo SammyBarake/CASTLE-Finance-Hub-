@@ -496,7 +496,7 @@ function AdvisorBody({ entry, rank, data, onOpenDeal, onOpenAdvisor }: { entry: 
         <DetailItem label="Rank by deal value">#{rank}</DetailItem>
         <DetailItem label="Deals advised">{entry.dealCount}</DetailItem>
         <DetailItem label="Total deal value">{formatUsdB1(entry.dealValueUsd)}</DetailItem>
-        <DetailItem label="Rank change">{change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)} vs. prior quarter`}</DetailItem>
+        <DetailItem label="Rank change">{entry.isNew ? "New this quarter" : change === 0 ? "Unchanged" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)} vs. prior quarter`}</DetailItem>
       </DetailGrid>
       <Fingerprint name={name} data={data} onOpenAdvisor={onOpenAdvisor} />
       <div className="related-title">Recent transactions</div>

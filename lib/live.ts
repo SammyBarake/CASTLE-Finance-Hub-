@@ -8,6 +8,7 @@ import type { BookRow } from "./books";
 import { dealSize, DEFAULT_PRECEDENTS, PRECEDENT_SPEC, screenForDeal, screenPrecedents } from "./precedents";
 import { DEAL_SCREEN_SPEC, DEFAULT_SCREEN, screenDeals } from "./screen";
 import { IPO_STAGES, SECTORS, type Deal, type HubData, type Ipo, type LeagueTableEntry } from "./types";
+import { averageDealUsd } from "./metrics";
 import { decodeState } from "./urlState";
 import { industryOf } from "./excel/workbooks";
 
@@ -136,15 +137,15 @@ export const precedentsTable = (deals: Deal[], site: string): LiveTable => ({ he
 // ---------------------------------------------------------------------------
 
 /** Ranked as the Advisors page ranks: by deal value (the stored order) or by deal count. */
-export function leagueForQuery(entries: LeagueTableEntry[], params: URLSearchParams): { e: LeagueTableEntry; rank: number; change: number }[] {
+export function leagueForQuery(entries: LeagueTableEntry[], params: URLSearchParams): { e: LeagueTableEntry; rank: number; change: number | "New" }[] {
   const byCount = params.get("sort") === "deals";
   const sorted = byCount ? [...entries].sort((a, b) => b.dealCount - a.dealCount || b.dealValueUsd - a.dealValueUsd || a.advisor.name.localeCompare(b.advisor.name)) : entries;
-  return sorted.map((e, i) => ({ e, rank: i + 1, change: byCount ? (e.dealCountRankChange ?? 0) : e.rankChange }));
+  return sorted.map((e, i) => ({ e, rank: i + 1, change: e.isNew ? "New" : byCount ? (e.dealCountRankChange ?? 0) : e.rankChange }));
 }
 
-export const leagueTable = (rows: { e: LeagueTableEntry; rank: number; change: number }[]): LiveTable => ({
+export const leagueTable = (rows: { e: LeagueTableEntry; rank: number; change: number | "New" }[]): LiveTable => ({
   headers: ["Rank", "Advisor", "Deals advised", "Deal value ($M)", "Average deal size ($M)", "Rank change vs prior quarter"],
-  rows: rows.map(({ e, rank, change }) => [rank, e.advisor.name, e.dealCount, usdM(e.dealValueUsd), e.dealCount ? usdM(e.dealValueUsd / e.dealCount) : null, change]),
+  rows: rows.map(({ e, rank, change }) => [rank, e.advisor.name, e.dealCount, usdM(e.dealValueUsd), usdM(averageDealUsd(e)), change]),
 });
 
 // ---------------------------------------------------------------------------

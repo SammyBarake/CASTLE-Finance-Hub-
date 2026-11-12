@@ -228,6 +228,10 @@ export interface LeagueTableEntry {
   rankChange: number;
   /** The same when ranked by deal count (the Advisors page can rank either way). */
   dealCountRankChange?: number;
+  /** Deals advised that state a value: the average deal size divides by these, not by every mandate. */
+  valuedCount?: number;
+  /** No credited deal before the prior quarter end, so no rank to compare with (shown as "New", not "unchanged"). */
+  isNew?: boolean;
 }
 
 export interface LeagueTable {

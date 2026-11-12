@@ -91,12 +91,13 @@ export function yearToDate(deals: Deal[], asOf: string): NonNullable<HubData["ye
 }
 
 function rankAdvisors(deals: Deal[]) {
-  const stats = new Map<string, { count: number; value: number }>();
+  const stats = new Map<string, { count: number; value: number; valued: number }>();
   for (const d of deals) {
     for (const name of new Set([...d.acquirerAdvisors, ...d.targetAdvisors])) {
-      const s = stats.get(name) ?? { count: 0, value: 0 };
+      const s = stats.get(name) ?? { count: 0, value: 0, valued: 0 };
       s.count += 1;
       s.value += d.valueUsd ?? 0;
+      if (d.valueUsd != null) s.valued += 1;
       stats.set(name, s);
     }
   }
@@ -127,6 +128,8 @@ export function leagueTable(deals: Deal[], asOf: string, shortName: (name: strin
       dealValueUsd: s.value,
       rankChange: before ? before - (i + 1) : 0,
       dealCountRankChange: beforeByCount ? beforeByCount - countRank.get(name)! : 0,
+      valuedCount: s.valued,
+      ...(q > 0 && !before ? { isNew: true } : {}),
     };
   });
   return { period: `${year} YTD`, entries };
