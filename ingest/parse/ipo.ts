@@ -20,23 +20,53 @@ export function extractMaxAggregate(text: string): number | null {
   return best;
 }
 
-/** "between $17.00 and $19.00 per share" -> 18 */
+/**
+ * "between $17.00 and $19.00 per share" -> 18. Also "between $21.00 and $24.00 per Class A ordinary share" (vVARDIS),
+ * "between US$4.00 and US$6.00" (Green Solar), "Offering Price: $4 to $5 per Class A Ordinary Share" (Neucleus),
+ * "in the range of $8.00 to $9.00", "US$[4] to US$[6]" (MediaOn's bracketed draft figures). A single expected price is a
+ * range of one.
+ */
 export function extractPriceRange(text: string): { low: number; high: number } | null {
-  const m = /between\s+\$\s?(\d{1,4}(?:\.\d{2})?)\s+and\s+\$\s?(\d{1,4}(?:\.\d{2})?)\s+per\s+(?:share|ADS|American Depositary Share|unit)/i.exec(flatten(text));
-  if (!m) return null;
-  const low = Number(m[1]);
-  const high = Number(m[2]);
-  return low > 0 && high >= low && high < 1000 ? { low, high } : null;
+  const t = flatten(text.slice(0, 120_000)).replace(/\b(?:USD?|U\.S\.)\s?\$/g, "$").replace(/\$\s?\[\s?(\d{1,4}(?:\.\d{1,2})?)\s?\]/g, "$$$1");
+  const P = String.raw`\$\s?(\d{1,4}(?:\.\d{1,2})?)`;
+  const UNIT = String.raw`(?:share|ADS|American Depositary Share|unit|ordinary share|common share)\b`;
+  const m =
+    new RegExp(String.raw`between\s+${P}\s+and\s+${P}(?:\s+per\s+(?:[\w-]+\s+){0,4}?${UNIT}|\s*[.,;)])`, "i").exec(t) ??
+    new RegExp(String.raw`(?:range of|price range of|Offering Price:?|offering price (?:is expected to be|will be)(?: between)?)\s+${P}\s+(?:to|-|–)\s+${P}(?:\s+per\s+(?:[\w-]+\s+){0,4}?${UNIT})?`, "i").exec(t) ??
+    // Not a dilution sentence's "would increase from $4.10 to $4.35 per share".
+    new RegExp(String.raw`(?<!\bfrom\s{1,3})${P}\s+(?:to|-|–)\s+${P}\s+per\s+(?:[\w-]+\s+){0,4}?${UNIT}`, "i").exec(t) ??
+    // "the initial public offering price range of $4.00 and $5.00" (Gravity AI).
+    new RegExp(String.raw`\brange of\s+${P}\s+and\s+${P}`, "i").exec(t);
+  if (m) {
+    const low = Number(m[1]);
+    const high = Number(m[2]);
+    return low > 0 && high >= low && high < 1000 ? { low, high } : null;
+  }
+  // A small IPO often states one expected price: "We anticipate that the initial public offering price of our shares will be
+  // $10.00 per share" (Cortigent), "It is currently estimated that the initial public offering price per share will be US$4"
+  // (Zensitive). Not a range's first figure, and not "between $[●] and $[●]".
+  const one = new RegExp(String.raw`\b(?:anticipate|expect|estimated?)\b[^.$]{0,80}?\boffering price\b[^.$]{0,40}?\b(?:will be|to be|is)\s+${P}(?!\s*(?:to|and|-|–)\s*\$)`, "i").exec(t);
+  const price = one ? Number(one[1]) : 0;
+  return price > 0 && price < 1000 ? { low: price, high: price } : null;
 }
 
 /** Shares offered on the cover: "15,000,000 Shares" / "We are offering 10,000,000 shares". */
 export function extractSharesOffered(text: string): number | null {
   const t = flatten(text.slice(0, 40_000));
+  // A registration carrying a second, resale prospectus describes it first: "A prospectus to be used for the resale by
+  // Selling Shareholders of 1,470,000 ordinary shares" is not the offering (Sin Lian Seng).
+  const sentenceBefore = (i: number) => t.slice(Math.max(0, i - 120), i).split(/[.●•]\s/).at(-1)!;
+  const first = (re: RegExp) => [...t.matchAll(re)].find((m) => !/\bresale\b|\bselling (?:share|stock|security)holders?\b/i.test(sentenceBefore(m.index!)));
+  // One firm-commitment offering by the company and its holders: "We and the Selling Shareholders … are offering, on a firm
+  // commitment basis, 3,000,000 Class A Ordinary Shares and 2,900,000 Class A Ordinary Shares, respectively" (MediaOn).
+  const both = /\bwe and the selling (?:share|stock)holders\b[^.]{0,160}?\bare offering\b[^.]{0,120}?(\d{1,3}(?:,\d{3}){2,})[^.]{0,100}?\band\s+(\d{1,3}(?:,\d{3}){2,})[^.]{0,100}?\brespectively\b/i.exec(t);
+  if (both) return num(both[1]) + num(both[2]);
   const m =
     // "15,000,000 Shares", "34,311,274 Ordinary Shares" (Klarna), "11,923,018 Class A Common Shares" (eToro).
-    /(\d{1,3}(?:,\d{3}){2,})\s+(?:(?:Class [A-C]\s+)?(?:Ordinary|Common|ordinary|common)\s+)?(?:Shares|shares|American Depositary Shares|ADSs|Units)\b/.exec(t) ??
-    /(\d{1,3}(?:,\d{3}){2,})\s+Shares\s+of\s+(?:Class [A-C]\s+)?Common Stock\b/i.exec(t) ??
-    /(?:we are|are) offering\s+(\d{1,3}(?:,\d{3}){2,})\s+(?:(?:Class [A-C]\s+)?(?:ordinary|common)\s+)?(?:shares|American Depositary Shares|ADSs)/i.exec(t);
+    // "3,750,000 Class A Shares" (Green Solar).
+    first(/(\d{1,3}(?:,\d{3}){2,})\s+(?:Class [A-C]\s+)?(?:(?:Ordinary|Common|ordinary|common)\s+)?(?:Shares|shares|American Depositary Shares|ADSs|Units|units)\b/g) ??
+    first(/(\d{1,3}(?:,\d{3}){2,})\s+Shares\s+of\s+(?:Class [A-C]\s+)?Common Stock\b/gi) ??
+    first(/(?:we are|are) offering\s+(\d{1,3}(?:,\d{3}){2,})\s+(?:(?:Class [A-C]\s+)?(?:ordinary|common)\s+)?(?:shares|American Depositary Shares|ADSs)/gi);
   if (!m) return null;
   const v = num(m[1]);
   return v >= 100_000 && v < 5e9 ? v : null;
@@ -46,7 +76,7 @@ export function extractSharesOffered(text: string): number | null {
 export function extractOfferPrice(text: string): number | null {
   // Foreign issuers write "US$": "The initial public offering price per ADS is US$22.00", "PRICE US$22.00 PER ADS"
   // (Londian Wason), "The initial public offering price of the ADSs is US$149.00 per ADS" (SK hynix).
-  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:US|U\.S\.)\s?\$/g, "$");
+  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:USD?|U\.S\.)\s?\$/g, "$");
   const m =
     /(?:initial\s+)?public\s+offering\s+price\s+(?:is|of|per\s+(?:share|ADS))\s+\$\s?(\d{1,4}(?:\.\d{2}))/i.exec(t) ??
     /public\s+offering\s+price\s+of\s+(?:the|our)\s+(?:ADSs|shares|ordinary shares|common shares|common stock)\s+is\s+\$\s?(\d{1,4}\.\d{2})/i.exec(t) ??
@@ -84,7 +114,10 @@ export function extractUnderwriters(text: string): string[] {
 export function extractUnderwritingTable(text: string): string[] {
   const t = flatten(text);
   for (const m of t.matchAll(/\b(?:Underwriters?|Name)\s+Number\s+of\s+(?:Shares|ADSs|Ordinary Shares|Class A|Common Shares|Units)\b/gi)) {
-    const banks = findBanks(t.slice(m.index!, m.index! + 3000).split(/\bTotal\b/)[0]);
+    // A large syndicate runs past 3,000 characters (SB Energy's 21 banks, Nscale's 23): read to the table's "Total" row.
+    const seg = t.slice(m.index!, m.index! + 9000);
+    const end = seg.search(/\bTotal\b/);
+    const banks = findBanks(end >= 0 ? seg.slice(0, end) : seg.slice(0, 3000));
     if (banks.length) return banks;
   }
   return [];
@@ -112,15 +145,19 @@ export function extractDescription(text: string): string | null {
  * 8: underwriters added to the bank list (Vogenx, Londian Wason, Jersey Mike's), the priced date from the cover, a stored
  * placeholder raise cleared (Anthropic), second-step conversions dropped (Columbia Financial), whole descriptions (TFP Group).
  */
-export const IPO_PARSER_VERSION = 8;
+// 9: a registration's raise is the range midpoint × base shares (wider range wordings), never the fee-table maximum; its
+// underwriters come from its own underwriting table, read to the "Total" row; a conversion's midpoint and selling agent; a
+// year split in the text ("20 26"); a resale prospectus's share count skipped (November 11 2026 check of the live pipeline).
+export const IPO_PARSER_VERSION = 9;
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-const COVER_DATE = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.? (\d{1,2}) ?, ?(\d{4})/.source;
+const COVER_DATE = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.? (\d{1,2}) ?, ?(\d{4}|\d{2} \d{2}|\d{3} \d)/.source;
 
 /**
  * The date on a final prospectus, if it falls within ten days before the filing: "The date of this prospectus is March 5,
  * 2015" and "Prospectus dated October 22, 2026" (Lycia), or a bare date closing the cover, right before the table of
- * contents (Orion180: "September 17, 2026 Table of contents"). The 424B4 lands up to four days after pricing (Orion180,
+ * contents (Orion180: "September 17, 2026 Table of contents"). The year may come apart in the text ("August 5, 20 26":
+ * Braveheart; "September 29, 202 6": Accelevation). The 424B4 lands up to four days after pricing (Orion180,
  * ADARx). "Prospectus dated" and the bare date only on the cover: further in, either can be another document's date.
  */
 export function prospectusDate(text: string, filedDate: string): string | null {
@@ -132,7 +169,7 @@ export function prospectusDate(text: string, filedDate: string): string | null {
     new RegExp(`\\b${COVER_DATE}\\.? (?:Table of Contents|Table of contents|TABLE OF CONTENTS)\\b`).exec(cover);
   const month = m && MONTHS[m[1].slice(0, 3).toLowerCase()];
   if (!m || !month) return null;
-  const iso = `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  const iso = `${m[3].replace(/ /g, "")}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
   const days = (Date.parse(filedDate) - Date.parse(iso)) / 86_400_000;
   return days >= 0 && days <= 10 ? iso : null;
 }
@@ -181,9 +218,10 @@ export interface IpoTerms {
   offerPrice: number | null;
   underwriters: string[];
   description: string | null;
+  /** The registration's fee-table maximum: not shown, only a size test (ingest/ipos.ts). */
+  registeredMaxUsd?: number | null;
 }
 
-/** Terms from a registration statement (pre-pricing). */
 /**
  * Initial S-1s commonly register a round figure "for fee purposes" before any real sizing: usually $100,000,000, and
  * $1,000,000,000 for a very large company (Anthropic's S-1/A, with no price range yet). Real sizing is shares × price, and
@@ -191,16 +229,51 @@ export interface IpoTerms {
  */
 export const isPlaceholderRaise = (usd: number | null) => usd != null && usd >= 100_000_000 && usd % 50_000_000 === 0;
 
+/**
+ * A mutual holding company's conversion sells at a fixed $10.00 within an appraisal range: "Minimum Midpoint Maximum
+ * Adjusted Maximum … Gross offering proceeds $ 510,000,000 $ 600,000,000 …" (Hometown Financial). The midpoint.
+ */
+export function conversionMidpoint(text: string): number | null {
+  const m = /\bMinimum\s+Midpoint\s+Maximum\b[\s\S]{0,600}?\bGross (?:offering )?proceeds\s+\$\s?([\d,]{7,})\s+\$\s?([\d,]{7,})/i.exec(flatten(text.slice(0, 120_000)));
+  if (!m) return null;
+  const v = num(m[2]);
+  return v >= 1e6 && v < 5e10 && v > num(m[1]) ? v : null;
+}
+
+/**
+ * The bank selling a conversion offering, which has no underwriting table: "a discussion of Keefe, Bruyette & Woods,
+ * Inc.'s compensation" under "Selling Agent and Underwriter Compensation", "has engaged Piper Sandler … as marketing agent".
+ */
+export function sellingAgents(text: string): string[] {
+  const t = flatten(text);
+  const found: string[] = [];
+  for (const m of t.matchAll(/\b(?:selling|marketing) agent\b/gi)) {
+    for (const b of findBanks(t.slice(Math.max(0, m.index! - 250), m.index! + 250))) if (!found.includes(b)) found.push(b);
+    if (found.length) break;
+  }
+  return found;
+}
+
+/**
+ * Terms from a registration statement (pre-pricing). The expected raise is the price range's midpoint × the base shares on
+ * the cover, else the conversion appraisal's midpoint. Never the fee table's "maximum aggregate offering price": it adds the
+ * over-allotment at the top of the range, and sometimes the underwriters' warrants (Green Solar, Cafe Deco, Neucleus: about a
+ * third above the cover's own figure), and an amendment without a range would keep the first filing's. That maximum is kept
+ * apart (`registeredMaxUsd`), only to tell a tiny self-underwritten offering from a real one.
+ */
 export function parseRegistration(mainText: string, feeText: string | null): IpoTerms {
   const range = extractPriceRange(mainText);
   const shares = extractSharesOffered(mainText);
-  const fromRange = range && shares ? ((range.low + range.high) / 2) * shares : null;
+  const mid = range ? (range.low + range.high) / 2 : null;
+  const fromRange = mid && shares ? mid * shares : mid ? extractOfferingTotal(mainText, mid) : null;
   const feeRaw = extractMaxAggregate(feeText ?? mainText);
-  const fee = isPlaceholderRaise(feeRaw) ? null : feeRaw;
+  const table = extractUnderwritingTable(mainText);
+  const underwriters = table.length ? table : extractUnderwriters(mainText);
   return {
-    expectedRaiseUsd: fromRange ?? fee,
+    expectedRaiseUsd: fromRange ?? conversionMidpoint(mainText),
+    registeredMaxUsd: isPlaceholderRaise(feeRaw) ? null : feeRaw,
     offerPrice: null,
-    underwriters: extractUnderwriters(mainText),
+    underwriters: underwriters.length ? underwriters : sellingAgents(mainText),
     description: extractDescription(mainText),
   };
 }
@@ -212,7 +285,7 @@ export function parseRegistration(mainText: string, feeText: string | null): Ipo
  * price.
  */
 export function extractOfferingTotal(text: string, price: number): number | null {
-  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:US|U\.S\.)\s?\$/g, "$");
+  const t = flatten(text.slice(0, 60_000)).replace(/\b(?:USD?|U\.S\.)\s?\$/g, "$");
   const m = /Public offering price(?:\s?\(\d\))?\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+\$\s?(\d{1,3}(?:,\d{3}){2,}(?:\.\d{1,2})?)/i.exec(t);
   if (!m || Math.abs(Number(m[1]) - price) > 0.005) return null;
   // A best-efforts "Total Minimum Offering / Total Maximum Offering" table: the first total is the minimum.

@@ -23,7 +23,8 @@ export const BANKS: Bank[] = [
   b("Barclays", "BARC", /\bBarclays\b/),
   b("Deutsche Bank", "DB", /\bDeutsche Bank\b/),
   b("UBS", "UBS", /\bUBS\b/),
-  b("Wells Fargo", "WFC", /\bWells Fargo\b/),
+  // Not an address: "Faegre Drinker Biddle & Reath LLP 2200 Wells Fargo Center" (counsel on Patriot Mobile's cover).
+  b("Wells Fargo", "WFC", /\bWells Fargo\b(?! (?:Center|Plaza|Tower|Building|Place)\b)/),
   b("RBC Capital Markets", "RBC", /\bRBC\b|\bRoyal Bank of Canada\b/),
   b("BNP Paribas", "BNP", /\bBNP Paribas\b/),
   b("HSBC", "HSBC", /\bHSBC\b/),
@@ -48,7 +49,8 @@ export const BANKS: Bank[] = [
   b("Houlihan Lokey", "HLI", /\bHoulihan Lokey\b/),
   b("Ardea Partners", "ARD", /\bArdea Partners\b/),
   b("Greenhill", "GHL", /\bGreenhill\b/),
-  b("Rothschild & Co", "ROTH", /\bRothschild\b/),
+  // Not the law firm Fox Rothschild LLP, counsel on many registration covers (Starton read it as its underwriter).
+  b("Rothschild & Co", "ROTH", /(?<!\bFox )\bRothschild\b(?! LLP)/),
   b("Robey Warshaw", "RW", /\bRobey Warshaw\b/),
   b("Ducera", "DUC", /\bDucera\b/),
   b("Solomon Partners", "SOL", /\bSolomon Partners\b|\bPeter J\. Solomon\b|\bPJ S(?:olomon|OLOMON)\b/),
@@ -86,7 +88,7 @@ export const BANKS: Bank[] = [
   b("National Bank Financial", "NBF", /\bNational Bank Financial\b|\bNational Bank of Canada Financial\b/),
   b("Macquarie", "MQG", /\bMacquarie\b/),
   b("Santander", "SAN", /\bSantander\b/),
-  b("Société Générale", "GLE", /\bSoci[ée]t[ée] G[ée]n[ée]rale\b|\bSG Americas Securities\b/),
+  b("Société Générale", "GLE", /\bSoci[ée]t[ée] G[ée]n[ée]rale\b|\bS ?G Americas Securities\b/),
   b("Credit Agricole", "ACA", /\bCr[ée]dit Agricole\b/),
   b("ING", "ING", /\bING Financial Markets\b/),
   b("Moelis", "MC", /\bMoelis & Company\b/),
@@ -147,7 +149,8 @@ export const BANKS: Bank[] = [
   // From the 26 priced IPOs' underwriting tables, November 2026 (Vogenx's sole bookrunner was JonesTrading, and the record
   // showed none). Whole names only: Blackstone and Brookfield are buyers and MDB a company name; these are their dealers.
   b("JonesTrading", "JONE", /\bJonesTrading\b/i),
-  b("Titan Partners", "TITN", /\bTitan Partners Securities\b/i),
+  // LIS Technologies' cover: "Sole Bookrunner Titan Partners".
+  b("Titan Partners", "TITN", /\bTitan Partners (?:Securities|Group)\b|(?<=\bBookrunners?\s+)Titan Partners\b/i),
   b("Rosenblatt Securities", "RSBT", /\bRosenblatt Securities\b/i),
   b("MDB Capital", "MDB", /\bMDB Capital\b/),
   b("Huatai Securities", "HTSC", /\bHuatai Securities\b/i),
@@ -164,6 +167,30 @@ export const BANKS: Bank[] = [
   b("Tigress Financial Partners", "TGRS", /\bTigress Financial Partners\b/i),
   b("Penserra Securities", "PENS", /\bPenserra Securities\b/i),
   b("Roberts & Ryan", "RYAN", /\bRoberts & Ryan\b/i),
+  // From the pipeline's underwriting tables, November 11 2026 (SB Energy, Nscale, Starton). Dealers' own names:
+  // "Huntington" and "Compass" alone are a bank holding company and many other firms.
+  b("Natixis", "KN", /\bNatixis\b/),
+  b("ABN AMRO", "ABN", /\bABN AMRO\b/),
+  b("Huntington Securities", "HBAN", /\bHuntington Securities\b/),
+  b("Compass Point", "CPRT", /\bCompass Point Research\b|\bCompass Point(?=\s+(?:DNB|Rosenblatt|SEB|\(|Research|&))/),
+  b("DNB Carnegie", "DNB", /\bDNB Carnegie\b|\bDNB Markets\b/),
+  b("SEB", "SEB", /\bSEB Securities\b|\bSkandinaviska Enskilda\b/),
+  b("Sentinel Brokers", "SNTL", /\bSentinel Brokers\b/),
+  // RegenLab's representative; the broker-dealer, not StoneX Group, the listed company.
+  b("StoneX Financial", "SNEX", /\bStoneX Financial\b/),
+  // The rest of those tables (Wella, Oura, SB Energy, TFP, Ambitious Entertainment): dealers' names, never the bare parent,
+  // which buys companies (KKR, Robinhood, BBVA) or is an M&A party.
+  b("KKR Capital Markets", "KCM", /\bKKR Capital Markets\b/),
+  b("BBVA", "BBVA", /\bBBVA Securities\b/),
+  b("Commerzbank", "CBK", /\bCommerz Markets\b|\bCommerzbank\b/),
+  b("Intesa Sanpaolo", "ISP", /\bIntesa Sanpaolo IMI\b|\bIMI[- ]Intesa Sanpaolo\b/),
+  b("UniCredit", "UCG", /\bUniCredit Capital Markets\b/),
+  b("Raiffeisen Bank International", "RBI", /\bRB International Markets\b|\bRaiffeisen Bank International\b/),
+  b("Daiwa Capital Markets", "DAIW", /\bDaiwa Capital Markets\b|\bDaiwa Securities\b/),
+  b("Newmark Securities", "NMRK", /\bNewmark Securities\b/),
+  b("Robinhood Securities", "HOOD", /\bRobinhood Securities\b/),
+  b("Dowling & Partners", "DOWL", /\bDowling & Partners\b/),
+  b("Alexander Capital", "ALXC", /\bAlexander Capital,? L\.?P\b/),
   // M&A advisers filings keep naming (a census of the "acting as financial advisor" position over cached releases, November
   // 2026: a real firm, at least 5 documents and more than one deal). Whole names only: a surname or a bare first word would
   // match people and other companies. "Stephens" alone counts only as the text's own first word before "served as" / "acted

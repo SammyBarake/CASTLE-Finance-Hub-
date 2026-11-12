@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findBanks } from "../../lib/banks";
-import { extractDescription, extractMaxAggregate, extractOfferPrice, extractUnderwriters, extractUnderwritingTable, isResaleOnly, isSecondStepConversion, parseFinalProspectus, parseRegistration, prospectusDate } from "./ipo";
+import { extractDescription, extractMaxAggregate, extractOfferPrice, extractPriceRange, extractSharesOffered, extractUnderwriters, extractUnderwritingTable, isResaleOnly, isSecondStepConversion, parseFinalProspectus, parseRegistration, prospectusDate } from "./ipo";
 import { listsOnExchange, publicWithin } from "../ipos";
 
 describe("underwriters on the bank list", () => {
@@ -28,6 +28,9 @@ describe("prospectusDate", () => {
     expect(prospectusDate("Sole Book-Running Manager LifeSci Capital Prospectus dated October 22, 2026 Table of Contents", "2026-10-23")).toBe("2026-10-22"); // Lycia
     expect(prospectusDate("Citizens Capital Markets Texas Capital Securities September 17, 2026 Table of contents Page", "2026-09-21")).toBe("2026-09-17"); // Orion180
     expect(prospectusDate("Titan Partners The date of this prospectus is October 8 , 2026. Table of Contents", "2026-10-09")).toBe("2026-10-08"); // Retension
+    // The year split in the text (Braveheart, Accelevation).
+    expect(prospectusDate("Joint Bookrunners Goldman Sachs & Co. LLC Jefferies TD Cowen Stifel Cantor August 5, 20 26 TABLE OF CONTENTS", "2026-08-06")).toBe("2026-08-05");
+    expect(prospectusDate("Wolfe | Nomura Alliance __________________ Prospectus dated September 29, 202 6 i Table of Contents", "2026-10-01")).toBe("2026-09-29");
     expect(prospectusDate("Roth MDB Capital The date of this prospectus is August 6, 2026 TABLE OF CONTENTS", "2026-08-07")).toBe("2026-08-06"); // Ticketplus
     expect(prospectusDate("THE DATE OF THIS PROSPECTUS IS MARCH 5, 2015.", "2015-03-06")).toBe("2015-03-05");
     expect(prospectusDate("Jones Prospectus dated August 11, 2026. TABLE OF CONTENTS", "2026-08-12")).toBe("2026-08-11"); // Vogenx
@@ -131,8 +134,43 @@ describe("IPO parsers", () => {
     expect(parseRegistration("", "Maximum Aggregate Offering Price $100,000,000").expectedRaiseUsd).toBeNull();
     // Round figures are placeholders whatever their size; a real figure is shares × price.
     expect(parseRegistration("", "Maximum Aggregate Offering Price $1,000,000,000").expectedRaiseUsd).toBeNull();
-    expect(parseRegistration("", "Maximum Aggregate Offering Price $270,500,000").expectedRaiseUsd).toBe(270.5e6);
-    expect(parseRegistration("", "Maximum Aggregate Offering Price $15,000,000").expectedRaiseUsd).toBe(15e6);
+    // The fee table's maximum (over-allotment at the top of the range) is never the expected raise, only a size test.
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $270,500,000").expectedRaiseUsd).toBeNull();
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $270,500,000").registeredMaxUsd).toBe(270.5e6);
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $15,000,000").registeredMaxUsd).toBe(15e6);
+    expect(parseRegistration("", "Maximum Aggregate Offering Price $100,000,000").registeredMaxUsd).toBeNull();
+  });
+
+  it("reads the range in its other wordings and the base shares, not a resale prospectus's (live pipeline, November 2026)", () => {
+    // vVARDIS: the unit after "per" has words before it.
+    expect(extractPriceRange("We expect that the initial public offering price will be between $21.00 and $24.00 per Class A ordinary share.")).toEqual({ low: 21, high: 24 });
+    // Green Solar: US$; Neucleus: "Offering Price: $4 to $5"; MediaOn: draft brackets; a plain "in the range of".
+    expect(extractPriceRange("the initial public offering price of our Class A Shares to be between US$4.00 and US$6.00 per Class A ordinary share")).toEqual({ low: 4, high: 6 });
+    expect(extractPriceRange("Offering Price: $4 to $5 per Class A Ordinary Share")).toEqual({ low: 4, high: 5 });
+    expect(extractPriceRange("the initial public offering price of the shares will be between US$[4] and US$[6] per share")).toEqual({ low: 4, high: 6 });
+    expect(extractPriceRange("We expect the initial public offering price will be in the range of $4.00 to $5.00 per Ordinary Share.")).toEqual({ low: 4, high: 5 });
+    // A dilution sentence is no range.
+    expect(extractPriceRange("our net tangible book value would increase from $4.10 to $4.35 per share")).toBeNull();
+    const sinLianSeng = `This registration statement contains two prospectuses. ● The Public Offering Prospectus. ● The Resale Prospectus. A prospectus to be used for the resale by Selling Shareholders of 1,470,000 ordinary shares. 6,250,000 Ordinary Shares Sin Lian Seng Construction Limited. We currently estimate that the initial public offering price will be between US$4.00 and US$5.00 per Ordinary Share.`;
+    expect(extractSharesOffered(sinLianSeng)).toBe(6_250_000);
+    expect(parseRegistration(sinLianSeng, "Maximum Aggregate Offering Price $35,937,500").expectedRaiseUsd).toBe(28_125_000);
+  });
+
+  it("takes a conversion's appraisal midpoint and its selling agent (Hometown Financial)", () => {
+    const text = `Price: $10.00 per Share Minimum Midpoint Maximum Adjusted Maximum Number of shares 51,000,000 60,000,000 69,000,000 79,350,000 Gross offering proceeds $ 510,000,000 $ 600,000,000 $ 690,000,000 $ 793,500,000 (1) See "The Conversion and Stock Offering - Plan of Distribution; Selling Agent and Underwriter Compensation" for a discussion of Keefe, Bruyette & Woods, Inc.'s compensation for the stock offering`;
+    const terms = parseRegistration(text, "Maximum Aggregate Offering Price $825,240,000");
+    expect(terms.expectedRaiseUsd).toBe(600e6);
+    expect(terms.underwriters).toEqual(["Stifel"]);
+  });
+
+  it("reads a registration's own underwriting table, every bank to the Total row", () => {
+    const counsel = "Copies to: Fox Rothschild LLP 2001 Market Street; Faegre Drinker Biddle & Reath LLP 2200 Wells Fargo Center";
+    const table = "UNDERWRITING Underwriter Number of shares Sentinel Brokers Company, Inc. Revere Securities LLC Total 5,000,000";
+    expect(parseRegistration(`${counsel} PROSPECTUS TABLE OF CONTENTS ${table}`, null).underwriters).toEqual(["Sentinel Brokers", "Revere Securities"]);
+    expect(parseRegistration(`PROSPECTUS ${counsel} Sole Bookrunner Titan Partners Co-Manager Northland Capital Markets TABLE OF CONTENTS`, null).underwriters).toEqual(["Titan Partners", "Northland Capital Markets"]);
+    const filler = " Inc.".repeat(700);
+    const sb = `Name Number of Shares J.P. Morgan Securities LLC Goldman Sachs & Co. LLC${filler} BNP Paribas Securities Corp. Natixis Securities Americas LLC WR Securities, LLC Huntington Securities, Inc. ING Financial Markets LLC ABN AMRO Capital Markets (USA) LLC Compass Point Research & Trading, LLC DNB Carnegie, Inc. SEB Securities, Inc. S G Americas Securities, LLC Total`;
+    expect(extractUnderwritingTable(sb)).toEqual(["JPMorgan", "Goldman Sachs", "BNP Paribas", "Natixis", "Wolfe Research", "Huntington Securities", "ING", "ABN AMRO", "Compass Point", "DNB Carnegie", "SEB", "Société Générale"]);
   });
 
   it("prefers the price-range midpoint over the fee table", () => {
@@ -197,5 +235,26 @@ describe("IPO rules", () => {
   it("counts a re-IPO after years without reports", () => {
     expect(publicWithin([{ form: "10-K", date: "2013-06-20" }, { form: "S-1", date: "2024-12-01" }], "2025-01-29")).toBe(false);
     expect(publicWithin([{ form: "10-Q", date: "2024-11-05" }], "2025-01-29")).toBe(true);
+  });
+});
+
+describe("one expected price and other share wordings (live pipeline, November 2026)", () => {
+  it("reads a single expected price as the raise's price, never a range's first figure", () => {
+    expect(extractPriceRange("We anticipate that the initial public offering price of our shares will be $10.00 per share.")).toEqual({ low: 10, high: 10 });
+    expect(extractPriceRange("It is currently estimated that the initial public offering price per share will be US$4. We intend to list")).toEqual({ low: 4, high: 4 });
+    expect(extractPriceRange("based on an assumed initial public offering price per share of $4.00, representing the low end of the initial public offering price range of $4.00 and $5.00")).toEqual({ low: 4, high: 5 });
+    expect(extractPriceRange("We expect that the initial public offering price will be between $[●] and $[●] per share.")).toBeNull();
+    expect(extractSharesOffered("A prospectus to be used for the public offering of 3,750,000 Class A Shares of the Registrant")).toBe(3_750_000);
+    expect(parseRegistration("1,500,000 Shares Common Stock Cortigent, Inc. We anticipate that the initial public offering price of our shares will be $10.00 per share.", null).expectedRaiseUsd).toBe(15e6);
+  });
+});
+
+describe("the rest of the second check (Devonian, MediaOn, Wella)", () => {
+  it("reads units priced in USD$, a combined offering, and every dealer in a long table", () => {
+    const devonian = "We are offering up to 3,070,000 common units (each a \"Common Unit\"). The estimated offering price for the Common Units is expected to be between USD$6.00 and USD$8.00 per Common Unit.";
+    expect(parseRegistration(devonian, null).expectedRaiseUsd).toBe(21_490_000);
+    const mediaon = "We and the Selling Shareholders named in this prospectus are offering, on a firm commitment engagement basis, 3,000,000 Class A Ordinary Shares and 2,900,000 Class A Ordinary Shares, respectively. We anticipate that the initial public offering price of the shares will be between US$[4] and US$[6] per share.";
+    expect(parseRegistration(mediaon, null).expectedRaiseUsd).toBe(29_500_000);
+    expect(extractUnderwritingTable("Underwriter Number of Shares Goldman Sachs & Co. LLC KKR Capital Markets LLC BBVA Securities Inc. Commerz Markets LLC Intesa Sanpaolo IMI Securities Corp. UniCredit Capital Markets LLC RB International Markets (USA) LLC Daiwa Capital Markets America Inc. Newmark Securities, LLC Robinhood Securities, LLC Total")).toEqual(["Goldman Sachs", "KKR Capital Markets", "BBVA", "Commerzbank", "Intesa Sanpaolo", "UniCredit", "Raiffeisen Bank International", "Daiwa Capital Markets", "Newmark Securities", "Robinhood Securities"]);
   });
 });

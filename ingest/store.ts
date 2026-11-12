@@ -85,6 +85,8 @@ export interface StoredIpo extends Ipo {
   parsedAdsh: string | null;
   /** IPO_PARSER_VERSION it was parsed with; a newer parser re-reads it. */
   parser?: number;
+  /** The registration fee table's maximum offering: never shown, only to tell a tiny self-underwritten offering apart. */
+  registeredMaxUsd?: number | null;
 }
 
 export interface State {

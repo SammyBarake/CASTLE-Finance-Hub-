@@ -124,6 +124,9 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   // bank files its S-4 alongside or after the S-1 and is unaffected.
   const mergedIn = filings.some((f) => /^(?:S-4|F-4)(?:\/A)?$/.test(f.form) && f.date < initial.date);
   if (mergedIn && filings.some((f) => /^8-K/.test(f.form) && /\b5\.06\b/.test(f.items))) return null;
+  // A foreign issuer files no 8-K: listed on an exchange (8-A12B, the exchange's CERT) after that merger and before this
+  // registration, it is the merged company registering warrant shares and holders' resales (newcleo, IQM).
+  if (mergedIn && filings.some((f) => /^(?:8-A12B|CERT)/.test(f.form) && f.date < initial.date)) return null;
 
   const priced = filings.find((f) => FINAL_PROSPECTUS.test(f.form) && f.date >= initial.date);
   // Withdrawn before pricing (a withdrawal after the IPO concerns some later registration).
@@ -149,9 +152,10 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   let pricedOn: string | null = null;
   if (!existing || existing.parsedAdsh !== docAdsh || existing.parser !== IPO_PARSER_VERSION) {
     const doc = priced ?? latestReg;
-    // A final prospectus is read whole: its underwriting table, near the end, names every bank.
+    // Read whole: the underwriting table, near the end, names every bank (a registration cut at 700 KB lost Starton's and
+    // Cafe Deco's, and Cumberland Farms' BNP Paribas, which only the cover then named).
     const url = archiveUrl(sub.cik, doc.adsh, doc.primaryDocument);
-    const text = htmlToText(priced ? await getText(url) : await getTextHead(url, 700_000));
+    const text = htmlToText(await getText(url));
     terms = priced ? parseFinalProspectus(text) : parseRegistration(text, await feeExhibitText(sub.cik, doc.adsh));
     // A bank named in the company's own name isn't its bookrunner ("Baird Medical" is not Robert W. Baird).
     const own = ` ${normalizeName(sub.name)} `;
@@ -163,9 +167,9 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
     // Commodity pools and non-traded REITs, and any filing with no known bookrunner (a shell quoted over the counter, or
     // never at all: Pharmaceutical Resource Technology), are IPOs only if the shares will list on a US exchange.
     if ((LISTING_SIC.has(sub.sic) || !terms.underwriters.length) && !listsOnExchange(text)) return null;
-    // Amendments often omit the fee table; the original registration has it.
-    if (!priced && terms.expectedRaiseUsd == null && doc.adsh !== initial.adsh) {
-      terms = { ...terms, expectedRaiseUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).expectedRaiseUsd };
+    // Amendments often omit the fee table; the original registration has it (only the size test reads it).
+    if (!priced && terms.registeredMaxUsd == null && doc.adsh !== initial.adsh) {
+      terms = { ...terms, registeredMaxUsd: parseRegistration("", await feeExhibitText(sub.cik, initial.adsh)).registeredMaxUsd };
     }
     // Final prospectus may omit a clean price×shares; fall back to the registration estimate.
     if (priced && terms.expectedRaiseUsd == null) terms.expectedRaiseUsd = isPlaceholderRaise(existing?.expectedRaiseUsd ?? null) ? null : (existing?.expectedRaiseUsd ?? null);
@@ -207,7 +211,10 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
   if (terms) {
     // A placeholder an older parser stored would otherwise outlive the rule that now refuses it (Anthropic's $1B). Only on
     // a re-read that found nothing: a real range × shares can land on a round figure too.
-    ipo.expectedRaiseUsd = terms.expectedRaiseUsd ?? (isPlaceholderRaise(ipo.expectedRaiseUsd) ? null : ipo.expectedRaiseUsd);
+    // A registration re-read replaces what an earlier filing or parser gave: an amendment's cover supersedes the first
+    // (vVARDIS, Fitness Fanatics, MediaOn kept their first filings' figures).
+    ipo.expectedRaiseUsd = priced ? (terms.expectedRaiseUsd ?? (isPlaceholderRaise(ipo.expectedRaiseUsd) ? null : ipo.expectedRaiseUsd)) : terms.expectedRaiseUsd;
+    ipo.registeredMaxUsd = terms.registeredMaxUsd ?? ipo.registeredMaxUsd ?? null;
     ipo.offerPrice = terms.offerPrice ?? ipo.offerPrice;
     ipo.underwriters = terms.underwriters.length ? terms.underwriters : ipo.underwriters;
     ipo.description = terms.description ?? (ipo.description || sub.sicDescription || "");
@@ -217,7 +224,7 @@ async function evaluate(cik: string, existing: StoredIpo | undefined, dir: Direc
 
   // Tiny self-underwritten offerings aren't the IPO market this tracks; nor is a post-merger registration with no
   // bookrunner (a pending SPAC merger's resale or PIPE shares: Einride).
-  if ((ipo.expectedRaiseUsd ?? 0) < MIN_RAISE && !ipo.underwriters.length) return null;
+  if ((ipo.expectedRaiseUsd ?? ipo.registeredMaxUsd ?? 0) < MIN_RAISE && !ipo.underwriters.length) return null;
   if (mergedIn && !ipo.underwriters.length) return null;
   if (ipo.expectedRaiseUsd != null && ipo.expectedRaiseUsd < 5e6) return null;
   return ipo;

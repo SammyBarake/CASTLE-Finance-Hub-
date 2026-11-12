@@ -90,13 +90,15 @@ describe("a stored raise on a re-read", () => {
     expect(out.get("1")!.parser).toBe(IPO_PARSER_VERSION);
   });
 
-  it("keeps a real figure: a fee table, one that an amendment left out, and a price range landing on a round number", async () => {
+  it("never shows a fee table's maximum or a stale figure as the raise, and keeps a price range landing on a round number", async () => {
     company("2", "Real Fee Co", REG_COVER, fee("33,000,000"));
     company("3", "Fee Lost Co", REG_COVER, null);
     company("4", "Range Co", `25,000,000 Shares between $17.00 and $19.00 per share ${REG_COVER}`, fee("1,000,000,000"));
     const out = await run([stored("2", "Real Fee Co", { expectedRaiseUsd: 1e9 }), stored("3", "Fee Lost Co", { expectedRaiseUsd: 28e6 }), stored("4", "Range Co", { expectedRaiseUsd: 1e9 })]);
-    expect(out.get("2")!.expectedRaiseUsd).toBe(33e6);
-    expect(out.get("3")!.expectedRaiseUsd).toBe(28e6);
+    // The fee table's maximum stays apart, for the size test only; a figure the re-read can't find goes (vVARDIS kept its first filing's).
+    expect(out.get("2")!.expectedRaiseUsd).toBeNull();
+    expect(out.get("2")!.registeredMaxUsd).toBe(33e6);
+    expect(out.get("3")!.expectedRaiseUsd).toBeNull();
     expect(out.get("4")!.expectedRaiseUsd).toBe(450e6);
   });
 
@@ -123,7 +125,7 @@ describe("second-step conversions", () => {
     company("9", "Hometown Financial Group, Inc.", `${REG_COVER} in connection with the conversion of Hometown Financial Group, MHC. There is no current public or private market. The Plan of Conversion of Hometown Financial Group, MHC.`, fee("825,240,000"));
     const out = await run([stored("8", "Columbia Financial, Inc.", { expectedRaiseUsd: 1926250000 }), stored("9", "Hometown Financial Group, Inc.", { expectedRaiseUsd: 825240000 })]);
     expect(out.has("8")).toBe(false);
-    expect(out.get("9")!.expectedRaiseUsd).toBe(825240000);
+    expect(out.get("9")!.registeredMaxUsd).toBe(825240000);
   });
 });
 
@@ -149,5 +151,23 @@ describe("the priced date", () => {
     const out = await run([stored("12", "Stored Date Co", { pricedDate: "2026-10-29", parsedAdsh: "0002-26-12", parser: IPO_PARSER_VERSION }), stored("13", "Unpriced Co")]);
     expect(out.get("12")!.pricedDate).toBe("2026-10-29");
     expect(out.get("13")!.pricedDate).toBeNull();
+  });
+});
+
+describe("a merged company's resale registration", () => {
+  it("drops a foreign issuer listed through a merger before its F-1 (newcleo, IQM), and keeps an IPO whose listing comes after", async () => {
+    const resale = "PROSPECTUS This prospectus relates to the offer and sale, from time to time, by the selling securityholders named herein, and the issuance of ordinary shares upon the exercise of warrants. Cohen & Company Capital Markets TABLE OF CONTENTS";
+    company("21", "IQM Quantum Computers Oyj", resale, null);
+    company("22", "Listed Later Co", REG_COVER, null);
+    const listedFirst = (cik: string, listed: string) =>
+      (edgar.subs[cik] as { list: object[] }).list.unshift(
+        { form: "F-4", date: "2026-03-01", adsh: `0003-26-${cik}`, primaryDocument: "f4.htm", items: "" },
+        { form: "8-A12B", date: listed, adsh: `0004-26-${cik}`, primaryDocument: "8a.htm", items: "" },
+      );
+    listedFirst("21", "2026-06-30");
+    listedFirst("22", "2026-08-01");
+    const out = await run([stored("21", "IQM Quantum Computers Oyj"), stored("22", "Listed Later Co")]);
+    expect(out.has("21")).toBe(false);
+    expect(out.has("22")).toBe(true);
   });
 });
