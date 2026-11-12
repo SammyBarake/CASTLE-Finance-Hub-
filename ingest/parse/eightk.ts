@@ -211,7 +211,8 @@ export function extractMergerPrice(s: string): number | null {
     /(?:right|entitled) to receive(?:[^$;.]{0,80}?)\$\s?(\d{1,4}(?:\.\d{1,4})?)\s*(?:in cash|per share|per (?:Public |Outstanding )?(?:Common )?Unit\b|,? without interest|\(the)/gi,
     // "for (i) $8.50 per Share, net to the seller in cash", "for a purchase price of $95.00 per share, net to the holders
     // thereof in cash" (Cerner)
-    /(?:for|at a price of|offer price of|(?:for|at) a (?:purchase |cash |offer )?price of|purchase price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
+    // ("at a price of $3.15 per share, or as otherwise adjusted pursuant to the Merger Agreement (the "Offer Price"), net to the seller": Crown Electrokinetics.)
+    /(?:for|at a price of|offer price of|(?:for|at) a (?:purchase |cash |offer )?price of|purchase price of)\s+(?:\([a-z0-9]{1,4}\)\s+)?\$\s?(\d{1,4}(?:\.\d{1,4})?)\s+per\s+share\b[^.;$]{0,130}?(?:net to the (?:seller|holder)|in cash)/gi,
     // "at a price per share of $4.35, in cash, net to the holder" (WhiteHawk / PHX)
     /\bat a (?:purchase |cash |offer )?price per share of\s+\$\s?(\d{1,4}(?:\.\d{1,4})?)\b[^.;$]{0,80}?(?:net to the (?:seller|holder)|in cash)/gi,
     // "at a price of $2.05 per Share (the "Offer Price")" (Castlight), "at a price per share of Company Common Stock of $17.00 (…), net to the seller" (Great Lakes).

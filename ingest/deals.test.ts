@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "../lib/types";
-import { banksOfTheTarget, opensNamingBuyer, coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, looksLikePressRelease, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
+import { banksOfTheTarget, officialName, opensNamingBuyer, coreName, dropPrivateDuplicates, expandAbbreviation, FUND_TARGET, isPrivateTargetName, looksLikePressRelease, namesUsExchange, registrantMatches, releaseTerms, saysMergerTerminated, stripDateline, tidyTargetName } from "./deals";
 import type { StoredDeal } from "./store";
 
 describe("banksOfTheTarget", () => {
@@ -259,5 +259,15 @@ describe("values of the combined company are not deal values", () => {
         "Filed pursuant to Rule 425. The following is an article that was published in the Springfield Business Journal on March 3, 2026, following an interview with the Chief Executive Officer of Atlas Energy. Atlas must pay Ridge $900 million if the $11 billion acquisition, which has an enterprise value of $40 billion, fails.",
       ),
     ).toBe(false);
+  });
+});
+
+describe("officialName: a linked buyer's name", () => {
+  it("keeps the release's spelling when the SEC name is the same words, else takes the SEC name", () => {
+    expect(officialName("The Charles Schwab Corporation", "SCHWAB CHARLES CORP")).toBe("The Charles Schwab Corporation");
+    expect(officialName("Schweitzer-Mauduit International, Inc.", "SCHWEITZER MAUDUIT INTERNATIONAL INC")).toBe("Schweitzer-Mauduit International, Inc.");
+    expect(officialName("Huntington Bancshares Incorporated", "HUNTINGTON BANCSHARES INC /MD/")).toBe("Huntington Bancshares Incorporated");
+    expect(officialName("Bonanza Creek", "BONANZA CREEK ENERGY, INC.")).toBe("Bonanza Creek Energy, Inc.");
+    expect(officialName("Merger As previously reported, Ideanomics, Inc.", "IDEANOMICS, INC.")).toBe("Ideanomics, Inc.");
   });
 });

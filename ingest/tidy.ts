@@ -65,7 +65,8 @@ export function junkReason(d: StoredDeal): string | null {
     return `SPAC buyer "${d.acquirer.name}"`;
   // A SPAC's name alone, once its industry code has changed with the business it bought ("Rice Acquisition Corp."
   // became Archaea Energy): no operating company buys a private business under an "… Acquisition Corp." name.
-  if (d.privateTarget && SPAC_NAME.test(d.acquirer.name)) return `SPAC buyer "${d.acquirer.name}"`;
+  // (… "Acquisition Holdings" too: "VPC Impact Acquisition Holdings" and Bakkt, now Bakkt Holdings, Inc. under the SPAC's CIK.)
+  if (d.privateTarget && (SPAC_NAME.test(d.acquirer.name) || /\bAcquisition\s+Holdings\b/i.test(d.acquirer.name))) return `SPAC buyer "${d.acquirer.name}"`;
   // SPAC deals by name (the stored industry is today's SIC, which a de-SPACed company changes): a SPAC as the target
   // ("Hudson Executive Investment Corp.", "FS Development Corp. II"), or a SPAC, its sponsor or a fund as the buyer
   // ("Vine Hill Capital Investment Corp.", "HEC Sponsor LLC", "Tenor Opportunity Master Fund").

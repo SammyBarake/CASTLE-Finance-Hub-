@@ -106,6 +106,7 @@ Item 9.01 Exhibits.`;
 
   it("reads 'for a purchase price of $X per share' (Cerner)", () => {
     expect(extractMergerPrice(`Merger Subsidiary will commence a cash tender offer (the "Offer") to acquire all of the issued and outstanding shares of the Company's common stock for a purchase price of $95.00 per share, net to the holders thereof in cash (the "Offer Price")`)).toBe(95);
+    expect(extractMergerPrice(`Purchaser will commence a cash tender offer to purchase all of the outstanding shares of common stock of the Company at a price of $3.15 per share, or as otherwise adjusted pursuant to the Merger Agreement (the "Offer Price"), net to the seller in cash, without interest`)).toBe(3.15);
   });
 });
 

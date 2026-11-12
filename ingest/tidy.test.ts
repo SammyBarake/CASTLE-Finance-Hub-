@@ -136,6 +136,7 @@ describe("junkReason", () => {
   it("drops a private purchase by a SPAC-named buyer whatever its industry", () => {
     expect(junkReason(deal({ privateTarget: true, industry: "Gas & Other Services Combined", acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null }, target: { name: "Aria Energy LLC", ticker: null, cik: null } }))).toMatch(/SPAC/);
     expect(junkReason(deal({ acquirer: { name: "Rice Acquisition Corp.", ticker: null, cik: null } }))).toBeNull();
+    expect(junkReason(deal({ privateTarget: true, industry: "Finance Services", acquirer: { name: "VPC Impact Acquisition Holdings", ticker: "BKKT", cik: "1820302" }, target: { name: "Bakkt Holdings, LLC", ticker: null, cik: null } }))).toMatch(/SPAC/);
   });
 
   it("drops a single branded hotel as a private target", () => {
@@ -432,6 +433,11 @@ describe("listing and role checks", () => {
     // Deregistered long ago: its old Form 25 and 10-Ks don't count.
     const bremer = { exchanges: [], filings: filings([["15-12G", "2004-03-01"], ["25-NSE", "2004-02-01"], ["10-K", "2003-03-01"]]) };
     expect(listedOn(bremer, "2025-01-27")).toBe(false);
+    // A heavy filer read with its older index pages: Huntington's recent page starts in 2022, its 2020 10-Q is older.
+    const huntington = { exchanges: ["Nasdaq"], filings: filings([["424B2", "2026-10-01"], ["424B2", "2022-10-27"]]) };
+    expect(listedOn(huntington, "2020-12-14")).toBe(false);
+    const older = [{ form: "10-Q", date: "2020-10-30", adsh: "x", primaryDocument: "x.htm", items: "", reportDate: "" }];
+    expect(listedOn(huntington, "2020-12-14", older as never)).toBe(true);
   });
 
   it("provablyUnlistedOn: listed today but not reporting when the deal was announced", () => {

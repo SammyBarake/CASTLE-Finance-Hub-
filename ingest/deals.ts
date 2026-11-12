@@ -11,6 +11,7 @@
 import {
   archiveUrl,
   filingDocuments,
+  filingsUntil,
   fullTextSearch,
   getSubmissions,
   getText,
@@ -300,8 +301,8 @@ const PERIODIC = /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/;
  * in the year before, and is still on a US exchange or was delisted (Form 25) afterwards. An OTC company or one that
  * deregistered long ago (Bremer Financial) is not.
  */
-export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: string): boolean {
-  const filings = recentFilings(sub as Submissions);
+export function listedOn(sub: Pick<Submissions, "exchanges" | "filings">, date: string, rows?: ReturnType<typeof recentFilings>): boolean {
+  const filings = rows ?? recentFilings(sub as Submissions);
   const reporting = filings.some((f) => PERIODIC.test(f.form) && f.date >= shiftDate(date, -450) && f.date <= shiftDate(date, 30));
   // (A Form 25 weeks before the deal means off the exchange at signing: Agile 23 days, Apex 14. Ten days covers a record dated at its closing.)
   // (An amended Form 25 is one too: RADA Electronic Industries, on Nasdaq until Leonardo DRS bought it, filed only "25-NSE/A".)
@@ -342,6 +343,19 @@ export async function listedThen(sub: Submissions, date: string): Promise<boolea
   } catch {
     return false;
   }
+}
+
+/**
+ * `listedThen`, reading the filing index's older pages when its recent page doesn't reach back to the date: a heavy
+ * filer's prospectuses fill it (Huntington Bancshares' recent filings start in October 2022, so its 2020 purchase of
+ * TCF read as an unlisted buyer's).
+ */
+export async function listedThenDeep(sub: Submissions, date: string): Promise<boolean> {
+  if (await listedThen(sub, date)) return true;
+  const recent = recentFilings(sub);
+  const oldest = recent.reduce((m, f) => (f.date < m ? f.date : m), "9999");
+  if (!sub.filings.files?.length || oldest <= shiftDate(date, -450)) return false;
+  return listedOn(sub, date, await filingsUntil(sub, shiftDate(date, -450)));
 }
 
 /** A US exchange named in a delisting notice, not an OTC market. */
@@ -991,8 +1005,12 @@ export const valueCheckDue = (d: Pick<StoredDeal, "valueUsd" | "valueImplied" | 
 /** Over price × shares, a release at the deal's own price only. */
 export const takesStatedValue = (d: Pick<StoredDeal, "valueUsd" | "pricePerShare">, release: Pick<AnnouncedTerms, "pricePerShare">) =>
   d.valueUsd == null || release.pricePerShare == null || d.pricePerShare == null || Math.abs(release.pricePerShare - d.pricePerShare) <= d.pricePerShare * 0.005;
-/** Bump to look again for the SEC registrant behind buyers stored without a CIK. */
-export const BUYER_LINK_VERSION = 1;
+/**
+ * Bump to look again for the SEC registrant behind buyers stored without a CIK.
+ * 2: renamed registrants found through the reports that carried the old name (Chesapeake → Expand Energy), names in
+ * another word order (SCHWAB CHARLES CORP), a heavy filer's older index pages (Huntington in 2020).
+ */
+export const BUYER_LINK_VERSION = 2;
 
 /**
  * Both sides' financial advisers from the announcement releases ("Goldman Sachs is serving as financial advisor to
@@ -1151,14 +1169,24 @@ export async function isMergerTermination(cik: string, adsh: string, doc: string
 }
 
 /**
+ * The registrant's SEC name for a linked buyer, unless it is the stored name in other punctuation or word order: the
+ * release spells the company's own name ("Schweitzer-Mauduit International, Inc.", "The Charles Schwab Corporation"),
+ * EDGAR's is capitals, sometimes surname-first ("SCHWAB CHARLES CORP").
+ */
+export function officialName(stored: string, registrant: string): string {
+  const words = (s: string) => normalizeName(withoutStateTag(s)).split(" ").filter((w) => w && w !== "the").sort().join(" ");
+  return words(stored).length >= 3 && words(stored) === words(registrant) ? stored : displayName(registrant);
+}
+
+/**
  * Private targets have no filings of their own. Sector and industry come from the acquirer, and an
  * announced deal closes when the acquirer files an 8-K Item 2.01 ("Completion of Acquisition").
  */
 export function enrichPrivateDeal(deal: StoredDeal, acquirerSub: Submissions | null, today: string, directory?: Directory, opts: { verifyClosing?: boolean } = {}) {
   // The name it had on the deal's date (Chesapeake, not today's Expand Energy), not prose such as "Merger As previously
   // reported, Ideanomics, Inc."; today's listed name only without its filing history.
-  if (acquirerSub) deal.acquirer.name = displayName(provablyUnlistedOn(acquirerSub, deal.announcedDate) ? acquirerSub.name : nameOn(acquirerSub, deal.announcedDate));
-  else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
+  if (acquirerSub) deal.acquirer.name = officialName(deal.acquirer.name, provablyUnlistedOn(acquirerSub, deal.announcedDate) ? acquirerSub.name : nameOn(acquirerSub, deal.announcedDate));
+  else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = officialName(deal.acquirer.name, directory.byCik.get(deal.acquirer.cik)!.name);
   if (acquirerSub) {
     deal.acquirer.ticker ??= acquirerSub.tickers?.[0] ?? null;
     deal.sector = sectorForBuyer(acquirerSub.cik, acquirerSub.sic, acquirerSub.name);
@@ -1669,8 +1697,8 @@ export async function readDealTerms(deal: StoredDeal, sub: Submissions): Promise
 export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, today: string, directory?: Directory, opts: { light?: boolean; buyerSub?: Submissions | null } = {}) {
   correctKnownClosing(deal);
   // Official SEC registrant names beat names parsed from prose: the name it had on the deal's date, as for the target.
-  if (opts.buyerSub) deal.acquirer.name = displayName(provablyUnlistedOn(opts.buyerSub, deal.announcedDate) ? opts.buyerSub.name : nameOn(opts.buyerSub, deal.announcedDate));
-  else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = displayName(directory.byCik.get(deal.acquirer.cik)!.name);
+  if (opts.buyerSub) deal.acquirer.name = officialName(deal.acquirer.name, provablyUnlistedOn(opts.buyerSub, deal.announcedDate) ? opts.buyerSub.name : nameOn(opts.buyerSub, deal.announcedDate));
+  else if (deal.acquirer.cik && directory?.byCik.get(deal.acquirer.cik)) deal.acquirer.name = officialName(deal.acquirer.name, directory.byCik.get(deal.acquirer.cik)!.name);
   if (sub) {
     // The name it had when the deal was announced, not the one it took after being bought.
     deal.target.name = displayName(nameOn(sub, deal.announcedDate));
@@ -1883,6 +1911,78 @@ export interface DealRunStats {
   buyersLinked: number;
 }
 
+/**
+ * The registrant behind a buyer stored by name only. Today's listed-company file misses buyers renamed since ("Exxon
+ * Mobil Corporation" is now ExxonMobil Holdings Corp) or listed under another ticker (Nicolet: NCBS on Nasdaq in
+ * 2021, NIC on the NYSE now), so EDGAR's name lookup is asked, and a registrant counts only if it had that name and
+ * was exchange-listed on the deal date. Today's ticker comes from the listed-company file, by CIK or, after a
+ * holding-company reorganization, by the same name without spaces (XOM). Network errors propagate (checked again).
+ */
+export async function resolveBuyerRegistrant(name: string, date: string, submissions: (cik: string) => Promise<Submissions | null>, directory: Directory): Promise<{ cik: string; ticker: string | null } | null> {
+  const q = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim();
+  const bare = q.replace(/\s+(?:Corporation|Corp|Incorporated|Inc|Company|Co|Limited|Ltd|plc|LLC|LP|L P|NV|SA|AG)$/i, "");
+  const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
+  // (A leading "The" is no part of the registered name: "The Goodyear Tire & Rubber Company" is GOODYEAR TIRE & RUBBER CO.)
+  const unThe = (s: string) => s.replace(/^The\s+/i, "");
+  // EDGAR files some names surname-first: "The Charles Schwab Corporation" is SCHWAB CHARLES CORP. Not with an ordinary
+  // business word, where the order is the name: "First Bank" (New Jersey) is not Bank First Corp (Wisconsin).
+  const ORDINARY = /^(?:bank|banc|bancorp|first|national|financial|group|holdings?|trust|capital|energy|american|america|united|general|international|global|community|savings|federal|partners|security|citizens|peoples|home|new|great|southern|northern|western|eastern|central)$/;
+  const sameWords = (a: string, b: string) => {
+    const words = (s: string) => normalizeName(s).split(" ").filter(Boolean);
+    const w = (s: string) => words(s).sort().join(" ");
+    return w(a).length >= 4 && w(a) === w(b) && !words(a).some((x) => ORDINARY.test(x));
+  };
+  const tried = new Set<string>();
+  const accept = async (cikIn: string) => {
+    if (tried.has(cikIn)) return null;
+    tried.add(cikIn);
+    const sub = await submissions(cikIn);
+    if (!sub || sub.sic === "6770") return null;
+    // (Without EDGAR's state tag: "QUALCOMM INC/DE", "ONEOK INC /NEW/".)
+    const then = withoutStateTag(nameOn(sub, date));
+    if (!registrantMatches(then, unThe(name)) && !registrantMatches(then, unThe(bare)) && squash(then) !== squash(unThe(name)) && !sameWords(then, unThe(name))) return null;
+    if (notTheSponsor(name, then)) return null; // "Advent" is not Advent Technologies Holdings
+    if (!(await listedThenDeep(sub, date))) return null;
+    const cik = trimCik(sub.cik);
+    const successor = [...directory.byCik.values()].find((x) => US_LISTED.test(x.exchange ?? "") && squash(x.name) === squash(then));
+    return { cik, ticker: directory.byCik.get(cik)?.ticker ?? sub.tickers?.[0] ?? successor?.ticker ?? null };
+  };
+  for (const query of [...new Set([unThe(q), unThe(bare), coreName(unThe(name))])]) {
+    if (squash(query).length < 4) continue;
+    // The exact name first: EDGAR ranks a parent's subsidiaries beside it ("OWENS & MINOR MEDICAL INC").
+    const rank = (n: string) => {
+      const b = withoutStateTag(n);
+      return identicalNames(b, query) || sameWords(b, query) ? 3 : sameCompany(b, query) ? 2 : registrantMatches(b, query) ? 1 : 0;
+    };
+    const candidates = (await lookupCompanies(query)).filter((c) => rank(c.name) > 0).sort((a, b) => rank(b.name) - rank(a.name)).slice(0, 4);
+    for (const c of candidates) {
+      const found = await accept(c.cik);
+      if (found) return found;
+    }
+  }
+  // EDGAR's name lookup knows only today's names (Chesapeake Energy is Expand Energy, PerkinElmer is Revvity, Owens &
+  // Minor is Accendra Health): the annual and quarterly reports that carried the name around the deal date find the
+  // registrant: filers whose own name then was the buyer's first, then the most frequent (a custodian or supplier is
+  // named in many other companies' reports). One word too when it is distinctive ("PerkinElmer").
+  if (unThe(bare).split(" ").length >= 2 || squash(unThe(bare)).length >= 6) {
+    const hits = await fullTextSearch({ q: `"${unThe(bare)}"`, forms: ["10-K", "10-Q"], from: shiftDate(date, -400), to: shiftDate(date, 30) });
+    const counts = new Map<string, number>();
+    const named = new Set<string>();
+    for (const h of hits)
+      h.ciks.forEach((c, i) => {
+        const cik = trimCik(c);
+        counts.set(cik, (counts.get(cik) ?? 0) + 1);
+        const shown = parseDisplayName(h.displayNames[i] ?? "").name;
+        if (shown && (registrantMatches(withoutStateTag(shown), unThe(bare)) || sameWords(shown, unThe(name)))) named.add(cik);
+      });
+    for (const [cik] of [...counts].sort((a, b) => Number(named.has(b[0])) - Number(named.has(a[0])) || b[1] - a[1]).slice(0, 5)) {
+      const found = await accept(cik);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export async function ingestDeals(
   state: State,
   opts: {
@@ -2042,38 +2142,7 @@ export async function ingestDeals(
     return found;
   };
 
-  /**
-   * The registrant behind a buyer stored by name only. Today's listed-company file misses buyers renamed since ("Exxon
-   * Mobil Corporation" is now ExxonMobil Holdings Corp) or listed under another ticker (Nicolet: NCBS on Nasdaq in
-   * 2021, NIC on the NYSE now), so EDGAR's name lookup is asked, and a registrant counts only if it had that name and
-   * was exchange-listed on the deal date. Today's ticker comes from the listed-company file, by CIK or, after a
-   * holding-company reorganization, by the same name without spaces (XOM). Network errors propagate (checked again).
-   */
-  const resolveBuyer = async (name: string, date: string): Promise<{ cik: string; ticker: string | null } | null> => {
-    const q = name.replace(/['’.,]/g, "").replace(/\s+/g, " ").trim();
-    const bare = q.replace(/\s+(?:Corporation|Corp|Incorporated|Inc|Company|Co|Limited|Ltd|plc|LLC|LP|L P|NV|SA|AG)$/i, "");
-    const squash = (s: string) => normalizeName(s).replace(/\s+/g, "");
-    const tried = new Set<string>();
-    for (const query of [...new Set([q, bare, coreName(name)])]) {
-      if (squash(query).length < 4) continue;
-      for (const c of (await lookupCompanies(query)).slice(0, 3)) {
-        if (tried.has(c.cik)) continue;
-        tried.add(c.cik);
-        const sub = await submissions(c.cik);
-        if (!sub || sub.sic === "6770") continue;
-        // (Without EDGAR's state tag: "QUALCOMM INC/DE", "ONEOK INC /NEW/".)
-        const then = withoutStateTag(nameOn(sub, date));
-        if (!registrantMatches(then, name) && !registrantMatches(then, bare) && squash(then) !== squash(name)) continue;
-        if (notTheSponsor(name, then)) continue; // "Advent" is not Advent Technologies Holdings
-
-        if (!(await listedThen(sub, date))) continue;
-        const cik = trimCik(sub.cik);
-        const successor = [...directory.byCik.values()].find((x) => US_LISTED.test(x.exchange ?? "") && squash(x.name) === squash(then));
-        return { cik, ticker: directory.byCik.get(cik)?.ticker ?? sub.tickers?.[0] ?? successor?.ticker ?? null };
-      }
-    }
-    return null;
-  };
+  const resolveBuyer = (name: string, date: string) => resolveBuyerRegistrant(name, date, submissions, directory);
 
   /** Resolve parties and merge into a deal; null if the document isn't an in-scope deal. */
   const accept = async (parsed: ParsedPress, hit: FtsHit, text = ""): Promise<StoredDeal | null> => {
