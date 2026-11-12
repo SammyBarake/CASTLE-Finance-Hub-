@@ -9,6 +9,7 @@ import { dealSize, DEFAULT_PRECEDENTS, PRECEDENT_SPEC, screenForDeal, screenPrec
 import { DEAL_SCREEN_SPEC, DEFAULT_SCREEN, screenDeals } from "./screen";
 import { IPO_STAGES, SECTORS, type Deal, type HubData, type Ipo, type LeagueTableEntry } from "./types";
 import { decodeState } from "./urlState";
+import { industryOf } from "./excel/workbooks";
 
 type Cell = string | number | null | undefined;
 
@@ -36,7 +37,8 @@ export function toLiveCsv({ headers, rows }: LiveTable, opts: { sample?: boolean
   return BOM + all.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
 
-const usdM = (usd: number | null | undefined) => (usd == null ? null : Math.round(usd / 1e5) / 10);
+/** USD → $ millions to the thousand: a $0.25M fee or a $1.25M deal reads as stated. */
+const usdM = (usd: number | null | undefined) => (usd == null ? null : Math.round(usd / 1e3) / 1e3);
 const one = (v: number | null | undefined) => (v == null ? null : Math.round(v * 10) / 10);
 const tearSheet = (d: Deal, site: string) => `${site}/tearsheet/deal/${encodeURIComponent(d.id)}`;
 
@@ -75,7 +77,7 @@ const dealCells = (d: Deal, site: string): Cell[] => [
   d.target.ticker,
   d.privateTarget ? "Private" : "Public",
   d.sector,
-  d.industry,
+  industryOf(d),
   d.status,
   d.consideration,
   usdM(d.valueUsd),
@@ -107,7 +109,7 @@ const compsCells = (d: Deal, site: string): Cell[] => [
   d.target.name,
   d.acquirer.name,
   d.sector,
-  d.industry,
+  industryOf(d),
   d.status,
   d.consideration,
   usdM(dealSize(d)),
@@ -165,9 +167,10 @@ export function iposForQuery(ipos: Ipo[], params: URLSearchParams): Ipo[] {
     .sort((a, b) => (params.get("sort") === "raise" ? (b.expectedRaiseUsd ?? -1) - (a.expectedRaiseUsd ?? -1) : b.filedDate.localeCompare(a.filedDate)));
 }
 
+/** The source filing is the latest (the final prospectus once priced): the price and raise come from it, as in the workbook. */
 export const iposTable = (ipos: Ipo[]): LiveTable => ({
   headers: ["Company", "Ticker", "Sector", "Stage", "Filed", "Priced", "Expected raise ($M)", "Offer price ($)", "Underwriters", "Source filing"],
-  rows: ipos.map((i) => [i.company.name, i.company.ticker, i.sector, i.stage, i.filedDate, i.pricedDate, usdM(i.expectedRaiseUsd), i.offerPrice, i.underwriters.join("; "), i.filings[0]?.url]),
+  rows: ipos.map((i) => [i.company.name, i.company.ticker, i.sector, i.stage, i.filedDate, i.pricedDate, usdM(i.expectedRaiseUsd), i.offerPrice, i.underwriters.join("; "), i.filings.at(-1)?.url]),
 });
 
 // ---------------------------------------------------------------------------

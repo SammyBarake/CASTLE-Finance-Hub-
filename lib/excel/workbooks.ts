@@ -22,13 +22,16 @@ const today = (ctx: ExportContext) => dataDay(ctx.asOf);
 const stamp = (ctx: ExportContext, ...parts: (string | null | undefined)[]) => fileName("Castle", ...parts, ctx.isSample ? "Sample" : null, today(ctx));
 const companyCell = (c: Company, ctx: ExportContext): CellValue => (hasCompanyPage(c) ? link(c.name, `${ctx.site}${companyHref(c)}`) : c.name);
 const filingCell = (d: { filings?: { url: string }[] }, text = "SEC filing"): CellValue => link(text, d.filings?.[0]?.url ?? null);
+/** A private target has no SEC industry: Castle shows the buyer's, and says so on the row, as the deal drawer does. */
+export const industryOf = (d: Pick<Deal, "industry" | "privateTarget">) => (d.industry ? (d.privateTarget ? `Buyer's: ${d.industry}` : d.industry) : null);
 const yesNo = (v: boolean | null | undefined) => (v == null ? null : v ? "Yes" : "No");
 const quarterLabel = (q: string) => q.replace(/^(\d{4})-Q(\d)$/, "Q$2 $1");
 
 const DEAL_NOTES = [
-  "Deal value is the headline transaction value as announced; enterprise value adds the target's net debt (none for banks, insurers and brokers).",
+  "Deal value is the headline transaction value: as the announcement states it, else the offer price times the target's shares. Enterprise value is as stated, else the equity value plus the target's net debt from its filings, else the deal value when its debt can't be read; none for banks, insurers and brokers.",
   "Premium is over the unaffected or last closing price only; premiums over VWAPs or 52-week highs are left out.",
   ADJ_EBITDA_DEFINITION,
+  "A private target has no SEC classification, so its Sector and Industry are the acquirer's (Industry reads \"Buyer's: …\").",
 ];
 
 // ---------------------------------------------------------------------------
@@ -67,7 +70,7 @@ export function dealRow(d: Deal, ctx: ExportContext): CellValue[] {
     d.target.ticker,
     d.privateTarget ? "Private" : "Public",
     d.sector,
-    d.industry,
+    industryOf(d),
     d.status,
     d.consideration,
     usdM(d.valueUsd),
@@ -120,6 +123,39 @@ export function dealsWorkbook(
   };
 }
 
+/**
+ * A company page's deals: its purchases and its own sale(s) on separate sheets, the cover's figures over the purchases
+ * only, as the page's "Acquisitions" figure (a sum of what it paid and what it was bought for means nothing).
+ */
+export function companyWorkbook(name: string, subtitle: string, deals: { deal: Deal; role: "Acquirer" | "Target" }[], ctx: ExportContext): WorkbookSpec {
+  const bought = deals.filter((d) => d.role === "Acquirer").map((d) => d.deal);
+  const sold = deals.filter((d) => d.role === "Target").map((d) => d.deal);
+  const sheet = (sheetName: string, title: string, rows: Deal[]) => ({
+    name: sheetName,
+    title,
+    subtitle: `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "transaction" : "transactions"} · newest first`,
+    columns: DEAL_COLUMNS,
+    rows: rows.map((d) => dealRow(d, ctx)),
+  });
+  return {
+    fileName: stamp(ctx, name),
+    title: name,
+    subtitle,
+    asOf: ctx.asOf,
+    isSample: ctx.isSample,
+    selection: [`Company: ${name}`, `As acquirer: ${bought.length}`, `As target: ${sold.length}`],
+    figures: [
+      { label: "Acquisitions", sheet: "Acquisitions", column: "Announced", agg: "count" },
+      { label: "Disclosed value of acquisitions ($M)", sheet: "Acquisitions", column: "Deal value ($M)", agg: "sum" },
+      { label: "Median premium paid", sheet: "Acquisitions", column: "Premium", agg: "median" },
+      { label: "Median EV / Adj. EBITDA paid", sheet: "Acquisitions", column: "EV / Adj. EBITDA", agg: "median" },
+      ...(sold.length ? [{ label: "Deals as the target", sheet: "As target", column: "Announced", agg: "count" as const }] : []),
+    ],
+    sheets: [...(bought.length ? [sheet("Acquisitions", `${name}: acquisitions`, bought)] : []), ...(sold.length ? [sheet("As target", `${name}: deals to acquire it`, sold)] : [])],
+    notes: DEAL_NOTES,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Precedent transactions: the comps sheet, with summary formulas, and the banks' DCFs
 // ---------------------------------------------------------------------------
@@ -152,7 +188,7 @@ export function precedentsWorkbook(deals: Deal[], dcf: DcfRow[], ctx: ExportCont
         companyCell(d.target, ctx),
         companyCell(d.acquirer, ctx),
         d.sector,
-        d.industry,
+        industryOf(d),
         d.status,
         d.consideration,
         usdM(dealSize(d)),
@@ -378,7 +414,7 @@ export function iposWorkbook(ipos: Ipo[], ctx: ExportContext, opts: { selection:
         ]),
       },
     ],
-    notes: ["Expected raise is the offer price times the shares offered (the base deal, without the over-allotment); before pricing, the registration's estimate."],
+    notes: ["Expected raise is the offer price times the shares offered (the base deal, without the over-allotment); before pricing, the midpoint of the registration's price range times those shares. Blank when the registration states no price."],
   };
 }
 
@@ -446,11 +482,18 @@ export function termsWorkbook(
 // ---------------------------------------------------------------------------
 
 export function valuationsWorkbook(valuations: SectorValuation[], quarters: string[], ctx: ExportContext): WorkbookSpec {
+  // The last quarter runs to the data's day unless that day ends it, as the page says ("Q4 2026 to date").
+  const day = today(ctx);
+  const last = quarters.at(-1);
+  const quarterEnds = ["03-31", "06-30", "09-30", "12-31"];
+  const inProgress = !!last && day.startsWith(last.slice(0, 4)) && last === `${day.slice(0, 4)}-Q${Math.floor((Number(day.slice(5, 7)) - 1) / 3) + 1}` && !quarterEnds.includes(day.slice(5));
+  const header = (q: string) => (inProgress && q === last ? `${quarterLabel(q)} (to date)` : quarterLabel(q));
+  const toDate = inProgress && last ? ` · ${quarterLabel(last)} runs to ${new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}` : "";
   const metric = (title: string, name: string, pick: (v: SectorValuation) => number | null, format: "multiple" | "pct", sample: (v: SectorValuation) => number) => ({
     name,
     title,
-    subtitle: "Trailing-twelve-month median of the deals announced in each quarter and the three before · blank under 3 deals",
-    columns: [{ header: "Sector", format: "text" as const, width: 14 }, ...quarters.map((q) => ({ header: quarterLabel(q), format, width: 10 })), { header: "Deals behind latest", format: "int" as const, width: 11 }],
+    subtitle: `Trailing-twelve-month median of the deals announced in each quarter and the three before · blank when fewer than 3 deals state the figure${toDate}`,
+    columns: [{ header: "Sector", format: "text" as const, width: 14 }, ...quarters.map((q) => ({ header: header(q), format, width: 11 })), { header: "Deals stating it (latest)", format: "int" as const, width: 12 }],
     rows: SECTORS.map((s) => {
       const at = (q: string) => valuations.find((v) => v.sector === s && v.quarter === q);
       const latest = at(quarters.at(-1) ?? "");
@@ -478,20 +521,22 @@ export function valuationsWorkbook(valuations: SectorValuation[], quarters: stri
 
 export function volumeWorkbook(matrix: VolumeMatrix, range: number, ctx: ExportContext): WorkbookSpec {
   const months = matrix.months.slice(-range);
+  // The month in progress is the last row when it's in the range.
+  const partialShown = !!matrix.partial && months.at(-1) === matrix.partial;
   const at = (s: (typeof SECTORS)[number], key: "value" | "count", i: number) => matrix.bySector[s][key].slice(-range)[i] ?? 0;
   const sheet = (key: "value" | "count") => ({
     name: key === "value" ? "Deal value" : "Deal count",
     title: key === "value" ? "Announced M&A value by sector ($M)" : "Announced M&A transactions by sector",
-    subtitle: `${months[0] ?? ""} to ${months.at(-1) ?? ""} · terminated deals excluded${matrix.partial && months.includes(matrix.partial) ? ` · ${matrix.partial} is the month to date` : ""}`,
+    subtitle: `${months[0] ?? ""} to ${months.at(-1) ?? ""} · terminated deals excluded${partialShown ? ` · ${matrix.partial} is the month to date` : ""}`,
     columns: [
-      { header: "Month", format: "date" as const },
+      { header: "Month", format: "month" as const },
       ...SECTORS.map((s) => ({ header: s, format: key === "value" ? ("usdM" as const) : ("int" as const), width: 12 })),
       { header: "Total", format: key === "value" ? ("usdM" as const) : ("int" as const), width: 12 },
     ],
     rows: months.map((m, i) => {
       const vals = SECTORS.map((s) => (key === "value" ? usdM(at(s, key, i)) ?? 0 : at(s, key, i)));
-      const total = vals.reduce((a, b) => a + b, 0);
-      return [`${m}-01`, ...vals, key === "value" ? Math.round(total * 10) / 10 : total];
+      const total = SECTORS.reduce((a, s) => a + at(s, key, i), 0);
+      return [`${m}-01`, ...vals, key === "value" ? (usdM(total) ?? 0) : total];
     }),
   });
   return {
@@ -503,10 +548,13 @@ export function volumeWorkbook(matrix: VolumeMatrix, range: number, ctx: ExportC
     figures: [
       { label: "Total value ($M)", sheet: "Deal value", column: "Total", agg: "sum" },
       { label: "Transactions", sheet: "Deal count", column: "Total", agg: "sum" },
-      { label: "Monthly average value ($M)", sheet: "Deal value", column: "Total", agg: "average" },
+      // Over complete months, as the page: the month in progress would pull the average down.
+      partialShown
+        ? { label: "Monthly average value, complete months ($M)", sheet: "Deal value", column: "Total", agg: "average", skipLastRow: true }
+        : { label: "Monthly average value ($M)", sheet: "Deal value", column: "Total", agg: "average" },
     ],
     sheets: [sheet("value"), sheet("count")],
-    notes: ["Each deal counts in the month it was announced, in its target's sector; value is the headline transaction value."],
+    notes: ["Each deal counts in the month it was announced, in its target's sector (the acquirer's for a private target); value is the headline transaction value."],
   };
 }
 
@@ -530,12 +578,19 @@ export function economiesWorkbook(rows: Economy[], year: number, ctx: ExportCont
           { header: `GDP growth ${year} (est.)`, format: "pct" },
           { header: `Inflation ${year - 1}`, format: "pct" },
           { header: `Inflation ${year} (est.)`, format: "pct" },
-          { header: "Policy rate", format: "pct2" },
+          { header: "Policy rate", format: "rate" },
           { header: "Policy rate as of", format: "date" },
         ],
         rows: rows.map((e) => [e.name, e.region, pctFrac(e.gdpGrowthPrior), pctFrac(e.gdpGrowth), pctFrac(e.inflationPrior), pctFrac(e.inflation), e.policyRate == null ? null : e.policyRate / 100, e.policyRateDate]),
       },
     ],
-    notes: ["Sources: International Monetary Fund, World Economic Outlook (DataMapper); Bank for International Settlements, central bank policy rates."],
+    notes: [
+      "GDP growth is real GDP, year on year; inflation is the average consumer price change for the year. The latest year is an IMF estimate.",
+      "Policy rates are the BIS's central bank policy rates, as of the date beside each; the U.S. rate is the midpoint of the Federal Reserve's target range.",
+    ],
+    source: {
+      label: "IMF WEO · BIS",
+      line: "Sources: International Monetary Fund, World Economic Outlook (DataMapper); Bank for International Settlements, central bank policy rates. Fetched by Castle, unchanged.",
+    },
   };
 }

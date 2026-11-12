@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { buildWorkbook } from "./build";
 import { colLetter, pctFrac, percentileInc, sheetName, summaryResult, usdM, type WorkbookSpec } from "./spec";
-import { bookWorkbook, dealRow, DEAL_COLUMNS, precedentsWorkbook } from "./workbooks";
+import { bookWorkbook, companyWorkbook, dealRow, DEAL_COLUMNS, economiesWorkbook, precedentsWorkbook, valuationsWorkbook } from "./workbooks";
 import { ADJ_EBITDA_DEFINITION, REPORTED_EBITDA_DEFINITION } from "../metrics";
 import { SUMMARY_ROWS, summarizeComps } from "../precedents";
 import type { Deal } from "../types";
@@ -18,7 +18,8 @@ describe("spreadsheet helpers", () => {
 
   it("stores money in $M, percentages as fractions, and summary results like Excel", () => {
     expect(usdM(59_500_000_000)).toBe(59_500);
-    expect(usdM(1_234_567)).toBe(1.2);
+    expect(usdM(1_234_567)).toBe(1.234567);
+    expect(usdM(250_000)).toBe(0.25);
     expect(usdM(null)).toBeNull();
     expect(pctFrac(34.2)).toBeCloseTo(0.342);
     // PERCENTILE.INC on 1..5: 25th = 2, 75th = 4; on 1, 2, 10: median 2, 75th 6.
@@ -99,7 +100,17 @@ describe("buildWorkbook", () => {
     // Summary rows two below the last data row (7): High at 9, Median at 12, with formulas and cached results.
     expect(ws.getCell("A12").value).toBe("Median");
     expect(ws.getCell("J12").value).toMatchObject({ formula: 'IFERROR(MEDIAN(J5:J7),"")', result: 12 });
-    expect(ws.getCell("J10").value).toMatchObject({ formula: 'IFERROR(PERCENTILE.INC(J5:J7,0.75),"")', result: 13 });
+    expect(ws.getCell("J10").value).toMatchObject({ formula: 'IFERROR(_xlfn.PERCENTILE.INC(J5:J7,0.75),"")', result: 13 });
+    // Every function in the file is one Excel 2007 knows, or carries the _xlfn. prefix newer ones need in the file
+    // (without it Excel reads #NAME?, which IFERROR hid as a blank 25th / 75th percentile row).
+    const OLD = new Set(["IFERROR", "MAX", "MIN", "AVERAGE", "MEDIAN", "SUM", "ROWS", "COUNT"]);
+    for (const sheet of back.worksheets)
+      sheet.eachRow((row) =>
+        row.eachCell((c) => {
+          const f = (c.value as { formula?: string } | null)?.formula;
+          for (const [, name] of f?.matchAll(/(?<![\w.])([A-Z][A-Z0-9.]*)\(/g) ?? []) expect(OLD.has(name), `${name} in ${f}`).toBe(true);
+        }),
+      );
     expect(ws.views[0]).toMatchObject({ state: "frozen", ySplit: 4 });
 
     const cover = back.getWorksheet("Summary")!;
@@ -155,6 +166,59 @@ describe("buildWorkbook", () => {
     expect(ws.getRow(5).getCell(comment).value).toBe("Anchor comp");
     expect(ws.getRow(6).getCell(2).value).toBe("Old Buyer → Old Target");
     expect(ws.getRow(6).getCell(5).value).toBe("Not in Castle's data");
+  });
+
+  it("puts a company's purchases and its own sale on separate sheets, the cover's figures over purchases only", async () => {
+    const spec = companyWorkbook(
+      "Acme Corp",
+      "ACME · Tech",
+      [
+        { deal: deal({ id: "p1", valueUsd: 1e9, premiumPct: 30 }), role: "Acquirer" },
+        { deal: deal({ id: "p2", valueUsd: 3e9, premiumPct: 50 }), role: "Acquirer" },
+        { deal: deal({ id: "s1", valueUsd: 55e9, premiumPct: 25 }), role: "Target" },
+      ],
+      ctx,
+    );
+    expect(spec.sheets.map((s) => [s.name, s.rows.length])).toEqual([["Acquisitions", 2], ["As target", 1]]);
+    const back = new ExcelJS.Workbook();
+    await back.xlsx.load(await buildWorkbook(ExcelJS, spec, { origin: "https://castle.test" }).xlsx.writeBuffer());
+    const cover = back.getWorksheet("Summary")!;
+    const figure = (label: string) => {
+      let out: unknown;
+      cover.eachRow((r) => r.getCell(2).value === label && (out = (r.getCell(3).value as { result: unknown }).result));
+      return out;
+    };
+    expect(figure("Disclosed value of acquisitions ($M)")).toBe(4000); // not 59,000 with its own sale
+    expect(figure("Median premium paid")).toBeCloseTo(0.4);
+    expect(figure("Deals as the target")).toBe(1);
+  });
+
+  it("labels a private target's industry as the buyer's", () => {
+    const at = (d: Deal) => dealRow(d, ctx)[DEAL_COLUMNS.findIndex((c) => c.header === "Industry")];
+    expect(at(deal({ industry: "Prepackaged Software" }))).toBe("Prepackaged Software");
+    expect(at(deal({ industry: "Prepackaged Software", privateTarget: true }))).toBe("Buyer's: Prepackaged Software");
+  });
+
+  it("marks the quarter in progress on the valuation sheets", () => {
+    const v = { sector: "Tech", quarter: "2026-Q4", medianEvEbitda: 12, medianEvRevenue: 3, medianPremiumPct: 30, sample: { evEbitda: 5, evRevenue: 6, premium: 7 } } as never;
+    const spec = valuationsWorkbook([v], ["2026-Q3", "2026-Q4"], { ...ctx, asOf: "2026-11-12T03:00:00Z" });
+    expect(spec.sheets[0].columns.map((c) => c.header)).toEqual(["Sector", "Q3 2026", "Q4 2026 (to date)", "Deals stating it (latest)"]);
+    expect(spec.sheets[0].subtitle).toMatch(/Q4 2026 runs to Nov 11$/); // New York's day: 22:00 on the 11th
+    const done = valuationsWorkbook([v], ["2026-Q3", "2026-Q4"], { ...ctx, asOf: "2026-12-31T20:00:00Z" });
+    expect(done.sheets[0].columns[2].header).toBe("Q4 2026");
+  });
+
+  it("gives the economies workbook its own sources, not SEC filings, and the Fed's midpoint to three decimals", async () => {
+    const e = { code: "US", name: "United States", region: "Americas", gdpGrowth: 2, gdpGrowthPrior: 2.8, inflation: 3, inflationPrior: 2.9, policyRate: 3.875, policyRateDate: "2026-10-30" } as never;
+    const spec = economiesWorkbook([e], 2026, ctx, { selection: [] });
+    const back = new ExcelJS.Workbook();
+    await back.xlsx.load(await buildWorkbook(ExcelJS, spec, { origin: "https://castle.test" }).xlsx.writeBuffer());
+    const ws = back.getWorksheet("Economies")!;
+    expect(String(ws.getCell("H2").value)).toMatch(/^IMF WEO · BIS · as of/);
+    expect(ws.getCell("G5").value).toBeCloseTo(0.03875);
+    expect(ws.getCell("G5").numFmt).toBe("0.00#%");
+    const text = back.getWorksheet("Summary")!.getSheetValues().flat(2).filter((v) => typeof v === "string").join(" ");
+    expect(text).not.toMatch(/SEC|filings|\$M/);
   });
 
   it("marks sample data on the cover", async () => {

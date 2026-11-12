@@ -5,7 +5,7 @@
  * as fractions shown as %, multiples as numbers shown as "x", dates as real Excel dates, a blank where Castle has none.
  */
 
-export type ColumnFormat = "text" | "date" | "usdM" | "price" | "pct" | "pct2" | "multiple" | "int" | "change";
+export type ColumnFormat = "text" | "date" | "month" | "usdM" | "price" | "pct" | "pct2" | "rate" | "multiple" | "int" | "change";
 
 export interface Column {
   header: string;
@@ -34,7 +34,7 @@ export interface SheetSpec {
 
 /** A figure on the cover: a formula over a table column (kept live in Excel), or a fixed value. */
 export type Figure =
-  | { label: string; sheet: string; column: string; agg: "count" | "sum" | "median" | "average" | "max" | "min" }
+  | { label: string; sheet: string; column: string; agg: "count" | "sum" | "median" | "average" | "max" | "min"; skipLastRow?: boolean }
   | { label: string; value: CellValue; format: ColumnFormat };
 
 export interface WorkbookSpec {
@@ -53,14 +53,19 @@ export interface WorkbookSpec {
   sheets: SheetSpec[];
   /** Definitions for this export, on the cover. */
   notes?: string[];
+  /**
+   * Where the data comes from when it isn't SEC filings (World Economies: the IMF and the BIS): the label in each
+   * sheet's band and the cover's source line. The notes about filings, $M and live formulas are then left out.
+   */
+  source?: { label: string; line: string };
 }
 
 // ---------------------------------------------------------------------------
 // Value helpers: Castle's units → spreadsheet units
 // ---------------------------------------------------------------------------
 
-/** USD → $ millions, one decimal. */
-export const usdM = (usd: number | null | undefined): number | null => (usd == null || !Number.isFinite(usd) ? null : Math.round(usd / 1e5) / 10);
+/** USD → $ millions, to the dollar: the cell holds the exact figure, shown to one decimal ($0.25M fees, sums that add up). */
+export const usdM = (usd: number | null | undefined): number | null => (usd == null || !Number.isFinite(usd) ? null : Math.round(usd) / 1e6);
 /** Castle's whole-number percent (34.2) → a fraction Excel shows as 34.2%. */
 export const pctFrac = (pct: number | null | undefined): number | null => (pct == null || !Number.isFinite(pct) ? null : Math.round(pct * 10) / 1000);
 export const num = (v: number | null | undefined): number | null => (v == null || !Number.isFinite(v) ? null : v);
@@ -69,23 +74,28 @@ export const link = (text: string | null | undefined, url: string | null | undef
 export const NUMBER_FORMATS: Record<ColumnFormat, string | undefined> = {
   text: undefined,
   date: "mmm d, yyyy",
+  month: "mmm yyyy",
   usdM: "#,##0.0",
   price: "$#,##0.00",
   pct: "0.0%",
   pct2: "0.00%",
+  // Two decimals, a third when the rate has one (the Fed's 3.875% midpoint), as the page shows it.
+  rate: "0.00#%",
   multiple: '0.0"x"',
   int: "#,##0",
   change: '[Color10]+0;[Red]-0;"–"',
 };
 
-export const DEFAULT_WIDTHS: Record<ColumnFormat, number> = { text: 22, date: 13, usdM: 13, price: 11, pct: 10, pct2: 10, multiple: 11, int: 9, change: 9 };
+export const DEFAULT_WIDTHS: Record<ColumnFormat, number> = { text: 22, date: 13, month: 10, usdM: 13, price: 11, pct: 10, pct2: 10, rate: 10, multiple: 11, int: 9, change: 9 };
 
 export const SUMMARY_ROWS = [
   { key: "high", label: "High", fn: (r: string) => `MAX(${r})` },
-  { key: "p75", label: "75th percentile", fn: (r: string) => `PERCENTILE.INC(${r},0.75)` },
+  // Functions newer than Excel 2007 are stored with the _xlfn. prefix (Excel shows PERCENTILE.INC); without it Excel
+  // reads an unknown name, and IFERROR turned that into a blank row.
+  { key: "p75", label: "75th percentile", fn: (r: string) => `_xlfn.PERCENTILE.INC(${r},0.75)` },
   { key: "mean", label: "Mean", fn: (r: string) => `AVERAGE(${r})` },
   { key: "median", label: "Median", fn: (r: string) => `MEDIAN(${r})` },
-  { key: "p25", label: "25th percentile", fn: (r: string) => `PERCENTILE.INC(${r},0.25)` },
+  { key: "p25", label: "25th percentile", fn: (r: string) => `_xlfn.PERCENTILE.INC(${r},0.25)` },
   { key: "low", label: "Low", fn: (r: string) => `MIN(${r})` },
 ] as const;
 

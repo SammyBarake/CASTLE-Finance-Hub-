@@ -2,6 +2,7 @@
  * Precedent transactions: pick comparable deals and summarise their multiples the way a
  * comps page does (high / 75th / mean / median / 25th / low). Pure and testable.
  */
+import { dataDay } from "./freshness";
 import { SECTORS, type Consideration, type DcfSummary, type Deal, type FairnessOpinion, type Sector } from "./types";
 import type { Spec } from "./urlState";
 
@@ -52,14 +53,14 @@ export const WINDOW_OPTIONS: { value: PrecedentWindow; label: string }[] = [
 
 const num = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? null : Number(s));
 
-/** The screen in words, for an export's cover: "Sector: Tech", "Deal value: $1B – $10B", "Announced: Past 24 months". */
+/** The screen in words, for an export's cover: "Sector: Tech", "Deal size (EV, else deal value): $1B – $10B", "Announced: Past 24 months". */
 export function describeScreen(s: PrecedentScreen): string[] {
   const min = num(s.min);
   const max = num(s.max);
   return [
     `Sector: ${s.sector === "all" ? "All sectors" : s.sector}`,
     ...(s.industry.trim() ? [`Industry contains: ${s.industry.trim()}`] : []),
-    ...(min != null || max != null ? [`Deal value: ${min != null ? `$${min}B` : "any"} – ${max != null ? `$${max}B` : "any"}`] : []),
+    ...(min != null || max != null ? [`Deal size (EV, else deal value): ${min != null ? `$${min}B` : "any"} – ${max != null ? `$${max}B` : "any"}`] : []),
     `Announced: ${WINDOW_OPTIONS.find((w) => w.value === s.window)?.label ?? s.window}`,
     `Consideration: ${s.consideration === "all" ? "Any" : s.consideration}`,
     `Valuation multiple required: ${s.withMultiples ? "Yes" : "No"}`,
@@ -69,7 +70,8 @@ export function describeScreen(s: PrecedentScreen): string[] {
 
 function windowStart(window: PrecedentWindow, asOf: string): string {
   if (window === "all") return "0000-01-01";
-  const d = new Date(asOf);
+  // From the data's own (New York) day, like the Deal Flow windows.
+  const d = new Date(`${dataDay(asOf)}T00:00:00Z`);
   d.setUTCMonth(d.getUTCMonth() - (window === "12m" ? 12 : 24));
   return d.toISOString().slice(0, 10);
 }

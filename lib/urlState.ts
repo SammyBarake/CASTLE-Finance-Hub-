@@ -7,13 +7,25 @@
 export type FieldSpec = { kind: "enum"; values: readonly string[] } | { kind: "number" } | { kind: "text" } | { kind: "bool" };
 export type Spec<T> = { [K in keyof T]?: FieldSpec };
 
-/** The query string for `state`: the fields in `spec` that differ from `defaults`, in spec order. */
+/** A number field as the screen reads it (`Number`): ".5" and "1e3" are numbers too, written "0.5" and "1000". */
+const asNumber = (v: string) => (v.trim() !== "" && Number.isFinite(Number(v)) ? String(Number(v)) : null);
+
+/**
+ * The query string for `state`: the fields in `spec` that differ from `defaults`, in spec order. `defaults` must be the
+ * base the reader decodes against (Precedents opened from a deal: that deal's screen). A field cleared where the base
+ * has a value is written empty ("min="), or the reader would put the base's value back.
+ */
 export function encodeState<T extends object>(state: T, defaults: T, spec: Spec<T>): string {
   const params = new URLSearchParams();
-  for (const key of Object.keys(spec) as (keyof T)[]) {
+  for (const [key, field] of Object.entries(spec) as [keyof T & string, FieldSpec][]) {
     const value = state[key];
-    if (value === defaults[key] || value == null || value === "") continue;
-    params.set(String(key), typeof value === "boolean" ? (value ? "1" : "0") : String(value));
+    if (value === defaults[key]) continue;
+    if (value == null || value === "") {
+      if (defaults[key] != null && defaults[key] !== "" && (field.kind === "number" || field.kind === "text")) params.set(key, "");
+      continue;
+    }
+    const text = typeof value === "boolean" ? (value ? "1" : "0") : String(value);
+    params.set(key, field.kind === "number" ? (asNumber(text) ?? text) : text);
   }
   return params.toString();
 }
@@ -26,7 +38,9 @@ export function decodeState<T extends object>(params: URLSearchParams | { get(ke
     if (raw == null) continue;
     const value = raw.trim().slice(0, 120);
     if (field.kind === "enum" && field.values.includes(value)) out[key] = value as T[typeof key];
-    else if (field.kind === "number" && /^\d+(?:\.\d+)?$/.test(value)) out[key] = value as T[typeof key];
+    // Empty: a field the link's author cleared (see encodeState).
+    else if ((field.kind === "number" || field.kind === "text") && value === "") out[key] = "" as T[typeof key];
+    else if (field.kind === "number" && asNumber(value) != null) out[key] = asNumber(value) as T[typeof key];
     else if (field.kind === "text" && value) out[key] = value as T[typeof key];
     else if (field.kind === "bool" && (value === "1" || value === "0")) out[key] = (value === "1") as T[typeof key];
   }

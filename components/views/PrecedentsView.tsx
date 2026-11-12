@@ -74,12 +74,14 @@ const range =(s: Summary, fmt: (v: number | null) => string) => (s.n >= 4 ? `25t
 
 export function PrecedentsView() {
   const dealId = useSearchParams().get("deal");
-  // A new ?deal= starts a fresh screen.
-  return <Precedents key={dealId ?? ""} dealId={dealId} />;
+  const { ready } = useHubData();
+  // A new ?deal= starts a fresh screen, and so does the full dataset arriving: the boot copy holds only the newest few
+  // deals, so a link's ?deal= isn't found before then and the screen would never be seeded from it.
+  return <Precedents key={`${dealId ?? ""}|${ready ? 1 : 0}`} dealId={dealId} />;
 }
 
 function Precedents({ dealId }: { dealId: string | null }) {
-  const { data } = useHubData();
+  const { data, ready } = useHubData();
   const { openDeal } = useDetails();
   const { openAddToBook } = useBookActions();
   const { toast } = useUi();
@@ -88,14 +90,18 @@ function Precedents({ dealId }: { dealId: string | null }) {
   // Seeded once from the link (?deal= and any screen fields, ?x= the unticked outliers); edits take over after that
   // and are written back, so the screen is always a link someone else can open.
   const params = useSearchParams();
-  const [screen, setScreen] = useState<PrecedentScreen>(() => decodeState(params, subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+  // The base a link is read against (lib/live.ts reads it the same way), so it's also the base it's written against.
+  const base = useMemo(() => (subject ? screenForDeal(subject) : DEFAULT_PRECEDENTS), [subject]);
+  const [screen, setScreen] = useState<PrecedentScreen>(() => decodeState(params, base, PRECEDENT_SPEC));
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set((params.get("x") ?? "").split(",").filter((id) => /^[\w.-]{3,80}$/.test(id)).slice(0, 200)));
   useEffect(() => {
-    const query = new URLSearchParams(encodeState(screen, DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+    // Not before the dataset: the link is read again then (see PrecedentsView), and must still be in the address.
+    if (!ready) return;
+    const query = new URLSearchParams(encodeState(screen, base, PRECEDENT_SPEC));
     if (dealId) query.set("deal", dealId);
     if (excluded.size) query.set("x", [...excluded].join(","));
     replaceQuery(query.toString());
-  }, [screen, excluded, dealId]);
+  }, [screen, excluded, dealId, base, ready]);
   const [shown, setShown] = useState(TABLE_PAGE);
   // Phones fold the screen's fields behind a one-line summary (the drawer is always open on wider screens).
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -156,7 +162,7 @@ function Precedents({ dealId }: { dealId: string | null }) {
         }
         exportLabel="Export the comps table"
         live={() => {
-          const query = new URLSearchParams(encodeState(screen, DEFAULT_PRECEDENTS, PRECEDENT_SPEC));
+          const query = new URLSearchParams(encodeState(screen, base, PRECEDENT_SPEC));
           if (dealId) query.set("deal", dealId);
           if (excluded.size) query.set("x", [...excluded].join(","));
           const q = query.toString();

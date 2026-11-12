@@ -12,7 +12,7 @@ import { useUi } from "@/components/ui/UiProvider";
 import { edgarCompanyUrl, findCompany, type CompanyBank } from "@/lib/companies";
 import { exportContext } from "@/components/export/excel";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { dealsWorkbook } from "@/lib/excel/workbooks";
+import { companyWorkbook } from "@/lib/excel/workbooks";
 import type { Filing } from "@/lib/types";
 import { formatDate, formatDateLong, formatPct, formatRaise, formatUsd } from "@/lib/format";
 
@@ -90,13 +90,7 @@ export function CompanyView({ id }: { id: string }) {
         subtitle={subtitle}
         onExport={deals.length ? exportRows : undefined}
         excel={() =>
-          deals.length
-            ? dealsWorkbook(
-                deals.map((x) => x.deal),
-                exportContext(data),
-                { title: company.name, subtitle: `${subtitle} · deals as buyer and as target`, file: company.name, selection: [`Company: ${company.name}`] },
-              )
-            : null
+          deals.length ? companyWorkbook(company.name, `${subtitle} · deals as buyer and as target`, deals, exportContext(data)) : null
         }
         exportLabel="Export this company's deals"
         extra={

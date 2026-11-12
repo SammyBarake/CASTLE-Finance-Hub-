@@ -50,6 +50,9 @@ describe("screenDeals", () => {
   it("applies date windows relative to the data date", () => {
     expect(dateCutoff("week", ctx.asOf)).toBe("2026-09-18");
     expect(dateCutoff("quarter", ctx.asOf)).toBe("2026-07-01");
+    // 23:00 in New York on December 31 is January 1 in UTC: still last year's quarter, a week back from the 31st.
+    expect(dateCutoff("quarter", "2027-01-01T04:00:00Z")).toBe("2026-10-01");
+    expect(dateCutoff("week", "2027-01-01T04:00:00Z")).toBe("2026-12-24");
     expect(screenDeals(deals, { ...DEFAULT_SCREEN, date: "week" }, ctx).map((d) => d.id)).toEqual(["c", "a"]);
   });
 

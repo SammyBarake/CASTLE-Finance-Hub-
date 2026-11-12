@@ -46,7 +46,10 @@ const toDate = (v: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : v;
 };
-const asOfLabel = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+/** The data's day is New York's, as on the site and in the file name (`dataDay`): a 22:08 ET run is not tomorrow's data. */
+const asOfLabel = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+/** The day the viewer exported it, in their own time. */
+const exportedLabel = () => new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 function setValue(cell: Cell, value: CellValue, column: Column) {
   if (value == null || value === "") return;
@@ -55,7 +58,7 @@ function setValue(cell: Cell, value: CellValue, column: Column) {
     cell.font = font(10, { underline: true, color: "FF1F3F66" });
     return;
   }
-  cell.value = column.format === "date" && typeof value === "string" ? toDate(value) : value;
+  cell.value = (column.format === "date" || column.format === "month") && typeof value === "string" ? toDate(value) : value;
   const fmt = NUMBER_FORMATS[column.format];
   if (fmt) cell.numFmt = fmt;
 }
@@ -80,11 +83,11 @@ function band(ws: Worksheet, width: number, title: string, subtitle: string, rig
   ws.getCell(`${last}2`).alignment = { horizontal: "right" };
 }
 
-function tableSheet(wb: Workbook, spec: SheetSpec, name: string, ctx: { asOf: string; isSample: boolean }) {
+function tableSheet(wb: Workbook, spec: SheetSpec, name: string, ctx: { asOf: string; isSample: boolean; source?: string }) {
   const ws = wb.addWorksheet(name, { properties: { tabColor: { argb: "FF5A5A5A" } }, views: [{ state: "frozen", ySplit: TABLE_TOP, showGridLines: false }] });
   const n = spec.columns.length;
   ws.columns = spec.columns.map((c) => ({ width: c.width ?? DEFAULT_WIDTHS[c.format] }));
-  band(ws, n, spec.title, spec.subtitle ?? "", `${ctx.isSample ? "SAMPLE DATA · " : ""}SEC EDGAR · as of ${asOfLabel(ctx.asOf)}`);
+  band(ws, n, spec.title, spec.subtitle ?? "", `${ctx.isSample ? "SAMPLE DATA · " : ""}${ctx.source ?? "SEC EDGAR"} · as of ${asOfLabel(ctx.asOf)}`);
 
   const header = ws.getRow(TABLE_TOP);
   header.height = 30;
@@ -93,7 +96,7 @@ function tableSheet(wb: Workbook, spec: SheetSpec, name: string, ctx: { asOf: st
     cell.value = c.header;
     cell.fill = fill(HEAD);
     cell.font = font(9, { bold: true, color: "FFFFFFFF" });
-    cell.alignment = { vertical: "middle", horizontal: c.format === "text" || c.format === "date" ? "left" : "right", wrapText: true };
+    cell.alignment = { vertical: "middle", horizontal: c.format === "text" || c.format === "date" || c.format === "month" ? "left" : "right", wrapText: true };
   });
 
   const first = TABLE_TOP + 1;
@@ -105,7 +108,7 @@ function tableSheet(wb: Workbook, spec: SheetSpec, name: string, ctx: { asOf: st
       setValue(cell, values[i] ?? null, c);
       if (r % 2 === 1) cell.fill = fill(BAND);
       cell.border = { bottom: { style: "hair", color: { argb: RULE } } };
-      if (c.format !== "text" && c.format !== "date") cell.alignment = { horizontal: "right" };
+      if (c.format !== "text" && c.format !== "date" && c.format !== "month") cell.alignment = { horizontal: "right" };
     });
   });
   const lastRow = first + spec.rows.length - 1;
@@ -171,7 +174,7 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
   ws.getCell("C2").font = font(18, { bold: true, color: "FFFFFFFF" });
   ws.getCell("C3").value = spec.subtitle;
   ws.getCell("C3").font = font(10, { color: "FFC4C4C4" });
-  ws.getCell("C4").value = `Data as of ${asOfLabel(spec.asOf)} · exported ${asOfLabel(new Date().toISOString())}`;
+  ws.getCell("C4").value = `Data as of ${asOfLabel(spec.asOf)} · exported ${exportedLabel()}`;
   ws.getCell("C4").font = font(9, { color: "FF8F8F8F" });
   ws.getCell("C5").value = { text: opts.origin.replace(/^https?:\/\//, ""), hyperlink: opts.origin };
   ws.getCell("C5").font = font(9, { color: "FF8F8F8F", underline: true });
@@ -239,9 +242,16 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
         pair(f.label, "—");
         continue;
       }
-      const range = `'${sheet.name}'!${colLetter(col + 1)}${sheet.first}:${colLetter(col + 1)}${sheet.lastRow}`;
+      // skipLastRow: a figure over complete periods leaves out the last row (the month in progress).
+      const last = f.skipLastRow ? sheet.lastRow - 1 : sheet.lastRow;
+      const rows = f.skipLastRow ? sheet.spec.rows.slice(0, -1) : sheet.spec.rows;
+      if (last < sheet.first) {
+        pair(f.label, "—");
+        continue;
+      }
+      const range = `'${sheet.name}'!${colLetter(col + 1)}${sheet.first}:${colLetter(col + 1)}${last}`;
       const fn = { count: "ROWS", sum: "SUM", median: "MEDIAN", average: "AVERAGE", max: "MAX", min: "MIN" }[f.agg];
-      const result = aggregateResult(f.agg, numbersIn(sheet.spec.rows, col), sheet.spec.rows.length);
+      const result = aggregateResult(f.agg, numbersIn(rows, col), rows.length);
       const format = f.agg === "count" ? NUMBER_FORMATS.int : NUMBER_FORMATS[sheet.spec.columns[col].format];
       pair(f.label, { formula: `IFERROR(${fn}(${range}),"")`, result: result ?? "" }, format);
     }
@@ -250,10 +260,13 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
   heading("CONTENTS");
   for (const s of sheets) pair(s.spec.title, { text: s.name, link: `#'${s.name}'!A1` });
   r++;
+  const live = sheets.some((s) => s.spec.summary) || spec.figures?.some((f) => !("value" in f));
   const notes = [
     ...(spec.notes ?? []),
-    "Money is in U.S. dollars, millions ($M). Percentages are shown as %, multiples as x. A blank means the filings don't state the figure clearly, or a calculated multiple failed a sanity check. Values and multiples are calculated only from stated figures.",
-    "Summary rows and key figures are live formulas: edit or delete rows and they recalculate.",
+    ...(spec.source
+      ? []
+      : ["Money is in U.S. dollars, millions ($M). Percentages are shown as %, multiples as x. A blank means the filings don't state the figure clearly, or a calculated multiple failed a sanity check. Values and multiples are calculated only from stated figures."]),
+    ...(live ? ["Summary rows and key figures are live formulas: edit or delete rows and they recalculate."] : []),
   ];
   heading("NOTES");
   for (const note of notes) {
@@ -267,10 +280,12 @@ function cover(wb: Workbook, spec: WorkbookSpec, sheets: { name: string; spec: S
   }
   r++;
   heading("SOURCE");
-  for (const line of [
-    "Castle · free investment banking data, read automatically from public SEC EDGAR filings.",
-    "Figures are extracted automatically and may contain errors; check the source filings (linked on each row) before relying on them. Not investment advice.",
-  ]) {
+  for (const line of spec.source
+    ? [spec.source.line, "Not investment advice."]
+    : [
+        "Castle · free investment banking data, read automatically from public SEC EDGAR filings.",
+        "Figures are extracted automatically and may contain errors; check the source filings (linked on each row) before relying on them. Not investment advice.",
+      ]) {
     ws.mergeCells(`B${r}:F${r}`);
     const cell = ws.getCell(`B${r}`);
     cell.value = line;
@@ -293,7 +308,7 @@ export function buildWorkbook(ExcelJS: ExcelModule, spec: WorkbookSpec, opts: { 
   wb.addWorksheet("Summary", { properties: { tabColor: { argb: INK } }, views: [{ showGridLines: false }] });
   const sheets = spec.sheets.map((s) => {
     const name = sheetName(s.name, taken);
-    const { first, lastRow } = tableSheet(wb, s, name, { asOf: spec.asOf, isSample: spec.isSample });
+    const { first, lastRow } = tableSheet(wb, s, name, { asOf: spec.asOf, isSample: spec.isSample, source: spec.source?.label });
     return { name, spec: s, first, lastRow };
   });
   cover(wb, spec, sheets, opts);

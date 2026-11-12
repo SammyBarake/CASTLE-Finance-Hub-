@@ -53,7 +53,7 @@ describe("live tables follow the page's filters", () => {
     expect(rows.map((d) => d.id)).toEqual(["c", "a"]);
     const t = dealsTable([deals[0]], "https://castle.test");
     const at = (h: string) => t.rows[0][t.headers.indexOf(h)];
-    expect(at("Deal value ($M)")).toBe(2345.7);
+    expect(at("Deal value ($M)")).toBe(2345.679); // to the thousand dollars
     expect(at("Premium (%)")).toBe(31.3);
     expect(at("EV / Adj. EBITDA")).toBe(14.2);
     expect(at("Target advisors")).toBe("Morgan Stanley; Qatalyst");

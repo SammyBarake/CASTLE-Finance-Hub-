@@ -2,6 +2,7 @@
  * Deal screener: the filter/sort model behind Deal Flow and saved views.
  * Pure functions so they're testable and identical wherever they run.
  */
+import { dataDay } from "./freshness";
 import { matchDeal } from "./search";
 import { DEAL_STATUSES, SECTORS, type Consideration, type Deal, type DealStatus, type Sector } from "./types";
 import type { Spec } from "./urlState";
@@ -63,14 +64,13 @@ export const DEAL_SCREEN_SPEC: Spec<DealScreen> = {
 const DAY = 86_400_000;
 
 /** Earliest announcement date included by a date window, relative to the data's as-of date. */
+/** From the data's own day (New York's, as everywhere: a 22:08 ET run on Dec 31 is still last year's quarter). */
 export function dateCutoff(window: DateWindow, asOf: string): string {
-  const now = new Date(asOf);
-  if (window === "week") return new Date(now.getTime() - 7 * DAY).toISOString().slice(0, 10);
-  if (window === "month") return new Date(now.getTime() - 30 * DAY).toISOString().slice(0, 10);
-  if (window === "quarter") {
-    const q = Math.floor(now.getUTCMonth() / 3) * 3;
-    return new Date(Date.UTC(now.getUTCFullYear(), q, 1)).toISOString().slice(0, 10);
-  }
+  const day = dataDay(asOf);
+  const midnight = Date.parse(`${day}T00:00:00Z`);
+  if (window === "week") return new Date(midnight - 7 * DAY).toISOString().slice(0, 10);
+  if (window === "month") return new Date(midnight - 30 * DAY).toISOString().slice(0, 10);
+  if (window === "quarter") return `${day.slice(0, 4)}-${String(Math.floor((Number(day.slice(5, 7)) - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
   return "0000-01-01";
 }
 

@@ -21,6 +21,20 @@ describe("URL state", () => {
     expect(encodeState(DEFAULTS, DEFAULTS, SPEC)).toBe("");
   });
 
+  it("reads every number the screen's input allows, written the way the screen reads it", () => {
+    for (const [typed, read] of [[".5", "0.5"], ["-5", "-5"], ["1e3", "1000"], ["2.50", "2.5"]])
+      expect(decodeState(new URLSearchParams(`min=${encodeURIComponent(typed)}`), DEFAULTS, SPEC).min).toBe(read);
+    expect(encodeState({ ...DEFAULTS, min: ".5" }, DEFAULTS, SPEC)).toBe("min=0.5");
+  });
+
+  it("writes a cleared field empty when the reader's base has a value, so the base doesn't come back", () => {
+    const base: S = { ...DEFAULTS, sector: "Tech", min: "1.5" };
+    const cleared: S = { ...base, sector: "all", min: "" };
+    const q = encodeState(cleared, base, SPEC);
+    expect(q).toBe("sector=all&min=");
+    expect(decodeState(new URLSearchParams(q), base, SPEC)).toEqual(cleared);
+  });
+
   it("ignores values the screen doesn't accept", () => {
     const s = decodeState(new URLSearchParams("sector=Crypto&min=abc&multiples=yes&watchOnly=1"), DEFAULTS, SPEC);
     expect(s).toEqual(DEFAULTS);
