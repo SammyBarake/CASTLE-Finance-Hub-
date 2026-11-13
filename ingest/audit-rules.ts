@@ -11,7 +11,8 @@ export interface Finding {
   detail: string;
 }
 
-const HEADLINE_WORDS = /\b(?:announces?|acquires?|completes?|agrees?|signs?|enters?|to acquire|to be acquired|merger agreement|definitive agreement|press release|today)\b/i;
+// ("Complete" opening a name is the name: Complete Energy Services, Complete Genomics.)
+const HEADLINE_WORDS = /\b(?:announces?|acquires?|completes|(?<!^)complete|agrees?|signs?|enters?|to acquire|to be acquired|merger agreement|definitive agreement|press release|today)\b/i;
 /** Two to five names joined by commas and "and", each under 60 characters and starting with a capital, not a description ("Joint Venture Backed by …"). */
 export function jointList(name: string): boolean {
   const parts = name.split(/,\s*(?:and\s+)?|\s+and\s+/);

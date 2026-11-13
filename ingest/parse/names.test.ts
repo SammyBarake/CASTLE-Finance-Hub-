@@ -48,6 +48,7 @@ describe("headline and press-release debris", () => {
     expect(cleanPartyName("Ceautamed Worldwide the Owner of Greens First")).toBe("Ceautamed Worldwide");
     expect(cleanPartyName("Sculptor Capital Management Together")).toBe("Sculptor Capital Management");
     expect(cleanPartyName("A Joint Venture Between Affiliates Of Highgate And Cerberus Capital Management")).toBe("Highgate and Cerberus Capital Management");
+    expect(cleanPartyName("Joint Venture Backed by Kemmons Wilson Hospitality Partners and Ascendant Capital Partners")).toBe("Kemmons Wilson Hospitality Partners and Ascendant Capital Partners");
     expect(cleanPartyName("Procter And Gamble")).toBe("Procter And Gamble");
     expect(cleanPartyName("Antibody and Reagent Leader BioLegend")).toBe("BioLegend");
     expect(cleanPartyName("Sports Betting Company Openbet")).toBe("Openbet");

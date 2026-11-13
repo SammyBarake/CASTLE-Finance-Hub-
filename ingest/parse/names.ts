@@ -206,8 +206,9 @@ export function cleanPartyName(raw: string): string {
   s = s.replace(/^(?:Joint\s+)?(?:Media\s*(?:&|and)\s*Investor|Media|Investor|Press|News)\s+Release:?\s+(?=[A-Z])/i, "");
   // "Ceautamed Worldwide the Owner of Greens First" -> "Ceautamed Worldwide"; "Sculptor Capital Management Together" -> "Sculptor Capital Management"
   s = s.replace(/,?\s+the\s+(?:owner|parent|operator|maker|developer)\s+of\b.*$/i, "").replace(/\s+Together$/i, "");
-  // "A Joint Venture Between Affiliates Of Highgate And Cerberus …" -> "Highgate and Cerberus …"
-  const jv = /^(?:an?\s+)?joint venture (?:between|of|formed by)\s+(?:affiliates of\s+)?/i;
+  // "A Joint Venture Between Affiliates Of Highgate And Cerberus …" -> "Highgate and Cerberus …"; "Joint Venture Backed by
+  // Kemmons Wilson Hospitality Partners and Ascendant Capital Partners" (Sotherly) -> the two firms.
+  const jv = /^(?:an?\s+)?joint venture (?:between|of|(?:formed|backed|led|sponsored|owned) by)\s+(?:affiliates of\s+)?/i;
   if (jv.test(s)) s = s.replace(jv, "").replace(/\s+And\s+(?:Affiliates Of\s+)?(?=[A-Z])/gi, " and ");
   // A description in front of the name: "Leading Loyalty Provider Punchh Inc." -> "Punchh Inc.",
   // "Leading Metal Roof Components Manufacturer LSI Group" -> "LSI Group".
