@@ -33,6 +33,7 @@ import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { closingFiling, closingsToRead, milestonesFrom, ownFilings } from "./timeline";
 import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
+import { applyAgreementBanks, brokerBanks } from "./parse/brokers";
 import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay, statedDate } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
 import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
@@ -1812,6 +1813,7 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
     deal.fairness = undefined;
     deal.proxySections = undefined;
     deal.meetingDate = null;
+    deal.agreementBanks = undefined;
     deal.fairnessParser = FAIRNESS_PARSER_VERSION;
   }
   if (sub && !opts.light && !deal.fairnessCheckedAt) {
@@ -1832,6 +1834,11 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         if (opinions.length) deal.fairness = opinions;
         deal.targetAdvisors.push(...banksOfTheTarget(opinions, deal, text.slice(0, 25000)));
         if (!deal.acquirerAdvisors.length) deal.acquirerAdvisors = buyerBanksInProxy(text, deal.acquirer.name).filter((b) => !deal.targetAdvisors.includes(b));
+        // The annexed agreement's brokers clauses: each party's own word on its banks. Tidy applies them last, so a
+        // release read later can't put a bank back on the wrong side.
+        const agreed = brokerBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name });
+        deal.agreementBanks = (agreed.acquirer.length || agreed.target.length) && deal.target.cik ? { ...agreed, targetCik: deal.target.cik } : null;
+        applyAgreementBanks(deal, deal.agreementBanks);
         deal.fairnessAdsh = proxy.adsh;
       } catch {
         // Try again on the next run.

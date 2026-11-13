@@ -52,6 +52,8 @@ export interface StoredDeal extends Deal {
   fairnessCheckedAt?: string | null;
   /** The meeting a definitive proxy calls (`meetingDateOf`): what the vote's 8-K must come on or after. */
   meetingDate?: string | null;
+  /** Each side's banks as the merger agreement's brokers clauses name them (`brokerBanks`, from the proxy's annex); tidy puts every bank on its side. */
+  agreementBanks?: { acquirer: string[]; target: string[]; /** The target's CIK it was read for: a record turned round later no longer matches. */ targetCik: string } | null;
   /** FAIRNESS_PARSER_VERSION the opinions were read with; a newer parser triggers a re-read. */
   fairnessParser?: number;
   /** Deal protections read (8-K + proxy) on this date; null = look again on the next run. */

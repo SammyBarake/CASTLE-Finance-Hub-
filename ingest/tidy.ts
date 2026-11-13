@@ -5,6 +5,7 @@
 import { cleanPartyName, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesExtend, normalizeName, privateNameMatch, sameCompany } from "./parse/names";
 import { near, sameBuyer } from "./reactions";
 import { saneFee } from "./parse/terms";
+import { applyAgreementBanks } from "./parse/brokers";
 import { findBanks } from "../lib/banks";
 import type { StoredDeal } from "./store";
 
@@ -136,7 +137,10 @@ export function sanitizeDeal(d: StoredDeal): boolean {
     d.terms.targetFeeUsd = saneFee(d.terms.targetFeeUsd, d.valueUsd, "target");
     d.terms.reverseFeeUsd = saneFee(d.terms.reverseFeeUsd, d.valueUsd, "reverse");
   }
-  // A bank advises one side. The target's list comes from its own proxy when there is one, so it wins.
+  // The merger agreement's brokers clauses settle a bank's side; then a bank advises one side, and the target's list
+  // comes from its own proxy when there is one, so it wins.
+  // Only while the record's target is the company the agreement was read for (a role swap or merge turns it round).
+  if (d.agreementBanks && d.agreementBanks.targetCik === d.target.cik && !d.privateTarget) applyAgreementBanks(d, d.agreementBanks);
   if (d.acquirerAdvisors.some((a) => d.targetAdvisors.includes(a))) d.acquirerAdvisors = d.acquirerAdvisors.filter((a) => !d.targetAdvisors.includes(a));
   return JSON.stringify([d.premiumPct, d.valueUsd, d.terms, d.acquirerAdvisors, d.acquirer.name, d.target.name, d.statusDate]) !== before;
 }
