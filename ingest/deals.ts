@@ -825,6 +825,25 @@ export function applyParsed(state: State, parsed: ParsedPress, hit: FtsHit, targ
 const PROXY_ORDER = ["DEFM14A", "SC 14D9", "SC14D9", "PREM14A", "DEFM14C", "PREM14C"];
 /** Best source of fairness opinions first. */
 const FAIRNESS_FORMS = ["DEFM14A", "SC 14D9", "SC14D9", "DEFM14C", "PREM14A"];
+/** The merger agreement filed with an 8-K: "ex2-1.htm", "d123dex21.htm", "exhibit2_1.htm", "mergeragreement.htm". */
+const AGREEMENT_FILE = /(?:^|[-_\d])d?ex(?:h(?:ibit)?)?[-_]?2(?:[-_.]?0?1)?(?:[-_.a-z]|\.htm)|merger.?agreement|agreement.?and.?plan/i;
+/**
+ * A tender offer's merger agreement: the 14D-9 doesn't reprint it, the target's signing 8-K (Item 1.01, from three days
+ * before the announcement to ten after) files it as exhibit 2.1. Found for 159 of 182 tender deals on record. Null when none.
+ */
+async function signingAgreementText(sub: Submissions, deal: StoredDeal): Promise<string | null> {
+  const eightKs = recentFilings(sub)
+    .filter((f) => /^8-K/.test(f.form) && /\b1\.01\b/.test(f.items) && f.date >= shiftDate(deal.announcedDate, -3) && f.date <= shiftDate(deal.announcedDate, 10))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  for (const f of eightKs.slice(0, 2)) {
+    const docs = (await filingDocuments(sub.cik, f.adsh)).filter((x) => /\.html?$/i.test(x) && x !== f.primaryDocument && AGREEMENT_FILE.test(x));
+    for (const doc of docs.slice(0, 2)) {
+      const text = htmlToText(await getText(archiveUrl(sub.cik, f.adsh, doc)));
+      if (/AGREEMENT AND PLAN OF MERGER|MERGER AGREEMENT|TRANSACTION AGREEMENT/i.test(text.slice(0, 3000))) return text;
+    }
+  }
+  return null;
+}
 const PROXY_FORMS =/^(DEFM14A|SC 14D9|SC14D9|PREM14A|DEFM14C|PREM14C)$/;
 /** The buyer's first word is in a proxy's opening, as a word: "Aya" is in "payable", "AG" in "mortgage", "Option" in "adoption". */
 export function opensNamingBuyer(opening: string, buyerName: string): boolean {
@@ -1837,7 +1856,10 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         // The annexed agreement's brokers clauses: each party's own word on its banks. Tidy applies them last, so a
         // release read later can't put a bank back on the wrong side.
         // So are the banks the proxy defines as one side's adviser ("Bank of America, Publicis's financial advisor … ("BofA")").
-        const agreed = sidesAgreed(brokerBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name }), definedSideBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name }));
+        const names = { targetName: deal.target.name, acquirerName: deal.acquirer.name };
+        // A tender offer's 14D-9 doesn't reprint the agreement: its clauses come from the signing 8-K's exhibit 2.1.
+        const tender = /14D9/.test(proxy.form) ? await signingAgreementText(sub, deal).catch(() => null) : null;
+        const agreed = sidesAgreed(brokerBanks(text, names), definedSideBanks(text, names), tender ? brokerBanks(tender, names) : { acquirer: [], target: [] });
         deal.agreementBanks = (agreed.acquirer.length || agreed.target.length) && deal.target.cik ? { ...agreed, targetCik: deal.target.cik } : null;
         applyAgreementBanks(deal, deal.agreementBanks);
         deal.fairnessAdsh = proxy.adsh;
