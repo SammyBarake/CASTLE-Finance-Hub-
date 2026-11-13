@@ -186,6 +186,12 @@ function definitions(flat: string, name: string, terms: string[]): { at: number;
 /** Whether the target is defined as "the Company" or another target term (for the scan scripts). */
 export const companyDefinedAt = (flat: string, targetName: string) => definedTerms(flat, targetName, [...TARGET_TERMS, ...ownNames(targetName)]).length > 0;
 
+/** Two readings of each side's banks together; a bank one puts on each side is left out. */
+export function sidesAgreed(...readings: BrokerBanks[]): BrokerBanks {
+  const a = [...new Set(readings.flatMap((r) => r.acquirer))], t = [...new Set(readings.flatMap((r) => r.target))];
+  return { acquirer: a.filter((b) => !t.includes(b)), target: t.filter((b) => !a.includes(b)) };
+}
+
 /**
  * Put each bank on the side the agreement gives it: a bank its buyer's clause names (and the target's doesn't) leaves the
  * target's list for the buyer's, and the other way round; one the lists lack joins its side. Never against a fairness

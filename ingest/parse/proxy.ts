@@ -182,6 +182,37 @@ export function buyerBanksInProxy(text: string, buyerName: string): string[] {
   return [...banks];
 }
 
+/**
+ * Banks the target's proxy defines as one side's financial advisor, the definition's own sentence: "Bank of America,
+ * Publicis's financial advisor in connection with the potential transaction ("BofA")", "Keefe, Bruyette & Woods, Inc.
+ * ("KBW"), Parent's financial advisor", "the Company's financial advisor, RBC Capital Markets ("RBC")". Over 780 cached
+ * proxies 98 had one: 99 readings agreed with the stored side and the 5 that didn't were the proxy's word (LiveRamp's
+ * BofA was Publicis's). Only a definition: a narrative mention beside the other side's bank misfires (`buyerBanksInProxy`).
+ * A bank defined for both sides is left out, and so is a name both parties start with.
+ */
+export function definedSideBanks(text: string, names: { acquirerName: string; targetName: string }): { acquirer: string[]; target: string[] } {
+  const firstWord = (n: string) => n.replace(/^the\s+/i, "").split(/[\s,]+/)[0].replace(/[^\w&-]/g, "");
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const [wa, wt] = [firstWord(names.acquirerName), firstWord(names.targetName)];
+  const shared = wa.toLowerCase() === wt.toLowerCase();
+  const flat = text.replace(/\s+/g, " ").slice(0, 600_000);
+  // The bank is read from the term it is defined as ("BofA", "KBW"): the name before it may hold commas ("Keefe, Bruyette & Woods, Inc.").
+  const term = String.raw`\(\s*(?:the\s+)?["“]\s*([^"”]{2,40})\s*["”]\s*\)`;
+  const bank = String.raw`(?:[A-Z][\w&.-]*(?:\s+(?:of|and|&))?\s+){0,5}[A-Z][\w&.-]*(?:,?\s+(?:Inc|LLC|L\.L\.C|LP|L\.P|Ltd|Limited|plc)\.?)?`;
+  const read = (word: string, role: string): string[] => {
+    const who = word.length >= 3 && !shared ? String.raw`(?:${esc(word)}(?:\s+[A-Z][\w&]*){0,2}|${role})` : `(?:${role})`;
+    const adv = String.raw`(?:the\s+)?${who}(?:'s|’s|')\s+(?:exclusive\s+|sole\s+|lead\s+)?financial\s+advis[eo]rs?`;
+    const res = [
+      new RegExp(String.raw`${bank},\s+${adv}(?:\s+in connection with [^(".;]{0,80})?,?\s*${term}`, "g"),
+      new RegExp(String.raw`${bank},?\s*${term},\s+${adv}\b`, "g"),
+      new RegExp(String.raw`\b${adv},\s+${bank},?\s*${term}`, "g"),
+    ];
+    return [...new Set(res.flatMap((re) => [...flat.matchAll(re)]).flatMap((m) => findBanks(m[1])))];
+  };
+  const acquirer = read(wa, "Parent"), target = read(wt, "the Company|Company");
+  return { acquirer: acquirer.filter((b) => !target.includes(b)), target: target.filter((b) => !acquirer.includes(b)) };
+}
+
 // From the meeting's name to its date: "… to be held at 9:00 a.m., Eastern Time, on May 29, 2024", "… TO BE HELD TUESDAY, DECEMBER 9,
 // 2025", "… DATE & TIME October 6, 2023". Never across the record date, the mailing, a deadline ("no later than") or the
 // board's own meetings: "a special meeting of the board held on" isn't it. Periods are allowed: "a.m.", "Inc.", a web address.

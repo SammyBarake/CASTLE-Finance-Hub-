@@ -31,9 +31,9 @@ import { namesTheShell, sponsorFromText } from "./parse/sponsor";
 import { combineTerms, parseDealTerms, parseProxyTerms, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { closingFiling, closingsToRead, milestonesFrom, ownFilings } from "./timeline";
-import { buyerBanksInProxy, meetingDateOf, parseMergerProxy } from "./parse/proxy";
+import { buyerBanksInProxy, definedSideBanks, meetingDateOf, parseMergerProxy } from "./parse/proxy";
 import { proxySections } from "./parse/proxySections";
-import { applyAgreementBanks, brokerBanks } from "./parse/brokers";
+import { applyAgreementBanks, brokerBanks, sidesAgreed } from "./parse/brokers";
 import { completedPhrases, completedSigningOn, endedPhrases, nameForms, readAnnouncement, readLooseCompletion, readLooseEnd, readPastReference, readStatement, searchName, shortName as firstNameWord, statedClosingDay, statedDate } from "./parse/completion";
 import { cleanPartyName, COLLIDING_SPONSORS, identicalNames, isDescriptionOnly, isMergerVehicle, isPlaceholderBuyer, isPlausibleName, isTickerOf, namesCompany, namesExtend, normalizeName, notTheSponsor, sameCompany, titleCaseCaps, withoutStateTag } from "./parse/names";
 import { datelinesOf, displayName, extractAdvisors, extractConsideration, extractPremium, extractPrice, extractValue, parsePressRelease, splitHeadline, type ParsedPress, type PartyMention } from "./parse/press";
@@ -1836,7 +1836,8 @@ export async function enrichDeal(deal: StoredDeal, sub: Submissions | null, toda
         if (!deal.acquirerAdvisors.length) deal.acquirerAdvisors = buyerBanksInProxy(text, deal.acquirer.name).filter((b) => !deal.targetAdvisors.includes(b));
         // The annexed agreement's brokers clauses: each party's own word on its banks. Tidy applies them last, so a
         // release read later can't put a bank back on the wrong side.
-        const agreed = brokerBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name });
+        // So are the banks the proxy defines as one side's adviser ("Bank of America, Publicis's financial advisor … ("BofA")").
+        const agreed = sidesAgreed(brokerBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name }), definedSideBanks(text, { targetName: deal.target.name, acquirerName: deal.acquirer.name }));
         deal.agreementBanks = (agreed.acquirer.length || agreed.target.length) && deal.target.cik ? { ...agreed, targetCik: deal.target.cik } : null;
         applyAgreementBanks(deal, deal.agreementBanks);
         deal.fairnessAdsh = proxy.adsh;

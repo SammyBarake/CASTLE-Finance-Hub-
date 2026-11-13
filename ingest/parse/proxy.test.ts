@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare, meetingDateOf, parseMergerProxy, sideAdvisors } from "./proxy";
+import { extractProxyAdvisors, extractProxyPremium, extractImpliedPerShare, definedSideBanks, meetingDateOf, parseMergerProxy, sideAdvisors } from "./proxy";
 
 describe("meetingDateOf", () => {
   it("reads the meeting however the proxy words it", () => {
@@ -192,5 +192,19 @@ describe("sideAdvisors", () => {
     const manning = `PJT Partners LP ("PJT Partners") was retained by Company to act as its financial advisor. Representatives of Gibson Dunn, PJT Partners, Sidley Austin, Callodine's financial advisors met. PJT Partners is acting as financial advisor to Manning & Napier in connection with the mergers.\n`;
     expect(parseMergerProxy(manning, "Manning & Napier, Inc.", { name: "Callodine Group, LLC" }).targetAdvisors).toEqual(["PJT Partners"]);
     expect(extractProxyAdvisors("Opinion of Goldman Sachs & Co. LLC\nParent engaged Goldman Sachs as its financial advisor.\n", "Target Inc.", "Parent Inc.")).toEqual(["Goldman Sachs"]);
+  });
+});
+
+describe("definedSideBanks", () => {
+  const names = { acquirerName: "Publicis Groupe S.A.", targetName: "LiveRamp Holdings, Inc." };
+  it("reads a bank defined as one side's financial advisor, in each word order", () => {
+    expect(definedSideBanks(`Evercore then shared the LRP with Publicis and Bank of America, Publicis's financial advisor in connection with the potential transaction ("BofA").`, names)).toEqual({ acquirer: ["BofA Securities"], target: [] });
+    expect(definedSideBanks(`In connection with the merger, Keefe, Bruyette & Woods, Inc. ("KBW"), Parent's financial advisor, delivered materials.`, names)).toEqual({ acquirer: ["Stifel"], target: [] });
+    expect(definedSideBanks(`management and representatives of the Company's financial advisor, RBC Capital Markets, LLC ("RBC"), met.`, names)).toEqual({ acquirer: [], target: ["RBC Capital Markets"] });
+  });
+  it("leaves out a narrative mention, a bank defined for both sides, and a first word both parties share", () => {
+    expect(definedSideBanks(`representatives of Goldman Sachs, Publicis's financial advisor, called Evercore.`, names)).toEqual({ acquirer: [], target: [] });
+    expect(definedSideBanks(`Lazard Frères & Co. LLC ("Lazard"), Parent's financial advisor. Lazard Frères & Co. LLC ("Lazard"), the Company's financial advisor.`, names)).toEqual({ acquirer: [], target: [] });
+    expect(definedSideBanks(`Jefferies LLC ("Jefferies"), First's financial advisor.`, { acquirerName: "First Bancorp", targetName: "First Capital, Inc." })).toEqual({ acquirer: [], target: [] });
   });
 });
