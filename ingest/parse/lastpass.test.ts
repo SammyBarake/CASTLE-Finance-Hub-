@@ -10,7 +10,7 @@ import type { State } from "../store";
 import { parseMergerItem, ownReleaseDay } from "./eightk";
 import { cleanPartyName, isPlausibleName, withoutStateTag } from "./names";
 import { circularAbroad, extractPrice, extractValue, isCarveOut, parsePressRelease, type ParsedPress } from "./press";
-import { buyerBehindParent, jointBuyers, sponsorFromText } from "./sponsor";
+import { buyerBehindParent, buyerTheShellIsNamedFor, jointBuyers, sponsorFromText } from "./sponsor";
 
 const press = (text: string, filerName = "") => parsePressRelease(text, { filerName, filerTickers: [] });
 const item = (text: string, filerName = "") => parseMergerItem(`Item 1.01 Entry into a Material Definitive Agreement.\n${text}`, { filerName, filerTickers: [] });
@@ -259,6 +259,19 @@ describe("who is behind the Parent", () => {
   it("ZeroFox and UserTesting: a fund's manager", () => {
     expect(buyerBehindParent(`Parent and Merger Sub are affiliates of Haveli Investments Software Fund I, L.P., a private equity fund managed by Haveli Investments L.P. (together with its affiliated funds, the "Haveli Funds"). Subject`, t)).toBe("Haveli Investments");
     expect(buyerBehindParent(`Parent and Merger Sub are affiliates of Thoma Bravo Discover Fund III, L.P., a Delaware limited partnership, and Thoma Bravo Discover Fund IV, L.P., a Delaware limited partnership (the "Thoma Bravo Funds"), and are managed by Thoma Bravo, L.P. ("Thoma Bravo"). The`, t)).toBe("Thoma Bravo");
+  });
+  it("Bsquare: a headline buyer named like the vehicle is the buyer when the release defines a longer name", () => {
+    const text = `KONTRON TO ACQUIRE BSQUARE FOR $1.90 PER SHARE\nSeattle - October 11, 2023: Kontron America, Incorporated ("Kontron"), a global leader in IoT Technology, and Bsquare Corporation (Nasdaq: BSQR) ("Bsquare") today jointly announced …`;
+    expect(buyerTheShellIsNamedFor("KONTRON", "Kontron Merger Sub., Inc.", text)).toBe("Kontron America, Incorporated");
+    expect(buyerTheShellIsNamedFor("Sunshine", "Sunshine Bidco Limited", `Sunshine to acquire Acme. Sunshine Bidco Limited ("Sunshine") was formed by …`)).toBeNull();
+  });
+  it("Doma: an owner that is a vehicle leads to the next sentence's", () => {
+    expect(
+      buyerBehindParent(
+        `Parent and Merger Sub are affiliates of Closing Parent Holdco, L.P., a Cayman Islands exempted limited partnership ("Topco"), the indirect parent company of Parent. Topco, Parent and Merger Sub are affiliates of CB RE Closing Aggregator, L.P., a Cayman Islands exempted limited partnership and an affiliate of Centerbridge Partners, L.P. ("Centerbridge"), a private investment firm.`,
+        "Doma Holdings, Inc.",
+      ),
+    ).toBe("Centerbridge Partners");
   });
   it("a numbered fund is its firm", () => {
     expect(buyerBehindParent(`Parent and Merger Sub are affiliates of Carlyle Partners V, L.P. ("Carlyle"). The Merger`, t)).toBe("Carlyle Partners");

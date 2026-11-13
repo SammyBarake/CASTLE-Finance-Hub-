@@ -27,7 +27,7 @@ import {
 } from "./edgar";
 import { computeMultiples, FINANCIALS_VERSION, getTargetFinancials } from "./financials";
 import { definedEntities, item101, ownReleaseDay, parseMergerItem, saysMergerTerminated, withItem101Price, withoutSideMatters } from "./parse/eightk";
-import { namesTheShell, sponsorFromText } from "./parse/sponsor";
+import { buyerTheShellIsNamedFor, namesTheShell, sponsorFromText } from "./parse/sponsor";
 import { combineTerms, parseDealTerms, parseProxyTerms, TERMS_PARSER_VERSION } from "./parse/terms";
 import { FAIRNESS_PARSER_VERSION, parseFairness } from "./parse/fairness";
 import { closingFiling, closingsToRead, milestonesFrom, ownFilings } from "./timeline";
@@ -918,8 +918,10 @@ const REVIVAL_FORMS = /^(PREM14A|DEFM14A|PREM14C|DEFM14C|SC 14D9|SC14D9|SC TO-T|
  *    "Ithaca Holdco, Inc.").
  * 5: "… Acquisition Company, LLC" is a vehicle (Forian), and management buyouts are named "Management Group led by …",
  *    which tidy keeps ("Management group led by …" read as prose and dropped FONAR's deal).
+ * 6: an owner that is a vehicle itself leads to the next "… are affiliates of" sentence (Doma: Closing Parent Holdco →
+ *    CB RE Closing Aggregator → Centerbridge). Re-reads only the few public deals whose buyer is still a vehicle.
  */
-export const SPONSOR_CHECK_VERSION = 5;
+export const SPONSOR_CHECK_VERSION = 6;
 
 /**
  * A proxy's premium belongs to the price it states. A raise or a cut clears the old premium, and a proxy filed before the
@@ -949,7 +951,11 @@ export async function findSponsor(deal: StoredDeal, sub: Submissions): Promise<s
       if (isContractExhibit(text)) continue;
       const p = parsePressRelease(text, ctx);
       const headlineBuyer = p && p.kind === "announcement" && (namesCompany(p.target.name, deal.target.name) || sameCompany(p.target.name, deal.target.name)) ? cleanPartyName(p.acquirer.name) : null;
-      if (headlineBuyer && isPlausibleName(headlineBuyer) && !isPlaceholderBuyer(headlineBuyer) && !sameCompany(headlineBuyer, deal.target.name) && !namesTheShell(headlineBuyer, deal.acquirer.name)) return headlineBuyer;
+      if (headlineBuyer && isPlausibleName(headlineBuyer) && !isPlaceholderBuyer(headlineBuyer) && !sameCompany(headlineBuyer, deal.target.name)) {
+        if (!namesTheShell(headlineBuyer, deal.acquirer.name)) return headlineBuyer;
+        const full = buyerTheShellIsNamedFor(headlineBuyer, deal.acquirer.name, text);
+        if (full) return full;
+      }
       const named = sponsorFromText(text, deal.target.name, deal.acquirer.name);
       if (named) return named;
     }

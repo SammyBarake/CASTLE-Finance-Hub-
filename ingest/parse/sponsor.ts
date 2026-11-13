@@ -193,11 +193,23 @@ export function buyerBehindParent(text: string, target: string): string | null {
   if (rollover) return familyBuyer(rollover[1], rollover[2]);
   // Not the going-private boilerplate: "the holders of Axar Shares and Parent and Merger Sub are affiliates of the Company and,
   // therefore, are required to express their purposes …" (StoneMor's proxy) is the SEC's sense of affiliate, not an owner.
-  const m = [...text.matchAll(new RegExp(WHO_IS_BEHIND.source, "g"))].find(
+  const found = [...text.matchAll(new RegExp(WHO_IS_BEHIND.source, "g"))].filter(
     (x) => !/^(?:Company|Partnership|Registrant|Trust|Issuer|Corporation)\b/.test(text.slice(x.index + x[0].length, x.index + x[0].length + 40)),
   );
-  if (!m) return null;
-  const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 400);
+  // An owner that is a vehicle itself leads to the next such sentence: "Parent and Merger Sub are affiliates of Closing Parent
+  // Holdco, L.P. ("Topco") … Topco, Parent and Merger Sub are affiliates of CB RE Closing Aggregator, L.P., … an affiliate
+  // of Centerbridge Partners, L.P." (Doma).
+  let vehicle: string | null = null;
+  for (const m of found.slice(0, 3)) {
+    const who = ownerAt(text, m, target);
+    if (who && !isPlaceholderBuyer(who)) return who;
+    vehicle ??= who;
+  }
+  return vehicle;
+}
+
+function ownerAt(text: string, m: RegExpExecArray | RegExpMatchArray, target: string): string | null {
+  const rest = text.slice(m.index! + m[0].length, m.index! + m[0].length + 400);
   const family = FAMILY_THEN_FIRM.exec(rest);
   if (family) return familyBuyer(family[2], family[1]);
   const first = new RegExp(String.raw`^(${FIRM})${FIRM_END}`).exec(rest);
@@ -231,8 +243,19 @@ const plainFirm = (name: string) =>
  */
 function definedFullName(term: string, flat: string): string | null {
   if (!/^[A-Z][a-z]+$/.test(term)) return null;
-  const m = new RegExp(String.raw`\b(${term}\s[A-Z][\w&.'’ -]{1,60}?(?:,\s(?:L\.\s?P\.?|LLC|LP|Inc\.?|Ltd\.?))?)(?:,\s+an?\s+[^()"“”;]{1,80})?\s*\(\s*(?:the\s+)?["“]\s*${term}\s*["”]`).exec(flat);
+  const m = new RegExp(String.raw`\b(${term}\s[A-Z][\w&.'’ -]{1,60}?(?:,\s(?:L\.\s?P\.?|LLC|LP|Inc\.?|Incorporated|Ltd\.?))?)(?:,\s+an?\s+[^()"“”;]{1,80})?\s*\(\s*(?:the\s+)?["“]\s*${term}\s*["”]`).exec(flat);
   return m && isPlausibleName(m[1]) ? m[1] : null;
+}
+
+/**
+ * A headline buyer that is only the vehicle's stem ("KONTRON TO ACQUIRE BSQUARE" beside "Kontron Merger Sub., Inc.") is the
+ * buyer when the release defines it by a longer name of its own: `Kontron America, Incorporated ("Kontron")`. Null otherwise
+ * ("Sunshine" for "Sunshine Bidco" stays a vehicle's code name).
+ */
+export function buyerTheShellIsNamedFor(headlineBuyer: string, shell: string, text: string): string | null {
+  const term = headlineBuyer.trim().replace(/^[A-Z]+$/, (w) => w[0] + w.slice(1).toLowerCase());
+  const full = definedFullName(term, flatten(text));
+  return full && !namesTheShell(full, shell) && !isPlaceholderBuyer(full) ? full : null;
 }
 
 /** Words that make a capture a clause or a defined term, not a firm. */
