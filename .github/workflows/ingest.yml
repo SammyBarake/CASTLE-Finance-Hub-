@@ -50,6 +50,18 @@ jobs:
           for v in SEC_USER_AGENT SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             if [ -z "${!v}" ]; then echo "::error::Missing repository secret $v"; exit 1; fi
           done
+      # A rebuild reads about 30,000 filed documents, which never change: it starts from the last rebuild's copies (the
+      # newest saved cache) and saves its own at the end, so it only downloads what's new. About 69,000 requests at 8 a
+      # second took 4.4 hours on November 14. Ordinary runs read too little to be worth restoring gigabytes for. GitHub
+      # drops a cache unused for 7 days, so monitor.yml restores it daily to keep it.
+      - name: Restore the filed-document cache (rebuilds)
+        id: docs-cache
+        if: ${{ inputs.rebuild }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .data/cache
+          key: edgar-docs-${{ github.run_id }}
+          restore-keys: edgar-docs-
       # --deadline-minutes stops a run and saves before the job limit (350 minutes) kills it: a killed run saves nothing
       # after its last checkpoint. A rebuild that runs out of time while enriching still prunes stale deals and leaves the
       # rest for the next run; one that runs out while reading filings keeps everything (ingest/run.ts).
@@ -57,6 +69,10 @@ jobs:
       - name: Ingest
         run: |
           if [ "${{ inputs.rebuild }}" = "true" ]; then
+            export EDGAR_CACHE_DIR=.data/cache
+            if [ -z "${{ steps.docs-cache.outputs.cache-matched-key }}" ]; then
+              echo "::warning::No saved document cache: this rebuild downloads every filing (about 69,000 requests, over 4 hours)"
+            fi
             npm run ingest -- --only activists --from 2024-12-18
             npm run ingest -- --only deals --rebuild-deals --from "${{ inputs.from || '2021-01-01' }}" --deadline-minutes 285
           elif [ -n "${{ inputs.from }}" ]; then
@@ -66,6 +82,22 @@ jobs:
           else
             npm run ingest -- --deadline-minutes 325
           fi
+      # Saved even when the rebuild failed or ran out of time: what it downloaded is still good for the next one. A document is
+      # written under a temporary name and renamed into place (ingest/edgar.ts), so a killed run leaves only *.tmp files,
+      # which are removed here rather than saved.
+      - name: Cache size (rebuilds)
+        if: ${{ always() && inputs.rebuild }}
+        run: |
+          find .data/cache -name '*.tmp' -delete || true
+          du -sh .data/cache || true
+          ls .data/cache | wc -l || true
+          df -h . || true
+      - name: Save the filed-document cache (rebuilds)
+        if: ${{ always() && inputs.rebuild }}
+        uses: actions/cache/save@v4
+        with:
+          path: .data/cache
+          key: edgar-docs-${{ github.run_id }}-${{ github.run_attempt }}
       # Fails the run (and GitHub emails) if more than 3% of records trip a data-quality rule (ingest/audit-rules.ts).
       # Read-only, no EDGAR requests, a few seconds.
       - name: Data quality

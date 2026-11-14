@@ -12,7 +12,7 @@
  */
 import { ingestActivists } from "./activists";
 import { buildDirectory, ingestDeals } from "./deals";
-import { edgarRequestCount, getListedCompanies } from "./edgar";
+import { edgarRequestCount, edgarRequestStats, getListedCompanies } from "./edgar";
 import { ingestIpos } from "./ipos";
 import { fetchMacro } from "./macro";
 import { carryReactions, reactionsToHold } from "./reactions";
@@ -153,6 +153,8 @@ async function main() {
     if (held.length) log(`reactions: ${state.deals.filter((d) => d.reaction).length} deals hold one, ${state.unplacedReactions?.length ?? 0} found no record (parked for a later run)`);
     await store.save(state, { prune: rebuild && succeeded && complete });
     log(`saved to ${store.label}: ${state.deals.length} deals, ${state.ipos.length} IPOs (${edgarRequestCount()} EDGAR requests)`);
+    const r = edgarRequestStats();
+    log(`  requests (retries included): ${r.archive} to the filing archive, ${r.submissions} company filing indexes, ${r.search} searches, ${r.other} other; ${r.cacheHits} reads answered by the disk cache (${r.cacheFiles} distinct files), ${r.cacheWrites} files written to it`);
   }
 }
 

@@ -1,3 +1,6 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getText } from "./edgar";
 
@@ -52,5 +55,51 @@ describe("EDGAR throttle", () => {
     // b waited out the ten seconds as well, instead of firing at the next slot.
     expect(starts.length).toBe(3);
     expect(Math.min(starts[1], starts[2]) - starts[0]).toBeGreaterThanOrEqual(10_000);
+  });
+});
+
+// The document cache travels between rebuilds (ingest.yml), so it must never hold a partial file or a temporary one.
+describe("EDGAR document cache", () => {
+  let dir = "";
+  beforeEach(() => {
+    process.env.SEC_USER_AGENT = "Castle test test@example.com";
+    dir = mkdtempSync(join(tmpdir(), "edgar-cache-"));
+    process.env.EDGAR_CACHE_DIR = dir;
+    vi.resetModules(); // the cache directory is read when the module loads
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("the filed document", { status: 200 })));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.EDGAR_CACHE_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("writes each document whole under its own name and answers the next read from disk", async () => {
+    const edgar = await import("./edgar");
+    const url = "https://www.sec.gov/Archives/edgar/data/1/000000000126000001/ex99.htm";
+    expect(await edgar.getText(url)).toBe("the filed document");
+    const files = readdirSync(dir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/^[0-9a-f]{40}$/); // no .tmp left behind
+    expect(readFileSync(join(dir, files[0]), "utf8")).toBe("the filed document");
+    expect(await edgar.getText(url)).toBe("the filed document");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(edgar.edgarRequestStats()).toMatchObject({ archive: 1, cacheHits: 1, cacheFiles: 1, cacheWrites: 1 });
+  });
+
+  it("doesn't fail a read when the cache can't be written", async () => {
+    process.env.EDGAR_CACHE_DIR = join(dir, "not-a-dir");
+    writeFileSync(process.env.EDGAR_CACHE_DIR, "a file where the directory should be");
+    vi.resetModules();
+    const edgar = await import("./edgar");
+    expect(await edgar.getText("https://www.sec.gov/Archives/edgar/data/1/000000000126000002/ex99.htm")).toBe("the filed document");
+    expect(edgar.edgarRequestStats().cacheWrites).toBe(0);
+  });
+
+  it("caches nothing but filed documents", async () => {
+    const edgar = await import("./edgar");
+    await edgar.getText("https://efts.sec.gov/LATEST/search-index?q=merger");
+    await edgar.getText("https://data.sec.gov/submissions/CIK0000000001.json");
+    expect(readdirSync(dir)).toHaveLength(0);
   });
 });

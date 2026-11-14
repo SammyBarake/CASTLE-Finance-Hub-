@@ -55,7 +55,7 @@ vi.mock("./deals", () => ({
   ingestDeals: (state: unknown, opts: unknown) => (h.ingest as Ingest)(state as never, opts as never),
   buildDirectory: () => ({ byTicker: new Map() }),
 }));
-vi.mock("./edgar", () => ({ getListedCompanies: async () => [], edgarRequestCount: () => 0 }));
+vi.mock("./edgar", () => ({ getListedCompanies: async () => [], edgarRequestCount: () => 0, edgarRequestStats: () => ({ archive: 0, submissions: 0, search: 0, other: 0, cacheHits: 0, cacheFiles: 0, cacheWrites: 0 }) }));
 vi.mock("./ipos", () => ({ ingestIpos: async () => ({ candidates: 0, pipeline: 0 }) }));
 vi.mock("./activists", () => ({ ingestActivists: async () => ({ added: 0, total: 0 }) }));
 vi.mock("./macro", () => ({

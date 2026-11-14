@@ -27,3 +27,16 @@ jobs:
       - run: npm ci
       - name: Freshness and data quality
         run: npm run audit -- --max-age 8 --max-flagged 3
+
+  # Keeps the rebuilds' filed-document cache (ingest.yml) alive: GitHub drops a cache nobody has restored for 7 days, and
+  # rebuilds come weeks apart. A full restore (a few gigabytes, a minute or two) is what counts as a use; a lookup alone may
+  # not. Its own job, so it neither shares the check's 10 minutes nor fails it. Nothing to restore is fine.
+  keep-document-cache:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/cache/restore@v4
+        with:
+          path: .data/cache
+          key: edgar-docs-keepalive
+          restore-keys: edgar-docs-

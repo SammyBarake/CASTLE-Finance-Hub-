@@ -7,7 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MIN_INTERVAL_MS = 125; // ~8 req/s
@@ -49,6 +49,7 @@ async function request(url: string, opts: { missingIs403?: boolean } = {}): Prom
   for (let attempt = 0; ; attempt++) {
     await throttle();
     requestCount++;
+    byKind[kindOf(url)]++;
     let res: Response;
     try {
       res = await fetch(url, { headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip, deflate" } });
@@ -92,18 +93,41 @@ const cacheable = (url: string) => !!CACHE_DIR && url.includes("/Archives/edgar/
 const cachePath = (url: string) => join(CACHE_DIR!, createHash("sha1").update(url).digest("hex"));
 
 export async function getText(url: string): Promise<string> {
-  if (cacheable(url) && existsSync(cachePath(url))) return readFileSync(cachePath(url), "utf8");
+  if (cacheable(url) && existsSync(cachePath(url))) {
+    cacheHits++;
+    cacheFilesRead.add(cachePath(url));
+    return readFileSync(cachePath(url), "utf8");
+  }
   const text = await (await request(url)).text();
   if (cacheable(url)) {
-    mkdirSync(CACHE_DIR!, { recursive: true });
-    writeFileSync(cachePath(url), text);
+    // Written under a temporary name and renamed into place: a run killed mid-write (a cancelled rebuild) leaves only a
+    // stray .tmp file, never a truncated document that the cache GitHub keeps between rebuilds would serve as whole. The
+    // cache is best-effort: a full disk doesn't fail the read, since the text is already here.
+    const p = cachePath(url);
+    const tmp = `${p}.${process.pid}.tmp`;
+    try {
+      mkdirSync(CACHE_DIR!, { recursive: true });
+      writeFileSync(tmp, text);
+      renameSync(tmp, p);
+      cacheWrites++;
+    } catch {
+      try {
+        rmSync(tmp, { force: true });
+      } catch {
+        // nothing was written
+      }
+    }
   }
   return text;
 }
 
 /** First `maxBytes` of a document (EDGAR ignores Range headers, so stream and stop). */
 export async function getTextHead(url: string, maxBytes: number): Promise<string> {
-  if (cacheable(url) && existsSync(cachePath(url))) return readFileSync(cachePath(url), "utf8").slice(0, maxBytes);
+  if (cacheable(url) && existsSync(cachePath(url))) {
+    cacheHits++;
+    cacheFilesRead.add(cachePath(url));
+    return readFileSync(cachePath(url), "utf8").slice(0, maxBytes);
+  }
   const res = await request(url);
   if (!res.body) return res.text();
   const reader = res.body.getReader();
@@ -120,6 +144,24 @@ export async function getTextHead(url: string, maxBytes: number): Promise<string
 }
 
 export const edgarRequestCount = () => requestCount;
+
+/**
+ * Where a run's requests went (retries included): the filing archive (the only kind the disk cache can hold), company
+ * filing indexes, full-text searches and the rest; plus the reads the disk cache answered, the distinct files they came
+ * from and the files written. A rebuild makes about 69,000 requests (November 14), at least 2.4 hours at the throttle's 8 a
+ * second however fast EDGAR answers.
+ */
+const byKind = { archive: 0, submissions: 0, search: 0, other: 0 };
+let cacheHits = 0;
+let cacheWrites = 0;
+const cacheFilesRead = new Set<string>();
+function kindOf(url: string): keyof typeof byKind {
+  if (url.includes("/Archives/edgar/data/")) return "archive";
+  if (url.includes("data.sec.gov/submissions/")) return "submissions";
+  if (url.includes("efts.sec.gov/")) return "search";
+  return "other";
+}
+export const edgarRequestStats = () => ({ ...byKind, cacheHits, cacheFiles: cacheFilesRead.size, cacheWrites });
 
 // ---------------------------------------------------------------------------
 // URL helpers

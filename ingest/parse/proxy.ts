@@ -254,7 +254,6 @@ export function parseMergerProxy(text: string, targetName: string, acquirer?: { 
 
 /** The heading's party is this company: its name, a short form or acronym ("AGM", "AHL"), or its ticker ("MSGE"). */
 function isParty(party: string, company: { name: string; ticker?: string | null }): boolean {
-  const squash = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
   return sameCompany(party, company.name) || namesCompany(party, company.name) || (!!company.ticker && party.toUpperCase() === company.ticker.toUpperCase());
 }
 
