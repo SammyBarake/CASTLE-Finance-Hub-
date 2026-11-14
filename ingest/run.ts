@@ -98,15 +98,28 @@ async function main() {
   let succeeded = false;
   // A rebuild only deletes stale deals when every search worked; a skipped month would otherwise lose its deals.
   let complete = true;
+  // A rebuild that stopped at its deadline while enriching keeps the last full snapshot's `asOf` (its records aren't all
+  // enriched yet); the next ordinary run enriches the rest and moves it.
+  let enrichedAll = true;
+  // --deadline-minutes N (from the start of this process): stop and save before GitHub's job limit kills the run. A killed
+  // run saves nothing after its last checkpoint (November 13: every filing read, nothing pruned, and the next run spent
+  // 2.4 hours enriching what was left).
+  const deadlineMinutes = Number(arg("deadline-minutes") ?? NaN);
+  const deadline = Number.isFinite(deadlineMinutes) && deadlineMinutes > 0 ? started + deadlineMinutes * 60_000 : undefined;
   try {
     if (runs("deals")) {
       log("deals: discovering announcements");
-      const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint, backstopOnly: flag("backstop-only") });
+      const s = await ingestDeals(state, { from, to, directory, log, today, checkpoint, backstopOnly: flag("backstop-only"), deadline });
       log(`deals: read ${s.documents} documents, ${s.parsed} parsed (${s.privateDeals} private-target), ${s.newDeals} new deals, ${s.enriched} enriched, ${s.valuesFound} values found, ${s.sponsorsFound} sponsors named, ${s.advisorsFound} buyer advisers found, ${s.buyersLinked} buyers linked`);
       if (s.searchGaps.length) {
         complete = false;
         log(`deals: ${s.searchGaps.length} searches failed after retries; stale deals are kept this run (run again later to fill the gaps)`);
       }
+      if (s.outOfTime === "reading") {
+        complete = false;
+        log("deals: stopped at the deadline before every filing was read; stale deals are kept this run");
+      }
+      if (s.outOfTime) enrichedAll = false;
     }
     if (runs("ipos")) {
       log("ipos: discovering registrations");
@@ -134,7 +147,7 @@ async function main() {
     }
     succeeded = true;
   } finally {
-    if (succeeded) state.asOf = new Date().toISOString();
+    if (succeeded && (enrichedAll || !rebuild)) state.asOf = new Date().toISOString();
     else stamp();
     carry();
     if (held.length) log(`reactions: ${state.deals.filter((d) => d.reaction).length} deals hold one, ${state.unplacedReactions?.length ?? 0} found no record (parked for a later run)`);

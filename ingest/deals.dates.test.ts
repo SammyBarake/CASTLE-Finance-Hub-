@@ -318,3 +318,40 @@ describe("purchaseAgreementEnded", () => {
     expect(purchaseAgreementEnded(right, /\bAcme Widgets\b/i)).toBe(false);
   });
 });
+
+describe("a run's deadline", () => {
+  beforeEach(() => {
+    h.subs = {};
+    h.docs = {};
+    h.hits = [];
+  });
+
+  async function runBy(deadline: number) {
+    const { ingestDeals, buildDirectory } = await import("./deals");
+    const deal = privateDeal({ statusCheckedAt: null });
+    const state: State = { deals: [deal], ipos: [], seen: new Set(), asOf: null, macro: null, activists: [] };
+    const stats = await ingestDeals(state, { from: "2026-11-03", to: "2026-11-03", directory: buildDirectory([]), log: () => {}, today: "2026-11-03", deadline });
+    return { stats, deal: state.deals[0] };
+  }
+
+  it("past it while filings are left to read: stops there, enriches nothing, and says so", async () => {
+    // (A merger 8-K: the search keeps Item 1.01 8-Ks.)
+    h.hits = [hit({ id: "0000000000-26-000001:a.htm", displayNames: ["Buyer Inc  (BUY)  (CIK 0000000111)"], ciks: ["0000000111"], items: ["1.01"] })];
+    const { stats, deal } = await runBy(Date.now() - 1);
+    expect(stats.outOfTime).toBe("reading");
+    expect(stats.documents).toBe(0);
+    expect(deal.statusCheckedAt).toBeNull();
+  });
+
+  it("past it with every filing read: stops enriching and says so", async () => {
+    const { stats, deal } = await runBy(Date.now() - 1);
+    expect(stats.outOfTime).toBe("enriching");
+    expect(deal.statusCheckedAt).toBeNull();
+  });
+
+  it("not reached: the run is whole", async () => {
+    const { stats, deal } = await runBy(Date.now() + 3_600_000);
+    expect(stats.outOfTime).toBeUndefined();
+    expect(deal.statusCheckedAt).toBe("2026-11-03");
+  });
+});

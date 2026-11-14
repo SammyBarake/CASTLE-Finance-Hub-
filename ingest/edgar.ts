@@ -26,10 +26,21 @@ function userAgent(): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * One request start every MIN_INTERVAL_MS, however many callers are waiting: each reserves the next free slot before it
+ * sleeps (a synchronous step, so two callers never take the same one). The ingest keeps a few documents in flight while it
+ * parses one (`prefetched` in deals.ts); without slots they would all have fired at once and passed SEC's 10 a second.
+ */
 async function throttle() {
-  const wait = lastRequest + MIN_INTERVAL_MS - Date.now();
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
+  const now = Date.now();
+  const slot = Math.max(now, lastRequest + MIN_INTERVAL_MS);
+  lastRequest = slot;
+  if (slot > now) await sleep(slot - now);
+}
+
+/** A rate-limit answer holds every caller back, not just the one that got it. */
+function backOffAll(ms: number) {
+  lastRequest = Math.max(lastRequest, Date.now() + ms);
 }
 
 export class NotFoundError extends Error {}
@@ -52,6 +63,7 @@ async function request(url: string, opts: { missingIs403?: boolean } = {}): Prom
     if (attempt >= MAX_RETRIES || ![403, 429, 500, 502, 503, 504].includes(res.status)) {
       throw new Error(`EDGAR ${res.status} for ${url}`);
     }
+    if (res.status === 429 || res.status === 403) backOffAll(10_000);
     await sleep(res.status === 429 || res.status === 403 ? 10_000 : 1000 * 2 ** attempt);
   }
 }

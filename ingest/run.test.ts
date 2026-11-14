@@ -182,6 +182,43 @@ describe("a run and its reactions", () => {
     expect(stored(db).get(B.id)?.reaction).toEqual(reaction);
   });
 
+  it("a rebuild out of time while reading keeps every stored deal and the last asOf", async () => {
+    const db = seeded([withReaction(A), withReaction(B)]);
+    await run(REBUILD, async (state) => {
+      state.deals.push(bare(A));
+      return { ...STATS, outOfTime: "reading" };
+    });
+    expect(exit).not.toHaveBeenCalled();
+    expect(db.ops.some((o) => o.op === "delete" && o.table === "deals")).toBe(false);
+    expect(stored(db).has(B.id)).toBe(true);
+    expect(db.rows("meta").find((m) => m.key === "asOf")?.value).toBe("2026-11-01T00:00:00Z");
+  });
+
+  it("a rebuild out of time while enriching prunes, but leaves asOf for the run that finishes the enriching", async () => {
+    const db = seeded([withReaction(A), withReaction(B)]);
+    await run(REBUILD, async (state) => {
+      state.deals.push(bare(A));
+      return { ...STATS, outOfTime: "enriching" };
+    });
+    expect(stored(db).has(B.id)).toBe(false);
+    expect(parked(db).map((p) => p.id)).toEqual([B.id]);
+    expect(db.rows("meta").find((m) => m.key === "asOf")?.value).toBe("2026-11-01T00:00:00Z");
+    await run(["--only", "deals"], async () => STATS);
+    expect(db.rows("meta").find((m) => m.key === "asOf")?.value).not.toBe("2026-11-01T00:00:00Z");
+  });
+
+  it("passes --deadline-minutes on as a deadline from the start of the run", async () => {
+    seeded([withReaction(A)]);
+    let deadline: number | undefined;
+    const before = Date.now();
+    await run(["--only", "deals", "--deadline-minutes", "285"], async (_state, opts) => {
+      deadline = (opts as unknown as { deadline?: number }).deadline;
+      return STATS;
+    });
+    expect(deadline! - before).toBeGreaterThanOrEqual(285 * 60_000 - 5_000);
+    expect(deadline! - before).toBeLessThanOrEqual(285 * 60_000 + 5_000);
+  });
+
   it("a rebuild's prune can't lose what found no record, and a later rebuild puts it back", async () => {
     const db = seeded([withReaction(A), withReaction(B)]);
     await run(REBUILD, async (state) => {

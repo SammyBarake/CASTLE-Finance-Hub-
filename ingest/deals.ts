@@ -1945,6 +1945,11 @@ export interface DealRunStats {
   advisorsFound: number;
   /** Buyers stored by name only that were linked to their SEC registrant. */
   buyersLinked: number;
+  /**
+   * Where the run stopped at its deadline, if it did: while reading filings (the deals found are incomplete, so a rebuild
+   * mustn't prune) or while enriching (every filing was read; the deals left are enriched by the next run).
+   */
+  outOfTime?: "reading" | "enriching";
 }
 
 /**
@@ -2031,10 +2036,16 @@ export async function ingestDeals(
     light?: boolean;
     /** Skip the document search: only look up merger-proxy filers that have no deal (after a backstop change). */
     backstopOnly?: boolean;
+    /**
+     * Epoch ms to stop by, so a run ends and saves before GitHub kills the job (a killed job saves nothing after its
+     * last checkpoint: the November 13 rebuild read every filing and still couldn't prune).
+     */
+    deadline?: number;
   },
 ): Promise<DealRunStats> {
   const { log, directory } = opts;
   const stats: DealRunStats = { documents: 0, parsed: 0, newDeals: 0, enriched: 0, privateDeals: 0, searchGaps: [], valuesFound: 0, sponsorsFound: 0, advisorsFound: 0, buyersLinked: 0 };
+  const pastDeadline = () => opts.deadline != null && Date.now() > opts.deadline;
   const before = new Set(state.deals.map((d) => d.id));
   const touched = new Set<StoredDeal>();
   // Removed records are deleted from the store on save (an upsert alone would keep them).
@@ -2044,10 +2055,21 @@ export async function ingestDeals(
     dropped.add(deal.id);
   };
 
-  const subs = new Map<string, Submissions | null>();
-  const submissions = async (cik: string) => {
-    if (!subs.has(cik)) subs.set(cik, await getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))));
-    return subs.get(cik)!;
+  // Promises, so a company's filing index can be asked for ahead of its turn (`warmSubmissions`) and fetched once. A
+  // failure isn't kept: the next call asks again, as before.
+  const subs = new Map<string, Promise<Submissions | null>>();
+  const submissions = (cik: string): Promise<Submissions | null> => {
+    let p = subs.get(cik);
+    if (!p) {
+      p = getSubmissions(cik).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e)));
+      subs.set(cik, p);
+      p.catch(() => subs.delete(cik));
+    }
+    return p;
+  };
+  /** The next few companies' filing indexes, fetched while this one is read (the backstop and enrichment loops). */
+  const warmSubmissions = (ciks: (string | null | undefined)[]) => {
+    for (const cik of ciks) if (cik) submissions(cik).catch(() => {});
   };
 
   /**
@@ -2327,23 +2349,52 @@ export async function ingestDeals(
   const docs = opts.backstopOnly ? [] : (await discoverDealDocs(opts.from, opts.to, log, stats.searchGaps)).filter((h) => !state.seen.has(h.id));
   log(`  ${docs.length} new documents to read (${docs.filter((d) => d.via === "item101").length} merger 8-Ks)`);
 
-  for (const hit of docs) {
+  // A blank-check company's own filing is a SPAC combination, out of scope: their signing 8-Ks ("As previously
+  // announced, on …, Roth CH Acquisition V Co. entered into an Agreement and Plan of Merger …") read like deals.
+  // The name must look like a SPAC too: a de-SPACed operating company can keep SIC 6770 for years (Infrastructure and
+  // Energy Alternatives, bought by MasTec in 2022).
+  const spacFiler = (hit: FtsHit) => hit.sics.includes("6770") && SPAC_FILER.test(parseDisplayName(hit.displayNames[0]).name);
+  const docUrl = (hit: FtsHit) => archiveUrl(parseDisplayName(hit.displayNames[0]).cik ?? trimCik(hit.ciks[0]), hit.adsh, hit.file);
+  // The next documents are fetched while this one is parsed, so a rebuild isn't one round trip at a time: November 13's
+  // EDGAR answered slowly and 30,719 documents took 4.1 hours one by one (1.7 on November 11), which ran the job out of
+  // time. They are still read in order, one at a time, so nothing about the result changes; the throttle keeps the rate.
+  const AHEAD = 6;
+  const prefetched = new Map<number, Promise<string>>();
+  const fetchAhead = (i: number) => {
+    for (let j = i; j <= i + AHEAD && j < docs.length; j++) {
+      if (prefetched.has(j)) continue;
+      try {
+        if (spacFiler(docs[j])) continue;
+        const p = getText(docUrl(docs[j]));
+        p.catch(() => {}); // read (and rethrown) when its turn comes
+        prefetched.set(j, p);
+      } catch {
+        // An odd hit: the loop reads it itself, inside its own try.
+      }
+    }
+  };
+
+  for (const [i, hit] of docs.entries()) {
+    if (pastDeadline()) {
+      stats.outOfTime = "reading";
+      log(`  ! out of time after ${stats.documents}/${docs.length} documents: saving what was read (nothing is pruned)`);
+      break;
+    }
     // Progress + checkpoint first: the loop body `continue`s on most documents.
     if (stats.documents && stats.documents % 50 === 0) log(`  read ${stats.documents}/${docs.length} documents, ${touched.size} deals touched`);
     if (stats.documents && stats.documents % 250 === 0) await opts.checkpoint?.();
     stats.documents++;
+    fetchAhead(i);
+    const pending = prefetched.get(i);
+    prefetched.delete(i);
     try {
-      // A blank-check company's own filing is a SPAC combination, out of scope: their signing 8-Ks ("As previously
-      // announced, on …, Roth CH Acquisition V Co. entered into an Agreement and Plan of Merger …") read like deals.
-      // The name must look like a SPAC too: a de-SPACed operating company can keep SIC 6770 for years (Infrastructure and
-      // Energy Alternatives, bought by MasTec in 2022).
-      const filer = parseDisplayName(hit.displayNames[0]);
-      if (hit.sics.includes("6770") && SPAC_FILER.test(filer.name)) {
+      if (spacFiler(hit)) {
         state.seen.add(hit.id);
         continue;
       }
+      const filer = parseDisplayName(hit.displayNames[0]);
       const cik = filer.cik ?? trimCik(hit.ciks[0]);
-      const text = htmlToText(await getText(archiveUrl(cik, hit.adsh, hit.file)));
+      const text = htmlToText(await (pending ?? getText(archiveUrl(cik, hit.adsh, hit.file))));
       // …or the filing talks like one (Aimei Health Technology Co., Ltd.): the trust account, the initial business combination.
       // (`talksLikeSpac`: the words alone, for a de-SPACed filer that lost the code.)
       if ((hit.sics.includes("6770") && /\btrust account\b|\binitial business combination\b/i.test(text)) || talksLikeSpac(text)) {
@@ -2375,7 +2426,7 @@ export async function ingestDeals(
 
   // Backstop: companies that filed a merger proxy / tender response but have no deal for it yet.
   // Find their announcement 8-K (within ~13 months before: Terminix's proxy came 9 months after signing) and parse it.
-  const filers = await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log, { allParties: true, byYear: true });
+  const filers = stats.outOfTime ? new Map() : await discoverMergerFilers(opts.from, opts.to, stats.searchGaps, log, { allParties: true, byYear: true });
   // A deal for the same company announced before this proxy covers it; an older one doesn't (Aerojet's 2020 deal with
   // Lockheed, which fell through, used to hide its 2022 deal with L3Harris).
   const hasDealFor = (cik: string, proxyDate: string) =>
@@ -2395,7 +2446,14 @@ export async function ingestDeals(
     .filter(([cik, f]) => !hasDealFor(cik, f.firstDate) && !state.seen.has(`${BACKSTOP_KEY}:${cik}:${f.firstDate.slice(0, 4)}`));
   log(`  backstop: ${filers.size} merger-proxy filers, ${todo.length} without a deal to look up`);
   let recovered = 0;
-  for (const [cik, { firstDate, hit: proxyHit }] of todo) {
+  for (const [n, [cik, { firstDate, hit: proxyHit }]] of todo.entries()) {
+    if (pastDeadline()) {
+      // (Part of finding deals: an unfinished backstop leaves deals out, so a rebuild mustn't prune.)
+      stats.outOfTime = "reading";
+      log(`  ! out of time after ${n}/${todo.length} backstop lookups: saving what was read (nothing is pruned)`);
+      break;
+    }
+    warmSubmissions(todo.slice(n + 1, n + 4).map(([c]) => c));
     try {
       state.seen.add(`${BACKSTOP_KEY}:${cik}:${firstDate.slice(0, 4)}`);
       const sub = await submissions(cik);
@@ -2532,7 +2590,14 @@ export async function ingestDeals(
       (identicalNames(d.acquirer.name, d.target.name) && d.statusCheckedAt !== opts.today)),
   );
   log(`  enriching ${toEnrich.length} deals (status, sector, financials)`);
-  for (const deal of toEnrich) {
+  for (const [n, deal] of toEnrich.entries()) {
+    if (pastDeadline()) {
+      stats.outOfTime ??= "enriching";
+      log(`  ! out of time after ${n}/${toEnrich.length} enriched: the rest wait for the next run`);
+      break;
+    }
+    // The next deals' companies, fetched while this one is enriched (each read starts from them).
+    warmSubmissions(toEnrich.slice(n + 1, n + 4).flatMap((d) => [d.target.cik, d.acquirer.cik]));
     try {
       // Private records stored before this check: the target may be a delisted listed company.
       if (deal.privateTarget && deal.registrantCheck !== REGISTRANT_CHECK_VERSION) {
